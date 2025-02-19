@@ -4,16 +4,18 @@ const teamMembers = [
   {
     name: "Daunte Pean",
     title: "Chief Executive Officer and Product Manager",
+    subtitle: "Co-Founder",
     imageUrl: "/images/Daunte.png", // Add actual image path
   },
   {
     name: "Abdul Abbas",
     title: "Chief Technology Officer and Frontend Developer",
+    subtitle: "Co-Founder",
     imageUrl: "/images/Abdul.png",
   },
   {
     name: "Anthony Zheng",
-    title: "Chief Operating Officer and UX Designer",
+    title: "Chief Operating Officer and Product Designer",
     imageUrl: "/images/Anthony.png",
   },
   {
@@ -42,7 +44,10 @@ function OrgChart() {
               />
             </div>
             <h3 className="text-2xl font-semibold mb-3">{member.name}</h3>
-            <p className="text-lg text-gray-600">{member.title}</p>
+            <p className="text-lg text-gray-600 mb-2">{member.title}</p>
+            {member.subtitle && (
+              <p className="text-sm text-gray-500">{member.subtitle}</p>
+            )}
           </div>
         ))}
       </div>

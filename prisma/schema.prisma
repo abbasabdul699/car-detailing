@@ -1,0 +1,94 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Detailer {
+  id          Int      @id @default(autoincrement())
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  // Business Information
+  businessName    String
+  description     String?
+  email          String  @unique
+  phone          String?
+  website        String?
+  
+  // Location
+  address        String
+  city           String
+  state          String
+  zipCode        String
+  latitude       Float
+  longitude      Float
+  
+  // Business Details
+  businessHours  Json?    // Store hours of operation as JSON
+  services       Service[]
+  images         Image[]
+  reviews        Review[]
+  
+  // Google Places Integration
+  googlePlaceId  String?  @unique
+  googleRating   Float?
+  totalReviews   Int      @default(0)
+  
+  // Verification Status
+  isVerified     Boolean  @default(false)
+  
+  // Pricing
+  priceRange     String?  // e.g., "$", "$$", "$$$"
+  
+  // Business Features
+  isMobile       Boolean  @default(true)
+  serviceRadius  Int?     // Service radius in miles
+  specialties    String[] // Array of specialties
+  
+  // Social Media Links
+  instagramUrl  String?
+  tiktokUrl     String?
+  websiteUrl    String?
+  
+  beforeAfterImages Json?    // This will store an array of before/after image pairs
+}
+
+model Service {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String?
+  price       Float
+  duration    Int       // Duration in minutes
+  detailer    Detailer  @relation(fields: [detailerId], references: [id])
+  detailerId  Int
+}
+
+model Image {
+  id          Int      @id @default(autoincrement())
+  url         String
+  alt         String?
+  isFeatured  Boolean   @default(false)
+  detailer    Detailer  @relation(fields: [detailerId], references: [id])
+  detailerId  Int
+}
+
+model Review {
+  id          String    @id @default(cuid())
+  rating      Int
+  comment     String?
+  authorName  String
+  createdAt   DateTime  @default(now())
+  isVerified  Boolean   @default(false)
+  detailer    Detailer  @relation(fields: [detailerId], references: [id])
+  detailerId  Int
+}

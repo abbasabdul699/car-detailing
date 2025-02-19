@@ -5,17 +5,14 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 const Navbar = () => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [isScrolled, setIsScrolled] = useState(false);
+  const [isScrolled, setIsScrolled] = useState<boolean>(false);
   const pathname = usePathname();
 
   useEffect(() => {
-    const handleScroll = () => {
-      if (window.scrollY > 0) {
-        setIsScrolled(true);
-      } else {
-        setIsScrolled(false);
-      }
+    setIsScrolled(window.scrollY > 0);
+
+    const handleScroll = (): void => {
+      setIsScrolled(window.scrollY > 0);
     };
 
     window.addEventListener('scroll', handleScroll);
@@ -23,10 +20,10 @@ const Navbar = () => {
   }, []);
 
   return (
-    <nav className={`fixed w-full z-50 transition-all duration-300 ${
-      isScrolled ? 'bg-[rgba(10,34,23,0.8)] backdrop-blur-sm shadow-sm' : 'bg-[rgba(10,34,23,1)]'
+    <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+      isScrolled ? 'bg-[rgba(10,34,23,0.8)] backdrop-blur-sm shadow-sm' : 'bg-[#0A2217]'
     }`}>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Left side - Logo and primary navigation */}
           <div className="flex items-center space-x-8">
@@ -35,7 +32,7 @@ const Navbar = () => {
             </Link>
             <div className="hidden md:flex space-x-8">
               <Link 
-                href="/about-page"
+                href="/about-us"
                 className="text-white hover:text-gray-200 transition-colors text-sm"
               >
                 About us
@@ -55,7 +52,7 @@ const Navbar = () => {
             </div>
           </div>
 
-          {/* Right side - Sign up and language */}
+          {/* Right side - Language, Help, Login, and CTA */}
           <div className="flex items-center space-x-4">
             <button className="text-white hover:text-gray-200 px-4 py-2 text-sm">
               EN
@@ -63,15 +60,13 @@ const Navbar = () => {
             <button className="text-white hover:text-gray-200 px-4 py-2 text-sm">
               Help
             </button>
+
             <Link 
-              href="/login"
-              className="text-white hover:text-gray-200 px-4 py-2 text-sm"
+              href="/for-Detailers"
+              className="bg-white text-[#0A2217] px-4 py-2 rounded-full text-sm font-medium hover:bg-gray-100 transition-colors"
             >
-              Log in
-            </Link>
-            <button className="bg-white text-[rgba(10,34,23,1)] px-4 py-2 rounded-full text-sm font-medium hover:bg-gray-100 transition-colors">
               For Detailers
-            </button>
+            </Link>
           </div>
         </div>
       </div>
