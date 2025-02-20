@@ -113,7 +113,7 @@ const detailerData = [
     city: "Dorchester",
     state: "MA",
     zipCode: "02122",
-    latitude: 42.280930,
+    latitude: 42.28093,
     longitude: -71.237755,
     priceRange: "$",
     isMobile: true,
@@ -155,17 +155,7 @@ const detailerData = [
           isVerified: true
         }
       ]
-    },
-    beforeAfterImages: [
-      {
-        before: "/images/before-after/car1-before.jpg",
-        after: "/images/before-after/car1-after.jpg"
-      },
-      {
-        before: "/images/before-after/car2-before.jpg",
-        after: "/images/before-after/car2-after.jpg"
-      }
-    ]
+    }
   },
 
   {
