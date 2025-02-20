@@ -6,9 +6,9 @@ export default function Testimonial() {
         <div className="max-w-5xl mx-auto text-center">
           <blockquote className="mb-8">
             <p className="text-3xl sm:text-4xl lg:text-5xl font-serif leading-relaxed">
-              "As a detailer for over 5 years, I know how hard it is to get your name 
+              &quot;As a detailer for over 5 years, I know how hard it is to get your name 
               out there. I built this platform because every great detailer deserves to 
-              be seen and booked without fighting through ads, SEO, or slow weeks."
+              be seen and booked without fighting through ads, SEO, or slow weeks.&quot;
             </p>
           </blockquote>
           

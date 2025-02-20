@@ -89,7 +89,7 @@ export default function DetailerProfile() {
     } else {
       console.error('No ID provided in params');
     }
-  }, [params.id]);
+  }, [params]);
 
   if (loading) {
     return (
