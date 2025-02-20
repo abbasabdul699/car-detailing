@@ -14,6 +14,9 @@ const nextConfig = {
   images: {
     domains: ['your-image-domain.com'], // Add your image domains here
   },
+  experimental: {
+    missingSuspenseWithCSRBailout: false
+  }
 }
 
 module.exports = nextConfig

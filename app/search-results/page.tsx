@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, Suspense } from 'react';
 import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from '@react-google-maps/api';
 import { useSearchParams } from 'next/navigation';
 import Navbar from './components/Navbar';
@@ -156,6 +156,14 @@ const UserLocationMarker = () => {
 };
 
 const SearchResults = () => {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <SearchResultsContent />
+    </Suspense>
+  );
+};
+
+function SearchResultsContent() {
   const searchParams = useSearchParams();
   const [map, setMap] = useState<google.maps.Map | null>(null);
   const [selectedMarker, setSelectedMarker] = useState<MapMarker | null>(null);
@@ -436,6 +444,6 @@ const SearchResults = () => {
       </div>
     </ClientOnly>
   );
-};
+}
 
 export default SearchResults; 
