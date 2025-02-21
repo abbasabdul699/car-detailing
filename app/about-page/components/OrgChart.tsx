@@ -38,16 +38,19 @@ function OrgChart() {
             key={index}
             className="bg-white rounded-lg shadow-lg p-8 text-center hover:shadow-xl transition-shadow duration-300"
           >
-            <div className="w-48 h-48 mx-auto mb-6 overflow-hidden rounded-full">
+            <div className="w-32 h-32 mx-auto mb-6 relative rounded-full overflow-hidden">
               <Image 
                 src={member.imageUrl}
                 alt={member.name}
                 width={200}
                 height={200}
-                className="rounded-full w-32 h-32 object-cover"
+                className="rounded-full w-full h-full object-cover"
               />
             </div>
-            <h3 className="text-2xl font-semibold mb-3">{member.name}</h3>
+            <h3 className="text-2xl font-semibold mb-2">{member.name}</h3>
+            {member.subtitle && (
+              <p className="text-md text-gray-500 mb-2">{member.subtitle}</p>
+            )}
             <p className="text-lg text-gray-600">{member.title}</p>
           </div>
         ))}

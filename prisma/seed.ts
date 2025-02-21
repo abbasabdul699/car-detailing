@@ -5,7 +5,7 @@ const prisma = new PrismaClient()
 const detailerData = [
   {
     businessName: "Uncle Mike's Mobile Auto Detailing Service US Navy Veteran",
-    email: "unclemikes.detailing@placeholder.com",
+    email: "unclemike@detailing.com",
     phone: "508-982-0451",
     address: "124 Pine St",
     city: "Attleboro",
@@ -50,7 +50,7 @@ const detailerData = [
 
   {
     businessName: "DF Detailing",
-    email: "elite.needham@placeholder.com",
+    email: "df@detailing.com",
     phone: "857-243-5290",
     website: "https://elitemobile.com",
     address: "21 Manville Hill Road",
@@ -84,7 +84,7 @@ const detailerData = [
     images: {
       create: [
         {
-          url: "/images/detailers/elite-1.jpg",
+          url: "/images/detailers/dfdetailing.jpg",
           alt: "Elite Mobile Detailing Work",
           isFeatured: true
         }
@@ -106,7 +106,7 @@ const detailerData = [
 
   {
     businessName: "Pay Attention To Detail",
-    email: "elite.boston@payattentiontodetail.com",
+    email: "payattention@detailing.com",
     phone: "857-244-1516",
     website: "https://payattentiontodetail.com",
     address: "20 Parkman St",
@@ -160,7 +160,7 @@ const detailerData = [
 
   {
     businessName: "Jay's Mobile Auto Detail",
-    email: "elite.newton@jaysmobileautodetail.com",
+    email: "jay@detailing.com",
     phone: "401-678-9226",
     website: "https://elitemobile.com",
     address: "1634 Elmwood Ave",
@@ -216,7 +216,7 @@ const detailerData = [
 
   {
     businessName: "Josh's Mobile Detailing Service",
-    email: "elite.newton@joshsmobiledetailing.com",
+    email: "josh@detailing.com",
     phone: "860-771-3294",
     website: "https://elitemobile.com",
     address: "8 Hope St",
@@ -231,6 +231,7 @@ const detailerData = [
     specialties: ["Ceramic Coating", "Paint Correction"],
     googleRating: 4.9,
     totalReviews: 128,
+    googlePlaceId: "place_id_1",
     services: {
       create: [
         {
@@ -270,31 +271,51 @@ const detailerData = [
     
   },
 
-  // Add more detailers
+  // Add more detailers with unique googlePlaceId values
 ]
 
 async function main() {
-  // Clear existing data
-  await prisma.review.deleteMany()
-  await prisma.image.deleteMany()
-  await prisma.service.deleteMany()
-  await prisma.detailer.deleteMany()
-
-  // Create detailers
-  for (const detailer of detailerData) {
-    await prisma.detailer.create({
-      data: detailer
-    })
+  console.log(`Start seeding ...`);
+  
+  // First, delete all existing images
+  await prisma.image.deleteMany({});
+  
+  for (const d of detailerData) {
+    try {
+      const detailer = await prisma.detailer.upsert({
+        where: { email: d.email },
+        update: {
+          ...d,
+          images: {
+            create: d.images.create
+          }
+        },
+        create: {
+          ...d,
+          images: {
+            create: d.images.create
+          }
+        }
+      });
+      console.log(`Created/Updated detailer with id: ${detailer.id}`);
+    } catch (error) {
+      console.error('Error creating detailer:', error);
+    }
   }
 
-  console.log('Database seeded!')
+  // Verify images after creation
+  const allImages = await prisma.image.findMany();
+  console.log('All images in database:', allImages);
+
+  console.log(`Seeding finished.`);
 }
 
 main()
-  .catch((e) => {
-    console.error(e)
-    process.exit(1)
+  .then(async () => {
+    await prisma.$disconnect();
   })
-  .finally(async () => {
-    await prisma.$disconnect()
-  }) 
+  .catch(async (e) => {
+    console.error(e);
+    await prisma.$disconnect();
+    process.exit(1);
+  }); 

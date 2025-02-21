@@ -1,28 +1,28 @@
 "use client";
-import { useState } from 'react';
+import { FC } from 'react';
 
 const Features = () => {
   const features = [
     {
       id: 1,
       title: "Quality You Can Trust",
-      description: "Every detailer on our platform is verified and vetted to meet high service standards. We carefully select professionals based on their experience, customer service, and quality of work—so you know you're booking with the best.",
+      description: "Every detailer on our platform is verified and vetted to meet high service standards. We carefully select professionals based on their experience, customer service, and quality of work—so you know you're booking with the best.",
       video: "/videos/mobile-detailing.mp4",
-      poster: "/images/mobile-detailing-poster.jpg"
+      poster: "/images/detailers/joshmobile.jpg"
     },
     {
       id: 2,
       title: "Car Detailing, Made Simple",
       description: "Browse top detailers in your area, check their services, and call them directly to discuss your needs. No waiting, no middlemen—just direct access to trusted professionals who are ready to help.",
       video: "/videos/interior-detailing.mp4",
-      poster: "/images/interior-detailing-poster.jpg"
+      poster: "/images/detailers/elite-1.jpg"
     },
     {
       id: 3,
       title: "Personalized Car Care",
-      description: "Whether it’s a quick wash, deep interior cleaning, or premium protection like ceramic coating, find the right detailer offering exactly what your car needs. Compare options, ask questions, and choose with confidence.",
+      description: "Whether it's a quick wash, deep interior cleaning, or premium protection like ceramic coating, find the right detailer offering exactly what your car needs. Compare options, ask questions, and choose with confidence.",
       video: "/videos/exterior-detailing.mp4",
-      poster: "/images/exterior-detailing-poster.jpg"
+      poster: "/images/detailers/payattention.jpg"
     },
   ];
 

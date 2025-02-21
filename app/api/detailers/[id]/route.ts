@@ -9,16 +9,17 @@ export async function GET(
     console.log('API Route - Fetching detailer with ID:', params.id);
 
     if (!params.id) {
-      console.error('API Route - No ID provided');
       return NextResponse.json(
         { error: 'No ID provided' },
         { status: 400 }
       );
     }
 
+    const detailerId = params.id;
+
     const detailer = await prisma.detailer.findUnique({
       where: {
-        id: parseInt(params.id)
+        id: detailerId
       },
       include: {
         services: {
@@ -33,15 +34,11 @@ export async function GET(
             url: true,
             alt: true
           }
-        },
-        beforeAfterImages: true,
+        }
       }
     });
 
-    console.log('API Route - Database response:', detailer);
-
     if (!detailer) {
-      console.log('API Route - No detailer found with ID:', params.id);
       return NextResponse.json(
         { error: 'Detailer not found' },
         { status: 404 }
@@ -49,15 +46,21 @@ export async function GET(
     }
 
     return NextResponse.json(detailer);
-  } catch (error) {
-    console.error('API Route - Error details:', {
+    
+  } catch (error: any) {
+    console.error('API Route - Detailed error:', {
+      name: error.name,
       message: error.message,
       stack: error.stack,
       params: params
     });
     
     return NextResponse.json(
-      { error: 'Failed to fetch detailer', details: error.message },
+      { 
+        error: 'Failed to fetch detailer',
+        details: error.message,
+        type: error.name 
+      },
       { status: 500 }
     );
   }

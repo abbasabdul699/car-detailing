@@ -12,11 +12,14 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
   images: {
-    domains: ['your-image-domain.com'], // Add your image domains here
+    domains: ['localhost', 'vercel.app', 'v0-new-project-9gt88cvgpfw-3bciba6tv.vercel.app'],
+    unoptimized: true
   },
   experimental: {
     missingSuspenseWithCSRBailout: false
-  }
+  },
+  assetPrefix: process.env.NODE_ENV === 'production' ? '/car-detailing' : '',
+  basePath: process.env.NODE_ENV === 'production' ? '/car-detailing' : ''
 }
 
 module.exports = nextConfig

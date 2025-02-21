@@ -3,11 +3,12 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mongodb"
   url      = env("DATABASE_URL")
 }
 
 model Detailer {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   businessName  String
@@ -22,7 +23,7 @@ model Detailer {
   latitude      Float
   longitude     Float
   businessHours Json?
-  googlePlaceId String?   @unique
+  googlePlaceId String?
   googleRating  Float?
   totalReviews  Int       @default(0)
   isVerified    Boolean   @default(false)
@@ -30,38 +31,37 @@ model Detailer {
   isMobile      Boolean   @default(true)
   serviceRadius Int?
   specialties   String[]
-  id            Int       @id @default(autoincrement())
   images        Image[]
   reviews       Review[]
   services      Service[]
 }
 
 model Service {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
   name        String
   description String?
   price       Float
   duration    Int
-  id          Int      @id @default(autoincrement())
-  detailerId  Int
+  detailerId  String   @db.ObjectId
   detailer    Detailer @relation(fields: [detailerId], references: [id])
 }
 
 model Image {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
   url        String
   alt        String?
   isFeatured Boolean  @default(false)
-  id         Int      @id @default(autoincrement())
-  detailerId Int
+  detailerId String   @db.ObjectId
   detailer   Detailer @relation(fields: [detailerId], references: [id])
 }
 
 model Review {
-  id         String   @id @default(cuid())
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
   rating     Int
   comment    String?
   authorName String
   createdAt  DateTime @default(now())
   isVerified Boolean  @default(false)
-  detailerId Int
+  detailerId String   @db.ObjectId
   detailer   Detailer @relation(fields: [detailerId], references: [id])
 }

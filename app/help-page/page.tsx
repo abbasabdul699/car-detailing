@@ -1,8 +1,5 @@
-import Navbar from './components/Navbar'
 import Image from 'next/image'
 import Link from 'next/link'
-import Help from './components/Help'
-import Footer from './components/Footer'
 
 const helpCategories = [
   {
@@ -58,7 +55,6 @@ const helpCategories = [
 export default function HelpPage() {
   return (
     <>
-      <Navbar />
       {/* Hero Section with Search */}
       <div className="bg-[#5865F2] min-h-[300px] relative overflow-hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-32 pb-16 relative z-10">
@@ -256,7 +252,6 @@ export default function HelpPage() {
           </form>
         </div>
       </section>
-      <Footer />
     </>
   )
 } 

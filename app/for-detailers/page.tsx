@@ -1,11 +1,9 @@
-import Navbar from './components/Navbar';
+import Navbar from '@/app/components/Navbar';
 import Intro from './components/Intro';
 import Quote from './components/Quote';
 import Features from './components/Features';
 import PlatformPreview from './components/PlatformPreview';
 import GetStarted from './components/GetStarted';
-import Footer from './components/Footer';
-
 
 export default function ForDetailers() {
   return (
@@ -20,7 +18,6 @@ export default function ForDetailers() {
           <Features />
         </div>
       </main>
-      <Footer />
     </div>
   )
 }

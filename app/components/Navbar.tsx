@@ -32,16 +32,10 @@ const Navbar = () => {
             </Link>
             <div className="hidden md:flex space-x-8">
               <Link 
-                href="/about-us"
+                href="/about-page"
                 className="text-white hover:text-gray-200 transition-colors text-sm"
               >
-                About us
-              </Link>
-              <Link 
-                href="/blog"
-                className="text-white hover:text-gray-200 transition-colors text-sm"
-              >
-                Blog
+                About Us
               </Link>
               <Link 
                 href="/faq"
@@ -54,15 +48,8 @@ const Navbar = () => {
 
           {/* Right side - Language, Help, Login, and CTA */}
           <div className="flex items-center space-x-4">
-            <button className="text-white hover:text-gray-200 px-4 py-2 text-sm">
-              EN
-            </button>
-            <button className="text-white hover:text-gray-200 px-4 py-2 text-sm">
-              Help
-            </button>
-
             <Link 
-              href="/for-Detailers"
+              href="/for-detailers"
               className="bg-white text-[#0A2217] px-4 py-2 rounded-full text-sm font-medium hover:bg-gray-100 transition-colors"
             >
               For Detailers

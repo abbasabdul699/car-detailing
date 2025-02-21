@@ -1,5 +1,3 @@
-import Footer from "../about-page/components/Footer";
-import Navbar from "../about-page/components/Navbar"
 import MetricsSection from "./components/MetricsSection";
 import { motion } from "framer-motion";
 import CountUp from 'react-countup';
@@ -14,7 +12,6 @@ export default function AboutPage() {
 
   return (
     <div className="min-h-screen bg-white overflow-x-hidden">
-      <Navbar />
       <main className="relative overflow-x-hidden">
         {/* Hero Section */}
         <div className="text-center mb-24 pt-24">
@@ -60,7 +57,6 @@ export default function AboutPage() {
         {/* Organization Chart */}
         <OrgChart />
       </main>
-      <Footer />
     </div>
   );
 } 

@@ -2,11 +2,10 @@
 
 import { useState, useCallback, useEffect, Suspense } from 'react';
 import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from '@react-google-maps/api';
-import { useSearchParams } from 'next/navigation';
-import Navbar from './components/Navbar';
+import { useSearchParams, useRouter } from 'next/navigation';
+import Navbar from '@/app/components/Navbar';
 import ClientOnly from './components/ClientOnly';
 import DetailerCard from '@/app/(home)/components/DetailerCard';
-import Footer from './components/Footer';
 
 interface DetailerCardProps {
   id: number;
@@ -157,14 +156,17 @@ const UserLocationMarker = () => {
 
 const SearchResults = () => {
   return (
-    <Suspense fallback={<div>Loading...</div>}>
-      <SearchResultsContent />
-    </Suspense>
+    <div className="min-h-screen bg-white">
+      <main>
+        <SearchResultsContent />
+      </main>
+    </div>
   );
 };
 
 function SearchResultsContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [map, setMap] = useState<google.maps.Map | null>(null);
   const [selectedMarker, setSelectedMarker] = useState<MapMarker | null>(null);
   const [center, setCenter] = useState({
@@ -425,7 +427,7 @@ function SearchResultsContent() {
                           
                           <button
                             onClick={() => {
-                              window.location.href = `/detailers/${selectedMarker.id}`;
+                              router.push(`/detailers/${selectedMarker.id}`);
                             }}
                             className="mt-2 px-4 py-2 bg-[#0A2217] text-white rounded-lg hover:bg-[#0A2217]/90 transition-colors text-sm font-medium"
                           >
@@ -440,7 +442,6 @@ function SearchResultsContent() {
             </div>
           </div>
         </main>
-        <Footer />
       </div>
     </ClientOnly>
   );
