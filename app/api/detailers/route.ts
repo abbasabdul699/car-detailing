@@ -5,65 +5,44 @@ import { prisma } from '@/lib/prisma'
 // Add caching headers
 export const revalidate = 3600 // Revalidate every hour
 
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url)
-  const lat = parseFloat(searchParams.get('lat') || '42.4440')  // Brockton coordinates
-  const lng = parseFloat(searchParams.get('lng') || '-76.5019')
-  const radius = parseInt(searchParams.get('radius') || '50')
-
+export async function GET() {
   try {
-    // Fetch all detailers with their coordinates
-    const detailers = await prisma.detailer.findMany({
-      select: {
-        id: true,
-        businessName: true,
-        latitude: true,
-        longitude: true,
-        priceRange: true,
-        googleRating: true,
-        totalReviews: true,
-        images: {
-          where: {
-            isFeatured: true
-          },
-          take: 1,
-          select: {
-            url: true,
-            alt: true
-          }
-        },
-        services: {
-          select: {
-            name: true,
-            price: true
-          }
-        }
+    // Add debug logging
+    console.log('Starting detailer fetch...')
+
+    // Check if we have any users in the database
+    const users = await prisma.user.findMany({
+      where: {
+        role: 'DETAILER'
       }
     })
 
-    console.log('Database detailers:', detailers)
+    console.log('Found users:', users) // Debug log
 
-    // Calculate distance and filter by radius
-    const nearbyDetailers = detailers
-      .map(detailer => ({
-        ...detailer,
-        distance: calculateDistance(
-          { lat, lng },
-          { lat: detailer.latitude, lng: detailer.longitude }
-        )
-      }))
-      .filter(detailer => detailer.distance <= radius)
-      .sort((a, b) => a.distance - b.distance)
+    // If no users found, return empty array instead of error
+    if (!users || users.length === 0) {
+      console.log('No detailers found')
+      return NextResponse.json([])
+    }
 
-    console.log('Filtered nearby detailers:', nearbyDetailers)
+    // Map the users to include only the fields we need
+    const detailers = users.map(user => ({
+      id: user.id,
+      businessName: user.businessName || '',
+      priceRange: user.priceRange || 'Contact for pricing',
+      description: user.description || '',
+      images: user.images || [],
+      latitude: user.latitude || null,
+      longitude: user.longitude || null,
+    }))
 
-    return NextResponse.json(nearbyDetailers, {
-      headers: {
-        'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400',
-      },
-    })
+    console.log('Returning detailers:', detailers) // Debug log
+    return NextResponse.json(detailers)
+
   } catch (error) {
-    console.error('Error fetching detailers:', error);
+    // Log the full error for debugging
+    console.error('Database error:', error)
+    
     return NextResponse.json(
       { error: 'Failed to fetch detailers' },
       { status: 500 }

@@ -10,12 +10,10 @@ const Footer = () => {
     Support: [
       { name: 'Contact Us', href: '/contact-us-page' },
       { name: 'FAQ', href: '/faq' },
-      { name: 'Reviews', href: '/reviews' },
-      { name: 'How it Works', href: '/how-it-works' }
     ],
     Resources: [
       { name: 'Become a Partner', href: '/partners-page' },
-      { name: 'Guides', href: '/guides' }
+      { name: 'Reviews', href: '/reviews' }
     ],
     Legal: [
       { name: 'Privacy', href: '/privacy-page' },

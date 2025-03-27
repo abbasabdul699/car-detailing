@@ -5,25 +5,25 @@ import Image from 'next/image';
 const teamMembers = [
   {
     name: "Daunte Pean",
-    title: "Chief Executive Officer and Product Manager",
+    title: "Chief Executive Officer, Product Manager",
     subtitle: "Co-Founder",
     imageUrl: "/images/Daunte.png", // Add actual image path
   },
   {
     name: "Abdul Abbas",
-    title: "Chief Technology Officer and Frontend Developer",
+    title: "Chief Technology Officer, Full Stack Developer",
     subtitle: "Co-Founder",
     imageUrl: "/images/Abdul.png",
   },
   {
     name: "Anthony Zheng",
-    title: "Chief Operating Officer and Product Designer",
+    title: "Chief Operating Officer, Product Designer",
     imageUrl: "/images/Anthony.png",
   },
   {
-    name: "Jiaku Yang",
-    title: "Head of Software Engineering and Backend Developer",
-    imageUrl: "/images/JK.png",
+    name: "Sabeeh Hassany",
+    title: "Head of Business Development, Full Stack Developer",
+    imageUrl: "/images/Sabeeh.png",
   },
 
 ];

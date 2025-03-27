@@ -2,67 +2,83 @@ import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 
 interface DetailerCardProps {
-  id: number;
-  businessName: string;
-  googleRating: number;
-  priceRange: string;
-  images: { url: string; alt: string }[];
-  distance: number;
-  services: { name: string; price: number }[];
-  totalReviews: number;
+  id: string
+  businessName: string
+  priceRange: string
+  description?: string
+  images?: {
+    url: string
+    alt: string
+  }[]
+  latitude?: number
+  longitude?: number
+  onClick?: () => void
+  isSelected?: boolean
 }
 
-const DetailerCard = ({
-  id,
-  businessName,
-  googleRating,
-  priceRange,
+export default function DetailerCard({ 
+  id, 
+  businessName, 
+  priceRange, 
+  description, 
   images,
-  distance,
-  services,
-  totalReviews
-}: DetailerCardProps) => {
-  const router = useRouter();
+  onClick,
+  isSelected = false 
+}: DetailerCardProps) {
+  const router = useRouter()
 
   const handleClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    router.push(`/detailers/${id}`);
-  };
+    e.preventDefault()
+    onClick?.()
+  }
+
+  const handleViewProfile = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    router.push(`/detailers/${id}`)
+  }
 
   return (
-    <a 
-      href={`/detailers/${id}`} 
+    <div 
       onClick={handleClick}
-      className="block rounded-3xl overflow-hidden shadow-lg hover:shadow-xl transition-shadow h-[400px] flex flex-col"
+      className={`
+        w-full bg-white rounded-xl shadow-sm transition-all duration-200 hover:shadow-md
+        ${isSelected ? 'ring-2 ring-[#389167] bg-[#F0F7F0]' : 'hover:bg-gray-50'}
+      `}
     >
-      <div className="relative h-[250px]">
-        <Image 
-          src={images[0]?.url || '/images/default-business.jpg'} 
-          alt={images[0]?.alt || businessName}
-          fill
-          className="object-cover"
-          onError={(e) => {
-            e.currentTarget.src = '/images/default-business.jpg'
-          }}
-        />
-        <div className="absolute top-4 left-4 bg-black bg-opacity-50 text-white px-2 py-1 rounded-full text-sm">
-          ⭐ {googleRating} ({totalReviews})
+      <div className="flex p-4 gap-4">
+        <div className="relative w-32 h-32 rounded-lg overflow-hidden flex-shrink-0">
+          <Image
+            src={images?.[0]?.url || '/images/detailers/default-business.jpg'}
+            alt={images?.[0]?.alt || businessName}
+            fill
+            className="object-cover"
+          />
         </div>
-        <div className="absolute top-4 right-4 bg-black bg-opacity-50 text-white px-2 py-1 rounded-full text-sm">
-          {priceRange}
-        </div>
-      </div>
-      <div className="p-4 flex-grow bg-white">
-        <div className="flex items-center justify-between mb-2">
-          <h3 className="font-semibold text-lg line-clamp-1">{businessName}</h3>
-          <span className="text-gray-500 text-sm">{distance.toFixed(1)} miles</span>
-        </div>
-        <div className="text-sm text-gray-600">
-          Starting at ${Math.min(...services.map(s => s.price))}
-        </div>
-      </div>
-    </a>
-  );
-};
+        
+        <div className="flex-grow min-w-0">
+          <div className="flex justify-between items-start mb-2">
+            <h3 className="text-lg font-semibold text-gray-900 truncate">
+              {businessName}
+            </h3>
+            <span className="text-[#389167] font-medium text-sm">
+              {priceRange || 'Contact for pricing'}
+            </span>
+          </div>
+          
+          {description && (
+            <p className="text-sm text-gray-600 line-clamp-2 mb-3">
+              {description}
+            </p>
+          )}
 
-export default DetailerCard; 
+          <button
+            onClick={handleViewProfile}
+            className="text-[#389167] hover:text-[#1D503A] text-sm font-medium"
+          >
+            View Profile
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+} 

@@ -1,7 +1,7 @@
-import SearchSection from '@/app/(home)/components/SearchSection';
-import DetailersSection from '@/app/(home)/components/DetailersSection';
-import Features from '@/app/(home)/components/Features';
-import Footer from '@/app/components/Footer';
+import SearchSection from './(home)/components/SearchSection';
+import DetailersSection from './(home)/components/DetailersSection';
+import Features from './(home)/components/Features';
+
 
 export default function HomePage() {
   return (

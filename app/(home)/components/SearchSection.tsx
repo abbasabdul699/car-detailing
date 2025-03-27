@@ -2,34 +2,34 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-
-// Define types for Google Places
-type GooglePrediction = {
-  description: string;
-  place_id: string;
-};
+import usePlacesAutocomplete, {
+  getGeocode,
+  getLatLng,
+} from 'use-places-autocomplete';
 
 declare global {
   interface Window {
-    google: {
-      maps: {
-        places: {
-          AutocompleteService: new () => google.maps.places.AutocompleteService;
-          PlacesServiceStatus: {
-            OK: string;
-          };
-        };
-      };
-    };
+    google: any;
   }
 }
 
-const SearchSection = () => {
+export default function SearchSection() {
   const router = useRouter();
-  const [searchInput, setSearchInput] = useState('');
-  const autoCompleteRef = useRef<google.maps.places.AutocompleteService | null>(null);
-  const [autocompletePredictions, setAutocompletePredictions] = useState<GooglePrediction[]>([]);
-  const [showPredictions, setShowPredictions] = useState(false);
+  const {
+    ready,
+    value,
+    suggestions: { status, data },
+    setValue,
+    clearSuggestions,
+  } = usePlacesAutocomplete({
+    requestOptions: {
+      types: ['address'],
+      componentRestrictions: { country: 'us' },
+    },
+    debounce: 300,
+  });
+
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const [userLocation, setUserLocation] = useState(null);
   const [googleMapsLoaded, setGoogleMapsLoaded] = useState(false);
   const avatars = [
@@ -62,7 +62,6 @@ const SearchSection = () => {
         setGoogleMapsLoaded(true);
         // Initialize Google Places Autocomplete
         const autocomplete = new window.google.maps.places.AutocompleteService();
-        autoCompleteRef.current = autocomplete;
       } else {
         // If not loaded, check again in 100ms
         setTimeout(checkGoogleMapsLoaded, 100);
@@ -72,72 +71,22 @@ const SearchSection = () => {
     checkGoogleMapsLoaded();
   }, []);
 
-  const handleInputChange = async (value: string) => {
-    setSearchInput(value);
-    
-    if (value.length > 2 && googleMapsLoaded && autoCompleteRef.current) {
-      try {
-        const predictions = await new Promise<GooglePrediction[]>((resolve, reject) => {
-          autoCompleteRef.current?.getPlacePredictions(
-            {
-              input: value,
-              componentRestrictions: { country: "us" }, // Restrict to US addresses
-              types: ['address'] // Only return address predictions
-            },
-            (results, status) => {
-              if (status === window.google.maps.places.PlacesServiceStatus.OK && results) {
-                resolve(results as GooglePrediction[]);
-              } else {
-                reject(new Error(`Google Places API error: ${status}`));
-              }
-            }
-          );
-        });
-        
-        setAutocompletePredictions(predictions);
-        setShowPredictions(true);
-      } catch (err: unknown) {
-        const error = err as Error;
-        console.error('Error fetching predictions:', error.message);
-        setAutocompletePredictions([]);
-        setShowPredictions(false);
-      }
-    } else {
-      setAutocompletePredictions([]);
-      setShowPredictions(false);
-    }
+  const handleInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setValue(e.target.value);
+    setShowSuggestions(true);
   };
 
-  const handlePredictionSelect = (prediction: GooglePrediction) => {
-    setSearchInput(prediction.description);
-    setShowPredictions(false);
-    // Handle the search with the selected address
-    handleSearch(prediction.description);
-  };
-
-  const handleSearch = async (address: string) => {
-    if (!address) return;
+  const handleSelect = async (description: string) => {
+    setValue(description, false);
+    clearSuggestions();
+    setShowSuggestions(false);
 
     try {
-      // Geocode the address using Google Maps Geocoding API
-      const response = await fetch(
-        `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(
-          address
-        )}&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`
-      );
-      
-      const data = await response.json();
-      
-      if (data.results && data.results[0]) {
-        const { lat, lng } = data.results[0].geometry.location;
-        // Navigate to search results with coordinates
-        router.push(`/search-results?lat=${lat}&lng=${lng}&location=${encodeURIComponent(address)}`);
-      } else {
-        alert('Location not found. Please try again.');
-      }
+      const results = await getGeocode({ address: description });
+      const { lat, lng } = await getLatLng(results[0]);
+      router.push(`/search-results?location=${encodeURIComponent(description)}&lat=${lat}&lng=${lng}`);
     } catch (error) {
-      console.error('Error geocoding address:', error);
-      alert('Error finding location. Please try again.');
+      console.error('Error: ', error);
     }
   };
 
@@ -183,15 +132,16 @@ const SearchSection = () => {
                 {/* Search Input */}
                 <input
                   type="text"
-                  value={searchInput}
-                  onChange={(e) => handleInputChange(e.target.value)}
-                  placeholder="Search city, zip, or address"
+                  placeholder="Enter your address"
                   className="flex-1 py-4 px-4 text-gray-600 placeholder-gray-400 focus:outline-none text-lg bg-transparent"
+                  value={value}
+                  onChange={handleInput}
+                  disabled={!ready}
                 />
 
                 {/* Search Button with onClick handler */}
                 <button 
-                  onClick={() => handleSearch(searchInput)}
+                  onClick={() => handleSelect(value)}
                   className="m-1 px-12 py-4 bg-[rgba(10,34,23,1)] text-white rounded-full text-lg font-medium hover:bg-[rgba(10,34,23,0.9)] transition-colors"
                 >
                   Search
@@ -199,30 +149,37 @@ const SearchSection = () => {
               </div>
 
               {/* Predictions Dropdown */}
-              {showPredictions && autocompletePredictions.length > 0 && (
+              {status === 'OK' && showSuggestions && (
                 <div className="absolute w-full mt-2 bg-white rounded-lg shadow-xl border border-gray-200 z-50">
-                  {autocompletePredictions.map((prediction) => (
-                    <div
-                      key={prediction.place_id}
-                      className="px-4 py-3 hover:bg-gray-100 cursor-pointer flex items-center"
-                      onClick={() => handlePredictionSelect(prediction)}
-                    >
-                      <svg 
-                        className="w-5 h-5 text-gray-400 mr-3"
-                        fill="none" 
-                        stroke="currentColor" 
-                        viewBox="0 0 24 24"
+                  {data.map((suggestion) => {
+                    const {
+                      place_id,
+                      structured_formatting: { main_text, secondary_text },
+                    } = suggestion;
+
+                    return (
+                      <div
+                        key={place_id}
+                        className="px-4 py-3 hover:bg-gray-100 cursor-pointer flex items-center"
+                        onClick={() => handleSelect(suggestion.description)}
                       >
-                        <path 
-                          strokeLinecap="round" 
-                          strokeLinejoin="round" 
-                          strokeWidth={2} 
-                          d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" 
-                        />
-                      </svg>
-                      <span>{prediction.description}</span>
-                    </div>
-                  ))}
+                        <svg 
+                          className="w-5 h-5 text-gray-400 mr-3"
+                          fill="none" 
+                          stroke="currentColor" 
+                          viewBox="0 0 24 24"
+                        >
+                          <path 
+                            strokeLinecap="round" 
+                            strokeLinejoin="round" 
+                            strokeWidth={2} 
+                            d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" 
+                          />
+                        </svg>
+                        <strong>{main_text}</strong> <span className="text-gray-500">{secondary_text}</span>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -268,6 +225,4 @@ const SearchSection = () => {
       </div>
     </div>
   );
-};
-
-export default SearchSection; 
+} 

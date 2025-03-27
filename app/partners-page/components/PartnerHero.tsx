@@ -18,9 +18,6 @@ export default function PartnerHero() {
           <button className="bg-[#0A2217] text-white px-8 py-4 rounded-full text-lg font-medium hover:bg-[#0A2217]/90 transition-colors">
             Let's get started
           </button>
-          <button className="bg-white text-[#0A2217] px-8 py-4 rounded-full text-lg font-medium border-2 border-[#0A2217] hover:bg-[#E8F2EE] transition-colors">
-            Log in
-          </button>
         </div>
       </div>
     </section>

@@ -1,62 +1,80 @@
 import Image from 'next/image'
+import Link from 'next/link'
 
-const featureCards = [
-    {
-      image: '/images/professional-profile.png',
-      title: 'Professional Business Profile',
-      alt: 'Professional Business Profile'
-    },
-    {
-      image: '/images/SEO.png',
-      title: 'Local Pricing Without Fees',
-      alt: 'Local Pricing'
-    },
-    {
-      image: '/images/SupportDetailer.png',
-      title: 'Smart Online Booking System',
-      alt: 'Booking System'
-    }
-  ]
-  
-  export default function Features() {
-    return (
-      <section className="bg-[#E8F2EE] py-32 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto text-center">
-          {/* Top button */}
-          <button className="bg-[#0A2217] text-white px-6 py-2 rounded-full text-sm font-medium mb-12">
+export default function Features() {
+  return (
+    <section className="bg-[#DBF0E2] py-16">
+      <div className="max-w-7xl mx-auto px-4">
+        {/* Header */}
+        <div className="text-center mb-16">
+          <span className="inline-block px-4 py-2 bg-[#71A894] text-white rounded-full text-sm mb-4">
             How it works
-          </button>
-
-          {/* Main heading */}
-          <h2 className="text-4xl sm:text-5xl lg:text-6xl font-serif text-center mb-20">
+          </span>
+          <h2 className="text-4xl md:text-5xl font-serif mb-8">
             Get Set Up Fast With Our Help to<br />Start Growing
           </h2>
+        </div>
 
-          {/* White card container */}
-          <div className="bg-white rounded-3xl p-12 shadow-sm">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
-              {featureCards.map((card, index) => (
-                <div key={index} className="flex flex-col items-center">
-                  <div className="relative w-full h-48 mb-4">
-                    <Image
-                      src={card.image}
-                      alt={card.alt}
-                      fill
-                      className="object-contain"
-                      priority
-                    />
-                  </div>
-                  <h3 className="text-xl font-medium">{card.title}</h3>
-                </div>
-              ))}
+        {/* Feature Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          {/* Card 1 */}
+          <div className="bg-white rounded-2xl p-8">
+            <div className="aspect-square relative mb-6">
+              <Image
+                src="/images/schedule-call.png"
+                alt="Schedule a Call"
+                fill
+                className="object-contain"
+              />
             </div>
-            
-            {/* Bottom button */}
-            <button className="bg-[#0A2217] text-white px-8 py-4 rounded-full text-lg font-medium hover:bg-[#0A2217]/90 transition-colors">
-              Schedule a call
-            </button>
+            <h3 className="text-2xl font-medium mb-4">Step 1. Schedule a Call</h3>
+            <p className="text-gray-600">
+              Chat with our team to understand your business, goals, and how we can help
+            </p>
+          </div>
+
+          {/* Card 2 */}
+          <div className="bg-white rounded-2xl p-8">
+            <div className="aspect-square relative mb-6">
+              <Image
+                src="/images/build-profile.png"
+                alt="Build Your Profile"
+                fill
+                className="object-contain"
+              />
+            </div>
+            <h3 className="text-2xl font-medium mb-4">Step 2. We Build Your Profile</h3>
+            <p className="text-gray-600">
+              We create your profile with services, photos, and pricing—no website needed
+            </p>
+          </div>
+
+          {/* Card 3 */}
+          <div className="bg-white rounded-2xl p-8">
+            <div className="aspect-square relative mb-6">
+              <Image
+                src="/images/get-customers.png"
+                alt="Get Customers"
+                fill
+                className="object-contain"
+              />
+            </div>
+            <h3 className="text-2xl font-medium mb-4">Step 3 – Get Customers</h3>
+            <p className="text-gray-600">
+              Your profile goes live, local customers find you, and you start booking jobs
+            </p>
           </div>
         </div>
-      </section>
-    )
-  }
+
+        {/* CTA Button */}
+        <div className="text-center mt-12">
+          <Link href="/contact-us-page">
+            <button className="bg-black text-white px-8 py-3 rounded-lg hover:bg-black/90 transition-colors">
+              Schedule a call
+            </button>
+          </Link>
+        </div>
+      </div>
+    </section>
+  )
+}

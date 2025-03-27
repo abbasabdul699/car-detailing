@@ -6,24 +6,32 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    console.log('API Route - Fetching detailer with ID:', params.id);
+    const { id } = params;
 
-    if (!params.id) {
+    if (!id) {
       return NextResponse.json(
         { error: 'No ID provided' },
         { status: 400 }
       );
     }
 
-    const detailerId = params.id;
-
     const detailer = await prisma.detailer.findUnique({
       where: {
-        id: detailerId
+        id: id
       },
-      include: {
+      select: {
+        id: true,
+        businessName: true,
+        email: true,
+        phone: true,
+        address: true,
+        latitude: true,
+        longitude: true,
+        priceRange: true,
+        description: true,
         services: {
           select: {
+            id: true,
             name: true,
             description: true,
             price: true
@@ -31,8 +39,10 @@ export async function GET(
         },
         images: {
           select: {
+            id: true,
             url: true,
-            alt: true
+            alt: true,
+            isFeatured: true
           }
         }
       }
@@ -47,20 +57,31 @@ export async function GET(
 
     return NextResponse.json(detailer);
     
-  } catch (error: any) {
-    console.error('API Route - Detailed error:', {
-      name: error.name,
-      message: error.message,
-      stack: error.stack,
-      params: params
-    });
+  } catch (error) {
+    console.error('API Route - Error:', error);
     
     return NextResponse.json(
-      { 
-        error: 'Failed to fetch detailer',
-        details: error.message,
-        type: error.name 
-      },
+      { error: 'Failed to fetch detailer' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PATCH(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const data = await request.json();
+    const updatedDetailer = await prisma.detailer.update({
+      where: { id: params.id },
+      data: data,
+    });
+
+    return Response.json(updatedDetailer);
+  } catch (error) {
+    return Response.json(
+      { error: 'Failed to update detailer' },
       { status: 500 }
     );
   }

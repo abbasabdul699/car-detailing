@@ -84,9 +84,6 @@ export default function WhyPartner() {
                   <button className="bg-[#0A2217] text-white px-6 py-3 rounded-full text-sm font-medium hover:bg-[#0A2217]/90 transition-colors">
                     Let's get started
                   </button>
-                  <button className="bg-white text-[#0A2217] px-6 py-3 rounded-full text-sm font-medium border-2 border-[#0A2217] hover:bg-[#E8F2EE] transition-colors">
-                    Log in
-                  </button>
                 </div>
               </div>
             </div>

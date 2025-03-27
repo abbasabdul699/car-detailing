@@ -4,9 +4,9 @@ import CountUp from 'react-countup';
 import { useEffect, useState } from 'react';
 
 const metrics = [
-    { number: 50000, label: "Active Users", suffix: "+" },
-    { number: 1000, label: "Active Detailers", suffix: "+" },
-    { number: 100000, label: "Services Completed", suffix: "+" },
+    { number: 100, label: "Active Users", suffix: "+" },
+    { number: 10, label: "Active Detailers", suffix: "+" },
+    { number: 1000, label: "Services Completed", suffix: "+" },
 ];
 
 function MetricsSection() {

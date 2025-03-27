@@ -12,14 +12,14 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
   images: {
-    domains: ['localhost', 'vercel.app', 'v0-new-project-9gt88cvgpfw-3bciba6tv.vercel.app'],
+    domains: ['localhost', 'vercel.app'],
     unoptimized: true
   },
   experimental: {
-    missingSuspenseWithCSRBailout: false
-  },
-  assetPrefix: process.env.NODE_ENV === 'production' ? '/car-detailing' : '',
-  basePath: process.env.NODE_ENV === 'production' ? '/car-detailing' : ''
+    serverActions: {
+      bodySizeLimit: '2mb'
+    }
+  }
 }
 
 module.exports = nextConfig

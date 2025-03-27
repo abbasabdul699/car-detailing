@@ -3,21 +3,9 @@ import Link from 'next/link'
 
 const helpCategories = [
   {
-    title: 'Announcements',
-    description: "We've got our ear to the ground. Here's what you need to know.",
-    icon: '/icons/megaphone.svg',
-    href: '#'
-  },
-  {
     title: 'Detailing Basics',
     description: 'Start off on the right foot! Not the left one!',
     icon: '/icons/smile.svg',
-    href: '#'
-  },
-  {
-    title: 'Account Settings',
-    description: "You're a special snowflake and so is your account.",
-    icon: '/icons/settings.svg',
     href: '#'
   },
   {
@@ -30,12 +18,6 @@ const helpCategories = [
     title: 'Pricing & Services',
     description: "Please don't shop until you drop. Let us help.",
     icon: '/icons/store.svg',
-    href: '#'
-  },
-  {
-    title: 'Quests & Promotions',
-    description: 'Welcome, weary traveler! Would you like to see our quests?',
-    icon: '/icons/heart-mail.svg',
     href: '#'
   },
   {
@@ -56,7 +38,7 @@ export default function HelpPage() {
   return (
     <>
       {/* Hero Section with Search */}
-      <div className="bg-[#5865F2] min-h-[300px] relative overflow-hidden">
+      <div className="bg-[#004040] min-h-[300px] relative overflow-hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-32 pb-16 relative z-10">
           <h1 className="text-4xl font-bold text-white text-center mb-8">
             Help Center
@@ -85,12 +67,6 @@ export default function HelpPage() {
           <h2 className="text-3xl font-bold mb-4">Need help? We've got your back.</h2>
           <p className="text-gray-600 mb-2">
             From account settings to permissions, find help for everything Renu
-          </p>
-          <p className="text-gray-600">
-            If you're new to Renu and looking for tips, check out our{' '}
-            <Link href="/beginners-guide" className="text-[#5865F2] hover:underline">
-              Beginner's Guide
-            </Link>
           </p>
         </div>
 

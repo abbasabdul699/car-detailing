@@ -29,10 +29,41 @@ const PrivacyPage: React.FC = () => {
 
         {/* Main Content */}
         <div className="mt-8">
-          {/* Add your privacy policy content here */}
           <div data-custom-class="body_text">
-            {/* Your privacy policy sections */}
-            {/* ... */}
+            <h2 className="text-xl font-bold mb-4">Introduction</h2>
+            <p>
+              Welcome to Renu LLC. We are committed to protecting your personal information and your right to privacy. If you have any questions or concerns about this privacy notice, or our practices with regards to your personal information, please contact us.
+            </p>
+
+            <h2 className="text-xl font-bold mb-4 mt-8">Information We Collect</h2>
+            <p>
+              We collect personal information that you voluntarily provide to us when you register on the website, express an interest in obtaining information about us or our products and services, when you participate in activities on the website, or otherwise when you contact us.
+            </p>
+
+            <h2 className="text-xl font-bold mb-4 mt-8">How We Use Your Information</h2>
+            <p>
+              We use personal information collected via our website for a variety of business purposes described below. We process your personal information for these purposes in reliance on our legitimate business interests, in order to enter into or perform a contract with you, with your consent, and/or for compliance with our legal obligations.
+            </p>
+
+            <h2 className="text-xl font-bold mb-4 mt-8">Sharing Your Information</h2>
+            <p>
+              We only share information with your consent, to comply with laws, to provide you with services, to protect your rights, or to fulfill business obligations.
+            </p>
+
+            <h2 className="text-xl font-bold mb-4 mt-8">Your Rights</h2>
+            <p>
+              Depending on where you are located geographically, the applicable privacy law may mean you have certain rights regarding your personal information.
+            </p>
+
+            <h2 className="text-xl font-bold mb-4 mt-8">Security of Your Information</h2>
+            <p>
+              We have implemented appropriate technical and organizational security measures designed to protect the security of any personal information we process.
+            </p>
+
+            <h2 className="text-xl font-bold mb-4 mt-8">Changes to This Privacy Policy</h2>
+            <p>
+              We may update this privacy notice from time to time. The updated version will be indicated by an updated "Revised" date and the updated version will be effective as soon as it is accessible.
+            </p>
           </div>
         </div>
 
@@ -43,8 +74,8 @@ const PrivacyPage: React.FC = () => {
             If you have questions or comments about this notice, you may contact us at:
           </p>
           <div className="mt-2">
-            <p>Renu LLC</p>
-            <p>65 Dyer St</p>
+            <p>Reeva Car LLC</p>
+            <p>4 Hovendon Ave</p>
             <p>Brockton, MA 02302</p>
             <p>United States</p>
           </div>
@@ -65,26 +96,10 @@ const PrivacyPage: React.FC = () => {
             color: #595959 !important;
             font-size: 14px !important;
           }
-          [data-custom-class='heading_1'], [data-custom-class='heading_1'] * {
-            font-family: Arial !important;
-            font-size: 19px !important;
-            color: #000000 !important;
-          }
-          [data-custom-class='heading_2'], [data-custom-class='heading_2'] * {
-            font-family: Arial !important;
-            font-size: 17px !important;
-            color: #000000 !important;
-          }
           [data-custom-class='body_text'], [data-custom-class='body_text'] * {
             color: #595959 !important;
             font-size: 14px !important;
             font-family: Arial !important;
-          }
-          [data-custom-class='link'], [data-custom-class='link'] * {
-            color: #3030F1 !important;
-            font-size: 14px !important;
-            font-family: Arial !important;
-            word-break: break-word !important;
           }
         `}</style>
       </div>

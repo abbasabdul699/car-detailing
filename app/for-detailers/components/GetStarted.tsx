@@ -43,9 +43,7 @@ export default function GetStarted() {
                 <p className="text-gray-600 text-center mb-8 text-sm">
                   {feature.description}
                 </p>
-                <button className="mt-auto border border-[#0A2217] text-[#0A2217] px-6 py-3 rounded-full hover:bg-gray-50 transition-colors">
-                  Schedule a call
-                </button>
+ 
               </div>
             ))}
           </div>
