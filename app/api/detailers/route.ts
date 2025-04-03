@@ -6,43 +6,33 @@ export const revalidate = 3600 // Revalidate every hour
 
 export async function GET() {
   try {
-    // Log connection attempt
-    console.log('Attempting to connect to database...')
+    console.log('Database URL:', process.env.DATABASE_URL?.split('@')[1]) // Log URL safely
+    console.log('Attempting database connection...')
     
-    // Test connection
     await prisma.$connect()
-    console.log('Database connected successfully')
+    console.log('Successfully connected to database')
     
-    // Attempt to fetch detailers
-    const detailers = await prisma.detailer.findMany({
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        priceRange: true,
-        images: true,
-        latitude: true,
-        longitude: true,
-      }
-    })
+    const count = await prisma.detailer.count()
+    console.log('Total detailers in database:', count)
     
-    console.log('Fetched detailers:', detailers)
+    const detailers = await prisma.detailer.findMany()
+    console.log('Fetched detailers:', detailers.length)
 
     if (!detailers || detailers.length === 0) {
-      console.log('No detailers found in database')
       return NextResponse.json({ 
-        error: 'No detailers found',
-        databaseConnected: true 
+        message: 'No detailers found in database',
+        databaseConnected: true,
+        totalCount: count
       }, { status: 404 })
     }
 
     return NextResponse.json(detailers)
   } catch (error) {
-    console.error('Detailed error:', error)
+    console.error('Database Error:', error)
     return NextResponse.json({
       error: 'Failed to fetch detailers',
       details: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      databaseUrl: process.env.DATABASE_URL ? 'Set' : 'Not set'
     }, { status: 500 })
   } finally {
     await prisma.$disconnect()
