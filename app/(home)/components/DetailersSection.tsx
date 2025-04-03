@@ -19,21 +19,28 @@ interface Detailer {
 export default function DetailersSection() {
   const [detailers, setDetailers] = useState<Detailer[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     const fetchDetailers = async () => {
       try {
         const response = await fetch('/api/detailers');
-        if (!response.ok) {
-          throw new Error('Failed to fetch detailers');
-        }
         const data = await response.json();
-        // Ensure data is an array
-        setDetailers(Array.isArray(data) ? data : []);
-      } catch (error) {
-        console.error('Error fetching detailers:', error);
-        setError(error instanceof Error ? error.message : 'Failed to fetch detailers');
+        
+        if (!response.ok) {
+          throw new Error(data.error || `HTTP error! status: ${response.status}`);
+        }
+        
+        if (!data || data.length === 0) {
+          setError('No detailers found in the database');
+          return;
+        }
+        
+        setDetailers(data);
+        setError('');
+      } catch (err) {
+        console.error('Error details:', err);
+        setError(`Failed to fetch detailers: ${err.message}`);
       } finally {
         setLoading(false);
       }
@@ -44,20 +51,26 @@ export default function DetailersSection() {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center py-16">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-      </div>
+      <section className="bg-gray-50 py-12">
+        <div className="max-w-7xl mx-auto px-4">
+          <h2 className="text-3xl font-bold mb-8">Nearest Mobile Detailers</h2>
+          <div className="animate-pulse">Loading detailers...</div>
+        </div>
+      </section>
     );
   }
 
   if (error) {
     return (
-      <div className="bg-gray-100 py-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="text-2xl font-semibold mb-8">Nearest Mobile Detailers</h2>
-          <p className="text-red-600">Error: {error}</p>
+      <section className="bg-gray-50 py-12">
+        <div className="max-w-7xl mx-auto px-4">
+          <h2 className="text-3xl font-bold mb-8">Nearest Mobile Detailers</h2>
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <p className="text-red-700">{error}</p>
+            <p className="text-sm text-red-500 mt-2">Please try again later or contact support if the issue persists.</p>
+          </div>
         </div>
-      </div>
+      </section>
     );
   }
 
