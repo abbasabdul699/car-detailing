@@ -6,23 +6,17 @@ export const revalidate = 3600 // Revalidate every hour
 
 export async function GET() {
   try {
-    console.log('Database URL:', process.env.DATABASE_URL?.split('@')[1]) // Log URL safely
-    console.log('Attempting database connection...')
-    
-    await prisma.$connect()
-    console.log('Successfully connected to database')
-    
-    const count = await prisma.detailer.count()
-    console.log('Total detailers in database:', count)
+    console.log('Attempting to connect to database...')
+    console.log('Database URL configured:', !!process.env.DATABASE_URL)
     
     const detailers = await prisma.detailer.findMany()
-    console.log('Fetched detailers:', detailers.length)
+    console.log('Fetched detailers count:', detailers.length)
 
     if (!detailers || detailers.length === 0) {
-      return NextResponse.json({ 
-        message: 'No detailers found in database',
+      return NextResponse.json({
+        message: 'No detailers found',
         databaseConnected: true,
-        totalCount: count
+        timestamp: new Date().toISOString()
       }, { status: 404 })
     }
 
@@ -30,12 +24,10 @@ export async function GET() {
   } catch (error) {
     console.error('Database Error:', error)
     return NextResponse.json({
-      error: 'Failed to fetch detailers',
-      details: error.message,
-      databaseUrl: process.env.DATABASE_URL ? 'Set' : 'Not set'
+      message: 'Failed to fetch detailers',
+      error: error.message,
+      timestamp: new Date().toISOString()
     }, { status: 500 })
-  } finally {
-    await prisma.$disconnect()
   }
 }
 
