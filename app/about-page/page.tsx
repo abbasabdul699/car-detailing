@@ -24,7 +24,7 @@ export default function AboutPage() {
             Meet the Team
           </h1>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            It's where your car gets the care it deserves. Renu connects car owners with professional mobile detailers, making it easier than ever to maintain your vehicle's beauty.
+            It's where your car gets the care it deserves. Reeva connects car owners with professional mobile detailers, making it easier than ever to maintain your vehicle's beauty.
           </p>
         </div>
         

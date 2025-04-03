@@ -59,7 +59,7 @@ export default function RootLayout({
         <Providers>
           <PageTransition />
           <Navbar />
-          <main>
+          <main className="pt-16">
             {children}
           </main>
           <Footer />

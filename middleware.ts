@@ -1,5 +1,6 @@
 import { withAuth } from 'next-auth/middleware'
 import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
 
 export default withAuth(
   function middleware(req) {
@@ -18,6 +19,15 @@ export default withAuth(
     },
   }
 )
+
+export function middleware(request: NextRequest) {
+  // Allow access to detailers API
+  if (request.nextUrl.pathname.startsWith('/api/detailers')) {
+    return NextResponse.next()
+  }
+  
+  // Your other middleware logic here
+}
 
 export const config = {
   matcher: [

@@ -25,6 +25,9 @@ interface Detailer {
     alt: string;
   }> | [];
   address: string;
+  city: string;
+  state: string;
+  zipCode: string;
   latitude: number;
   longitude: number;
 }
@@ -87,12 +90,20 @@ export default function DetailerProfile() {
     }
   };
 
-  if (loading) {
-    return <div>Loading...</div>;
+  if (loading || !isLoaded) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+      </div>
+    );
   }
 
   if (error || !detailer) {
-    return <div>Error: {error || 'Detailer not found'}</div>;
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="text-red-500">{error || 'Detailer not found'}</div>
+      </div>
+    );
   }
 
   const mapOptions = {
@@ -106,107 +117,69 @@ export default function DetailerProfile() {
     <>
       <Navbar />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header Section */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
-          <div className="md:col-span-2">
-            <div className="bg-white rounded-lg overflow-hidden shadow-sm">
-              <div className="relative h-[400px]">
-                <Image
-                  src={detailer.images[0]?.url || '/images/default-business.jpg'}
-                  alt={detailer.images[0]?.alt || detailer.businessName}
-                  fill
-                  className="object-cover"
-                />
-              </div>
-              <div className="p-6">
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <h1 className="text-2xl font-bold mb-2">{detailer.businessName}</h1>
-                    <p className="text-gray-600">{detailer.description}</p>
-                  </div>
-                  <div className="flex space-x-4">
-                    <button className="p-2 hover:bg-gray-100 rounded-full">
-                      <FaInstagram className="w-6 h-6" />
-                    </button>
-                    <button className="p-2 hover:bg-gray-100 rounded-full">
-                      <FaTiktok className="w-6 h-6" />
-                    </button>
-                    <button className="p-2 hover:bg-gray-100 rounded-full">
-                      <FaGlobe className="w-6 h-6" />
-                    </button>
-                    <button className="p-2 hover:bg-gray-100 rounded-full">
-                      <FaShare className="w-6 h-6" />
-                    </button>
-                  </div>
+        <div className="bg-white rounded-lg shadow-sm">
+          {/* Header Section */}
+          <div className="p-6 border-b">
+            <h1 className="text-3xl font-semibold mb-2">{detailer.businessName}</h1>
+            <div className="flex items-center space-x-4 text-gray-600">
+              <span>{detailer.priceRange}</span>
+              <span>•</span>
+              <span>{detailer.address}, {detailer.city}, {detailer.state}</span>
+            </div>
+          </div>
+
+          {/* Images Section */}
+          <div className="p-6 border-b">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {detailer.images.map((image, index) => (
+                <div key={index} className="relative h-64 rounded-lg overflow-hidden">
+                  <Image
+                    src={image.url}
+                    alt={image.alt}
+                    fill
+                    className="object-cover"
+                  />
                 </div>
-                <div className="flex items-center space-x-4">
-                  <span className="text-gray-600">{detailer.priceRange}</span>
-                  <span>•</span>
-                  <span className="text-gray-600">{detailer.address}</span>
+              ))}
+            </div>
+          </div>
+
+          {/* Services Section */}
+          <div className="p-6 border-b">
+            <h2 className="text-2xl font-semibold mb-4">Services</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {detailer.services.map((service, index) => (
+                <div key={index} className="bg-gray-50 p-4 rounded-lg">
+                  <h3 className="font-semibold mb-2">{service.name}</h3>
+                  <p className="text-gray-600 mb-2">{service.description}</p>
+                  <p className="text-lg font-semibold">${service.price}</p>
                 </div>
-              </div>
+              ))}
             </div>
           </div>
 
           {/* Map Section */}
-          <div className="md:col-span-1">
-            <div className="bg-white rounded-lg overflow-hidden shadow-sm">
-              {isLoaded && mapCenter.lat !== 0 && mapCenter.lng !== 0 ? (
-                <GoogleMap
-                  mapContainerClassName="w-full h-[300px]"
-                  center={mapCenter}
-                  zoom={15}
-                  options={mapOptions}
-                >
-                  <Marker position={mapCenter} />
-                </GoogleMap>
-              ) : (
-                <div className="h-[300px] bg-gray-100 flex items-center justify-center">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-                </div>
-              )}
-              <div className="p-4">
-                <input
-                  type="text"
-                  value={detailer.address}
-                  readOnly
-                  className="w-full bg-gray-50 rounded-lg px-4 py-2 text-sm"
+          <div className="p-6">
+            <h2 className="text-2xl font-semibold mb-4">Location</h2>
+            <div className="h-[400px] rounded-lg overflow-hidden">
+              <GoogleMap
+                mapContainerClassName="w-full h-full"
+                center={{
+                  lat: detailer.latitude,
+                  lng: detailer.longitude
+                }}
+                zoom={15}
+              >
+                <Marker
+                  position={{
+                    lat: detailer.latitude,
+                    lng: detailer.longitude
+                  }}
+                  title={detailer.businessName}
                 />
-                <button 
-                  onClick={handleGetDirections}
-                  className="w-full bg-[#0A2217] text-white rounded-lg px-4 py-2 mt-2 text-sm hover:bg-[#0d2d1e]"
-                >
-                  Get Directions
-                </button>
-              </div>
+              </GoogleMap>
             </div>
           </div>
-        </div>
-
-        {/* Service Categories */}
-        <div className="flex gap-6 border-b border-gray-200 mb-8 overflow-x-auto">
-          {['Full detailing Packages', 'Exterior', 'Interior', 'Paint Protection', 'Additional Services'].map((tab) => (
-            <button
-              key={tab}
-              className={`pb-4 whitespace-nowrap ${activeTab === tab.toLowerCase() ? 'border-b-2 border-black font-medium' : ''}`}
-              onClick={() => setActiveTab(tab.toLowerCase())}
-            >
-              {tab}
-            </button>
-          ))}
-        </div>
-
-        {/* Services Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {detailer.services
-            .filter(service => service.name.toLowerCase().includes(activeTab))
-            .map((service, index) => (
-              <div key={index} className="bg-white p-6 rounded-lg shadow-sm">
-                <h3 className="font-semibold mb-2">{service.name}</h3>
-                <p className="text-gray-600 text-sm mb-4">{service.description}</p>
-                <p className="font-medium">${service.price}</p>
-              </div>
-            ))}
         </div>
       </div>
     </>

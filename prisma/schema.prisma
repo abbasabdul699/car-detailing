@@ -11,160 +11,20 @@ datasource db {
 }
 
 model Detailer {
-  id               String          @id @default(auto()) @map("_id") @db.ObjectId
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
-  businessName     String
-  firstName        String?
-  lastName         String?
-  description      String?
-  email            String          @unique
-  password         String?
-  phone            String?
-  profileImage     String?
-  website          String?
-  address          String
-  city             String
-  state            String
-  zipCode          String
-  latitude         Float
-  longitude        Float
-  businessHours    BusinessHours[]
-  googlePlaceId    String?
-  isVerified       Boolean         @default(false)
-  priceRange       String?
-  isMobile         Boolean         @default(true)
-  serviceRadius    Int?
-  specialties      String[]
-  images           Image[]
-  services         Service[]
-  pageVisits       PageVisit[]
-  analytics        Analytics?
-  instagram        String?
-  tiktok           String?
-  twoFactorEnabled Boolean         @default(false)
-  twoFactorCode    String?
-  twoFactorExpiry  DateTime?
-}
-
-model Service {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  name        String
-  description String?
-  price       Float
-  duration    String?
-  detailerId  String   @db.ObjectId
-  detailer    Detailer @relation(fields: [detailerId], references: [id])
+  id          String   @id @default(cuid()) @map("_id")
+  businessName String
+  email       String
+  phone       String
+  address     String
+  city        String
+  state       String
+  zipCode     String
+  description String
+  latitude    Float
+  longitude   Float
+  priceRange  String
+  images      Json[]
+  services    Json[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-}
-
-model Image {
-  id         String   @id @default(auto()) @map("_id") @db.ObjectId
-  url        String
-  alt        String?
-  isFeatured Boolean  @default(false)
-  detailerId String   @db.ObjectId
-  detailer   Detailer @relation(fields: [detailerId], references: [id])
-}
-
-model User {
-  id            String   @id @default(auto()) @map("_id") @db.ObjectId
-  email         String   @unique
-  password      String
-  businessName  String?
-  firstName     String?
-  lastName      String?
-  phoneNumber   String?
-  role          String   @default("USER")
-  emailVerified Boolean  @default(false)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  accounts Account[]
-  sessions Session[]
-}
-
-model BusinessHours {
-  id         String   @id @default(auto()) @map("_id") @db.ObjectId
-  day        String
-  isOpen     Boolean  @default(true)
-  openTime   String
-  closeTime  String
-  detailer   Detailer @relation(fields: [detailerId], references: [id])
-  detailerId String   @db.ObjectId
-}
-
-model PageVisit {
-  id         String   @id @default(auto()) @map("_id") @db.ObjectId
-  detailerId String   @db.ObjectId
-  detailer   Detailer @relation(fields: [detailerId], references: [id])
-  pageType   String
-  visitorId  String
-  timestamp  DateTime @default(now())
-
-  @@index([detailerId])
-}
-
-model Analytics {
-  id             String   @id @default(cuid()) @map("_id")
-  detailerId     String   @unique
-  detailer       Detailer @relation(fields: [detailerId], references: [id])
-  profileViews   Int      @default(0)
-  uniqueVisitors Int      @default(0)
-  completedJobs  Int      @default(0)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  // For tracking unique visitors
-  visitors Visitor[]
-}
-
-model Visitor {
-  id          String    @id @default(cuid()) @map("_id")
-  analyticsId String
-  analytics   Analytics @relation(fields: [analyticsId], references: [id])
-  ipAddress   String
-  userAgent   String
-  visitedAt   DateTime  @default(now())
-
-  @@unique([analyticsId, ipAddress])
-  @@index([analyticsId])
-}
-
-model Account {
-  id                String  @id @default(auto()) @map("_id") @db.ObjectId
-  userId            String
-  type              String
-  provider          String
-  providerAccountId String
-  refresh_token     String?
-  access_token      String?
-  expires_at        Int?
-  token_type        String?
-  scope             String?
-  id_token          String?
-  session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([provider, providerAccountId])
-}
-
-model Session {
-  id           String   @id @default(auto()) @map("_id") @db.ObjectId
-  sessionToken String   @unique
-  userId       String
-  expires      DateTime
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model VerificationToken {
-  id         String   @id @default(auto()) @map("_id") @db.ObjectId
-  identifier String
-  token      String   @unique
-  expires    DateTime
-
-  @@unique([identifier, token])
 }

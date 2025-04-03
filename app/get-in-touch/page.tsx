@@ -14,7 +14,7 @@ export default function ContactPage() {
                 Ready to transform your detailing business?
               </h1>
               <p className="text-xl text-gray-600 max-w-3xl">
-                Connect with our team to learn how Renu can help streamline your detailing operations and grow your business.
+                Connect with our team to learn how Reeva can help streamline your detailing operations and grow your business.
               </p>
 
               <div className="mt-16 space-y-12">
@@ -24,7 +24,7 @@ export default function ContactPage() {
                   </div>
                   <div>
                     <h2 className="text-2xl font-bold mb-2">Schedule a Demo</h2>
-                    <p className="text-gray-600 text-lg">See how Renu can work for your business</p>
+                    <p className="text-gray-600 text-lg">See how Reeva can work for your business</p>
                   </div>
                 </div>
 
@@ -51,10 +51,6 @@ export default function ContactPage() {
             </div>
 
             <div className="bg-white rounded-2xl p-8 shadow-lg">
-              <h2 className="text-3xl font-bold mb-6">Talk with our team</h2>
-              <p className="text-gray-600 mb-8">
-                Fill out your information and a Renu representative will reach out to you. If you're looking for product support, visit our Help Center.
-              </p>
               <ContactForm />
             </div>
           </div>

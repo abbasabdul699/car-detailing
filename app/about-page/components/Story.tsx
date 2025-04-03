@@ -47,7 +47,7 @@ export default function Story() {
             <div>
               <h2 className="text-2xl font-bold mb-4">Prologue</h2>
               <p className="text-gray-600 leading-relaxed">
-                Renu was started to solve a common problem: finding reliable, professional car detailing services. Our
+                Reeva was started to solve a common problem: finding reliable, professional car detailing services. Our
                 founders shared a passion for pristine vehicles and recognized the challenges car owners faced in finding
                 quality mobile detailing services.
               </p>
@@ -56,7 +56,7 @@ export default function Story() {
             <div>
               <h2 className="text-2xl font-bold mb-4">Chapter One</h2>
               <p className="text-gray-600 leading-relaxed">
-                In 2024, we launched Renu to bridge the gap between car owners and professional detailers. The platform
+                In 2024, we launched Reeva to bridge the gap between car owners and professional detailers. The platform
                 quickly gained traction as people discovered how easy it was to book quality detailing services. What
                 started as a simple solution has grown into a trusted community of car enthusiasts and professional
                 detailers.
@@ -66,8 +66,8 @@ export default function Story() {
             <div>
               <h2 className="text-2xl font-bold mb-4">Where are we now?</h2>
               <p className="text-gray-600 leading-relaxed">
-                Today, Renu serves communities across the country, connecting car owners with skilled detailers. From
-                basic washes to premium detailing services, Renu has become the go-to platform for automotive care,
+                Today, Reeva serves communities across the country, connecting car owners with skilled detailers. From
+                basic washes to premium detailing services, Reeva has become the go-to platform for automotive care,
                 making professional detailing accessible to everyone.
               </p>
             </div>

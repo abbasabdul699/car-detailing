@@ -1,50 +1,14 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import prisma from '@/lib/prisma';
 
 export async function GET(
   request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
-    const { id } = params;
-
-    if (!id) {
-      return NextResponse.json(
-        { error: 'No ID provided' },
-        { status: 400 }
-      );
-    }
-
     const detailer = await prisma.detailer.findUnique({
       where: {
-        id: id
-      },
-      select: {
-        id: true,
-        businessName: true,
-        email: true,
-        phone: true,
-        address: true,
-        latitude: true,
-        longitude: true,
-        priceRange: true,
-        description: true,
-        services: {
-          select: {
-            id: true,
-            name: true,
-            description: true,
-            price: true
-          }
-        },
-        images: {
-          select: {
-            id: true,
-            url: true,
-            alt: true,
-            isFeatured: true
-          }
-        }
+        id: params.id
       }
     });
 
@@ -56,10 +20,8 @@ export async function GET(
     }
 
     return NextResponse.json(detailer);
-    
   } catch (error) {
-    console.error('API Route - Error:', error);
-    
+    console.error('Error fetching detailer:', error);
     return NextResponse.json(
       { error: 'Failed to fetch detailer' },
       { status: 500 }

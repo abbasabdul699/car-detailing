@@ -1,51 +1,43 @@
 import { NextResponse } from 'next/server'
-import { calculateDistance } from '@/lib/utils'
-import { prisma } from '@/lib/prisma'
+import prisma from '@/lib/prisma'
 
 // Add caching headers
 export const revalidate = 3600 // Revalidate every hour
 
 export async function GET() {
   try {
-    // Add debug logging
-    console.log('Starting detailer fetch...')
-
-    // Check if we have any users in the database
-    const users = await prisma.user.findMany({
-      where: {
-        role: 'DETAILER'
-      }
-    })
-
-    console.log('Found users:', users) // Debug log
-
-    // If no users found, return empty array instead of error
-    if (!users || users.length === 0) {
-      console.log('No detailers found')
-      return NextResponse.json([])
-    }
-
-    // Map the users to include only the fields we need
-    const detailers = users.map(user => ({
-      id: user.id,
-      businessName: user.businessName || '',
-      priceRange: user.priceRange || 'Contact for pricing',
-      description: user.description || '',
-      images: user.images || [],
-      latitude: user.latitude || null,
-      longitude: user.longitude || null,
-    }))
-
-    console.log('Returning detailers:', detailers) // Debug log
+    console.log('Fetching detailers from database...')
+    const detailers = await prisma.detailer.findMany()
+    console.log(`Found ${detailers.length} detailers`)
     return NextResponse.json(detailers)
-
   } catch (error) {
-    // Log the full error for debugging
-    console.error('Database error:', error)
-    
-    return NextResponse.json(
-      { error: 'Failed to fetch detailers' },
-      { status: 500 }
-    )
+    console.error('Error fetching detailers:', error)
+    return NextResponse.json({ error: 'Failed to fetch detailers' }, { status: 500 })
   }
+}
+
+// Example detailer data structure
+const detailerExample = {
+  businessName: "Premium Auto Detailing",
+  description: "Professional car detailing services with over 10 years of experience",
+  priceRange: "$150-$500",
+  address: "123 Main St, City, State 12345",
+  latitude: 37.7749,
+  longitude: -122.4194,
+  images: [
+    {
+      url: "/images/detailer1.jpg",
+      alt: "Premium Auto Detailing Work"
+    }
+  ],
+  services: [
+    {
+      name: "Basic Detail",
+      price: 150
+    },
+    {
+      name: "Premium Detail",
+      price: 300
+    }
+  ]
 } 

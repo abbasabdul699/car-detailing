@@ -1,5 +1,8 @@
+'use client'
+
 import Image from 'next/image'
 import Link from 'next/link'
+import { useState, FormEvent } from 'react';
 
 const helpCategories = [
   {
@@ -35,6 +38,59 @@ const helpCategories = [
 ];
 
 export default function HelpPage() {
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    subject: '',
+    message: ''
+  });
+  const [status, setStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setStatus('submitting');
+
+    try {
+      const response = await fetch('/api/help', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to send message');
+      }
+
+      // Reset form
+      setFormData({
+        name: '',
+        email: '',
+        subject: '',
+        message: ''
+      });
+      setStatus('success');
+
+      // Reset success status after 3 seconds
+      setTimeout(() => {
+        setStatus('idle');
+      }, 3000);
+
+    } catch (error) {
+      console.error('Submission error:', error);
+      setStatus('error');
+    }
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
   return (
     <>
       {/* Hero Section with Search */}
@@ -120,110 +176,90 @@ export default function HelpPage() {
             Give us some info so the right person can get back to you.
           </p>
 
-          <form className="space-y-6">
+          {status === 'success' && (
+            <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
+              Your message has been sent successfully!
+            </div>
+          )}
+
+          {status === 'error' && (
+            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+              Failed to send message. Please try again.
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-6">
             {/* Name Fields */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
+                <label htmlFor="name" className="block text-sm font-medium text-gray-700">
+                  Name*
+                </label>
                 <input
                   type="text"
-                  placeholder="First name"
-                  className="w-full px-4 py-3 rounded-md border border-gray-300 focus:border-[#1a2e44] focus:ring-1 focus:ring-[#1a2e44]"
+                  id="name"
+                  name="name"
+                  value={formData.name}
+                  onChange={handleChange}
                   required
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                 />
               </div>
               <div>
+                <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+                  Email*
+                </label>
                 <input
-                  type="text"
-                  placeholder="Last name"
-                  className="w-full px-4 py-3 rounded-md border border-gray-300 focus:border-[#1a2e44] focus:ring-1 focus:ring-[#1a2e44]"
+                  type="email"
+                  id="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleChange}
                   required
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                 />
               </div>
             </div>
 
-
-            {/* Email */}
+            {/* Subject */}
             <div>
-              <input
-                type="email"
-                placeholder="Email"
-                className="w-full px-4 py-3 rounded-md border border-gray-300 focus:border-[#1a2e44] focus:ring-1 focus:ring-[#1a2e44]"
-                required
-              />
-            </div>
-
-            {/* Phone */}
-            <div>
-              <input
-                type="tel"
-                placeholder="Phone"
-                className="w-full px-4 py-3 rounded-md border border-gray-300 focus:border-[#1a2e44] focus:ring-1 focus:ring-[#1a2e44]"
-                required
-              />
-            </div>
-
-            {/* Company */}
-            <div>
+              <label htmlFor="subject" className="block text-sm font-medium text-gray-700">
+                Subject*
+              </label>
               <input
                 type="text"
-                placeholder="Company"
-                className="w-full px-4 py-3 rounded-md border border-gray-300 focus:border-[#1a2e44] focus:ring-1 focus:ring-[#1a2e44]"
+                id="subject"
+                name="subject"
+                value={formData.subject}
+                onChange={handleChange}
                 required
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
               />
             </div>
 
-
-            {/* Country/Region Dropdown */}
+            {/* Message */}
             <div>
-              <select
-                className="w-full px-4 py-3 rounded-md border border-gray-300 focus:border-[#1a2e44] focus:ring-1 focus:ring-[#1a2e44] bg-white"
-                required
-                defaultValue="United States"
-              >
-                <option value="United States">United States</option>
-                <option value="Canada">Canada</option>
-                <option value="Mexico">Mexico</option>
-                {/* Add more countries as needed */}
-              </select>
-            </div>
-
-            {/* Product Interest Dropdown */}
-            <div>
-              <select
-                className="w-full px-4 py-3 rounded-md border border-gray-300 focus:border-[#1a2e44] focus:ring-1 focus:ring-[#1a2e44] bg-white"
-                required
-              >
-                <option value="">Select your product interest</option>
-                <option value="basic">Basic Detailing</option>
-                <option value="premium">Premium Detailing</option>
-                <option value="enterprise">Enterprise Solutions</option>
-              </select>
-            </div>
-
-            {/* Description Text Area */}
-            <div>
+              <label htmlFor="message" className="block text-sm font-medium text-gray-700">
+                Message*
+              </label>
               <textarea
-                placeholder="Please describe your issue or question in detail..."
+                id="message"
+                name="message"
+                value={formData.message}
+                onChange={handleChange}
+                required
                 rows={4}
-                className="w-full px-4 py-3 rounded-md border border-gray-300 focus:border-[#1a2e44] focus:ring-1 focus:ring-[#1a2e44] resize-none"
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
               />
-            </div>
-
-            {/* Privacy Statement */}
-            <div className="text-sm text-gray-600">
-              By registering, you agree to the processing of your personal data as described in the{' '}
-              <Link href="/privacy" className="text-[#1a2e44] hover:underline">
-                Privacy Statement
-              </Link>
-              .
             </div>
 
             {/* Submit Button */}
             <button
               type="submit"
-              className="w-full bg-[#1a2e44] text-white py-3 px-6 rounded-md hover:bg-[#1a2e44]/90 transition-colors font-medium"
+              disabled={status === 'submitting'}
+              className="w-full bg-[#0F1923] text-white py-3 px-4 rounded-md hover:bg-[#1a2836] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
             >
-              CONTACT US
+              {status === 'submitting' ? 'Sending...' : 'Submit'}
             </button>
           </form>
         </div>

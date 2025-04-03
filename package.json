@@ -35,7 +35,7 @@
     "date-fns": "^4.1.0",
     "framer-motion": "^12.4.7",
     "lucide-react": "^0.473.0",
-    "mongodb": "^6.13.1",
+    "mongodb": "^6.15.0",
     "mongoose": "^8.10.1",
     "next": "15.1.5",
     "next-auth": "^4.24.11",

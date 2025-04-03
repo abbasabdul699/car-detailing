@@ -77,10 +77,6 @@ export default function SearchSection() {
   };
 
   const handleSelect = async (description: string) => {
-    setValue(description, false);
-    clearSuggestions();
-    setShowSuggestions(false);
-
     try {
       const results = await getGeocode({ address: description });
       const { lat, lng } = await getLatLng(results[0]);
