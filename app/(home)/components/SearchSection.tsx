@@ -2,10 +2,6 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import usePlacesAutocomplete, {
-  getGeocode,
-  getLatLng,
-} from 'use-places-autocomplete';
 import { useLoadScript } from '@react-google-maps/api';
 
 declare global {
@@ -22,141 +18,134 @@ const avatars = [
   '/images/avatar5.png',
 ];
 
+interface Suggestion {
+  place_id: string;
+  description: string;
+}
+
 export default function SearchSection() {
   const router = useRouter();
-  
+  const [address, setAddress] = useState('');
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+
   const { isLoaded } = useLoadScript({
-    googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY!,
+    googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
     libraries: ['places']
   });
 
-  const {
-    ready,
-    value,
-    suggestions: { status, data },
-    setValue,
-    clearSuggestions,
-  } = usePlacesAutocomplete({
-    callbackName: "initMap",
-    requestOptions: {
-      componentRestrictions: { country: 'us' },
-      types: ['address']
-    },
-    debounce: 300
-  });
+  const handleAddressChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setAddress(value);
 
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [userLocation, setUserLocation] = useState(null);
-  const [googleMapsLoaded, setGoogleMapsLoaded] = useState(false);
-
-  if (!isLoaded) {
-    return (
-      <div className="flex justify-center items-center min-h-[200px]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-      </div>
-    );
-  }
-
-  const handleInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setValue(e.target.value);
-    setShowSuggestions(true);
+    if (value.length > 2 && isLoaded) {
+      try {
+        const service = new window.google.maps.places.AutocompleteService();
+        const response = await service.getPlacePredictions({
+          input: value,
+          componentRestrictions: { country: 'us' },
+          types: ['address']
+        });
+        setSuggestions(response?.predictions || []);
+      } catch (error) {
+        console.error('Error fetching suggestions:', error);
+      }
+    } else {
+      setSuggestions([]);
+    }
   };
 
-  const handleSelect = async (address: string) => {
-    setValue(address, false);
-    clearSuggestions();
-
+  const handleSearch = async () => {
+    if (!address) return;
+    
     try {
-      const results = await getGeocode({ address });
-      const { lat, lng } = await getLatLng(results[0]);
-      router.push(`/search-results?location=${encodeURIComponent(address)}&lat=${lat}&lng=${lng}`);
+      const geocoder = new window.google.maps.Geocoder();
+      const response = await geocoder.geocode({ address });
+      if (response.results?.[0]) {
+        const { lat, lng } = response.results[0].geometry.location;
+        router.push(`/search-results?location=${encodeURIComponent(address)}&lat=${lat()}&lng=${lng()}`);
+      }
     } catch (error) {
-      console.error('Error:', error);
+      console.error('Error getting location:', error);
     }
   };
 
   return (
-    <section className="relative bg-white py-12 md:py-24">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-col md:flex-row items-center justify-between">
-          {/* Left side - Search and Text */}
-          <div className="w-full md:w-1/2">
-            <h1 className="text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl md:text-6xl mb-6">
-              Find Car Detailers Near You
-            </h1>
-            <p className="text-lg text-gray-600 mb-8 max-w-2xl">
-              Professional mobile detailing services that come to you. Enter your address to discover skilled detailers in your area.
-            </p>
-            
-            <div className="relative max-w-xl">
-              <input
-                value={value}
-                onChange={(e) => setValue(e.target.value)}
-                disabled={!ready || !isLoaded}
-                placeholder="Enter your address"
-                className="w-full px-4 py-3 text-lg border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#389167]"
-              />
-              {value && (
-                <button
-                  onClick={() => setValue('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
-                  ✕
-                </button>
-              )}
+    <div className="flex flex-col items-center py-16 px-4">
+      {/* Main Heading */}
+      <h1 className="text-5xl md:text-6xl font-serif text-center mb-4">
+        Find top-rated mobile car detailers
+      </h1>
+      
+      {/* Subheading */}
+      <p className="text-gray-600 text-center mb-8">
+        Carefully selected to ensure quality service and fair pricing you can count on
+      </p>
 
-              {status === 'OK' && (
-                <ul className="absolute z-50 w-full bg-white mt-1 rounded-lg shadow-lg border border-gray-200 max-h-96 overflow-y-auto">
-                  {data.map(({ place_id, description }) => (
-                    <li
-                      key={place_id}
-                      onClick={() => handleSelect(description)}
-                      className="px-4 py-2 hover:bg-gray-100 cursor-pointer text-gray-700"
-                    >
-                      {description}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-
-            {/* Trust Indicators */}
-            <div className="mt-8">
-              <p className="text-sm text-gray-500 mb-2">Trusted by customers across the US</p>
-              <div className="flex -space-x-2">
-                {avatars.map((avatar, index) => (
-                  <div
-                    key={index}
-                    className="relative inline-block border-2 border-white rounded-full"
-                  >
-                    <Image
-                      src={avatar}
-                      alt={`Customer ${index + 1}`}
-                      width={32}
-                      height={32}
-                      className="rounded-full object-cover"
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
+      {/* Search Bar */}
+      <div className="w-full max-w-2xl relative">
+        <div className="flex items-center bg-white rounded-full border shadow-sm">
+          <div className="pl-4">
+            <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+            </svg>
           </div>
+          <input
+            type="text"
+            value={address}
+            onChange={handleAddressChange}
+            placeholder="Search city, zip, or address"
+            className="w-full py-3 px-4 outline-none rounded-full text-gray-700"
+          />
+          <button
+            onClick={handleSearch}
+            className="bg-[#0A2217] text-white px-8 py-3 rounded-full hover:bg-[#0A2217]/90 transition-colors mr-1"
+          >
+            Search
+          </button>
+        </div>
 
-          {/* Right side - Car Image */}
-          <div className="w-full md:w-1/2 mt-8 md:mt-0 relative">
-            <div className="relative">
+        {/* Suggestions Dropdown */}
+        {suggestions.length > 0 && (
+          <ul className="absolute z-50 w-full bg-white mt-2 rounded-lg shadow-lg border border-gray-200">
+            {suggestions.map((suggestion) => (
+              <li
+                key={suggestion.place_id}
+                onClick={() => {
+                  setAddress(suggestion.description);
+                  setSuggestions([]);
+                  handleSearch();
+                }}
+                className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
+              >
+                {suggestion.description}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {/* Trust Indicators */}
+      <div className="mt-6 text-center">
+        <p className="text-sm text-gray-500 mb-2">
+          Connecting happy customers with the best detailers at the best price
+        </p>
+        <div className="flex justify-center -space-x-2">
+          {avatars.map((avatar, index) => (
+            <div
+              key={index}
+              className="relative inline-block border-2 border-white rounded-full"
+            >
               <Image
-                src="/images/porsche-911.png"
-                alt="Porsche 911 being detailed"
-                width={800}
-                height={500}
-                priority
-                className="w-full h-auto object-contain"
+                src={avatar}
+                alt={`Customer ${index + 1}`}
+                width={32}
+                height={32}
+                className="rounded-full object-cover"
               />
             </div>
-          </div>
+          ))}
         </div>
       </div>
-    </section>
+    </div>
   );
 } 

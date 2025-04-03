@@ -11,20 +11,26 @@ datasource db {
 }
 
 model Detailer {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  name        String
-  email       String
-  phone       String
-  address     String
-  city        String
-  state       String
-  zipCode     String
-  description String
-  latitude    Float
-  longitude   Float
-  priceRange  String
-  images      Json[]
-  services    Json[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  businessName String
+  email        String
+  phone        String
+  address      String
+  city         String
+  state        String
+  zipCode      String
+  description  String
+  latitude     Float
+  longitude    Float
+  priceRange   String
+  services     String[]
+  images       Image[]
+}
+
+model Image {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  url        String
+  alt        String
+  detailer   Detailer @relation(fields: [detailerId], references: [id])
+  detailerId String   @db.ObjectId
 }
