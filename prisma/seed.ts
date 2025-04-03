@@ -8,38 +8,28 @@ async function main() {
 
   const detailers = [
     {
-      businessName: "Uncle Mike's Mobile Auto Detailing Service US Navy Veteran",
-      email: "unclemike@detailing.com",
-      phone: "508-982-0451",
-      address: "124 Pine St",
-      city: "Attleboro",
-      state: "MA",
-      zipCode: "02703",
-      description: "Professional mobile detailing services by a US Navy Veteran",
-      latitude: 41.944544,
-      longitude: -71.285621,
+      name: "Uncle Mike's Detailing",
+      email: "mike@unclemikes.com",
+      phone: "(555) 123-4567",
+      address: "123 Main St",
+      city: "San Francisco",
+      state: "CA",
+      zipCode: "94105",
+      description: "Professional mobile detailing service with over 10 years of experience",
+      latitude: 37.7749,
+      longitude: -122.4194,
       priceRange: "$$",
       images: [
-        {
-          url: "/images/detailers/unclemikes.jpg",
-          alt: "Uncle Mike's Auto Detailing Service"
-        }
+        { url: "/images/detailers/uncle-mike-1.jpg", alt: "Detailing work" },
+        { url: "/images/detailers/uncle-mike-2.jpg", alt: "Shop front" }
       ],
       services: [
-        {
-          name: "Premium Detail",
-          price: "299.99",
-          description: "Full interior and exterior detail"
-        },
-        {
-          name: "Ceramic Coating",
-          price: "999.99",
-          description: "Professional ceramic coating application"
-        }
+        { name: "Basic Wash", price: 50 },
+        { name: "Full Detail", price: 200 }
       ]
     },
     {
-      businessName: "DF Detailing",
+      name: "DF Detailing",
       email: "df@detailing.com",
       phone: "857-243-5290",
       address: "21 Manville Hill Road",
@@ -65,7 +55,7 @@ async function main() {
       ]
     },
     {
-      businessName: "Pay Attention To Detail",
+      name: "Pay Attention To Detail",
       email: "payattention@detailing.com",
       phone: "857-244-1516",
       address: "20 Parkman St",
@@ -91,7 +81,7 @@ async function main() {
       ]
     },
     {
-      businessName: "Jay's Mobile Auto Detail",
+      name: "Jay's Mobile Auto Detail",
       email: "jay@detailing.com",
       phone: "401-678-9226",
       address: "1634 Elmwood Ave",
@@ -117,7 +107,7 @@ async function main() {
       ]
     },
     {
-      businessName: "Josh's Mobile Detailing Service",
+      name: "Josh's Mobile Detailing Service",
       email: "josh@detailing.com",
       phone: "860-771-3294",
       address: "8 Hope St",

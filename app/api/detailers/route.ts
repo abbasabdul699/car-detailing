@@ -6,52 +6,26 @@ export const revalidate = 3600 // Revalidate every hour
 
 export async function GET() {
   try {
-    // Log the connection attempt
-    console.log('Attempting database connection...')
-    console.log('Database URL exists:', !!process.env.DATABASE_URL)
-
-    // Test the connection
-    await prisma.$connect()
-    console.log('Successfully connected to database')
-
-    // Fetch detailers
     const detailers = await prisma.detailer.findMany({
       select: {
         id: true,
         name: true,
         description: true,
         priceRange: true,
-        imageUrl: true,
+        images: true,
         latitude: true,
         longitude: true,
-      },
+      }
     })
 
-    console.log('Number of detailers found:', detailers.length)
-
-    if (!detailers || detailers.length === 0) {
-      return NextResponse.json(
-        { error: 'No detailers found in database' },
-        { status: 404 }
-      )
-    }
-
+    console.log('Fetched detailers:', detailers.length)
     return NextResponse.json(detailers)
   } catch (error) {
-    // Log the full error
-    console.error('Database Error:', error)
-    
+    console.error('Error fetching detailers:', error)
     return NextResponse.json(
-      { 
-        error: 'Failed to fetch detailers from database',
-        details: error.message,
-        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
-      },
+      { error: 'Failed to fetch detailers' },
       { status: 500 }
     )
-  } finally {
-    // Always disconnect
-    await prisma.$disconnect()
   }
 }
 
