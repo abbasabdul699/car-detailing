@@ -11,7 +11,13 @@ datasource db {
 }
 
 model Detailer {
-  id          String   @id @default(cuid()) @map("_id")
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  description String
+  priceRange  String
+  imageUrl    String?
+  latitude    Float
+  longitude   Float
   businessName String
   email       String
   phone       String
@@ -19,10 +25,6 @@ model Detailer {
   city        String
   state       String
   zipCode     String
-  description String
-  latitude    Float
-  longitude   Float
-  priceRange  String
   images      Json[]
   services    Json[]
   createdAt   DateTime @default(now())
