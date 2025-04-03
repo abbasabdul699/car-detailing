@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server';
-import dbConnect from '@/lib/dbConnect';
-import Review from 'app/models/Review';
+import { prisma } from '@/lib/prisma';
 
 export async function GET() {
   try {
-    await dbConnect();
-    const reviews = await Review.find({}).sort({ date: -1 });
+    const reviews = await prisma.review.findMany({
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
     return NextResponse.json({ success: true, data: reviews });
   } catch (error) {
     console.error('GET Reviews Error:', error);
@@ -19,12 +21,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  if (request.method !== 'POST') {
-    return NextResponse.json({ error: 'Method not allowed' }, { status: 405 });
-  }
-
   try {
-    await dbConnect();
     const data = await request.json();
     
     // Validate required fields
@@ -37,15 +34,16 @@ export async function POST(request: Request) {
       });
     }
 
-    const review = await Review.create({
-      name: data.name,
-      rating: data.rating,
-      review: data.review,
-      type: data.type,
-      date: data.date || new Date(),
-      verified: false,
-      serviceType: data.serviceType || null,
-      businessLocation: data.businessLocation || null,
+    const review = await prisma.review.create({
+      data: {
+        name: data.name,
+        rating: data.rating,
+        review: data.review,
+        type: data.type,
+        verified: false,
+        serviceType: data.serviceType || null,
+        businessLocation: data.businessLocation || null,
+      }
     });
 
     return NextResponse.json({ 

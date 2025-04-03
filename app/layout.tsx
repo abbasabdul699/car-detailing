@@ -5,7 +5,7 @@ import Script from 'next/script'
 import Navbar from '@/app/components/Navbar'
 import Footer from '@/app/components/Footer'
 import PageTransition from './components/PageTransition'
-import { Providers } from './providers'
+import { Inter } from 'next/font/google'
 // import Navbar from './components/Navbar';
 
 const geistSans = Geist({
@@ -18,9 +18,11 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const inter = Inter({ subsets: ['latin'] })
+
 export const metadata: Metadata = {
-  title: "Renu",
-  description: "Find Top Detailers Near You",
+  title: "ReevaCar - Find Local Car Detailers",
+  description: "Find and book professional car detailing services near you",
   icons: {
     icon: [
       {
@@ -48,22 +50,16 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <Script
-          src={`https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=places`}
-          strategy="beforeInteractive"
-        />
+        <meta charSet="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
       </head>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        <Providers>
-          <PageTransition />
-          <Navbar />
-          <main className="pt-16">
-            {children}
-          </main>
-          <Footer />
-        </Providers>
+      <body className={`${geistSans.variable} ${geistMono.variable} ${inter.className} antialiased`}>
+        <PageTransition />
+        <Navbar />
+        <main className="pt-16">
+          {children}
+        </main>
+        <Footer />
       </body>
     </html>
   );

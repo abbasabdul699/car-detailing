@@ -13,12 +13,13 @@ const nextConfig = {
   },
   images: {
     domains: ['localhost', 'vercel.app'],
-    unoptimized: true
+    deviceSizes: [640, 750, 828, 1080, 1200],
+    imageSizes: [16, 32, 48, 64, 96],
   },
   experimental: {
     serverActions: {
       bodySizeLimit: '2mb'
-    }
+    },
   }
 }
 
