@@ -6,35 +6,35 @@ import Link from 'next/link'
 const faqCategories = {
   getting_started: {
     id: 'getting_started',
-    title: 'Getting started with Renu',
+    title: 'Getting started with Reeva',
     questions: [
       {
-        question: 'What is Renu and how does it work?',
-        answer: 'Renu is a complete detailing platform that lets you start, grow, and manage your detailing business. You can create a professional profile, manage bookings, and connect with customers looking for quality detailing services.'
+        question: 'What is Reeva and how does it work?',
+        answer: 'Reeva is a complete detailing platform that lets you start, grow, and manage your detailing business. You can create a professional profile, manage bookings, and connect with customers looking for quality detailing services.'
       },
       {
-        question: 'How much does Renu cost?',
-        answer: 'Try Renu Starter for free, no credit card required. For growing businesses, our Pro plan is $20/month when billed annually.'
+        question: 'How much does Reeva cost?',
+        answer: 'Try Reeva Starter for free, no credit card required. For growing businesses, our Pro plan is $20/month when billed annually.'
       },
     ]
   },
   detailing: {
     id: 'detailing',
-    title: 'Detailing on Renu',
+    title: 'Detailing on Reeva',
     questions: [
       {
-        question: 'What do I need to start detailing on Renu?',
-        answer: 'To start detailing on Renu, you will need a Renu account and your detailing equipment. We handle the booking, payments, and customer management for you.'
+        question: 'What do I need to start detailing on Reeva?',
+        answer: 'To start detailing on Reeva, you will need a Reeva account and your detailing equipment. We handle the booking, payments, and customer management for you.'
       },
       {
-        question: 'Where can I offer my services with Renu?',
-        answer: 'Renu lets you offer your services wherever your customers are, including mobile detailing at their location or at your own facility.'
+        question: 'Where can I offer my services with Reeva?',
+        answer: 'Reeva lets you offer your services wherever your customers are, including mobile detailing at their location or at your own facility.'
       },
     ]
   },
   payments: {
     id: 'payments',
-    title: 'Payments on Renu',
+    title: 'Payments on Reeva',
     questions: [
       {
         question: 'How do I get paid?',
@@ -63,9 +63,9 @@ export default function FAQPage() {
     <div className="min-h-screen bg-white">
       <div className="pt-32 pb-12 bg-[#F3F3F3]">
         <div className="max-w-7xl mx-auto px-4 text-center">
-          <h1 className="text-4xl font-bold mb-4">Renu FAQ</h1>
+          <h1 className="text-4xl font-bold mb-4">Reeva FAQ</h1>
           <p className="text-xl text-gray-600">
-            If you're new to Renu or looking to grow your detailing business, this guide will help you learn more about the platform and its features.
+            If you're new to Reeva or looking to grow your detailing business, this guide will help you learn more about the platform and its features.
           </p>
         </div>
       </div>
@@ -116,7 +116,7 @@ export default function FAQPage() {
             <div className="mt-16 p-8 bg-[#F3F3F3] rounded-lg">
               <h2 className="text-2xl font-bold mb-4">Still have questions?</h2>
               <p className="text-gray-600 mb-6">
-                Our team is here to help you get started with Renu
+                Our team is here to help you get started with Reeva
               </p>
               <Link 
                 href="/contact-us-page" 

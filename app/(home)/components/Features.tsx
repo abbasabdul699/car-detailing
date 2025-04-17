@@ -63,25 +63,9 @@ const Features = () => {
                   <h2 className="text-5xl font-semibold text-gray-900 mb-8">
                     {feature.title}
                   </h2>
-                  <p className="text-2xl text-gray-600 leading-relaxed mb-10">
+                  <p className="text-2xl text-gray-600 leading-relaxed">
                     {feature.description}
                   </p>
-                  <button className="inline-flex items-center text-[rgba(10,34,23,1)] text-xl font-medium">
-                    Learn more
-                    <svg 
-                      className="ml-2 w-6 h-6" 
-                      fill="none" 
-                      stroke="currentColor" 
-                      viewBox="0 0 24 24"
-                    >
-                      <path 
-                        strokeLinecap="round" 
-                        strokeLinejoin="round" 
-                        strokeWidth={2} 
-                        d="M9 5l7 7-7 7"
-                      />
-                    </svg>
-                  </button>
                 </div>
               </div>
             </div>

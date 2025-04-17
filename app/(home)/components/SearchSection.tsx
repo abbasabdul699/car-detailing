@@ -1,9 +1,11 @@
 "use client";
+
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useLoadScript } from '@react-google-maps/api';
 
+// Declare the global window interface properly
 declare global {
   interface Window {
     google: any;
@@ -26,9 +28,9 @@ interface Suggestion {
 export default function SearchSection() {
   const router = useRouter();
   const [address, setAddress] = useState('');
-  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [suggestions, setSuggestions] = useState<any[]>([]);
 
-  const { isLoaded } = useLoadScript({
+  const { isLoaded, loadError } = useLoadScript({
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
     libraries: ['places']
   });
@@ -37,20 +39,38 @@ export default function SearchSection() {
     const value = e.target.value;
     setAddress(value);
 
-    if (value.length > 2 && isLoaded) {
+    if (value.length > 2 && isLoaded && window.google) {
       try {
         const service = new window.google.maps.places.AutocompleteService();
         const response = await service.getPlacePredictions({
           input: value,
           componentRestrictions: { country: 'us' },
-          types: ['address']
+          types: ['address', 'geocode']
         });
         setSuggestions(response?.predictions || []);
       } catch (error) {
         console.error('Error fetching suggestions:', error);
+        setSuggestions([]);
       }
     } else {
       setSuggestions([]);
+    }
+  };
+
+  const handleSuggestionSelect = async (suggestion: any) => {
+    setAddress(suggestion.description);
+    setSuggestions([]);
+    
+    try {
+      const geocoder = new window.google.maps.Geocoder();
+      const result = await geocoder.geocode({ placeId: suggestion.place_id });
+      
+      if (result.results[0]) {
+        const { lat, lng } = result.results[0].geometry.location;
+        router.push(`/search-results?location=${encodeURIComponent(suggestion.description)}&lat=${lat()}&lng=${lng()}`);
+      }
+    } catch (error) {
+      console.error('Error geocoding address:', error);
     }
   };
 
@@ -59,29 +79,32 @@ export default function SearchSection() {
     
     try {
       const geocoder = new window.google.maps.Geocoder();
-      const response = await geocoder.geocode({ address });
-      if (response.results?.[0]) {
-        const { lat, lng } = response.results[0].geometry.location;
+      const result = await geocoder.geocode({ address });
+      
+      if (result.results[0]) {
+        const { lat, lng } = result.results[0].geometry.location;
         router.push(`/search-results?location=${encodeURIComponent(address)}&lat=${lat()}&lng=${lng()}`);
       }
     } catch (error) {
-      console.error('Error getting location:', error);
+      console.error('Error geocoding address:', error);
     }
   };
 
+  if (loadError) {
+    console.error('Error loading Google Maps:', loadError);
+    return <div>Error loading Google Maps</div>;
+  }
+
   return (
     <div className="flex flex-col items-center py-16 px-4">
-      {/* Main Heading */}
       <h1 className="text-5xl md:text-6xl font-serif text-center mb-4">
         Find top-rated mobile car detailers
       </h1>
       
-      {/* Subheading */}
       <p className="text-gray-600 text-center mb-8">
         Carefully selected to ensure quality service and fair pricing you can count on
       </p>
 
-      {/* Search Bar */}
       <div className="w-full max-w-2xl relative">
         <div className="flex items-center bg-white rounded-full border shadow-sm">
           <div className="pl-4">
@@ -95,6 +118,11 @@ export default function SearchSection() {
             onChange={handleAddressChange}
             placeholder="Search city, zip, or address"
             className="w-full py-3 px-4 outline-none rounded-full text-gray-700"
+            onKeyPress={(e) => {
+              if (e.key === 'Enter') {
+                handleSearch();
+              }
+            }}
           />
           <button
             onClick={handleSearch}
@@ -104,17 +132,12 @@ export default function SearchSection() {
           </button>
         </div>
 
-        {/* Suggestions Dropdown */}
         {suggestions.length > 0 && (
           <ul className="absolute z-50 w-full bg-white mt-2 rounded-lg shadow-lg border border-gray-200">
             {suggestions.map((suggestion) => (
               <li
                 key={suggestion.place_id}
-                onClick={() => {
-                  setAddress(suggestion.description);
-                  setSuggestions([]);
-                  handleSearch();
-                }}
+                onClick={() => handleSuggestionSelect(suggestion)}
                 className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
               >
                 {suggestion.description}
@@ -124,20 +147,19 @@ export default function SearchSection() {
         )}
       </div>
 
-      {/* Trust Indicators */}
       <div className="mt-6 text-center">
         <p className="text-sm text-gray-500 mb-2">
           Connecting happy customers with the best detailers at the best price
         </p>
         <div className="flex justify-center -space-x-2">
-          {avatars.map((avatar, index) => (
+          {[1, 2, 3, 4, 5].map((i) => (
             <div
-              key={index}
+              key={i}
               className="relative inline-block border-2 border-white rounded-full"
             >
               <Image
-                src={avatar}
-                alt={`Customer ${index + 1}`}
+                src={`/images/avatar${i}.png`}
+                alt={`Customer ${i}`}
                 width={32}
                 height={32}
                 className="rounded-full object-cover"

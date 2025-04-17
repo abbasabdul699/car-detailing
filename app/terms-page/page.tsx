@@ -32,22 +32,22 @@ const TermsPage: React.FC = () => {
           <div data-custom-class="body_text">
             <h2 className="text-xl font-bold mb-4">Introduction</h2>
             <p>
-              Welcome to Renu LLC. These terms and conditions outline the rules and regulations for the use of our website.
+              Welcome to Reeva Car LLC. These terms and conditions outline the rules and regulations for the use of our website.
             </p>
 
             <h2 className="text-xl font-bold mb-4 mt-8">Acceptance of Terms</h2>
             <p>
-              By accessing this website, we assume you accept these terms and conditions. Do not continue to use Renu LLC if you do not agree to all of the terms and conditions stated on this page.
+              By accessing this website, we assume you accept these terms and conditions. Do not continue to use Reeva Car LLC if you do not agree to all of the terms and conditions stated on this page.
             </p>
 
             <h2 className="text-xl font-bold mb-4 mt-8">License</h2>
             <p>
-              Unless otherwise stated, Renu LLC and/or its licensors own the intellectual property rights for all material on Renu LLC. All intellectual property rights are reserved. You may access this from Renu LLC for your own personal use subjected to restrictions set in these terms and conditions.
+              Unless otherwise stated, Reeva Car LLC and/or its licensors own the intellectual property rights for all material on Reeva Car LLC. All intellectual property rights are reserved. You may access this from Reeva Car LLC for your own personal use subjected to restrictions set in these terms and conditions.
             </p>
 
             <h2 className="text-xl font-bold mb-4 mt-8">User Comments</h2>
             <p>
-              Parts of this website offer an opportunity for users to post and exchange opinions and information in certain areas of the website. Renu LLC does not filter, edit, publish or review Comments prior to their presence on the website.
+              Parts of this website offer an opportunity for users to post and exchange opinions and information in certain areas of the website. Reeva Car LLC does not filter, edit, publish or review Comments prior to their presence on the website.
             </p>
 
             <h2 className="text-xl font-bold mb-4 mt-8">Hyperlinking to our Content</h2>
