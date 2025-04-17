@@ -12,7 +12,6 @@ const Footer = () => {
       { name: 'FAQ', href: '/faq' },
     ],
     Resources: [
-      { name: 'Become a Partner', href: '/partners-page' },
       { name: 'Reviews', href: '/reviews' }
     ],
     Legal: [

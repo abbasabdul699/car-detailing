@@ -32,7 +32,7 @@ const LicensePage: React.FC = () => {
           <div data-custom-class="body_text">
             <h2 className="text-xl font-bold mb-4">Introduction</h2>
             <p>
-              This License Agreement ("Agreement") is between Renu LLC ("Licensor") and the user ("Licensee"). By using our software, you agree to be bound by the terms of this Agreement.
+              This License Agreement ("Agreement") is between Reeva Car LLC ("Licensor") and the user ("Licensee"). By using our software, you agree to be bound by the terms of this Agreement.
             </p>
 
             <h2 className="text-xl font-bold mb-4 mt-8">Grant of License</h2>

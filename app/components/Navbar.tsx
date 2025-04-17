@@ -6,7 +6,6 @@ import { usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
 
 const Navbar = () => {
-  const [isScrolled, setIsScrolled] = useState<boolean>(false);
   const pathname = usePathname();
 
   const navItems = [
@@ -14,17 +13,6 @@ const Navbar = () => {
     { name: 'FAQ', href: '/faq' },
     { name: 'Help', href: '/help-page' }
   ];
-
-  useEffect(() => {
-    setIsScrolled(window.scrollY > 0);
-
-    const handleScroll = (): void => {
-      setIsScrolled(window.scrollY > 0);
-    };
-
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
 
   const isActive = (path: string) => pathname === path;
 
@@ -39,9 +27,7 @@ const Navbar = () => {
   };
 
   return (
-    <nav className={`fixed top-0 left-0 right-0 z-40 transition-all duration-300 ${
-      isScrolled ? 'bg-[rgba(10,34,23,0.8)] backdrop-blur-sm shadow-sm' : 'bg-[#0A2217]'
-    }`}>
+    <nav className="fixed top-0 left-0 right-0 z-40 bg-[#0A2217]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Left side - Logo and primary navigation */}
@@ -89,14 +75,14 @@ const Navbar = () => {
               transition={{ type: "spring", stiffness: 300 }}
             >
               <Link 
-                href="/contact-us-page" 
+                href="/get-in-touch" 
                 className="relative inline-block text-white text-sm group"
               >
                 Get in Touch
                 <motion.span
                   className="absolute -bottom-1 left-0 w-full h-[2px] bg-white"
                   initial={{ scaleX: 0 }}
-                  animate={{ scaleX: isActive('/contact-us-page') ? 1 : 0 }}
+                  animate={{ scaleX: isActive('/get-in-touch') ? 1 : 0 }}
                   whileHover={{ scaleX: 1 }}
                   transition={{ duration: 0.2 }}
                   style={{ originX: 0 }}
