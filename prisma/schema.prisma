@@ -25,6 +25,7 @@ model Detailer {
   priceRange   String
   services     String[]
   images       Image[]
+  detailerImages DetailerImage[]
 }
 
 model Image {
