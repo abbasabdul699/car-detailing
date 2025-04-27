@@ -15,14 +15,12 @@ const Features = () => {
       title: "Car Detailing, Made Simple",
       description: "Browse top detailers in your area, check their services, and call them directly to discuss your needs. No waiting, no middlemen—just direct access to trusted professionals who are ready to help.",
       video: "/videos/interior-detailing.mp4",
-      poster: "/images/detailers/elite-1.jpg"
     },
     {
       id: 3,
       title: "Personalized Car Care",
       description: "Whether it's a quick wash, deep interior cleaning, or premium protection like ceramic coating, find the right detailer offering exactly what your car needs. Compare options, ask questions, and choose with confidence.",
       video: "/videos/exterior-detailing.mp4",
-      poster: "/images/detailers/payattention.jpg"
     },
   ];
 
