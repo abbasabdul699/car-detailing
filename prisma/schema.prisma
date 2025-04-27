@@ -34,3 +34,14 @@ model Image {
   detailer   Detailer @relation(fields: [detailerId], references: [id])
   detailerId String   @db.ObjectId
 }
+
+model DetailerImage {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  url       String
+  key       String   // S3 key for the image
+  alt       String
+  detailer  Detailer @relation(fields: [detailerId], references: [id])
+  detailerId String  @db.ObjectId
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import { FaInstagram, FaTiktok, FaGlobe, FaShare } from 'react-icons/fa';
 import Navbar from '@/app/components/Navbar';
 import { prisma } from '@/lib/prisma';
-
+import ImageUpload from '@/app/components/ImageUpload';
 interface Image {
   id: string;
   url: string;
@@ -111,6 +111,18 @@ export default async function DetailerProfile({ params }: { params: { id: string
               >
                 Book Now
               </a>
+            </div>
+
+            <div className="mt-8">
+              <h2 className="text-2xl font-bold mb-4">Upload Detailer Images</h2>
+              <ImageUpload
+                detailerId={params.id}
+                businessName={detailer.businessName}
+                onUploadComplete={(imageUrl) => {
+                  console.log('Image uploaded:', imageUrl);
+                  // Handle the uploaded image URL
+                }}
+              />
             </div>
           </div>
         </main>
