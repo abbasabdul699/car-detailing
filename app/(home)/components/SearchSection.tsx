@@ -1,16 +1,17 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useLoadScript } from '@react-google-maps/api';
 
-// Declare the global window interface properly
 declare global {
   interface Window {
-    google: any;
+    google: typeof google;
   }
 }
+
+const libraries: ["places"] = ["places"];
 
 const avatars = [
   '/images/avatar1.png',
@@ -20,78 +21,109 @@ const avatars = [
   '/images/avatar5.png',
 ];
 
-interface Suggestion {
-  place_id: string;
-  description: string;
-}
-
 export default function SearchSection() {
   const router = useRouter();
-  const [address, setAddress] = useState('');
-  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [error, setError] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
 
   const { isLoaded, loadError } = useLoadScript({
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
-    libraries: ['places']
+    libraries,
   });
 
-  const handleAddressChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setAddress(value);
+  useEffect(() => {
+    if (!isLoaded || !window.google || !inputRef.current) return;
 
-    if (value.length > 2 && isLoaded && window.google) {
-      try {
-        const service = new window.google.maps.places.AutocompleteService();
-        const response = await service.getPlacePredictions({
-          input: value,
-          componentRestrictions: { country: 'us' },
-          types: ['address', 'geocode']
-        });
-        setSuggestions(response?.predictions || []);
-      } catch (error) {
-        console.error('Error fetching suggestions:', error);
-        setSuggestions([]);
-      }
-    } else {
-      setSuggestions([]);
-    }
-  };
+    const options = {
+      componentRestrictions: { country: "us" },
+      fields: ["address_components", "geometry", "formatted_address"],
+      strictBounds: false,
+    };
 
-  const handleSuggestionSelect = async (suggestion: any) => {
-    setAddress(suggestion.description);
-    setSuggestions([]);
-    
-    try {
-      const geocoder = new window.google.maps.Geocoder();
-      const result = await geocoder.geocode({ placeId: suggestion.place_id });
+    const autocomplete = new window.google.maps.places.Autocomplete(
+      inputRef.current,
+      options
+    );
+
+    autocomplete.addListener("place_changed", () => {
+      const place = autocomplete.getPlace();
       
-      if (result.results[0]) {
-        const { lat, lng } = result.results[0].geometry.location;
-        router.push(`/search-results?location=${encodeURIComponent(suggestion.description)}&lat=${lat()}&lng=${lng()}`);
+      if (!place.geometry?.location) {
+        setError('Please select a valid address from the suggestions');
+        return;
       }
-    } catch (error) {
-      console.error('Error geocoding address:', error);
-    }
-  };
+
+      const lat = place.geometry.location.lat();
+      const lng = place.geometry.location.lng();
+      const formattedAddress = place.formatted_address;
+
+      window.location.href = `/search-results?location=${encodeURIComponent(formattedAddress || '')}&lat=${lat}&lng=${lng}`;
+    });
+
+    autocompleteRef.current = autocomplete;
+
+    return () => {
+      if (autocompleteRef.current) {
+        google.maps.event.clearInstanceListeners(autocompleteRef.current);
+      }
+    };
+  }, [isLoaded]);
 
   const handleSearch = async () => {
-    if (!address) return;
-    
     try {
-      const geocoder = new window.google.maps.Geocoder();
-      const result = await geocoder.geocode({ address });
+      setError('');
       
-      if (result.results[0]) {
-        const { lat, lng } = result.results[0].geometry.location;
-        router.push(`/search-results?location=${encodeURIComponent(address)}&lat=${lat()}&lng=${lng()}`);
+      console.log('Search button clicked!');
+      const currentInput = inputRef.current?.value || '';
+      console.log('Current input value:', currentInput);
+
+      if (!currentInput.trim()) {
+        setError('Please enter an address');
+        return;
       }
+
+      if (!isLoaded || !window.google) {
+        setError('Google Maps is not loaded yet. Please try again in a moment.');
+        return;
+      }
+
+      const geocoder = new window.google.maps.Geocoder();
+      console.log('Attempting to geocode address:', currentInput);
+      
+      const result = await new Promise<google.maps.GeocoderResult>((resolve, reject) => {
+        geocoder.geocode({ address: currentInput }, (results, status) => {
+          console.log('Geocoding results:', results);
+          console.log('Geocoding status:', status);
+          if (status === window.google.maps.GeocoderStatus.OK && results && results[0]) {
+            resolve(results[0]);
+          } else {
+            reject(new Error('Could not find this address. Please try a different address.'));
+          }
+        });
+      });
+
+      if (!result.geometry?.location) {
+        throw new Error('No location found in geocoding result');
+      }
+
+      const lat = result.geometry.location.lat();
+      const lng = result.geometry.location.lng();
+      const formattedAddress = result.formatted_address || currentInput;
+
+      window.location.href = `/search-results?location=${encodeURIComponent(formattedAddress)}&lat=${lat}&lng=${lng}`;
+
     } catch (error) {
-      console.error('Error geocoding address:', error);
+      console.error('Search error:', error);
+      if (error instanceof Error) {
+        setError(error.message);
+      } else {
+        setError('Could not find this address. Please try a different address.');
+      }
     }
   };
 
   if (loadError) {
-    console.error('Error loading Google Maps:', loadError);
     return <div>Error loading Google Maps</div>;
   }
 
@@ -106,45 +138,35 @@ export default function SearchSection() {
       </p>
 
       <div className="w-full max-w-2xl relative">
-        <div className="flex items-center bg-white rounded-full border shadow-sm">
-          <div className="pl-4">
-            <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-            </svg>
+        <div className="flex flex-col">
+          <div className="flex items-center bg-white rounded-full border shadow-sm">
+            <div className="pl-4">
+              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+              </svg>
+            </div>
+            <div className="relative flex-1">
+              <input
+                ref={inputRef}
+                type="text"
+                placeholder={isLoaded ? "Enter your address" : "Loading..."}
+                disabled={!isLoaded}
+                className="w-full px-4 py-2 border-none rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <button
+              onClick={handleSearch}
+              className="bg-[#0A2217] text-white px-8 py-3 rounded-full hover:bg-[#0A2217]/90 transition-colors mr-1"
+            >
+              Search
+            </button>
           </div>
-          <input
-            type="text"
-            value={address}
-            onChange={handleAddressChange}
-            placeholder="Search city, zip, or address"
-            className="w-full py-3 px-4 outline-none rounded-full text-gray-700"
-            onKeyPress={(e) => {
-              if (e.key === 'Enter') {
-                handleSearch();
-              }
-            }}
-          />
-          <button
-            onClick={handleSearch}
-            className="bg-[#0A2217] text-white px-8 py-3 rounded-full hover:bg-[#0A2217]/90 transition-colors mr-1"
-          >
-            Search
-          </button>
+          {error && (
+            <div className="text-red-500 text-sm mt-2 text-center">
+              {error}
+            </div>
+          )}
         </div>
-
-        {suggestions.length > 0 && (
-          <ul className="absolute z-50 w-full bg-white mt-2 rounded-lg shadow-lg border border-gray-200">
-            {suggestions.map((suggestion) => (
-              <li
-                key={suggestion.place_id}
-                onClick={() => handleSuggestionSelect(suggestion)}
-                className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
-              >
-                {suggestion.description}
-              </li>
-            ))}
-          </ul>
-        )}
       </div>
 
       <div className="mt-6 text-center">
@@ -162,6 +184,7 @@ export default function SearchSection() {
                 alt={`Customer ${i}`}
                 width={32}
                 height={32}
+                style={{ width: '32px', height: '32px' }}
                 className="rounded-full object-cover"
               />
             </div>
