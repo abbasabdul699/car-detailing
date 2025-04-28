@@ -23,23 +23,34 @@ export default function DetailersSection() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    async function fetchDetailers() {
-      try {
-        const response = await fetch('/api/detailers');
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const data = await response.json();
-        setDetailers(data);
-      } catch (err) {
-        console.error('Error fetching detailers:', err);
-        setError(err instanceof Error ? err.message : 'Failed to fetch detailers');
-      } finally {
-        setLoading(false);
+    function fetchWithLocation(lat?: number, lng?: number) {
+      let url = '/api/detailers';
+      if (lat !== undefined && lng !== undefined) {
+        url += `?lat=${lat}&lng=${lng}`;
       }
+      fetch(url)
+        .then((response) => {
+          if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+          return response.json();
+        })
+        .then(setDetailers)
+        .catch((err) => setError(err instanceof Error ? err.message : 'Failed to fetch detailers'))
+        .finally(() => setLoading(false));
     }
 
-    fetchDetailers();
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          fetchWithLocation(pos.coords.latitude, pos.coords.longitude);
+        },
+        () => {
+          // If user denies location, fetch without location (fallback)
+          fetchWithLocation();
+        }
+      );
+    } else {
+      fetchWithLocation();
+    }
   }, []);
 
   if (loading) {
