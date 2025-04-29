@@ -58,7 +58,7 @@ export async function GET(req: NextRequest) {
         }))
         .sort((a, b) => a.distance - b.distance);
     }
-
+    
     return NextResponse.json(sortedDetailers, {
       headers: {
         'Cache-Control': 'no-store, must-revalidate',
