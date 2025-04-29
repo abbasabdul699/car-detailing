@@ -36,7 +36,7 @@ export default function DetailersSection() {
         .then(setDetailers)
         .catch((err) => setError(err instanceof Error ? err.message : 'Failed to fetch detailers'))
         .finally(() => setLoading(false));
-    }
+      }
 
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
