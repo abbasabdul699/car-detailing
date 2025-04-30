@@ -41,7 +41,7 @@ export default function Story() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
         {/* Left Column - Story Content */}
         <div>
-          <h1 className="text-4xl font-bold mb-12">Our story</h1>
+          <h1 className="text-4xl font-bold mb-12">Learn more about Reeva</h1>
           
           <div className="space-y-12">
             <div>
