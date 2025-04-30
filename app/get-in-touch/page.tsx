@@ -44,7 +44,7 @@ export default function ContactPage() {
                   </div>
                   <div>
                     <h2 className="text-2xl font-bold mb-2">Launch Your Success</h2>
-                    <p className="text-gray-600 text-lg">Start growing with Renu</p>
+                    <p className="text-gray-600 text-lg">Start growing with Reeva</p>
                   </div>
                 </div>
               </div>
