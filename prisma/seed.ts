@@ -46,6 +46,7 @@ async function main() {
       longitude: -71.4222,
       priceRange: "$",
       services: ["Basic Wash", "Interior Detail", "Ceramic Coating"],
+      website: "https://www.dfdetailing.com",
       images: {
         create: [
           {
@@ -68,6 +69,7 @@ async function main() {
       longitude: -71.0597,
       priceRange: "$$$",
       services: ["Full Detail", "Paint Correction", "Ceramic Coating"],
+      website: "https://www.payattentiondetail.com",
       images: {
         create: [
           {
@@ -90,6 +92,7 @@ async function main() {
       longitude: -71.4250,
       priceRange: "$$",
       services: ["Basic Wash", "Full Detail", "Interior Detail"],
+      website: "https://www.jaysdetailing.com",
       images: {
         create: [
           {
@@ -98,7 +101,30 @@ async function main() {
           }
         ]
       }
-    }
+    },
+    {
+        businessName: "Red Eagle Mobile Detailing",
+        email: "N/A",
+        phone: "(617) 914-0122",
+        address: "24 Dunreath St #1",
+        city: "Boston",
+        state: "MA",
+        zipCode: "02119",
+        description: "N/A",
+        latitude: 42.3229,
+        longitude: -71.0815,
+        priceRange: "$$",
+        website: "https://www.redeaglemobiledetailing.com",
+        services: ["Hand Wash and Dry", "Wax and Polish", "Clay Bar Treatment", "Paint Sealant or Ceramic Coating", "Tire Cleaning & Dressing", "Wheel & Rim Detailing", "Bug & Tar Removal", "Door Jamb Cleaning", "Trim Restoration", "Dog Hair Removal", "Odor Removal", "Paint Correction", "Ceramic Coating", "Vacuuming", "Carpet and Upholestry Shampooing and Conditioning", "Leather Cleaning and Conditioning", "Dashboard, Console & Door Panel Cleaning", "Window & Mirror Cleaning "],
+        images: {
+          create: [
+            {
+              url: "/images/detailers/red-eagle.jpg",
+              alt: "Red Eagle Mobile Detailing"
+            }
+          ]
+        }
+      }
   ]
 
   for (const detailerData of detailers) {

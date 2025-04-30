@@ -25,14 +25,62 @@ interface Detailer {
   city: string;
   state: string;
   zipCode: string;
+  website?: string;
 }
 
 interface DetailerProfileClientProps {
   detailer: Detailer;
 }
 
+type ServiceCategory = 'full' | 'exterior' | 'interior' | 'protection' | 'additional';
+
 export default function DetailerProfileClient({ detailer }: DetailerProfileClientProps) {
   const [selectedImage, setSelectedImage] = useState<DetailerImage | null>(null);
+  const [activeTab, setActiveTab] = useState<ServiceCategory>('full');
+
+  console.log('Detailer data:', detailer);
+
+  // Categorize services
+  const categorizedServices = {
+    full: detailer.services.filter(service => 
+      service.toLowerCase().includes('full') || 
+      service.toLowerCase().includes('complete') ||
+      service.toLowerCase().includes('package')
+    ),
+    exterior: detailer.services.filter(service => 
+      service.toLowerCase().includes('exterior') || 
+      service.toLowerCase().includes('wash') ||
+      service.toLowerCase().includes('polish') ||
+      service.toLowerCase().includes('tire') ||
+      service.toLowerCase().includes('dressing') ||
+      service.toLowerCase().includes('wax') 
+    ),
+    interior: detailer.services.filter(service => 
+      service.toLowerCase().includes('interior') || 
+      service.toLowerCase().includes('vacuum') 
+    ),
+    protection: detailer.services.filter(service => 
+      service.toLowerCase().includes('protection') || 
+      service.toLowerCase().includes('ceramic') ||
+      service.toLowerCase().includes('coating') ||
+      service.toLowerCase().includes('paint') ||
+      service.toLowerCase().includes('polish') ||
+      service.toLowerCase().includes('wax')
+
+    ),
+    additional: detailer.services.filter(service => 
+      !service.toLowerCase().includes('full') &&
+      !service.toLowerCase().includes('complete') &&
+      !service.toLowerCase().includes('package') &&
+      !service.toLowerCase().includes('exterior') &&
+      !service.toLowerCase().includes('wash') &&
+      !service.toLowerCase().includes('interior') &&
+      !service.toLowerCase().includes('vacuum') &&
+      !service.toLowerCase().includes('cleaning') &&
+      !service.toLowerCase().includes('protection') &&
+      !service.toLowerCase().includes('paint')
+    )
+  };
 
   return (
     <>
@@ -93,9 +141,17 @@ export default function DetailerProfileClient({ detailer }: DetailerProfileClien
                   <button className="p-2 rounded-full border hover:bg-gray-50 transition-colors">
                     <FaTiktok className="w-5 h-5" />
                   </button>
-                  <button className="p-2 rounded-full border hover:bg-gray-50 transition-colors">
-                    <FaGlobe className="w-5 h-5" />
-                  </button>
+                  {detailer.website && (
+                    <a 
+                      href={detailer.website}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-2 rounded-full border hover:bg-gray-50 transition-colors"
+                      title="Visit website"
+                    >
+                      <FaGlobe className="w-5 h-5" />
+                    </a>
+                  )}
                   <button className="p-2 rounded-full border hover:bg-gray-50 transition-colors">
                     <FaShare className="w-5 h-5" />
                   </button>
@@ -117,43 +173,64 @@ export default function DetailerProfileClient({ detailer }: DetailerProfileClien
         {/* Navigation Tabs */}
         <nav className="border-b mb-8">
           <ul className="flex gap-8">
-            <li className="border-b-2 border-black pb-2 font-medium">Full detailing Packages</li>
-            <li className="pb-2 text-gray-500 hover:text-black">Exterior</li>
-            <li className="pb-2 text-gray-500 hover:text-black">Interior</li>
-            <li className="pb-2 text-gray-500 hover:text-black">Paint Protection</li>
-            <li className="pb-2 text-gray-500 hover:text-black">Additional Services</li>
+            <li 
+              className={`pb-2 cursor-pointer ${activeTab === 'full' ? 'border-b-2 border-black font-medium' : 'text-gray-500 hover:text-black'}`}
+              onClick={() => setActiveTab('full')}
+            >
+              Full detailing Packages
+            </li>
+            <li 
+              className={`pb-2 cursor-pointer ${activeTab === 'exterior' ? 'border-b-2 border-black font-medium' : 'text-gray-500 hover:text-black'}`}
+              onClick={() => setActiveTab('exterior')}
+            >
+              Exterior
+            </li>
+            <li 
+              className={`pb-2 cursor-pointer ${activeTab === 'interior' ? 'border-b-2 border-black font-medium' : 'text-gray-500 hover:text-black'}`}
+              onClick={() => setActiveTab('interior')}
+            >
+              Interior
+            </li>
+            <li 
+              className={`pb-2 cursor-pointer ${activeTab === 'protection' ? 'border-b-2 border-black font-medium' : 'text-gray-500 hover:text-black'}`}
+              onClick={() => setActiveTab('protection')}
+            >
+              Paint Protection
+            </li>
+            <li 
+              className={`pb-2 cursor-pointer ${activeTab === 'additional' ? 'border-b-2 border-black font-medium' : 'text-gray-500 hover:text-black'}`}
+              onClick={() => setActiveTab('additional')}
+            >
+              Additional Services
+            </li>
           </ul>
         </nav>
 
         {/* Service Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-          <div className="relative bg-green-50 p-6 rounded-xl">
-            <span className="absolute top-4 left-4 text-xs px-2 py-1 bg-green-600 text-white rounded-full">
-              Most Popular
-            </span>
-            <div className="mt-8">
-              <h3 className="text-xl font-semibold mb-2">Exterior + Interior</h3>
-              <p className="text-gray-600">
-                Combines multiple services for a complete vehicle refresh
-              </p>
+          {categorizedServices[activeTab].map((service, index) => (
+            <div 
+              key={index} 
+              className={`p-6 rounded-xl ${index === 0 && activeTab === 'full' ? 'relative bg-green-50' : 'bg-white border'}`}
+            >
+              {index === 0 && activeTab === 'full' && (
+                <span className="absolute top-4 left-4 text-xs px-2 py-1 bg-green-600 text-white rounded-full">
+                  Most Popular
+                </span>
+              )}
+              <div className={index === 0 && activeTab === 'full' ? 'mt-8' : ''}>
+                <h3 className="text-xl font-semibold mb-2">{service}</h3>
+                <p className="text-gray-600">
+                  Professional detailing service tailored to your needs
+                </p>
+              </div>
             </div>
-          </div>
-          <div className="bg-white border p-6 rounded-xl">
-            <div>
-              <h3 className="text-xl font-semibold mb-2">Showroom Detail</h3>
-              <p className="text-gray-600">
-                High-end detailing for car shows or resale preparation
-              </p>
+          ))}
+          {categorizedServices[activeTab].length === 0 && (
+            <div className="col-span-3 text-center py-8 text-gray-500">
+              No services available in this category
             </div>
-          </div>
-          <div className="bg-white border p-6 rounded-xl">
-            <div>
-              <h3 className="text-xl font-semibold mb-2">Express or Maintenance Detailing</h3>
-              <p className="text-gray-600">
-                Quick detailing for regular upkeep
-              </p>
-            </div>
-          </div>
+          )}
         </div>
 
         {/* Portfolio Section */}

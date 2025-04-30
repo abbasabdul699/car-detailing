@@ -21,7 +21,7 @@ export default function AboutPage() {
         {/* Hero Section */}
         <div className="text-center mb-24 pt-24">
           <h1 className="text-5xl font-bold tracking-tight text-[rgba(10,34,23,1)] sm:text-6xl mb-6">
-            Meet the Team
+            Our Story
           </h1>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
             It's where your car gets the care it deserves. Reeva connects car owners with professional mobile detailers, making it easier than ever to maintain your vehicle's beauty.

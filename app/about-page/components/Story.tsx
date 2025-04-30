@@ -86,7 +86,7 @@ export default function Story() {
                  style={{ animationDelay: `${quote.length * 50 + 500}ms` }}>
               <div className="w-12 h-12 relative">
                 <Image
-                  src="/images/abdul.png"
+                  src="/images/Abdul.png"
                   alt="Abdul Abbas"
                   width={48}
                   height={48}
