@@ -25,7 +25,7 @@ export default function Intro() {
 
           {/* CTA Section */}
           <div className="relative inline-block">
-            <Link href="/contact-us-page">
+            <Link href="/get-in-touch">
               <button className="bg-black text-white px-8 py-3 rounded-lg hover:bg-black/90 transition-colors text-lg">
                 Schedule a call
               </button>
