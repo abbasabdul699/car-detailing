@@ -16,6 +16,10 @@ const faqCategories = {
         question: 'How much does Reeva cost?',
         answer: 'Try Reeva Starter for free, no credit card required. For growing businesses, our Pro plan is $20/month when billed annually.'
       },
+      {
+        question: 'What is Reeva to a Detailer',
+        answer: 'A place to start, grow, and manage your detailing business. An opportunity to showcase your work and services without the hassle of competing for SEO and the monthly costs of a personal website, with pricey ad-ons. Stop paying for social media marketing, when you’re not getting the reach you deserve.'
+      },
     ]
   },
   detailing: {
