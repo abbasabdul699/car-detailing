@@ -10,6 +10,7 @@ export default function ContactForm() {
     phoneNumber: '',
     workEmail: ''
   });
+  const [showThankYou, setShowThankYou] = useState(false);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -36,8 +37,8 @@ export default function ContactForm() {
         workEmail: ''
       });
 
-      // Show success message (you can add a state for this)
-      alert('Message sent successfully!');
+      // Show thank you modal
+      setShowThankYou(true);
 
     } catch (error) {
       console.error('Submission error:', error);
@@ -54,7 +55,29 @@ export default function ContactForm() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto p-6">
+    <div className="max-w-2xl mx-auto p-6 relative">
+      {showThankYou && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4 text-center">
+            <div className="mb-4">
+              <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto">
+                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+            </div>
+            <h3 className="text-2xl font-bold mb-4">Thank You!</h3>
+            <p className="text-gray-600 mb-6">Your information has been submitted. A team-member from Reeva will reach out to you soon!</p>
+            <button
+              onClick={() => setShowThankYou(false)}
+              className="bg-[#0F1923] text-white px-6 py-2 rounded-md hover:bg-[#1a2836] transition-colors"
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
+
       <h1 className="text-3xl font-bold mb-8">Talk with our team</h1>
       <p className="mb-8">Fill out your information and a Reeva representative will reach out to you.</p>
       
