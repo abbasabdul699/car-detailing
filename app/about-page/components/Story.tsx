@@ -66,7 +66,7 @@ export default function Story() {
             <div>
               <h2 className="text-2xl font-bold mb-4">Where are we now?</h2>
               <p className="text-gray-600 leading-relaxed">
-                Today, Reeva serves communities across the country, connecting car owners with skilled detailers. From
+                Today, Reeva serves communities the car detailing industry, connecting car owners with skilled detailers. From
                 basic washes to premium detailing services, Reeva has become the go-to platform for automotive care,
                 making professional detailing accessible to everyone.
               </p>
