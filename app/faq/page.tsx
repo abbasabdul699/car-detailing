@@ -10,7 +10,7 @@ const faqCategories = {
     questions: [
       {
         question: 'What is Reeva and how does it work?',
-        answer: 'Reeva is a complete detailing platform that lets you start, grow, and manage your detailing business. You can create a professional profile, manage bookings, and connect with customers looking for quality detailing services.'
+        answer: 'Reeva is a complete detailing platform that lets you start, grow, and manage your detailing business. It is a space made to connect car owners with professional, mobile car detailers in their local area. You can create a professional profile, manage bookings, and connect with customers looking for quality detailing services.'
       },
       {
         question: 'How much does Reeva cost?',
