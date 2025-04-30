@@ -12,7 +12,7 @@ export default function Quote() {
           </p>
           <div className="mt-8 flex items-center justify-center gap-4">
             <Image
-              src="/images/daunte.png"
+              src="/images/Daunte.png"
               alt="Daunte"
               width={48}
               height={48}
