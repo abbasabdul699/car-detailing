@@ -123,7 +123,7 @@ export default function FAQPage() {
                 Our team is here to help you get started with Reeva
               </p>
               <Link 
-                href="/contact-us-page" 
+                href="/get-in-touch" 
                 className="inline-block bg-[#389167] text-white px-8 py-3 rounded-lg hover:bg-[#389167]/90 transition-colors"
               >
                 Contact Support
