@@ -22,6 +22,11 @@ const faqs = [
 ];
 
 export default function FAQ() {
+  const handleContactClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    window.location.href = "mailto:reevacar@gmail.com?subject=Partner Program Question";
+  };
+
   return (
     <section className="py-24 bg-white">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -38,8 +43,11 @@ export default function FAQ() {
 
         <div className="text-center mt-16">
           <p className="text-xl mb-8">Still have questions?</p>
-          <button className="bg-[#0A2217] text-white px-8 py-4 rounded-full text-lg font-medium hover:bg-[#0A2217]/90 transition-colors">
-            Contact our team
+          <button 
+            onClick={handleContactClick}
+            className="bg-[#0A2217] text-white px-8 py-4 rounded-full text-lg font-medium hover:bg-[#0A2217]/90 transition-colors"
+          >
+            Contact Support
           </button>
         </div>
       </div>
