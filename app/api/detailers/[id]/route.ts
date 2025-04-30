@@ -9,6 +9,10 @@ export async function GET(
     const detailer = await prisma.detailer.findUnique({
       where: {
         id: params.id
+      },
+      include: {
+        images: true,
+        detailerImages: true
       }
     });
 

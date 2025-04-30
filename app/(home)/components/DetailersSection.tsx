@@ -89,8 +89,8 @@ export default function DetailersSection() {
     <section className="py-12">
       <div className="max-w-7xl mx-auto px-4">
         <h2 className="text-3xl font-bold mb-8">Nearest Mobile Detailers</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {detailers.map((detailer) => (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+          {detailers.slice(0, 5).map((detailer) => (
             <Link 
               href={`/detailers/${detailer.id}`} 
               key={detailer.id}
@@ -103,7 +103,7 @@ export default function DetailersSection() {
                     alt={detailer.images?.[0]?.alt || detailer.businessName}
                     fill
                     className="rounded-t-lg object-cover"
-                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 25vw"
+                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 20vw"
                   />
                 </div>
                 <div className="p-4">

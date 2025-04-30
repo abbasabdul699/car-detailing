@@ -24,6 +24,7 @@ model Detailer {
   longitude    Float
   priceRange   String
   services     String[]
+  website      String?
   images       Image[]
   detailerImages DetailerImage[]
 }
