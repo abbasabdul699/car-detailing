@@ -22,27 +22,78 @@ const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
   title: "ReevaCar - Find Local Car Detailers",
-  description: "Find and book professional car detailing services near you",
+  description: "Find and book professional car detailing services near you. Whether it's a quick wash, deep interior cleaning, or premium protection like ceramic coating, find the right detailer offering exactly what your car needs.",
+  metadataBase: new URL('https://www.reevacar.com'),
+  openGraph: {
+    title: 'ReevaCar - Find Local Car Detailers',
+    description: 'Find and book professional car detailing services near you',
+    url: 'https://www.reevacar.com',
+    siteName: 'ReevaCar',
+    images: [
+      {
+        url: '/images/logo.png',
+        width: 512,
+        height: 512,
+        alt: 'ReevaCar Logo',
+      },
+    ],
+    locale: 'en_US',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'ReevaCar - Find Local Car Detailers',
+    description: 'Find and book professional car detailing services near you',
+    images: ['/images/logo.png'],
+  },
   icons: {
     icon: [
-      { url: '/images/logo.png', sizes: '32x32', type: 'image/png' },
-      { url: '/images/logo.png', sizes: '16x16', type: 'image/png' },
-      { url: '/images/logo.png', sizes: '48x48', type: 'image/png' },
-      { url: '/images/logo.png', sizes: '192x192', type: 'image/png' },
-      { url: '/images/logo.png', sizes: '512x512', type: 'image/png' },
+      { url: '/favicons/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
+      { url: '/favicons/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
+      { url: '/favicons/favicon-192x192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/favicons/favicon-512x512.png', sizes: '512x512', type: 'image/png' },
     ],
     apple: [
-      { url: '/images/logo.png', sizes: '180x180', type: 'image/png' },
+      { url: '/favicons/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
     ],
     other: [
       {
         rel: 'mask-icon',
-        url: '/images/logo.png',
+        url: '/favicons/safari-pinned-tab.svg',
         color: '#0A2217'
       }
     ]
   },
-  manifest: '/manifest.json'
+  manifest: '/manifest.json',
+  verification: {
+    google: 'your-google-site-verification', // You'll need to add your Google verification code
+  },
+  alternates: {
+    canonical: 'https://www.reevacar.com'
+  }
+};
+
+// Add JSON-LD structured data
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'Organization',
+  name: 'ReevaCar',
+  url: 'https://www.reevacar.com',
+  logo: 'https://www.reevacar.com/images/logo.png',
+  description: 'Find and book professional car detailing services near you',
+  address: {
+    '@type': 'PostalAddress',
+    streetAddress: '4 Hovendon Ave',
+    addressLocality: 'Brockton',
+    addressRegion: 'MA',
+    postalCode: '02302',
+    addressCountry: 'US'
+  },
+  contactPoint: {
+    '@type': 'ContactPoint',
+    telephone: '+1-508-269-1837',
+    contactType: 'customer service'
+  }
 };
 
 export default function RootLayout({
@@ -55,6 +106,10 @@ export default function RootLayout({
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} ${inter.className} antialiased min-h-screen flex flex-col`}>
         <PageTransition />
