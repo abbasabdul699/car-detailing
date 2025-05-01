@@ -25,21 +25,24 @@ export const metadata: Metadata = {
   description: "Find and book professional car detailing services near you",
   icons: {
     icon: [
-      {
-        url: '/images/logo.png',
-        sizes: 'any',
-      },
-      {
-        url: '/images/logo.png',
-        type: 'image/png',
-        sizes: '32x32',
-      },
+      { url: '/images/logo.png', sizes: '32x32', type: 'image/png' },
+      { url: '/images/logo.png', sizes: '16x16', type: 'image/png' },
+      { url: '/images/logo.png', sizes: '48x48', type: 'image/png' },
+      { url: '/images/logo.png', sizes: '192x192', type: 'image/png' },
+      { url: '/images/logo.png', sizes: '512x512', type: 'image/png' },
     ],
-    apple: {
-      url: '/images/logo.png',
-      sizes: '180x180',
-    },
-  }
+    apple: [
+      { url: '/images/logo.png', sizes: '180x180', type: 'image/png' },
+    ],
+    other: [
+      {
+        rel: 'mask-icon',
+        url: '/images/logo.png',
+        color: '#0A2217'
+      }
+    ]
+  },
+  manifest: '/manifest.json'
 };
 
 export default function RootLayout({
@@ -53,10 +56,10 @@ export default function RootLayout({
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </head>
-      <body className={`${geistSans.variable} ${geistMono.variable} ${inter.className} antialiased`}>
+      <body className={`${geistSans.variable} ${geistMono.variable} ${inter.className} antialiased min-h-screen flex flex-col`}>
         <PageTransition />
         <Navbar />
-        <main className="pt-16">
+        <main className="pt-16 flex-grow">
           {children}
         </main>
         <Footer />

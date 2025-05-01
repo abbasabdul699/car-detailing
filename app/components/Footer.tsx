@@ -87,6 +87,9 @@ const Footer = () => {
               </Link>
             ))}
           </div>
+          <p className="text-gray-400 text-sm">
+            © {new Date().getFullYear()} Reeva. All rights reserved.
+          </p>
         </div>
       </div>
     </footer>
