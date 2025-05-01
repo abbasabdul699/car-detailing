@@ -1,6 +1,6 @@
 // app/api/upload/route.ts
 import { NextResponse } from 'next/server';
-import { uploadDetailerImage, ImageCategory, uploadImage } from '@/lib/s3-utils';
+import { uploadImage, ImageCategory } from '@/lib/s3-utils';
 import { prisma } from '@/lib/prisma';
 
 export async function POST(request: Request) {
@@ -18,13 +18,14 @@ export async function POST(request: Request) {
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
-    const imageUrl = await uploadDetailerImage(buffer, businessName);
+    const fileName = `${businessName}-${Date.now()}.jpg`;
+    const imageUrl = await uploadImage(buffer, 'detailers', fileName);
 
     // Save to database
     const image = await prisma.detailerImage.create({
       data: {
         url: imageUrl,
-        key: `detailers/${businessName}`,
+        key: `detailers/${fileName}`,
         alt: `${businessName} detailing service`,
         detailerId: detailerId
       }

@@ -24,11 +24,25 @@ export const metadata: Metadata = {
   title: "ReevaCar - Find Local Car Detailers",
   description: "Find and book professional car detailing services near you. Whether it's a quick wash, deep interior cleaning, or premium protection like ceramic coating, find the right detailer offering exactly what your car needs.",
   metadataBase: new URL('https://www.reevacar.com'),
+  keywords: "car detailing, auto detailing, mobile car wash, ceramic coating, paint protection, car cleaning services",
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
   openGraph: {
     title: 'ReevaCar - Find Local Car Detailers',
     description: 'Find and book professional car detailing services near you',
     url: 'https://www.reevacar.com',
     siteName: 'ReevaCar',
+    locale: 'en_US',
+    type: 'website',
     images: [
       {
         url: '/images/logo.png',
@@ -37,8 +51,6 @@ export const metadata: Metadata = {
         alt: 'ReevaCar Logo',
       },
     ],
-    locale: 'en_US',
-    type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
@@ -66,11 +78,14 @@ export const metadata: Metadata = {
   },
   manifest: '/manifest.json',
   verification: {
-    google: 'your-google-site-verification', // You'll need to add your Google verification code
+    google: 'your-google-site-verification',
   },
   alternates: {
     canonical: 'https://www.reevacar.com'
-  }
+  },
+  authors: [{ name: 'ReevaCar Team' }],
+  creator: 'ReevaCar',
+  publisher: 'ReevaCar',
 };
 
 // Add JSON-LD structured data
