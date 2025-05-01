@@ -95,13 +95,12 @@ const Navbar = () => {
               whileTap={{ scale: 0.95 }}
               transition={{ type: "spring", stiffness: 400 }}
             >
-              <button 
-                onClick={handleForDetailersClick}
-                className="bg-white text-[#0A2217] px-4 py-2 rounded-full text-sm font-medium 
-                         hover:bg-gray-100 transition-colors"
+              <Link 
+                href="/for-detailers"
+                className="relative inline-flex items-center justify-center px-6 py-2 overflow-hidden text-white font-medium transition-all duration-300 ease-in-out rounded-full group hover:scale-[1.02] bg-gradient-to-r from-[#0A2217] via-[#22c55e] to-[#4ade80] hover:from-[#4ade80] hover:via-[#22c55e] hover:to-[#0A2217] shadow-md"
               >
-                For Detailers
-              </button>
+                <span className="relative">For Detailers</span>
+              </Link>
             </motion.div>
           </div>
         </div>
