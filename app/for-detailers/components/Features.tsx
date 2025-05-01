@@ -66,14 +66,7 @@ export default function Features() {
           </div>
         </div>
 
-        {/* CTA Button */}
-        <div className="text-center mt-12">
-          <Link href="/contact-us-page">
-            <button className="bg-black text-white px-8 py-3 rounded-lg hover:bg-black/90 transition-colors">
-              Schedule a call
-            </button>
-          </Link>
-        </div>
+
       </div>
     </section>
   )

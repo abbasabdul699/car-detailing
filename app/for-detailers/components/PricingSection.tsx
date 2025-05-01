@@ -42,7 +42,7 @@ export default function PricingSection() {
                   </div>
                 </div>
 
-                <Link href="/contact-us-page">
+                <Link href="/get-in-touch">
                   <button className="w-full bg-black text-white py-4 rounded-2xl mb-8 hover:bg-black/90 transition-colors text-xl">
                     Schedule a call
                   </button>
@@ -114,7 +114,7 @@ export default function PricingSection() {
                   </div>
                 </div>
 
-                <Link href="/contact-us-page">
+                <Link href="/get-in-touch">
                   <button className="w-full bg-black text-white py-4 rounded-2xl mb-8 hover:bg-black/90 transition-colors text-xl">
                     Schedule a call
                   </button>
