@@ -37,7 +37,7 @@ export async function sendEmail(to: string, subject: string, code: string) {
 
   const mailOptions = {
     from: {
-      name: 'Renu Verification',
+      name: 'Reeva Verification',
       address: 'shermohammad6999@gmail.com'
     },
     to,

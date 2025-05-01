@@ -7,7 +7,7 @@ export default function PartnerHero() {
         </button>
 
         <h1 className="text-5xl sm:text-6xl lg:text-7xl font-serif tracking-tight mb-8">
-          Partner With Renu and Grow Together
+          Partner With Reeva and Grow Together
         </h1>
 
         <p className="text-lg sm:text-xl text-gray-600 max-w-3xl mx-auto mb-12">

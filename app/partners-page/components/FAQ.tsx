@@ -3,7 +3,7 @@
 const faqs = [
   {
     question: "How does the partner program work?",
-    answer: "Our partner program allows you to earn commissions by referring detailers to Renu. When a detailer you refer joins and remains active on our platform, you earn a percentage of their subscription fees."
+    answer: "Our partner program allows you to earn commissions by referring detailers to Reeva. When a detailer you refer joins and remains active on our platform, you earn a percentage of their subscription fees."
   },
   {
     question: "What are the commission rates?",

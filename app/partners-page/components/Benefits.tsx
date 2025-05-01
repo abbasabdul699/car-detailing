@@ -13,7 +13,7 @@ const benefits = [
   },
   {
     title: "Marketing Resources",
-    description: "Access exclusive marketing materials, training resources, and promotional content to help you promote Renu.",
+    description: "Access exclusive marketing materials, training resources, and promotional content to help you promote Reeva.",
     icon: "/images/marketing-icon.png"
   },
   {

@@ -14,7 +14,7 @@ const tabs = [
   },
   {
     id: 'use-platform',
-    title: 'Use Renu.com',
+    title: 'Use Reeva.com',
     content: {
       title: 'Powerful Platform at Your Fingertips',
       description: 'Access our intuitive dashboard to track referrals, manage commissions, and grow your partnership business with ease.',
@@ -35,7 +35,7 @@ const tabs = [
     title: 'Partnership support',
     content: {
       title: 'Resources to Help You Succeed',
-      description: 'Access marketing materials, training resources, and promotional content to effectively promote Renu to your audience.',
+      description: 'Access marketing materials, training resources, and promotional content to effectively promote Reeva to your audience.',
       image: '/images/partners/partnership-resources.png'
     }
   }
@@ -48,7 +48,7 @@ export default function WhyPartner() {
     <section className="py-24 bg-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <h2 className="text-4xl font-bold text-center mb-16">
-          Why become a Renu partner?
+          Why become a Reeva partner?
         </h2>
 
         {/* Tab Navigation */}

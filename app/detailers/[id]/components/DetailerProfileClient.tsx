@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
-import { FaInstagram, FaTiktok, FaGlobe, FaShare, FaPhone } from 'react-icons/fa';
+import { FaInstagram, FaTiktok, FaGlobe, FaShare, FaPhone, FaTimes, FaWhatsapp } from 'react-icons/fa';
 import Navbar from '@/app/components/Navbar';
 import LocationMap from './LocationMap';
 import ImageModal from './ImageModal';
@@ -37,9 +37,29 @@ type ServiceCategory = 'full' | 'exterior' | 'interior' | 'protection' | 'additi
 export default function DetailerProfileClient({ detailer }: DetailerProfileClientProps) {
   const [selectedImage, setSelectedImage] = useState<DetailerImage | null>(null);
   const [activeTab, setActiveTab] = useState<ServiceCategory>('full');
+  const [showContactModal, setShowContactModal] = useState(false);
 
-  const handleCall = () => {
-    window.location.href = `tel:${detailer.phone}`;
+  const handleContact = () => {
+    // Check if the device is mobile
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    
+    if (isMobile) {
+      // If mobile, directly initiate the call
+      window.location.href = `tel:${detailer.phone}`;
+    } else {
+      // If desktop, show the modal
+      setShowContactModal(true);
+    }
+  };
+
+  // Format phone number for display
+  const formatPhoneNumber = (phone: string) => {
+    const cleaned = phone.replace(/\D/g, '');
+    const match = cleaned.match(/^(\d{3})(\d{3})(\d{4})$/);
+    if (match) {
+      return '(' + match[1] + ') ' + match[2] + '-' + match[3];
+    }
+    return phone;
   };
 
   console.log('Detailer data:', detailer);
@@ -137,10 +157,10 @@ export default function DetailerProfileClient({ detailer }: DetailerProfileClien
                 {/* Action Buttons */}
                 <div className="flex gap-3">
                   <button 
-                    onClick={handleCall}
+                    onClick={handleContact}
                     className="px-8 py-2 bg-black text-white rounded-full hover:bg-gray-800 transition-colors flex items-center gap-2"
                   >
-                    <FaPhone className="w-4 h-4" />
+                    <FaPhone className="w-4 h-4 transform -scale-x-100" />
                     Contact
                   </button>
                   <button className="p-2 rounded-full border hover:bg-gray-50 transition-colors">
@@ -278,6 +298,48 @@ export default function DetailerProfileClient({ detailer }: DetailerProfileClien
               alt={selectedImage.alt}
               onClose={() => setSelectedImage(null)}
             />
+          </div>
+        )}
+
+        {/* Contact Modal for Desktop */}
+        {showContactModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-2xl p-8 max-w-md w-full mx-4 relative">
+              <button 
+                onClick={() => setShowContactModal(false)}
+                className="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
+              >
+                <FaTimes className="w-5 h-5" />
+              </button>
+              
+              <div className="text-center mb-6">
+                <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <FaPhone className="w-8 h-8 text-white" />
+                </div>
+                <h3 className="text-2xl font-bold mb-2">Contact {detailer.businessName}</h3>
+                <p className="text-gray-600 mb-6">Choose how you'd like to reach out</p>
+              </div>
+
+              <div className="space-y-4">
+                <a 
+                  href={`tel:${detailer.phone}`}
+                  className="w-full flex items-center justify-center gap-3 bg-black text-white py-3 rounded-lg hover:bg-gray-800 transition-colors"
+                >
+                  <FaPhone className="w-5 h-5" />
+                  <span>{formatPhoneNumber(detailer.phone)}</span>
+                </a>
+                
+                <a 
+                  href={`https://wa.me/${detailer.phone.replace(/\D/g, '')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full flex items-center justify-center gap-3 bg-green-500 text-white py-3 rounded-lg hover:bg-green-600 transition-colors"
+                >
+                  <FaWhatsapp className="w-5 h-5" />
+                  <span>WhatsApp</span>
+                </a>
+              </div>
+            </div>
           </div>
         )}
       </main>
