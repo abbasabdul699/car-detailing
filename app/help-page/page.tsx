@@ -122,7 +122,7 @@ export default function HelpPage() {
         <div className="text-center mb-16">
           <h2 className="text-3xl font-bold mb-4">Need help? We've got your back.</h2>
           <p className="text-gray-600 mb-2">
-            From account settings to permissions, find help for everything Renu
+            From account settings to permissions, find help for everything Reeva
           </p>
         </div>
 

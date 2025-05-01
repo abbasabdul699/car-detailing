@@ -19,7 +19,7 @@ const partnerTypes = [
   {
     icon: "/images/technology-icon.png",
     title: "Technology",
-    description: "Your software solution users can find added value with Renu and we do or should share clients."
+    description: "Your software solution users can find added value with Reeva and we do or should share clients."
   }
 ];
 

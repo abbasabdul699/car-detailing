@@ -19,7 +19,7 @@ export async function sendVerificationEmail(email: string, code: string) {
     });
 
     const info = await transporter.sendMail({
-      from: `"Renu Security" <${process.env.EMAIL_FROM}>`,
+      from: `"Reeva Security" <${process.env.EMAIL_FROM}>`,
       to: email,
       subject: "Your 2FA Verification Code",
       text: `Your verification code is: ${code}`,

@@ -110,7 +110,7 @@ const Footer = () => {
 
         <div className="mt-8 pt-8 border-t border-gray-700">
           <p className="text-center text-gray-400">
-            © 2024 Renu. All rights reserved.
+            © 2024 Reeva. All rights reserved.
           </p>
         </div>
       </div>

@@ -17,7 +17,7 @@ const Navbar = () => {
           <div className="flex items-center">
             <div className={isSearchPage ? "w-48" : ""}>
               <Link href="/" className="text-2xl font-bold text-[rgba(10,34,23,1)]">
-                Renu
+                Reeva
               </Link>
             </div>
 

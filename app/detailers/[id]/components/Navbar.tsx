@@ -28,7 +28,7 @@ export default function Navbar() {
           {/* Left side - Logo and primary navigation */}
           <div className="flex items-center space-x-8">
             <Link href="/" className="text-2xl font-bold text-white">
-              Renu
+              Reeva
             </Link>
             <div className="hidden md:flex space-x-8">
               <Link 

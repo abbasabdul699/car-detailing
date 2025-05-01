@@ -2,19 +2,19 @@ import Image from 'next/image';
 
 const testimonials = [
   {
-    quote: "Partnering with Renu has been a game-changer for our detailing community. The commission structure is fantastic, and their support team is always there when we need them.",
+    quote: "Partnering with Reeva has been a game-changer for our detailing community. The commission structure is fantastic, and their support team is always there when we need them.",
     author: "John Smith",
     role: "Detailing Industry Influencer",
     avatar: "/images/testimonial-1.jpg"
   },
   {
-    quote: "As a content creator in the automotive space, Renu's partner program has provided an excellent opportunity to monetize my audience while providing real value to my followers.",
+    quote: "As a content creator in the automotive space, Reeva's partner program has provided an excellent opportunity to monetize my audience while providing real value to my followers.",
     author: "Sarah Johnson",
     role: "Automotive YouTuber",
     avatar: "/images/testimonial-2.jpg"
   },
   {
-    quote: "The partnership with Renu has allowed us to offer our clients a reliable platform for their detailing needs. The integration was seamless, and the results speak for themselves.",
+    quote: "The partnership with Reeva has allowed us to offer our clients a reliable platform for their detailing needs. The integration was seamless, and the results speak for themselves.",
     author: "Mike Williams",
     role: "Agency Owner",
     avatar: "/images/testimonial-3.jpg"
