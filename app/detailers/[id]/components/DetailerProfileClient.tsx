@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
-import { FaInstagram, FaTiktok, FaGlobe, FaShare } from 'react-icons/fa';
+import { FaInstagram, FaTiktok, FaGlobe, FaShare, FaPhone } from 'react-icons/fa';
 import Navbar from '@/app/components/Navbar';
 import LocationMap from './LocationMap';
 import ImageModal from './ImageModal';
@@ -37,6 +37,10 @@ type ServiceCategory = 'full' | 'exterior' | 'interior' | 'protection' | 'additi
 export default function DetailerProfileClient({ detailer }: DetailerProfileClientProps) {
   const [selectedImage, setSelectedImage] = useState<DetailerImage | null>(null);
   const [activeTab, setActiveTab] = useState<ServiceCategory>('full');
+
+  const handleCall = () => {
+    window.location.href = `tel:${detailer.phone}`;
+  };
 
   console.log('Detailer data:', detailer);
 
@@ -132,8 +136,12 @@ export default function DetailerProfileClient({ detailer }: DetailerProfileClien
 
                 {/* Action Buttons */}
                 <div className="flex gap-3">
-                  <button className="px-8 py-2 bg-black text-white rounded-full hover:bg-gray-800 transition-colors">
-                    Book
+                  <button 
+                    onClick={handleCall}
+                    className="px-8 py-2 bg-black text-white rounded-full hover:bg-gray-800 transition-colors flex items-center gap-2"
+                  >
+                    <FaPhone className="w-4 h-4" />
+                    Contact
                   </button>
                   <button className="p-2 rounded-full border hover:bg-gray-50 transition-colors">
                     <FaInstagram className="w-5 h-5" />
