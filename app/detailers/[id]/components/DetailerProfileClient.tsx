@@ -32,11 +32,11 @@ interface DetailerProfileClientProps {
   detailer: Detailer;
 }
 
-type ServiceCategory = 'full' | 'exterior' | 'interior' | 'protection' | 'additional';
+type ServiceCategory = 'exterior' | 'interior' | 'additional';
 
 export default function DetailerProfileClient({ detailer }: DetailerProfileClientProps) {
   const [selectedImage, setSelectedImage] = useState<DetailerImage | null>(null);
-  const [activeTab, setActiveTab] = useState<ServiceCategory>('full');
+  const [activeTab, setActiveTab] = useState<ServiceCategory>('exterior');
   const [showContactModal, setShowContactModal] = useState(false);
 
   const handleContact = () => {
@@ -64,46 +64,55 @@ export default function DetailerProfileClient({ detailer }: DetailerProfileClien
 
   console.log('Detailer data:', detailer);
 
-  // Categorize services
-  const categorizedServices = {
-    full: detailer.services.filter(service => 
-      service.toLowerCase().includes('full') || 
-      service.toLowerCase().includes('complete') ||
-      service.toLowerCase().includes('package')
-    ),
-    exterior: detailer.services.filter(service => 
-      service.toLowerCase().includes('exterior') || 
-      service.toLowerCase().includes('wash') ||
-      service.toLowerCase().includes('polish') ||
-      service.toLowerCase().includes('tire') ||
-      service.toLowerCase().includes('dressing') ||
-      service.toLowerCase().includes('wax') 
-    ),
-    interior: detailer.services.filter(service => 
-      service.toLowerCase().includes('interior') || 
-      service.toLowerCase().includes('vacuum') 
-    ),
-    protection: detailer.services.filter(service => 
-      service.toLowerCase().includes('protection') || 
-      service.toLowerCase().includes('ceramic') ||
-      service.toLowerCase().includes('coating') ||
-      service.toLowerCase().includes('paint') ||
-      service.toLowerCase().includes('polish') ||
-      service.toLowerCase().includes('wax')
+  const exteriorServices = detailer.services.filter(service => 
+    service.toLowerCase().includes('exterior') || 
+    service.toLowerCase().includes('wash') ||
+    service.toLowerCase().includes('polish') ||
+    service.toLowerCase().includes('tire') ||
+    service.toLowerCase().includes('trim') ||
+    service.toLowerCase().includes('dressing') ||
+    service.toLowerCase().includes('wax') ||
+    service.toLowerCase().includes('polishing') ||
+    service.toLowerCase().includes('clay') ||
+    service.toLowerCase().includes('bug') ||
+    service.toLowerCase().includes('tar') ||
+    service.toLowerCase().includes('window') ||
+    service.toLowerCase().includes('mirror') ||
+    service.toLowerCase().includes('headlight') ||
+    service.toLowerCase().includes('tailight') ||
+    service.toLowerCase().includes('foglight') ||
+    service.toLowerCase().includes('paint') ||
+    service.toLowerCase().includes('door') ||
+    service.toLowerCase().includes('wheel') 
+  );
 
-    ),
-    additional: detailer.services.filter(service => 
-      !service.toLowerCase().includes('full') &&
-      !service.toLowerCase().includes('complete') &&
-      !service.toLowerCase().includes('package') &&
-      !service.toLowerCase().includes('exterior') &&
-      !service.toLowerCase().includes('wash') &&
-      !service.toLowerCase().includes('interior') &&
-      !service.toLowerCase().includes('vacuum') &&
-      !service.toLowerCase().includes('cleaning') &&
-      !service.toLowerCase().includes('protection') &&
-      !service.toLowerCase().includes('paint')
-    )
+  const interiorServices = detailer.services.filter(service => 
+    service.toLowerCase().includes('interior') || 
+    service.toLowerCase().includes('vacuum') ||
+    service.toLowerCase().includes('leather') ||
+    service.toLowerCase().includes('seat') ||
+    service.toLowerCase().includes('carpet') ||
+    service.toLowerCase().includes('fabric') ||
+    service.toLowerCase().includes('upholstery') ||
+    service.toLowerCase().includes('foot') ||
+    service.toLowerCase().includes('dashboard') ||
+    service.toLowerCase().includes('console') 
+  );
+
+  // Build a set of all services in the main categories
+  const mainServicesSet = new Set([
+    ...exteriorServices,
+    ...interiorServices,
+  ]);
+
+  const additionalServices = detailer.services.filter(
+    service => !mainServicesSet.has(service)
+  );
+
+  const categorizedServices = {
+    exterior: exteriorServices,
+    interior: interiorServices,
+    additional: additionalServices,
   };
 
   return (
@@ -202,12 +211,6 @@ export default function DetailerProfileClient({ detailer }: DetailerProfileClien
         <nav className="border-b mb-8">
           <ul className="flex gap-8">
             <li 
-              className={`pb-2 cursor-pointer ${activeTab === 'full' ? 'border-b-2 border-black font-medium' : 'text-gray-500 hover:text-black'}`}
-              onClick={() => setActiveTab('full')}
-            >
-              Full detailing Packages
-            </li>
-            <li 
               className={`pb-2 cursor-pointer ${activeTab === 'exterior' ? 'border-b-2 border-black font-medium' : 'text-gray-500 hover:text-black'}`}
               onClick={() => setActiveTab('exterior')}
             >
@@ -218,12 +221,6 @@ export default function DetailerProfileClient({ detailer }: DetailerProfileClien
               onClick={() => setActiveTab('interior')}
             >
               Interior
-            </li>
-            <li 
-              className={`pb-2 cursor-pointer ${activeTab === 'protection' ? 'border-b-2 border-black font-medium' : 'text-gray-500 hover:text-black'}`}
-              onClick={() => setActiveTab('protection')}
-            >
-              Paint Protection
             </li>
             <li 
               className={`pb-2 cursor-pointer ${activeTab === 'additional' ? 'border-b-2 border-black font-medium' : 'text-gray-500 hover:text-black'}`}
@@ -239,14 +236,14 @@ export default function DetailerProfileClient({ detailer }: DetailerProfileClien
           {categorizedServices[activeTab].map((service, index) => (
             <div 
               key={index} 
-              className={`p-6 rounded-xl ${index === 0 && activeTab === 'full' ? 'relative bg-green-50' : 'bg-white border'}`}
+              className={`p-6 rounded-xl ${index === 0 && activeTab === 'exterior' ? 'relative bg-green-50' : 'bg-white border'}`}
             >
-              {index === 0 && activeTab === 'full' && (
+              {index === 0 && activeTab === 'exterior' && (
                 <span className="absolute top-4 left-4 text-xs px-2 py-1 bg-green-600 text-white rounded-full">
                   Most Popular
                 </span>
               )}
-              <div className={index === 0 && activeTab === 'full' ? 'mt-8' : ''}>
+              <div className={index === 0 && activeTab === 'exterior' ? 'mt-8' : ''}>
                 <h3 className="text-xl font-semibold mb-2">{service}</h3>
                 <p className="text-gray-600">
                   Professional detailing service tailored to your needs

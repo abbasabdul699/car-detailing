@@ -5,122 +5,27 @@ const prisma = new PrismaClient()
 async function main() {
   console.log('Starting database seeding...')
 
-  // Clear existing data
-  await prisma.image.deleteMany({})
-  await prisma.detailer.deleteMany({})
-  console.log('Cleared existing data')
-
   const detailers = [
-    {
-      businessName: "Uncle Mike's Detailing",
-      email: "mike@unclemikes.com",
-      phone: "(508) 982-0451",
-      address: "124 Pine St",
-      city: "Attleboro",
-      state: "MA",
-      zipCode: "02703",
-      description: "Professional mobile detailing service with over 10 years of experience. We come to you!",
-      latitude: 41.9389,
-      longitude: -71.3033,
-      priceRange: "$$",
-      services: ["Basic Wash", "Full Detail", "Paint Correction"],
-      images: {
-        create: [
-          {
-            url: "/images/detailers/green-car.jpg",
-            alt: "Uncle Mike's Detailing"
-          }
-        ]
-      }
-    },
-    {
-      businessName: "DF Detailing",
-      email: "info@dfdetailing.com",
-      phone: "(857) 243-5290",
-      address: "21 Manville Hill Rd",
-      city: "Cumberland",
-      state: "RI",
-      zipCode: "02864",
-      description: "Expert mobile detailing services. Satisfaction guaranteed!",
-      latitude: 41.7166,
-      longitude: -71.4222,
-      priceRange: "$",
-      services: ["Basic Wash", "Interior Detail", "Ceramic Coating"],
-      website: "https://www.dfdetailing.com",
-      images: {
-        create: [
-          {
-            url: "/images/detailers/df-detailing.jpg",
-            alt: "DF Detailing"
-          }
-        ]
-      }
-    },
-    {
-      businessName: "Pay Attention To Detail",
-      email: "contact@payattention.com",
-      phone: "(857) 244-1516",
-      address: "20 Parkman St",
-      city: "Dorchester",
-      state: "MA",
-      zipCode: "02122",
-      description: "Professional detailing with attention to every detail. Premium service at competitive prices.",
-      latitude: 42.2966,
-      longitude: -71.0597,
-      priceRange: "$$$",
-      services: ["Full Detail", "Paint Correction", "Ceramic Coating"],
-      website: "https://www.payattentiondetail.com",
-      images: {
-        create: [
-          {
-            url: "/images/detailers/pay-attention.jpg",
-            alt: "Pay Attention To Detail"
-          }
-        ]
-      }
-    },
-    {
-      businessName: "Jay's Mobile Detailing",
-      email: "jay@jaysdetailing.com",
-      phone: "(401) 678-9226",
-      address: "1634 Elmwood Ave",
-      city: "Cranston",
-      state: "RI",
-      zipCode: "02910",
-      description: "Mobile detailing service that comes to you. Quality work at affordable prices.",
-      latitude: 41.7633,
-      longitude: -71.4250,
-      priceRange: "$$",
-      services: ["Basic Wash", "Full Detail", "Interior Detail"],
-      website: "https://www.jaysdetailing.com",
-      images: {
-        create: [
-          {
-            url: "/images/detailers/jays-detailing.jpg",
-            alt: "Jay's Mobile Detailing"
-          }
-        ]
-      }
-    },
-    {
-        businessName: "Red Eagle Mobile Detailing",
-        email: "N/A",
-        phone: "(617) 914-0122",
-        address: "24 Dunreath St #1",
-        city: "Boston",
+      {
+        businessName: "Wellesley Car Detailing",
+        email: "wellesleycardetailing@gmail.com",
+        phone: "(617) 564-4340",
+        address: "275 Grove St #2400",
+        city: "Auburndale",
         state: "MA",
-        zipCode: "02119",
-        description: "N/A",
-        latitude: 42.3229,
-        longitude: -71.0815,
+        zipCode: "02466",
+        description: "Welcome to Wellesley Car Detailing, your top choice for all things car care in Wellesley, MA. As a trusted mobile detailing service, we’re proud to be locally owned and operated, bringing high-quality detailing straight to your door.",
+        latitude: 42.3389,
+        longitude: -71.2530,
         priceRange: "$$",
-        website: "https://www.redeaglemobiledetailing.com",
-        services: ["Hand Wash and Dry", "Wax and Polish", "Clay Bar Treatment", "Paint Sealant or Ceramic Coating", "Tire Cleaning & Dressing", "Wheel & Rim Detailing", "Bug & Tar Removal", "Door Jamb Cleaning", "Trim Restoration", "Dog Hair Removal", "Odor Removal", "Paint Correction", "Ceramic Coating", "Vacuuming", "Carpet and Upholestry Shampooing and Conditioning", "Leather Cleaning and Conditioning", "Dashboard, Console & Door Panel Cleaning", "Window & Mirror Cleaning "],
+        website: "https://wellesleycardetailing.com/",
+        services: ["Vacuuming", "Carpet & Upholstery Shampooing & Steaming", "Leather Cleaning & Conditioning","Dashboard, Console & Door Panel Cleaning","Window & Mirror Cleaning","Odor Elimination","Hand Wash & Dry", "Waxing & Polishing", "Clay Bar Treatment","Tire Cleaning & Dressing", "Wheel & Rim Detailing", "Door Jamb Cleaning", "Trim Restoration", "Paint Correction", "Overspray Removal", "Headlight Restoration", "Limescale Removal", "Car Seat Cleaning", "Pet Hair Removal", "Vomit Clean Up", "Paint Correction", "Ceramic Coating "],
+
         images: {
           create: [
             {
-              url: "/images/detailers/red-eagle.jpg",
-              alt: "Red Eagle Mobile Detailing"
+              url: "/images/detailers/wellesley-detailing.jpg",
+              alt: "Wellesley Car Detailing"
             }
           ]
         }
