@@ -7,6 +7,7 @@ import { motion } from 'framer-motion';
 
 const Navbar = () => {
   const pathname = usePathname();
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   const navItems = [
     { name: 'About Us', href: '/about-page' },
@@ -15,6 +16,11 @@ const Navbar = () => {
   ];
 
   const isActive = (path: string) => pathname === path;
+
+  // Close mobile menu on route change
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
 
   const handleForDetailersClick = (e: React.MouseEvent) => {
     const event = new CustomEvent('startTransition', {
@@ -41,6 +47,7 @@ const Navbar = () => {
               </Link>
             </motion.div>
 
+            {/* Desktop nav */}
             <div className="hidden md:flex space-x-8">
               {navItems.map((item) => (
                 <motion.div
@@ -67,8 +74,8 @@ const Navbar = () => {
             </div>
           </div>
 
-          {/* Right side - CTA Buttons */}
-          <div className="flex items-center space-x-4">
+          {/* Desktop CTA Buttons */}
+          <div className="hidden md:flex items-center space-x-4">
             <motion.div
               className="relative"
               whileHover={{ y: -2 }}
@@ -103,8 +110,77 @@ const Navbar = () => {
               </Link>
             </motion.div>
           </div>
+
+          {/* Hamburger menu button - mobile only */}
+          <div className="md:hidden flex items-center">
+            <button
+              onClick={() => setMobileOpen((open) => !open)}
+              aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
+              className="text-white focus:outline-none"
+            >
+              {mobileOpen ? (
+                <svg className="w-8 h-8" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              ) : (
+                <svg className="w-8 h-8" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              )}
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* Mobile menu overlay */}
+      {mobileOpen && (
+        <div className="md:hidden fixed inset-0 z-50 bg-[#0A2217] flex flex-col">
+          {/* Top bar: Logo and close button */}
+          <div className="flex items-center justify-between px-6 pt-6 pb-2">
+            <Link href="/" className="text-2xl font-bold text-white" onClick={() => setMobileOpen(false)}>
+              Reeva
+            </Link>
+            <button
+              onClick={() => setMobileOpen(false)}
+              aria-label="Close menu"
+              className="text-white focus:outline-none"
+            >
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          {/* Menu items vertically centered */}
+          <div className="flex-1 flex flex-col justify-center items-start px-8 space-y-8">
+            {navItems.map((item) => (
+              <Link
+                key={item.name}
+                href={item.href}
+                className="text-white text-3xl font-extrabold tracking-tight hover:text-[#22c55e] transition-colors"
+                onClick={() => setMobileOpen(false)}
+              >
+                {item.name}
+              </Link>
+            ))}
+            <Link
+              href="/get-in-touch"
+              className="text-white text-3xl font-extrabold tracking-tight hover:text-[#22c55e] transition-colors"
+              onClick={() => setMobileOpen(false)}
+            >
+              Get in Touch
+            </Link>
+            <Link
+              href="/for-detailers"
+              className="inline-flex items-center justify-center px-6 py-3 mt-4 text-white text-2xl font-bold rounded-full bg-gradient-to-r from-[#0A2217] via-[#22c55e] to-[#4ade80] hover:from-[#4ade80] hover:via-[#22c55e] hover:to-[#0A2217] shadow-md transition-all"
+              onClick={() => setMobileOpen(false)}
+            >
+              For Detailers
+            </Link>
+          </div>
+        </div>
+      )}
+      {/* Mobile menu panel (hidden, replaced by overlay) */}
+      {/* <div ...> ... </div> */}
     </nav>
   );
 };

@@ -76,11 +76,11 @@ export default function FAQPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 py-12">
-        <div className="flex gap-12">
-          {/* Left Sidebar Navigation */}
-          <div className="w-64 flex-shrink-0">
-            <div className="sticky top-24">
-              <nav className="space-y-2">
+        <div className="flex flex-col md:flex-row gap-8 md:gap-12">
+          {/* Sidebar Navigation */}
+          <div className="w-full md:w-64 flex-shrink-0 mb-8 md:mb-0">
+            <div className="md:sticky md:top-24">
+              <nav className="flex md:block gap-2 md:space-y-2">
                 {Object.values(faqCategories).map((category) => (
                   <button
                     key={category.id}
@@ -97,7 +97,6 @@ export default function FAQPage() {
               </nav>
             </div>
           </div>
-
           {/* Main Content */}
           <div className="flex-1 max-w-3xl">
             {Object.values(faqCategories).map((category) => (
@@ -117,7 +116,6 @@ export default function FAQPage() {
                 </div>
               </section>
             ))}
-
             <FAQContactForm />
           </div>
         </div>
