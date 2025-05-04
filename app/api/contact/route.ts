@@ -4,7 +4,7 @@ import nodemailer from 'nodemailer';
 export async function POST(request: Request) {
   try {
     const data = await request.json();
-    const { companyName, firstName, lastName, phoneNumber, workEmail } = data;
+    const { companyName, firstName, lastName, phone, email, message, formType } = data;
 
     // Create email transporter
     const transporter = nodemailer.createTransport({
@@ -15,18 +15,24 @@ export async function POST(request: Request) {
       }
     });
 
+    // Determine subject based on form type
+    const subject = formType === 'faq' 
+      ? 'FAQ Submission Form' 
+      : 'New Contact Form Submission';
+
     // Email content
     const mailOptions = {
       from: process.env.EMAIL_USER,
       to: 'reevacar@gmail.com',
-      subject: 'New Contact Form Submission',
+      subject,
       html: `
-        <h2>New Contact Form Submission</h2>
-        <p><strong>Company Name:</strong> ${companyName}</p>
+        <h2>${subject}</h2>
         <p><strong>First Name:</strong> ${firstName}</p>
         <p><strong>Last Name:</strong> ${lastName}</p>
-        <p><strong>Phone Number:</strong> ${phoneNumber}</p>
-        <p><strong>Work Email:</strong> ${workEmail}</p>
+        <p><strong>Phone Number:</strong> ${phone}</p>
+        <p><strong>Work Email:</strong> ${email}</p>
+        ${companyName ? `<p><strong>Company Name:</strong> ${companyName}</p>` : ''}
+        ${message ? `<p><strong>Message:</strong></p><p>${message}</p>` : ''}
       `
     };
 

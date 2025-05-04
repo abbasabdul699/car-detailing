@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import FAQContactForm from './components/FAQContactForm'
 
 const faqCategories = {
   getting_started: {
@@ -18,7 +19,7 @@ const faqCategories = {
       },
       {
         question: 'What is Reeva to a Detailer',
-        answer: 'A place to start, grow, and manage your detailing business. An opportunity to showcase your work and services without the hassle of competing for SEO and the monthly costs of a personal website, with pricey ad-ons. Stop paying for social media marketing, when you’re not getting the reach you deserve.'
+        answer: 'A place to start, grow, and manage your detailing business. An opportunity to showcase your work and services without the hassle of competing for SEO and the monthly costs of a personal website, with pricey ad-ons. Stop paying for social media marketing, when you are not getting the reach you deserve.'
       },
     ]
   },
@@ -117,18 +118,7 @@ export default function FAQPage() {
               </section>
             ))}
 
-            <div className="mt-16 p-8 bg-[#F3F3F3] rounded-lg">
-              <h2 className="text-2xl font-bold mb-4">Still have questions?</h2>
-              <p className="text-gray-600 mb-6">
-                Our team is here to help you get started with Reeva
-              </p>
-              <Link 
-                href="/get-in-touch" 
-                className="inline-block bg-[#389167] text-white px-8 py-3 rounded-lg hover:bg-[#389167]/90 transition-colors"
-              >
-                Contact Support
-              </Link>
-            </div>
+            <FAQContactForm />
           </div>
         </div>
       </div>
