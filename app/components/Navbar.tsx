@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const Navbar = () => {
   const pathname = usePathname();
@@ -132,55 +132,68 @@ const Navbar = () => {
         </div>
       </div>
 
-      {/* Mobile menu overlay */}
-      {mobileOpen && (
-        <div className="md:hidden fixed inset-0 z-50 bg-[#0A2217] flex flex-col">
-          {/* Top bar: Logo and close button */}
-          <div className="flex items-center justify-between px-6 pt-6 pb-2">
-            <Link href="/" className="text-2xl font-bold text-white" onClick={() => setMobileOpen(false)}>
-              Reeva
-            </Link>
-            <button
-              onClick={() => setMobileOpen(false)}
-              aria-label="Close menu"
-              className="text-white focus:outline-none"
+      {/* Mobile menu overlay with animation */}
+      <AnimatePresence>
+        {mobileOpen && (
+          <motion.div
+            key="mobile-menu"
+            initial={{ x: '100%', opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: '100%', opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+            className="md:hidden fixed inset-0 z-50 bg-[#0A2217] flex flex-col"
+          >
+            {/* Top bar: Logo and close button */}
+            <div className="flex items-center justify-between px-6 pt-6 pb-2">
+              <Link href="/" className="text-2xl font-bold text-white" onClick={() => setMobileOpen(false)}>
+                Reeva
+              </Link>
+              <button
+                onClick={() => setMobileOpen(false)}
+                aria-label="Close menu"
+                className="text-white focus:outline-none"
+              >
+                <svg className="w-8 h-8" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            {/* Menu items vertically centered */}
+            <motion.div
+              initial={{ opacity: 0, y: 40 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 40 }}
+              transition={{ delay: 0.1 }}
+              className="flex-1 flex flex-col justify-center items-start px-8 space-y-8"
             >
-              <svg className="w-8 h-8" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-          {/* Menu items vertically centered */}
-          <div className="flex-1 flex flex-col justify-center items-start px-8 space-y-8">
-            {navItems.map((item) => (
+              {navItems.map((item) => (
+                <Link
+                  key={item.name}
+                  href={item.href}
+                  className="text-white text-3xl font-extrabold tracking-tight hover:text-[#22c55e] transition-colors"
+                  onClick={() => setMobileOpen(false)}
+                >
+                  {item.name}
+                </Link>
+              ))}
               <Link
-                key={item.name}
-                href={item.href}
+                href="/get-in-touch"
                 className="text-white text-3xl font-extrabold tracking-tight hover:text-[#22c55e] transition-colors"
                 onClick={() => setMobileOpen(false)}
               >
-                {item.name}
+                Get in Touch
               </Link>
-            ))}
-            <Link
-              href="/get-in-touch"
-              className="text-white text-3xl font-extrabold tracking-tight hover:text-[#22c55e] transition-colors"
-              onClick={() => setMobileOpen(false)}
-            >
-              Get in Touch
-            </Link>
-            <Link
-              href="/for-detailers"
-              className="inline-flex items-center justify-center px-6 py-3 mt-4 text-white text-2xl font-bold rounded-full bg-gradient-to-r from-[#0A2217] via-[#22c55e] to-[#4ade80] hover:from-[#4ade80] hover:via-[#22c55e] hover:to-[#0A2217] shadow-md transition-all"
-              onClick={() => setMobileOpen(false)}
-            >
-              For Detailers
-            </Link>
-          </div>
-        </div>
-      )}
-      {/* Mobile menu panel (hidden, replaced by overlay) */}
-      {/* <div ...> ... </div> */}
+              <Link
+                href="/for-detailers"
+                className="inline-flex items-center justify-center px-6 py-3 mt-4 text-white text-2xl font-bold rounded-full bg-gradient-to-r from-[#0A2217] via-[#22c55e] to-[#4ade80] hover:from-[#4ade80] hover:via-[#22c55e] hover:to-[#0A2217] shadow-md transition-all"
+                onClick={() => setMobileOpen(false)}
+              >
+                For Detailers
+              </Link>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </nav>
   );
 };
