@@ -65,12 +65,12 @@ export default function DetailerProfileClient({ detailer }: DetailerProfileClien
   console.log('Detailer data:', detailer);
 
   const exteriorServices = detailer.services.filter(service => 
-    service.toLowerCase().includes('exterior') || 
-    service.toLowerCase().includes('wash') ||
-    service.toLowerCase().includes('polish') ||
-    service.toLowerCase().includes('tire') ||
+      service.toLowerCase().includes('exterior') || 
+      service.toLowerCase().includes('wash') ||
+      service.toLowerCase().includes('polish') ||
+      service.toLowerCase().includes('tire') ||
     service.toLowerCase().includes('trim') ||
-    service.toLowerCase().includes('dressing') ||
+      service.toLowerCase().includes('dressing') ||
     service.toLowerCase().includes('wax') ||
     service.toLowerCase().includes('polishing') ||
     service.toLowerCase().includes('clay') ||
@@ -87,7 +87,7 @@ export default function DetailerProfileClient({ detailer }: DetailerProfileClien
   );
 
   const interiorServices = detailer.services.filter(service => 
-    service.toLowerCase().includes('interior') || 
+      service.toLowerCase().includes('interior') || 
     service.toLowerCase().includes('vacuum') ||
     service.toLowerCase().includes('leather') ||
     service.toLowerCase().includes('seat') ||
