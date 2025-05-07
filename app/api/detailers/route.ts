@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { z } from 'zod'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,6 +16,24 @@ function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: numbe
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 }
+
+const detailerSchema = z.object({
+  businessName: z.string().min(2),
+  email: z.string().email().optional().or(z.literal('')),
+  phone: z.string().min(7),
+  address: z.string(),
+  city: z.string(),
+  state: z.string(),
+  zipCode: z.string(),
+  description: z.string(),
+  latitude: z.number(),
+  longitude: z.number(),
+  priceRange: z.string(),
+  website: z.string().optional(),
+  imageUrl: z.string().optional(),
+  businessHours: z.any(),
+  services: z.array(z.string().min(1)), // service names
+});
 
 export async function GET(req: NextRequest) {
   try {
@@ -70,5 +89,104 @@ export async function GET(req: NextRequest) {
       { error: 'Failed to fetch detailers' },
       { status: 500 }
     )
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const parsed = detailerSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Invalid data', details: parsed.error.flatten() }, { status: 400 });
+    }
+    const data = parsed.data;
+
+    // Upsert services and collect their IDs
+    const serviceIds: string[] = [];
+    for (const name of data.services) {
+      let service = await prisma.service.findUnique({ where: { name } });
+      if (!service) {
+        let category = "Additional";
+        if (name.toLowerCase().includes("interior") || 
+            name.toLowerCase().includes("vacuum") || 
+            name.toLowerCase().includes("carpet") || 
+            name.toLowerCase().includes("leather") || 
+            name.toLowerCase().includes("dashboard") || 
+            name.toLowerCase().includes("console") || 
+            name.toLowerCase().includes("door panel") || 
+            name.toLowerCase().includes("window") || 
+            name.toLowerCase().includes("mirror") || 
+            name.toLowerCase().includes("odor")) {
+          category = "Interior";
+        } else if (name.toLowerCase().includes("exterior") || 
+                   name.toLowerCase().includes("wash") || 
+                   name.toLowerCase().includes("wax") || 
+                   name.toLowerCase().includes("polish") || 
+                   name.toLowerCase().includes("clay") || 
+                   name.toLowerCase().includes("tire") || 
+                   name.toLowerCase().includes("wheel") || 
+                   name.toLowerCase().includes("rim") || 
+                   name.toLowerCase().includes("paint") || 
+                   name.toLowerCase().includes("headlight")) {
+          category = "Exterior";
+        }
+        console.log('Creating service:', name, 'with category:', category);
+        service = await prisma.service.create({ data: { name, category } });
+      }
+      serviceIds.push(service.id);
+    }
+
+    // 1. Create the detailer (without services)
+    const detailerData: any = {
+      businessName: data.businessName,
+      phone: data.phone,
+      address: data.address,
+      city: data.city,
+      state: data.state,
+      zipCode: data.zipCode,
+      description: data.description,
+      latitude: data.latitude,
+      longitude: data.longitude,
+      priceRange: data.priceRange,
+      website: data.website,
+      imageUrl: data.imageUrl,
+      businessHours: data.businessHours,
+    };
+    if (data.email && data.email.trim() !== '') {
+      detailerData.email = data.email;
+    }
+    const detailer = await prisma.detailer.create({
+      data: detailerData,
+    });
+
+    // 2. Create DetailerService records for each service
+    await Promise.all(
+      serviceIds.map(serviceId =>
+        prisma.detailerService.create({
+          data: {
+            detailerId: detailer.id,
+            serviceId,
+          },
+        })
+      )
+    );
+
+    // 3. Return the created detailer with its services
+    const detailerWithServices = await prisma.detailer.findUnique({
+      where: { id: detailer.id },
+      include: {
+        services: {
+          include: { service: true },
+        },
+      },
+    });
+
+    return NextResponse.json({ detailer: detailerWithServices });
+  } catch (error) {
+    console.error('Error creating detailer:', error);
+    if (error instanceof Error) {
+      console.error(error.stack);
+    }
+    return NextResponse.json({ error: 'Failed to create detailer', details: error instanceof Error ? error.message : error }, { status: 500 });
   }
 }

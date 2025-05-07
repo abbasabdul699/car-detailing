@@ -12,7 +12,8 @@ const Footer = () => {
       { name: 'FAQ', href: '/faq' },
     ],
     Resources: [
-      { name: 'Reviews', href: '/reviews' }
+      { name: 'Reviews', href: '/reviews' },
+      { name: 'For Employee', href: '/admin' }
     ],
     Legal: [
       { name: 'Privacy', href: '/privacy-page' },

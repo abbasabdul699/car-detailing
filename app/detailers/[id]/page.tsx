@@ -10,6 +10,7 @@ import DetailerProfileClient from './components/DetailerProfileClient';
 interface DetailerImage {
   url: string;
   alt: string;
+  type: string;
 }
 
 interface Detailer {
@@ -65,7 +66,7 @@ export default async function DetailerProfile({
         zipCode: true,
         description: true,
         priceRange: true,
-        services: true,
+        services: { include: { service: true } },
         website: true,
         images: true,
         detailerImages: true
@@ -78,17 +79,25 @@ export default async function DetailerProfile({
 
     // Combine both image types and ensure they have the correct format
     const combinedImages = [
-      ...detailer.images,
+      ...detailer.images.map(img => ({
+        ...img,
+        type: (img as any).type || 'portfolio',
+      })),
       ...detailer.detailerImages.map(img => ({
         url: img.url,
-        alt: img.alt
+        alt: img.alt,
+        type: 'portfolio', // Default type for legacy images
       }))
     ];
+
+    // Map services to their names
+    const serviceNames = detailer.services.map(ds => ds.service.name);
 
     console.log('Fetched detailer data:', detailer); // Add debug logging
 
     return <DetailerProfileClient detailer={{
       ...detailer,
+      services: serviceNames,
       images: combinedImages,
       website: detailer.website || undefined
     }} />;

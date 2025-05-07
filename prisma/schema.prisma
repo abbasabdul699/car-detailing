@@ -13,7 +13,7 @@ datasource db {
 model Detailer {
   id           String   @id @default(auto()) @map("_id") @db.ObjectId
   businessName String
-  email        String
+  email        String?
   phone        String
   address      String
   city         String
@@ -23,10 +23,13 @@ model Detailer {
   latitude     Float
   longitude    Float
   priceRange   String
-  services     String[]
   website      String?
+  imageUrl     String?
+  businessHours Json
   images       Image[]
   detailerImages DetailerImage[]
+  createdAt    DateTime @default(now())
+  services     DetailerService[]
 }
 
 model Image {
@@ -35,6 +38,7 @@ model Image {
   alt        String
   detailer   Detailer @relation(fields: [detailerId], references: [id])
   detailerId String   @db.ObjectId
+  type       String   // 'profile' or 'portfolio'
 }
 
 model DetailerImage {
@@ -46,4 +50,19 @@ model DetailerImage {
   detailerId String  @db.ObjectId
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model Service {
+  id         String     @id @default(auto()) @map("_id") @db.ObjectId
+  name       String     @unique
+  category   String     // "Interior", "Exterior", "Additional Services"
+  detailers  DetailerService[]
+}
+
+model DetailerService {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  detailer   Detailer @relation(fields: [detailerId], references: [id])
+  detailerId String   @db.ObjectId
+  service    Service  @relation(fields: [serviceId], references: [id])
+  serviceId  String   @db.ObjectId
 }
