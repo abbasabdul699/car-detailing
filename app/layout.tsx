@@ -6,6 +6,8 @@ import Navbar from '@/app/components/Navbar'
 import Footer from '@/app/components/Footer'
 import PageTransition from './components/PageTransition'
 import { Inter } from 'next/font/google'
+import { SessionProvider } from "next-auth/react";
+import SessionProviderWrapper from '@/app/components/SessionProviderWrapper';
 // import Navbar from './components/Navbar';
 
 const geistSans = Geist({
@@ -129,9 +131,11 @@ export default function RootLayout({
       <body className={`${geistSans.variable} ${geistMono.variable} ${inter.className} antialiased min-h-screen flex flex-col`}>
         <PageTransition />
         <Navbar />
-        <main className="pt-16 flex-grow">
-          {children}
-        </main>
+        <SessionProviderWrapper>
+          <main className="pt-16 flex-grow">
+            {children}
+          </main>
+        </SessionProviderWrapper>
         <Footer />
       </body>
     </html>

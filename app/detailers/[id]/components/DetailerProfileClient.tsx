@@ -10,6 +10,7 @@ import ImageModal from './ImageModal';
 interface DetailerImage {
   url: string;
   alt: string;
+  type: string;
 }
 
 interface Detailer {
@@ -26,6 +27,7 @@ interface Detailer {
   state: string;
   zipCode: string;
   website?: string;
+  instagram?: string;
 }
 
 interface DetailerProfileClientProps {
@@ -64,56 +66,66 @@ export default function DetailerProfileClient({ detailer }: DetailerProfileClien
 
   console.log('Detailer data:', detailer);
 
-  const exteriorServices = detailer.services.filter(service => 
-      service.toLowerCase().includes('exterior') || 
-      service.toLowerCase().includes('wash') ||
-      service.toLowerCase().includes('polish') ||
-      service.toLowerCase().includes('tire') ||
-    service.toLowerCase().includes('trim') ||
-      service.toLowerCase().includes('dressing') ||
-    service.toLowerCase().includes('wax') ||
-    service.toLowerCase().includes('polishing') ||
-    service.toLowerCase().includes('clay') ||
-    service.toLowerCase().includes('bug') ||
-    service.toLowerCase().includes('tar') ||
-    service.toLowerCase().includes('window') ||
-    service.toLowerCase().includes('mirror') ||
-    service.toLowerCase().includes('headlight') ||
-    service.toLowerCase().includes('tailight') ||
-    service.toLowerCase().includes('foglight') ||
-    service.toLowerCase().includes('paint') ||
-    service.toLowerCase().includes('door') ||
-    service.toLowerCase().includes('wheel') 
-  );
+  // Normalize services to string names
+  const serviceNames = detailer.services.map(s => {
+    if (typeof s === 'string') return s;
+    if (s && typeof s === 'object' && 'service' in s && (s as any).service && typeof (s as any).service.name === 'string') return (s as any).service.name;
+    return '';
+  });
 
-  const interiorServices = detailer.services.filter(service => 
-      service.toLowerCase().includes('interior') || 
-    service.toLowerCase().includes('vacuum') ||
-    service.toLowerCase().includes('leather') ||
-    service.toLowerCase().includes('seat') ||
-    service.toLowerCase().includes('carpet') ||
-    service.toLowerCase().includes('fabric') ||
-    service.toLowerCase().includes('upholstery') ||
-    service.toLowerCase().includes('foot') ||
-    service.toLowerCase().includes('dashboard') ||
-    service.toLowerCase().includes('console') 
-  );
-
-  // Build a set of all services in the main categories
-  const mainServicesSet = new Set([
-    ...exteriorServices,
-    ...interiorServices,
-  ]);
-
-  const additionalServices = detailer.services.filter(
-    service => !mainServicesSet.has(service)
-  );
-
+  // Categorize services
   const categorizedServices = {
-    exterior: exteriorServices,
-    interior: interiorServices,
-    additional: additionalServices,
+    full: serviceNames.filter(service => 
+      typeof service === 'string' && (
+        service.toLowerCase().includes('full') || 
+        service.toLowerCase().includes('complete') ||
+        service.toLowerCase().includes('package')
+      )
+    ),
+    exterior: serviceNames.filter(service => 
+      typeof service === 'string' && (
+        service.toLowerCase().includes('exterior') || 
+        service.toLowerCase().includes('wash') ||
+        service.toLowerCase().includes('polish') ||
+        service.toLowerCase().includes('tire') ||
+        service.toLowerCase().includes('dressing') ||
+        service.toLowerCase().includes('wax') 
+      )
+    ),
+    interior: serviceNames.filter(service => 
+      typeof service === 'string' && (
+        service.toLowerCase().includes('interior') || 
+        service.toLowerCase().includes('vacuum') 
+      )
+    ),
+    protection: serviceNames.filter(service => 
+      typeof service === 'string' && (
+        service.toLowerCase().includes('protection') || 
+        service.toLowerCase().includes('ceramic') ||
+        service.toLowerCase().includes('coating') ||
+        service.toLowerCase().includes('paint') ||
+        service.toLowerCase().includes('polish') ||
+        service.toLowerCase().includes('wax')
+      )
+    ),
+    additional: serviceNames.filter(service => 
+      typeof service === 'string' &&
+      !service.toLowerCase().includes('full') &&
+      !service.toLowerCase().includes('complete') &&
+      !service.toLowerCase().includes('package') &&
+      !service.toLowerCase().includes('exterior') &&
+      !service.toLowerCase().includes('wash') &&
+      !service.toLowerCase().includes('interior') &&
+      !service.toLowerCase().includes('vacuum') &&
+      !service.toLowerCase().includes('cleaning') &&
+      !service.toLowerCase().includes('protection') &&
+      !service.toLowerCase().includes('paint')
+    )
   };
+
+  // Select profile image and portfolio images
+  const profileImage = detailer.images.find(img => img.type === 'profile') || detailer.images[0];
+  const portfolioImages = detailer.images.filter(img => img.type === 'portfolio');
 
   return (
     <>
@@ -128,8 +140,8 @@ export default function DetailerProfileClient({ detailer }: DetailerProfileClien
               {/* Profile Image */}
               <div className="relative w-40 h-40 rounded-lg overflow-hidden">
                 <Image
-                  src={detailer.images[0]?.url || '/images/default-profile.jpg'}
-                  alt={detailer.businessName}
+                  src={profileImage?.url || '/images/default-profile.jpg'}
+                  alt={profileImage?.alt || detailer.businessName}
                   fill
                   className="object-cover"
                   priority
@@ -172,9 +184,17 @@ export default function DetailerProfileClient({ detailer }: DetailerProfileClien
                     <FaPhone className="w-4 h-4 transform -scale-x-100" />
                     Contact
                   </button>
-                  <button className="p-2 rounded-full border hover:bg-gray-50 transition-colors">
-                    <FaInstagram className="w-5 h-5" />
-                  </button>
+                  {detailer.instagram && (
+                    <a
+                      href={detailer.instagram}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-2 rounded-full border hover:bg-gray-50 transition-colors"
+                      title="Instagram"
+                    >
+                      <FaInstagram className="w-5 h-5" />
+                    </a>
+                  )}
                   <button className="p-2 rounded-full border hover:bg-gray-50 transition-colors">
                     <FaTiktok className="w-5 h-5" />
                   </button>
@@ -262,28 +282,22 @@ export default function DetailerProfileClient({ detailer }: DetailerProfileClien
         <section>
           <h2 className="text-2xl font-bold mb-6">Portfolio</h2>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            {detailer.images.map((image, index) => {
-              console.log('Portfolio image:', image);
-              return (
-                <div 
-                  key={index} 
-                  className="relative aspect-square rounded-xl overflow-hidden cursor-pointer hover:opacity-90 transition-opacity"
-                  onClick={() => {
-                    console.log('Clicked image:', image);
-                    setSelectedImage(image);
-                  }}
-                >
-                  <Image
-                    src={image.url}
-                    alt={image.alt}
-                    fill
-                    className="object-cover"
-                    sizes="(max-width: 768px) 50vw, (max-width: 1200px) 20vw, 20vw"
-                    loading="lazy"
-                  />
-                </div>
-              );
-            })}
+            {portfolioImages.map((image, index) => (
+              <div 
+                key={index} 
+                className="relative aspect-square rounded-xl overflow-hidden cursor-pointer hover:opacity-90 transition-opacity"
+                onClick={() => setSelectedImage(image)}
+              >
+                <Image
+                  src={image.url}
+                  alt={image.alt}
+                  fill
+                  className="object-cover"
+                  sizes="(max-width: 768px) 50vw, (max-width: 1200px) 20vw, 20vw"
+                  loading="lazy"
+                />
+              </div>
+            ))}
           </div>
         </section>
 
