@@ -13,6 +13,12 @@ interface DetailerImage {
   type: string;
 }
 
+interface Service {
+  id: string;
+  name: string;
+  category: string;
+}
+
 interface Detailer {
   id: string;
   businessName: string;
@@ -20,7 +26,7 @@ interface Detailer {
   phone: string;
   priceRange: string;
   description: string;
-  services: string[];
+  services: Service[];
   images: DetailerImage[];
   address: string;
   city: string;
@@ -34,11 +40,16 @@ interface DetailerProfileClientProps {
   detailer: Detailer;
 }
 
-type ServiceCategory = 'exterior' | 'interior' | 'additional';
+// Define the categories and their display names
+const CATEGORY_TABS = [
+  { key: 'Exterior', label: 'Exterior' },
+  { key: 'Interior', label: 'Interior' },
+  { key: 'Additional', label: 'Additional Services' },
+];
 
 export default function DetailerProfileClient({ detailer }: DetailerProfileClientProps) {
   const [selectedImage, setSelectedImage] = useState<DetailerImage | null>(null);
-  const [activeTab, setActiveTab] = useState<ServiceCategory>('exterior');
+  const [activeTab, setActiveTab] = useState<string>('Exterior');
   const [showContactModal, setShowContactModal] = useState(false);
 
   const handleContact = () => {
@@ -66,62 +77,20 @@ export default function DetailerProfileClient({ detailer }: DetailerProfileClien
 
   console.log('Detailer data:', detailer);
 
-  // Normalize services to string names
-  const serviceNames = detailer.services.map(s => {
-    if (typeof s === 'string') return s;
-    if (s && typeof s === 'object' && 'service' in s && (s as any).service && typeof (s as any).service.name === 'string') return (s as any).service.name;
-    return '';
-  });
-
-  // Categorize services
-  const categorizedServices = {
-    full: serviceNames.filter(service => 
-      typeof service === 'string' && (
-        service.toLowerCase().includes('full') || 
-        service.toLowerCase().includes('complete') ||
-        service.toLowerCase().includes('package')
-      )
-    ),
-    exterior: serviceNames.filter(service => 
-      typeof service === 'string' && (
-        service.toLowerCase().includes('exterior') || 
-        service.toLowerCase().includes('wash') ||
-        service.toLowerCase().includes('polish') ||
-        service.toLowerCase().includes('tire') ||
-        service.toLowerCase().includes('dressing') ||
-        service.toLowerCase().includes('wax') 
-      )
-    ),
-    interior: serviceNames.filter(service => 
-      typeof service === 'string' && (
-        service.toLowerCase().includes('interior') || 
-        service.toLowerCase().includes('vacuum') 
-      )
-    ),
-    protection: serviceNames.filter(service => 
-      typeof service === 'string' && (
-        service.toLowerCase().includes('protection') || 
-        service.toLowerCase().includes('ceramic') ||
-        service.toLowerCase().includes('coating') ||
-        service.toLowerCase().includes('paint') ||
-        service.toLowerCase().includes('polish') ||
-        service.toLowerCase().includes('wax')
-      )
-    ),
-    additional: serviceNames.filter(service => 
-      typeof service === 'string' &&
-      !service.toLowerCase().includes('full') &&
-      !service.toLowerCase().includes('complete') &&
-      !service.toLowerCase().includes('package') &&
-      !service.toLowerCase().includes('exterior') &&
-      !service.toLowerCase().includes('wash') &&
-      !service.toLowerCase().includes('interior') &&
-      !service.toLowerCase().includes('vacuum') &&
-      !service.toLowerCase().includes('cleaning') &&
-      !service.toLowerCase().includes('protection') &&
-      !service.toLowerCase().includes('paint')
-    )
+  // Categorize services using the actual category field
+  const categorizedServices: Record<string, string[]> = {
+    Exterior: [],
+    Interior: [],
+    Additional: [],
   };
+
+  detailer.services.forEach((service) => {
+    if (categorizedServices[service.category]) {
+      categorizedServices[service.category].push(service.name);
+    } else {
+      categorizedServices['Additional'].push(service.name);
+    }
+  });
 
   // Select profile image and portfolio images
   const profileImage = detailer.images.find(img => img.type === 'profile') || detailer.images[0];
@@ -230,40 +199,31 @@ export default function DetailerProfileClient({ detailer }: DetailerProfileClien
         {/* Navigation Tabs */}
         <nav className="border-b mb-8">
           <ul className="flex gap-8">
-            <li 
-              className={`pb-2 cursor-pointer ${activeTab === 'exterior' ? 'border-b-2 border-black font-medium' : 'text-gray-500 hover:text-black'}`}
-              onClick={() => setActiveTab('exterior')}
-            >
-              Exterior
-            </li>
-            <li 
-              className={`pb-2 cursor-pointer ${activeTab === 'interior' ? 'border-b-2 border-black font-medium' : 'text-gray-500 hover:text-black'}`}
-              onClick={() => setActiveTab('interior')}
-            >
-              Interior
-            </li>
-            <li 
-              className={`pb-2 cursor-pointer ${activeTab === 'additional' ? 'border-b-2 border-black font-medium' : 'text-gray-500 hover:text-black'}`}
-              onClick={() => setActiveTab('additional')}
-            >
-              Additional Services
-            </li>
+            {CATEGORY_TABS.map(tab => (
+              <li
+                key={tab.key}
+                className={`pb-2 cursor-pointer ${activeTab === tab.key ? 'border-b-2 border-black font-medium' : 'text-gray-500 hover:text-black'}`}
+                onClick={() => setActiveTab(tab.key)}
+              >
+                {tab.label}
+              </li>
+            ))}
           </ul>
         </nav>
 
         {/* Service Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-          {categorizedServices[activeTab].map((service, index) => (
-            <div 
-              key={index} 
-              className={`p-6 rounded-xl ${index === 0 && activeTab === 'exterior' ? 'relative bg-green-50' : 'bg-white border'}`}
+          {categorizedServices[activeTab] && categorizedServices[activeTab].map((service: string, index: number) => (
+            <div
+              key={index}
+              className={`p-6 rounded-xl ${index === 0 && activeTab === 'Exterior' ? 'relative bg-green-50' : 'bg-white border'}`}
             >
-              {index === 0 && activeTab === 'exterior' && (
+              {index === 0 && activeTab === 'Exterior' && (
                 <span className="absolute top-4 left-4 text-xs px-2 py-1 bg-green-600 text-white rounded-full">
                   Most Popular
                 </span>
               )}
-              <div className={index === 0 && activeTab === 'exterior' ? 'mt-8' : ''}>
+              <div className={index === 0 && activeTab === 'Exterior' ? 'mt-8' : ''}>
                 <h3 className="text-xl font-semibold mb-2">{service}</h3>
                 <p className="text-gray-600">
                   Professional detailing service tailored to your needs
@@ -271,7 +231,7 @@ export default function DetailerProfileClient({ detailer }: DetailerProfileClien
               </div>
             </div>
           ))}
-          {categorizedServices[activeTab].length === 0 && (
+          {(!categorizedServices[activeTab] || categorizedServices[activeTab].length === 0) && (
             <div className="col-span-3 text-center py-8 text-gray-500">
               No services available in this category
             </div>

@@ -90,14 +90,14 @@ export default async function DetailerProfile({
       }))
     ];
 
-    // Map services to their names
-    const serviceNames = detailer.services.map(ds => ds.service.name);
+    // Pass the full service objects to the client
+    const serviceObjs = detailer.services.map(ds => ds.service);
 
     console.log('Fetched detailer data:', detailer); // Add debug logging
 
     return <DetailerProfileClient detailer={{
       ...detailer,
-      services: serviceNames,
+      services: serviceObjs,
       images: combinedImages,
       website: detailer.website || undefined
     }} />;

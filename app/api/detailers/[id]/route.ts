@@ -12,7 +12,8 @@ export async function GET(
       },
       include: {
         images: true,
-        detailerImages: true
+        detailerImages: true,
+        services: { include: { service: true } }
       }
     });
 
