@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
         latitude: true,
         longitude: true,
         priceRange: true,
-        services: true,
+        services: { include: { service: true } },
         images: {
           select: {
             url: true,
