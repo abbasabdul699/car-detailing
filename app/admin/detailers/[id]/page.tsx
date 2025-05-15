@@ -33,6 +33,7 @@ export default async function EditDetailerPage({ params }: { params: { id: strin
           }
         }
       },
+      verified: true
     },
   });
 
@@ -43,7 +44,11 @@ export default async function EditDetailerPage({ params }: { params: { id: strin
   return (
     <div className="edit-detailer-container">
       <AdminNavbar />
-      <EditDetailerClient detailer={detailer} />
+      <EditDetailerClient detailer={{
+        ...detailer,
+        email: detailer.email || '',
+        website: detailer.website || '',
+      }} />
     </div>
   );
 } 
