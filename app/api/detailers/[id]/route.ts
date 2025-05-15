@@ -56,6 +56,33 @@ export async function PATCH(
     if (typeof updateData.longitude === 'string') {
       updateData.longitude = parseFloat(updateData.longitude);
     }
+
+    // --- NEW CODE: Update services ---
+    if (Array.isArray(data.services)) {
+      // 1. Remove all existing services for this detailer
+      await prisma.detailerService.deleteMany({
+        where: { detailerId: params.id }
+      });
+
+      // 2. Find all service records matching the provided names
+      const serviceRecords = await prisma.service.findMany({
+        where: { name: { in: data.services } }
+      });
+
+      // 3. Add new services
+      await prisma.$transaction(
+        serviceRecords.map(service =>
+          prisma.detailerService.create({
+            data: {
+              detailerId: params.id,
+              serviceId: service.id
+            }
+          })
+        )
+      );
+    }
+    // --- END NEW CODE ---
+
     const updatedDetailer = await prisma.detailer.update({
       where: { id: params.id },
       data: updateData,
