@@ -28,6 +28,7 @@ interface Detailer {
   state: string;
   zipCode: string;
   website?: string;
+  verified: boolean;
 }
 
 // Function to open native maps app
@@ -69,7 +70,8 @@ export default async function DetailerProfile({
         services: { include: { service: true } },
         website: true,
         images: true,
-        detailerImages: true
+        detailerImages: true,
+        verified: true,
       }
     });
 
@@ -97,6 +99,7 @@ export default async function DetailerProfile({
 
     return <DetailerProfileClient detailer={{
       ...detailer,
+      email: detailer.email || '',
       services: serviceObjs,
       images: combinedImages,
       website: detailer.website || undefined

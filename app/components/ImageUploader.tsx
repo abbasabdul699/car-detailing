@@ -59,6 +59,7 @@ export default function ImageUploader({ businessName, detailerId, onUpload }: Im
       onUpload(data.image.url);
     } catch (err: any) {
       setError(err.message || 'Failed to upload image');
+      console.error('Image upload error:', err);
       // Clear preview on error
       setPreview(null);
       if (fileInputRef.current) {
@@ -107,7 +108,22 @@ export default function ImageUploader({ businessName, detailerId, onUpload }: Im
         <img src={preview} alt="Preview" className="w-32 h-32 object-cover rounded border" />
       )}
       {uploading && <p className="text-blue-500">Uploading...</p>}
-      {error && <p className="text-red-500">{error}</p>}
+      {error && (
+        <div className="text-red-500 font-semibold">
+          {error}
+          <button
+            type="button"
+            className="ml-2 underline text-blue-600 hover:text-blue-800"
+            onClick={() => {
+              setError(null);
+              setPreview(null);
+              if (fileInputRef.current) fileInputRef.current.value = '';
+            }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
     </div>
   );
 } 

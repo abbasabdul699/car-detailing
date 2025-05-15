@@ -34,6 +34,7 @@ interface Detailer {
   zipCode: string;
   website?: string;
   instagram?: string;
+  verified?: boolean;
 }
 
 interface DetailerProfileClientProps {
@@ -120,7 +121,17 @@ export default function DetailerProfileClient({ detailer }: DetailerProfileClien
 
               {/* Business Info */}
               <div className="flex flex-col gap-4">
-                <h1 className="text-4xl font-bold">{detailer.businessName}</h1>
+                <h1 className="text-4xl font-bold flex items-center gap-2">
+                  {detailer.businessName}
+                  {detailer.verified && (
+                    <span title="Verified business" className="inline-block align-middle">
+                      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="12" cy="12" r="12" fill="#22c55e"/>
+                        <path d="M7 13l3 3 7-7" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </span>
+                  )}
+                </h1>
                 
                 {/* Description */}
                 <div className="max-w-2xl">

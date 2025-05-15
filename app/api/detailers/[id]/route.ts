@@ -40,11 +40,26 @@ export async function PATCH(
 ) {
   try {
     const data = await request.json();
+    // Only allow updatable scalar fields
+    const allowedFields = [
+      'businessName', 'email', 'phone', 'address', 'city', 'state', 'zipCode',
+      'description', 'latitude', 'longitude', 'priceRange', 'website', 'businessHours', 'imageUrl', 'verified'
+    ];
+    const updateData: Record<string, any> = {};
+    for (const key of allowedFields) {
+      if (key in data) updateData[key] = data[key];
+    }
+    // Coerce latitude and longitude to numbers if present
+    if (typeof updateData.latitude === 'string') {
+      updateData.latitude = parseFloat(updateData.latitude);
+    }
+    if (typeof updateData.longitude === 'string') {
+      updateData.longitude = parseFloat(updateData.longitude);
+    }
     const updatedDetailer = await prisma.detailer.update({
       where: { id: params.id },
-      data: data,
+      data: updateData,
     });
-
     return Response.json(updatedDetailer);
   } catch (error) {
     return Response.json(

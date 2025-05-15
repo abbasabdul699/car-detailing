@@ -30,6 +30,7 @@ model Detailer {
   detailerImages DetailerImage[]
   createdAt    DateTime @default(now())
   services     DetailerService[]
+  verified     Boolean @default(false)
 }
 
 model Image {

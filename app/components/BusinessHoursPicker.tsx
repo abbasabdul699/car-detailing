@@ -1,5 +1,6 @@
 "use client";
 import React, { useState } from "react";
+import classNames from "classnames";
 
 const days = [
   { key: "mon", label: "Mon" },
@@ -19,6 +20,9 @@ interface BusinessHoursPickerProps {
   value?: BusinessHours;
   onChange: (hours: BusinessHours) => void;
 }
+
+const DEFAULT_OPEN = "09:00";
+const DEFAULT_CLOSE = "17:00";
 
 export default function BusinessHoursPicker({ value = {}, onChange }: BusinessHoursPickerProps) {
   const [sourceDay, setSourceDay] = useState<string>("mon");
@@ -66,26 +70,67 @@ export default function BusinessHoursPicker({ value = {}, onChange }: BusinessHo
         </button>
       </div>
       <div className="space-y-2">
-        {days.map(({ key, label }) => (
-          <div key={key} className="flex items-center gap-2">
-            <span className="w-10">{label}</span>
-            <input
-              type="time"
-              step="600"
-              value={value[key]?.[0] || ""}
-              onChange={e => handleTimeChange(key, 0, e.target.value)}
-              className="input input-bordered w-28"
-            />
-            <span>-</span>
-            <input
-              type="time"
-              step="600"
-              value={value[key]?.[1] || ""}
-              onChange={e => handleTimeChange(key, 1, e.target.value)}
-              className="input input-bordered w-28"
-            />
-          </div>
-        ))}
+        {days.map(({ key, label }) => {
+          const isClosed = !value[key]?.[0] && !value[key]?.[1];
+          return (
+            <div key={key} className="flex items-center gap-2">
+              <span className="w-10">{label}</span>
+              <label className="flex items-center cursor-pointer select-none">
+                <div className="relative">
+                  <input
+                    type="checkbox"
+                    checked={!isClosed}
+                    onChange={e => {
+                      const updated: BusinessHours = { ...value };
+                      if (e.target.checked) {
+                        // Set to default hours if currently closed
+                        updated[key] = value[key] && value[key][0] && value[key][1]
+                          ? value[key]
+                          : [DEFAULT_OPEN, DEFAULT_CLOSE];
+                      } else {
+                        updated[key] = ["", ""];
+                      }
+                      onChange(updated);
+                    }}
+                    className="sr-only peer"
+                  />
+                  <div className={classNames(
+                    "w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-green-300 dark:peer-focus:ring-green-800 transition-all duration-200",
+                    {
+                      "bg-green-600": !isClosed,
+                    }
+                  )}></div>
+                  <div className={classNames(
+                    "absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-all duration-200",
+                    {
+                      "translate-x-5": !isClosed,
+                    }
+                  )}></div>
+                </div>
+                <span className="ml-2 text-sm font-medium">
+                  {isClosed ? "Closed" : "Open"}
+                </span>
+              </label>
+              <input
+                type="time"
+                step="600"
+                value={value[key]?.[0] || ""}
+                onChange={e => handleTimeChange(key, 0, e.target.value)}
+                className="input input-bordered w-28"
+                disabled={isClosed}
+              />
+              <span>-</span>
+              <input
+                type="time"
+                step="600"
+                value={value[key]?.[1] || ""}
+                onChange={e => handleTimeChange(key, 1, e.target.value)}
+                className="input input-bordered w-28"
+                disabled={isClosed}
+              />
+            </div>
+          );
+        })}
       </div>
     </div>
   );
