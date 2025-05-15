@@ -2,6 +2,7 @@
 import React, { useState } from "react";
 import BusinessHoursPicker from "@/app/components/BusinessHoursPicker";
 import ServicesSelector from "@/app/components/ServicesSelector";
+import ImageUploader from '@/app/components/ImageUploader';
 
 interface Detailer {
   id: string;
@@ -24,6 +25,7 @@ interface Detailer {
   services?: { service: { id: string; name: string; category?: string } }[];
   instagram?: string;
   tiktok?: string;
+  verified?: boolean;
 }
 
 export default function EditDetailerClient({ detailer: initialDetailer }: { detailer: Detailer }) {
@@ -31,6 +33,7 @@ export default function EditDetailerClient({ detailer: initialDetailer }: { deta
     ...initialDetailer,
     latitude: initialDetailer.latitude?.toString() ?? '',
     longitude: initialDetailer.longitude?.toString() ?? '',
+    verified: initialDetailer.verified ?? false,
   });
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -55,7 +58,7 @@ export default function EditDetailerClient({ detailer: initialDetailer }: { deta
     setSuccess(false);
     try {
       const res = await fetch(`/api/detailers/${detailer.id}`, {
-        method: "PUT",
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...detailer,
@@ -82,6 +85,21 @@ export default function EditDetailerClient({ detailer: initialDetailer }: { deta
     <div className="min-h-screen flex flex-col items-center justify-center bg-gray-100">
       <h1 className="text-2xl font-bold mb-6">Edit Detailer</h1>
       <form className="space-y-8 max-w-2xl w-full bg-white p-8 rounded-xl shadow-lg" onSubmit={handleSave}>
+        {/* Verified Toggle */}
+        <div className="flex items-center mb-4">
+          <label className="block font-medium mr-4">Verified</label>
+          <button
+            type="button"
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${detailer.verified ? 'bg-green-600' : 'bg-gray-300'}`}
+            onClick={() => setDetailer(d => ({ ...d, verified: !d.verified }))}
+            aria-pressed={detailer.verified}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${detailer.verified ? 'translate-x-6' : 'translate-x-1'}`}
+            />
+          </button>
+          <span className={`ml-3 text-sm font-medium ${detailer.verified ? 'text-green-700' : 'text-gray-500'}`}>{detailer.verified ? 'Verified' : 'Not Verified'}</span>
+        </div>
         {/* Business Info */}
         <div className="bg-gray-50 p-4 rounded-lg shadow">
           <h2 className="text-lg font-semibold mb-4">Business Info</h2>
@@ -179,13 +197,20 @@ export default function EditDetailerClient({ detailer: initialDetailer }: { deta
             {[...(detailer.images || []), ...(detailer.detailerImages || [])].map((img, idx) => (
               <div key={idx} className="relative w-24 h-24">
                 <img src={img.url} alt={img.alt || 'Detailer image'} className="object-cover w-full h-full rounded" />
-                {/* Delete button (implement handler as needed) */}
-                {/* <button type="button" className="absolute top-1 right-1 bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center">&times;</button> */}
               </div>
             ))}
-            {/* Upload button (implement handler as needed) */}
-            {/* <input type="file" multiple onChange={handleImageUpload} /> */}
           </div>
+          <ImageUploader
+            businessName={detailer.businessName}
+            detailerId={detailer.id}
+            onUpload={url => {
+              // Add the new image to the images state
+              setDetailer(prev => ({
+                ...prev,
+                images: [...(prev.images || []), { url, alt: `${prev.businessName} detailing service` }]
+              }));
+            }}
+          />
         </div>
         <button
           type="submit"

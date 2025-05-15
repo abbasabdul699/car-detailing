@@ -129,6 +129,7 @@ export default function RootLayout({
         />
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} ${inter.className} antialiased min-h-screen flex flex-col`}>
+        <div className="bg-red-500 text-white p-4">If you see a red box, Tailwind is working!</div>
         <PageTransition />
         <Navbar />
         <SessionProviderWrapper>
