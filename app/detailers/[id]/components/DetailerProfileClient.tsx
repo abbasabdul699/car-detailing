@@ -17,6 +17,8 @@ interface Service {
   id: string;
   name: string;
   category: string;
+  icon?: string;
+  description: string;
 }
 
 interface Detailer {
@@ -79,7 +81,7 @@ export default function DetailerProfileClient({ detailer }: DetailerProfileClien
   console.log('Detailer data:', detailer);
 
   // Categorize services using the actual category field
-  const categorizedServices: Record<string, string[]> = {
+  const categorizedServices: Record<string, Service[]> = {
     Exterior: [],
     Interior: [],
     Additional: [],
@@ -87,9 +89,9 @@ export default function DetailerProfileClient({ detailer }: DetailerProfileClien
 
   detailer.services.forEach((service) => {
     if (categorizedServices[service.category]) {
-      categorizedServices[service.category].push(service.name);
+      categorizedServices[service.category].push(service);
     } else {
-      categorizedServices['Additional'].push(service.name);
+      categorizedServices['Additional'].push(service);
     }
   });
 
@@ -103,8 +105,8 @@ export default function DetailerProfileClient({ detailer }: DetailerProfileClien
       <main className="max-w-7xl mx-auto px-4 py-8">
         {/* Header Section */}
         <div className="flex flex-col items-start gap-4 mb-8">
-          {/* Profile and Map Container */}
-          <div className="w-full flex justify-between items-start gap-8">
+          {/* Profile and Map Container - Responsive */}
+          <div className="w-full flex flex-col-reverse md:flex-row justify-between items-start gap-8">
             {/* Profile Section */}
             <div className="flex flex-col gap-6 flex-1">
               {/* Profile Image */}
@@ -197,13 +199,15 @@ export default function DetailerProfileClient({ detailer }: DetailerProfileClien
             </div>
 
             {/* Map */}
-            <LocationMap
-              address={detailer.address}
-              city={detailer.city}
-              state={detailer.state}
-              zipCode={detailer.zipCode}
-              businessName={detailer.businessName}
-            />
+            <div className="w-full md:w-[300px] flex-shrink-0">
+              <LocationMap
+                address={detailer.address}
+                city={detailer.city}
+                state={detailer.state}
+                zipCode={detailer.zipCode}
+                businessName={detailer.businessName}
+              />
+            </div>
           </div>
         </div>
 
@@ -224,9 +228,9 @@ export default function DetailerProfileClient({ detailer }: DetailerProfileClien
 
         {/* Service Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-          {categorizedServices[activeTab] && categorizedServices[activeTab].map((service: string, index: number) => (
+          {categorizedServices[activeTab] && categorizedServices[activeTab].map((service, index) => (
             <div
-              key={index}
+              key={service.id}
               className={`p-6 rounded-xl ${index === 0 && activeTab === 'Exterior' ? 'relative bg-green-50' : 'bg-white border'}`}
             >
               {index === 0 && activeTab === 'Exterior' && (
@@ -235,9 +239,17 @@ export default function DetailerProfileClient({ detailer }: DetailerProfileClien
                 </span>
               )}
               <div className={index === 0 && activeTab === 'Exterior' ? 'mt-8' : ''}>
-                <h3 className="text-xl font-semibold mb-2">{service}</h3>
+                {/* ICON */}
+                {service.icon && (
+                  <img
+                    src={service.icon}
+                    alt={service.name + ' icon'}
+                    className="w-10 h-10 mb-2"
+                  />
+                )}
+                <h3 className="text-xl font-semibold mb-2">{service.name}</h3>
                 <p className="text-gray-600">
-                  Professional detailing service tailored to your needs
+                  {service.description}
                 </p>
               </div>
             </div>
