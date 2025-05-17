@@ -57,6 +57,8 @@ model Service {
   id         String     @id @default(auto()) @map("_id") @db.ObjectId
   name       String     @unique
   category   String     // "Interior", "Exterior", "Additional Services"
+  description String?
+  icon       String?
   detailers  DetailerService[]
 }
 
