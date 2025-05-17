@@ -231,7 +231,7 @@ export default function DetailerProfileClient({ detailer }: DetailerProfileClien
           {categorizedServices[activeTab] && categorizedServices[activeTab].map((service, index) => (
             <div
               key={service.id}
-              className={`p-6 rounded-xl ${index === 0 && activeTab === 'Exterior' ? 'relative bg-green-50' : 'bg-white border'}`}
+              className={`p-6 rounded-xl flex flex-col items-center text-center ${index === 0 && activeTab === 'Exterior' ? 'relative bg-green-50' : 'bg-white border'}`}
             >
               {index === 0 && activeTab === 'Exterior' && (
                 <span className="absolute top-4 left-4 text-xs px-2 py-1 bg-green-600 text-white rounded-full">
@@ -244,7 +244,7 @@ export default function DetailerProfileClient({ detailer }: DetailerProfileClien
                   <img
                     src={service.icon}
                     alt={service.name + ' icon'}
-                    className="w-10 h-10 mb-2"
+                    className="w-10 h-10 mb-2 mx-auto"
                   />
                 )}
                 <h3 className="text-xl font-semibold mb-2">{service.name}</h3>
