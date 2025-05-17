@@ -79,6 +79,28 @@ export default function EditDetailerClient({ detailer: initialDetailer }: { deta
     }
   };
 
+  const handleDeleteImage = async (imageUrl: string) => {
+    if (!window.confirm('Are you sure you want to delete this image?')) return;
+    try {
+      const res = await fetch(`/api/detailers/${detailer.id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageUrl }),
+      });
+      if (res.ok) {
+        setDetailer(prev => ({
+          ...prev,
+          images: (prev.images || []).filter(img => img.url !== imageUrl),
+          detailerImages: (prev.detailerImages || []).filter(img => img.url !== imageUrl),
+        }));
+      } else {
+        alert('Failed to delete image');
+      }
+    } catch (err) {
+      alert('Error deleting image');
+    }
+  };
+
   console.log("EditDetailerClient - services state:", services);
 
   return (
@@ -197,6 +219,14 @@ export default function EditDetailerClient({ detailer: initialDetailer }: { deta
             {[...(detailer.images || []), ...(detailer.detailerImages || [])].map((img, idx) => (
               <div key={idx} className="relative w-24 h-24">
                 <img src={img.url} alt={img.alt || 'Detailer image'} className="object-cover w-full h-full rounded" />
+                <button
+                  type="button"
+                  className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 hover:bg-red-700"
+                  onClick={() => handleDeleteImage(img.url)}
+                  title="Delete image"
+                >
+                  &times;
+                </button>
               </div>
             ))}
           </div>
