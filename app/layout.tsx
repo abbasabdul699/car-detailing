@@ -9,6 +9,7 @@ import { Inter } from 'next/font/google'
 import { SessionProvider } from "next-auth/react";
 import SessionProviderWrapper from '@/app/components/SessionProviderWrapper';
 import { MapLoaderProvider } from '@/app/components/MapLoaderProvider';
+import { usePathname } from 'next/navigation';
 // import Navbar from './components/Navbar';
 
 const geistSans = Geist({
@@ -119,6 +120,9 @@ export default function RootLayout({
 }: {
   children: React.ReactNode
 }) {
+  // Only show footer if not on /search-results
+  const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
+  const showFooter = !pathname.startsWith('/search-results');
   return (
     <html lang="en">
       <head>
@@ -135,12 +139,12 @@ export default function RootLayout({
         <Navbar />
         <SessionProviderWrapper>
           <MapLoaderProvider>
-            <main className="pt-16 flex-grow">
+            <main className="flex-grow">
               {children}
             </main>
           </MapLoaderProvider>
         </SessionProviderWrapper>
-        <Footer />
+        {showFooter && <Footer />}
       </body>
     </html>
   );

@@ -67,7 +67,7 @@ export default function LocationMap({ address, city, state, zipCode, businessNam
         if (data.status === 'OK' && data.results.length > 0) {
           const location = data.results[0].geometry.location;
           setCoords({ lat: location.lat, lng: location.lng });
-        }
+    }
       } catch (e) {
         // Fallback: do nothing
       }

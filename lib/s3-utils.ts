@@ -15,7 +15,7 @@ export type ImageCategory =
   | 'detailers'
   | 'partners'
   | 'team'
-  | 'icon'
+  | 'icons'
   | 'avatars'
   | 'features';
 
@@ -33,11 +33,11 @@ export async function uploadImage(
     if (isSvg) {
       contentType = 'image/svg+xml';
     } else {
-      // Optimize image based on category
+    // Optimize image based on category
       uploadBuffer = await sharp(file)
-        .resize(getResizeDimensions(category))
-        .jpeg({ quality: getQualitySettings(category) })
-        .toBuffer();
+      .resize(getResizeDimensions(category))
+      .jpeg({ quality: getQualitySettings(category) })
+      .toBuffer();
     }
 
     const key = `${category}/${fileName}`;

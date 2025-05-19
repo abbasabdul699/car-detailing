@@ -1,6 +1,7 @@
 import Link from 'next/link';
+import React, { forwardRef } from 'react';
 
-const Footer = () => {
+const Footer = forwardRef<HTMLDivElement, React.HTMLProps<HTMLDivElement>>((props, ref) => {
   const footerSections = {
     Company: [
       { name: 'About Us', href: '/about-page' },
@@ -53,7 +54,7 @@ const Footer = () => {
   ];
 
   return (
-    <footer className="bg-[#0A2217] text-white py-12">
+    <footer ref={ref} className="bg-[#0A2217] text-white py-12" {...props}>
       <div className="max-w-7xl mx-auto px-4">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-12">
           {Object.entries(footerSections).map(([section, links]) => (
@@ -95,6 +96,6 @@ const Footer = () => {
       </div>
     </footer>
   );
-};
+});
 
 export default Footer;
