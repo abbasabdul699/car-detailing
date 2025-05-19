@@ -15,7 +15,7 @@ export type ImageCategory =
   | 'detailers'
   | 'partners'
   | 'team'
-  | 'icons'
+  | 'icon'
   | 'avatars'
   | 'features';
 
@@ -27,11 +27,18 @@ export async function uploadImage(
   fileName: string
 ) {
   try {
-    // Optimize image based on category
-    const optimizedBuffer = await sharp(file)
-      .resize(getResizeDimensions(category))
-      .jpeg({ quality: getQualitySettings(category) })
-      .toBuffer();
+    const isSvg = fileName.endsWith('.svg');
+    let uploadBuffer = file;
+    let contentType = 'image/jpeg';
+    if (isSvg) {
+      contentType = 'image/svg+xml';
+    } else {
+      // Optimize image based on category
+      uploadBuffer = await sharp(file)
+        .resize(getResizeDimensions(category))
+        .jpeg({ quality: getQualitySettings(category) })
+        .toBuffer();
+    }
 
     const key = `${category}/${fileName}`;
 
@@ -39,8 +46,8 @@ export async function uploadImage(
       new PutObjectCommand({
         Bucket: process.env.AWS_BUCKET_NAME,
         Key: key,
-        Body: optimizedBuffer,
-        ContentType: getContentType(fileName),
+        Body: uploadBuffer,
+        ContentType: contentType,
         CacheControl: 'public, max-age=31536000',
       })
     );

@@ -7,7 +7,6 @@ export async function POST(request: Request) {
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File;
-    const businessName = formData.get('businessName') as string;
     const detailerId = formData.get('detailerId') as string;
     const type = formData.get('type') as string || 'portfolio';
     
@@ -15,13 +14,6 @@ export async function POST(request: Request) {
     if (!file) {
       return NextResponse.json(
         { error: 'No file provided' },
-        { status: 400 }
-      );
-    }
-
-    if (!businessName) {
-      return NextResponse.json(
-        { error: 'Business name is required' },
         { status: 400 }
       );
     }
@@ -50,14 +42,14 @@ export async function POST(request: Request) {
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
-    const fileName = `${businessName}-${Date.now()}.jpg`;
+    const fileName = `service-icon-${Date.now()}.svg`;
     const imageUrl = await uploadImage(buffer, 'detailers', fileName);
 
     // Save to database
     const image = await prisma.image.create({
       data: {
         url: imageUrl,
-        alt: `${businessName} detailing service`,
+        alt: `Service icon`,
         detailerId: detailerId,
         type: type
       } as any

@@ -1,10 +1,9 @@
 'use client';
 
-import { useJsApiLoader } from '@react-google-maps/api';
-import { GOOGLE_MAPS_CONFIG } from '@/lib/googleMaps';
+import { useMapLoader } from '@/app/components/MapLoaderProvider';
 
 export default function LocationSelector() {
-  const { isLoaded } = useJsApiLoader(GOOGLE_MAPS_CONFIG);
+  const { isLoaded } = useMapLoader();
   
   // Rest of the component
 } 

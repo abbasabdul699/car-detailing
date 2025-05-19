@@ -54,7 +54,7 @@ const Footer = () => {
 
   return (
     <footer className="bg-[#0A2217] text-white py-12">
-      <div className="container mx-auto px-4">
+      <div className="max-w-7xl mx-auto px-4">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-12">
           {Object.entries(footerSections).map(([section, links]) => (
             <div key={section} className="flex flex-col">

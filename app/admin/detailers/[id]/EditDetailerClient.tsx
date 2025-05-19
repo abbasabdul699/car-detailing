@@ -20,8 +20,8 @@ interface Detailer {
   website: string;
   businessHours?: any;
   imageUrl?: string;
-  images?: { url: string; alt: string }[];
-  detailerImages?: { url: string; alt: string }[];
+  images?: { url: string; alt: string; type?: string }[];
+  detailerImages?: { url: string; alt: string; type?: string }[];
   services?: { service: { id: string; name: string; category?: string } }[];
   instagram?: string;
   tiktok?: string;
@@ -212,34 +212,73 @@ export default function EditDetailerClient({ detailer: initialDetailer }: { deta
             onChange={setServices}
           />
         </div>
-        {/* Images */}
+        {/* Profile Image */}
         <div className="bg-gray-50 p-4 rounded-lg shadow">
-          <h2 className="text-lg font-semibold mb-4">Images</h2>
-          <div className="flex flex-wrap gap-4 mb-2">
-            {[...(detailer.images || []), ...(detailer.detailerImages || [])].map((img, idx) => (
-              <div key={idx} className="relative w-24 h-24">
-                <img src={img.url} alt={img.alt || 'Detailer image'} className="object-cover w-full h-full rounded" />
+          <h2 className="text-lg font-semibold mb-4">Profile Image</h2>
+          {(() => {
+            // Find the profile image (by convention: first image, or with a 'profile' type if available)
+            const allImages = [...(detailer.images || []), ...(detailer.detailerImages || [])];
+            const profileImage = allImages.find(img => img.type === 'profile') || allImages[0];
+            return profileImage ? (
+              <div className="relative w-24 h-24 mb-2">
+                <img src={profileImage.url} alt={profileImage.alt || 'Profile image'} className="object-cover w-full h-full rounded" />
                 <button
                   type="button"
                   className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 hover:bg-red-700"
-                  onClick={() => handleDeleteImage(img.url)}
-                  title="Delete image"
+                  onClick={() => handleDeleteImage(profileImage.url)}
+                  title="Delete profile image"
                 >
                   &times;
                 </button>
               </div>
-            ))}
+            ) : (
+              <div className="mb-2 text-gray-500">No profile image set.</div>
+            );
+          })()}
+          <ImageUploader
+            businessName={detailer.businessName}
+            detailerId={detailer.id}
+            onUpload={url => {
+              // Replace the profile image
+              setDetailer(prev => ({
+                ...prev,
+                images: [{ url, alt: `${prev.businessName} profile image`, type: 'profile' }, ...(prev.images || []).filter(img => img.type !== 'profile')]
+              }));
+            }}
+            type="profile"
+          />
+        </div>
+        {/* Portfolio Images */}
+        <div className="bg-gray-50 p-4 rounded-lg shadow">
+          <h2 className="text-lg font-semibold mb-4">Portfolio Images</h2>
+          <div className="flex flex-wrap gap-4 mb-2">
+            {[...(detailer.images || []), ...(detailer.detailerImages || [])]
+              .filter(img => img.type !== 'profile')
+              .map((img, idx) => (
+                <div key={idx} className="relative w-24 h-24">
+                  <img src={img.url} alt={img.alt || 'Portfolio image'} className="object-cover w-full h-full rounded" />
+                  <button
+                    type="button"
+                    className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 hover:bg-red-700"
+                    onClick={() => handleDeleteImage(img.url)}
+                    title="Delete portfolio image"
+                  >
+                    &times;
+                  </button>
+                </div>
+              ))}
           </div>
           <ImageUploader
             businessName={detailer.businessName}
             detailerId={detailer.id}
             onUpload={url => {
-              // Add the new image to the images state
+              // Add new portfolio image
               setDetailer(prev => ({
                 ...prev,
-                images: [...(prev.images || []), { url, alt: `${prev.businessName} detailing service` }]
+                images: [...(prev.images || []), { url, alt: `${prev.businessName} portfolio image`, type: 'portfolio' }]
               }));
             }}
+            type="portfolio"
           />
         </div>
         <button

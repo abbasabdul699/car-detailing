@@ -1,7 +1,6 @@
-import DetailerCard from './components/DetailerCard';
 import { prisma } from '@/lib/prisma';
 import Navbar from '@/app/components/Navbar';
-import MapContainer from './components/MapContainer';
+import SearchResultsClient from './components/SearchResults';
 
 interface DetailerImage {
   url: string;
@@ -23,6 +22,11 @@ interface Detailer {
   priceRange: string;
   services: string[];
   images: DetailerImage[];
+  rating?: number;
+  reviewCount?: number;
+  badge?: string;
+  price?: string;
+  driveTime?: string;
 }
 
 interface SearchResultsProps {
@@ -33,14 +37,12 @@ interface SearchResultsProps {
   };
 }
 
-export default async function SearchResults({ searchParams }: SearchResultsProps) {
-  // Get the coordinates from search params
-  const lat = parseFloat(searchParams.lat || '42.0834');
-  const lng = parseFloat(searchParams.lng || '-71.0184');
-  const location = searchParams.location || 'you';
-
-  // Fetch detailers from the database
-  const detailers = await prisma.detailer.findMany({
+export default async function SearchResults(props: SearchResultsProps) {
+  const { searchParams } = props;
+  const searchLat = parseFloat(searchParams.lat || '42.0834');
+  const searchLng = parseFloat(searchParams.lng || '-71.0184');
+  // Fetch detailers from the database (server-side)
+  let detailers = await prisma.detailer.findMany({
     include: {
       images: {
         select: {
@@ -51,29 +53,29 @@ export default async function SearchResults({ searchParams }: SearchResultsProps
     }
   }) as unknown as Detailer[];
 
+  // Haversine formula to calculate distance in km
+  function getDistance(lat1: number, lng1: number, lat2: number, lng2: number) {
+    const toRad = (x: number) => x * Math.PI / 180;
+    const R = 6371; // Radius of Earth in km
+    const dLat = toRad(lat2 - lat1);
+    const dLng = toRad(lng2 - lng1);
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+      Math.sin(dLng/2) * Math.sin(dLng/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+  }
+
+  detailers = detailers.map(d => ({
+    ...d,
+    _distance: getDistance(searchLat, searchLng, d.latitude, d.longitude)
+  }))
+  .sort((a, b) => (a._distance ?? 0) - (b._distance ?? 0));
+
   return (
     <>
       <Navbar />
-      <main className="container mx-auto px-4 py-8">
-        <h1 className="text-2xl font-bold mb-4">
-          Detailers near {location}
-        </h1>
-        
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Detailers List */}
-          <div className="space-y-4">
-            {detailers.map((detailer) => (
-              <DetailerCard key={detailer.id} detailer={detailer} />
-            ))}
-          </div>
-
-          {/* Map */}
-          <MapContainer 
-            detailers={detailers}
-            center={{ lat, lng }}
-          />
-        </div>
-      </main>
+      <SearchResultsClient detailers={detailers} />
     </>
   );
 }

@@ -53,13 +53,22 @@ model DetailerImage {
   updatedAt DateTime @updatedAt
 }
 
-model Service {
-  id         String     @id @default(auto()) @map("_id") @db.ObjectId
-  name       String     @unique
-  category   String     // "Interior", "Exterior", "Additional Services"
+model Category {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  name        String    @unique
   description String?
-  icon       String?
-  detailers  DetailerService[]
+  icon        String?
+  services    Service[] // Relation to services
+}
+
+model Service {
+  id          String     @id @default(auto()) @map("_id") @db.ObjectId
+  name        String     @unique
+  description String?
+  icon        String?
+  categoryId  String?    @db.ObjectId
+  category    Category?  @relation(fields: [categoryId], references: [id])
+  detailers   DetailerService[]
 }
 
 model DetailerService {
