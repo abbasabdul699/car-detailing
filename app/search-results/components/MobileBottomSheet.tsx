@@ -51,6 +51,16 @@ export default function MobileBottomSheet({ detailers, center, highlightedId, lo
     setHighlighted(highlightedId ?? null);
   }, [highlightedId]);
 
+  // Snap to expanded/collapsed state when toggled
+  useEffect(() => {
+    controls.start({ y: isExpanded ? 0 : 400 });
+  }, [isExpanded]);
+
+  const handleDragEnd = (_: any, info: any) => {
+    // Only trigger expansion if user flicks strongly or drags clearly
+    if (info.offset.y > 100 && info.velocity.y > 20) setIsExpanded(false);
+    else if (info.offset.y < -100 || info.velocity.y < -20) setIsExpanded(true);
+  };
 
   return (
     <div className="block lg:hidden h-screen w-screen overflow-hidden relative">
@@ -62,13 +72,11 @@ export default function MobileBottomSheet({ detailers, center, highlightedId, lo
       {/* Bottom sheet over map */}
       <motion.div
         drag="y"
+        dragElastic={0.2}
         dragConstraints={{ top: 0, bottom: 500 }}
-        onDragEnd={(_, info) => {
-          if (info.point.y > 200) setIsExpanded(false);
-          else setIsExpanded(true);
-        }}
+        onDragEnd={handleDragEnd}
         animate={controls}
-        className="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-lg z-10 max-h-[90vh] overflow-y-scroll"
+        className="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-lg z-10 max-h-[90vh] overflow-y-scroll touch-pan-y"
       >
         {/* Drag Handle */}
         <div className="w-full flex justify-center py-3">
