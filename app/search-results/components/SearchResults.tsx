@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import DetailerCard from './DetailerCard'
 import MapContainer from './MapContainer'
-import Footer from './Footer'
+import Footer from '@/app/components/Footer'
 import { useSearchParams } from 'next/navigation'
 
 interface DetailerImage {
@@ -41,7 +41,6 @@ export default function SearchResultsClient({ detailers }: SearchResultsClientPr
   const searchParams = useSearchParams()
   const [highlightedId, setHighlightedId] = useState<string | null>(null)
   const [footerHeight, setFooterHeight] = useState(0)
-  const footerRef = useRef<HTMLDivElement>(null)
   const [mapInteractive, setMapInteractive] = useState(false)
   const mapRef = useRef<HTMLDivElement>(null)
 
@@ -56,14 +55,15 @@ export default function SearchResultsClient({ detailers }: SearchResultsClientPr
 
   useEffect(() => {
     function updateFooterHeight() {
-      if (footerRef.current) {
-        setFooterHeight(footerRef.current.offsetHeight)
+      const footer = document.querySelector('footer');
+      if (footer) {
+        setFooterHeight((footer as HTMLElement).offsetHeight);
       }
     }
-    updateFooterHeight()
-    window.addEventListener('resize', updateFooterHeight)
-    return () => window.removeEventListener('resize', updateFooterHeight)
-  }, [])
+    updateFooterHeight();
+    window.addEventListener('resize', updateFooterHeight);
+    return () => window.removeEventListener('resize', updateFooterHeight);
+  }, []);
 
   useEffect(() => {
     if (!mapInteractive) return;
@@ -88,6 +88,12 @@ export default function SearchResultsClient({ detailers }: SearchResultsClientPr
             maxWidth: 'calc(100% - 40vw)',
           }}
         >
+          {/* Show the searched address/location above the cards */}
+          {location && (
+            <div className="mb-6 text-lg font-semibold text-gray-700">
+              Showing results for: <span className="text-gray-900">{location}</span>
+            </div>
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
             {detailers.map((detailer) => (
               <div
@@ -107,8 +113,9 @@ export default function SearchResultsClient({ detailers }: SearchResultsClientPr
           className="hidden lg:block fixed top-0 right-0"
           style={{
             width: '40vw',
-            height: `calc(100vh - ${footerHeight}px)`,
+            height: '100vh',
             zIndex: 20,
+            marginBottom: `${footerHeight}px`,
           }}
           onMouseEnter={() => setMapInteractive(true)}
           onMouseLeave={() => setMapInteractive(false)}

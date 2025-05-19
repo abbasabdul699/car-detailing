@@ -39,8 +39,9 @@ interface SearchResultsProps {
 
 export default async function SearchResults(props: SearchResultsProps) {
   const { searchParams } = props;
-  const searchLat = parseFloat(searchParams.lat || '42.0834');
-  const searchLng = parseFloat(searchParams.lng || '-71.0184');
+  const awaitedParams = await searchParams;
+  const searchLat = parseFloat(awaitedParams.lat || '42.0834');
+  const searchLng = parseFloat(awaitedParams.lng || '-71.0184');
   // Fetch detailers from the database (server-side)
   let detailers = await prisma.detailer.findMany({
     include: {

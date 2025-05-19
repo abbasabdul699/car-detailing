@@ -118,33 +118,61 @@ export async function PATCH(
 
 export async function DELETE(request: Request, { params }: { params: { id: string } }) {
   try {
-    const data = await request.json();
-    const { imageUrl } = data;
-    if (!imageUrl) {
-      return NextResponse.json({ error: 'Image URL required' }, { status: 400 });
+    const detailerId = params.id;
+
+    // 1. Delete all images from S3 and DB
+    const images = await prisma.image.findMany({ where: { detailerId } });
+    for (const image of images) {
+      if (image.url.includes('amazonaws.com/')) {
+        const key = image.url.split('.amazonaws.com/')[1];
+        if (key) {
+          try {
+            await deleteImageFromS3(key);
+            console.log('Deleted from S3:', key);
+          } catch (err) {
+            console.error('Failed to delete image from S3:', key, err);
+          }
+        } else {
+          console.warn('Could not extract S3 key from URL:', image.url);
+        }
+      } else {
+        console.log('Skipping non-S3 image:', image.url);
+      }
     }
-    // Find the image in the DB
-    const image = await prisma.image.findFirst({
-      where: {
-        detailerId: params.id,
-        url: imageUrl,
-      },
-    });
-    if (!image) {
-      return NextResponse.json({ error: 'Image not found' }, { status: 404 });
+    await prisma.image.deleteMany({ where: { detailerId } });
+
+    // 2. Delete all detailerImages from S3 and DB (if you use a separate table)
+    if (prisma.detailerImage) {
+      const detailerImages = await prisma.detailerImage.findMany({ where: { detailerId } });
+      for (const image of detailerImages) {
+        if (image.url.includes('amazonaws.com/')) {
+          const key = image.url.split('.amazonaws.com/')[1];
+          if (key) {
+            try {
+              await deleteImageFromS3(key);
+              console.log('Deleted from S3:', key);
+            } catch (err) {
+              console.error('Failed to delete detailerImage from S3:', key, err);
+            }
+          } else {
+            console.warn('Could not extract S3 key from URL:', image.url);
+          }
+        } else {
+          console.log('Skipping non-S3 detailerImage:', image.url);
+        }
+      }
+      await prisma.detailerImage.deleteMany({ where: { detailerId } });
     }
-    // Extract key from URL
-    const urlParts = image.url.split('.amazonaws.com/');
-    const key = urlParts[1];
-    if (!key) {
-      return NextResponse.json({ error: 'Image key not found' }, { status: 400 });
-    }
-    await deleteImageFromS3(key);
-    // Remove from DB
-    await prisma.image.delete({ where: { id: image.id } });
+
+    // 3. Delete all services selected by the detailer
+    await prisma.detailerService.deleteMany({ where: { detailerId } });
+
+    // 4. Delete the detailer record itself
+    await prisma.detailer.delete({ where: { id: detailerId } });
+
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Error deleting image:', error);
-    return NextResponse.json({ error: 'Failed to delete image' }, { status: 500 });
+    console.error('Error deleting detailer:', error);
+    return NextResponse.json({ error: 'Failed to delete detailer' }, { status: 500 });
   }
 } 

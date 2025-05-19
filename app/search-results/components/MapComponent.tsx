@@ -75,7 +75,7 @@ const MapComponent = ({ detailers, center, highlightedId }: MapComponentProps) =
             icon={
               highlightedId === detailer.id
                 ? {
-                    url: '/images/marker-active.svg',
+                    url: '/images/marker.svg',
                     scaledSize: new window.google.maps.Size(40, 40),
                   }
                 : {
