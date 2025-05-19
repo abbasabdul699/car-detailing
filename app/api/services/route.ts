@@ -6,7 +6,13 @@ const prisma = new PrismaClient();
 export async function GET() {
   try {
     const services = await prisma.service.findMany({
-      select: { id: true, name: true },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        icon: true,
+        categoryId: true,
+      },
       orderBy: { name: 'asc' },
     });
     return NextResponse.json(services);
@@ -17,7 +23,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const { name } = await request.json();
+    const { name, description, icon, categoryId } = await request.json();
     if (!name || typeof name !== 'string' || !name.trim()) {
       return NextResponse.json({ error: 'Service name is required' }, { status: 400 });
     }
@@ -26,7 +32,14 @@ export async function POST(request: Request) {
     if (existing) {
       return NextResponse.json({ error: 'Service already exists' }, { status: 409 });
     }
-    const newService = await prisma.service.create({ data: { name } });
+    const newService = await prisma.service.create({
+      data: {
+        name,
+        description: description || '',
+        icon: icon || '',
+        categoryId: categoryId || null,
+      },
+    });
     return NextResponse.json(newService, { status: 201 });
   } catch (error) {
     return NextResponse.json({ error: 'Failed to add service' }, { status: 500 });

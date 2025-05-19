@@ -28,7 +28,7 @@ export default async function EditDetailerPage({ params }: { params: { id: strin
             select: {
               id: true,
               name: true,
-              category: true
+              category: { select: { name: true } }
             }
           }
         }

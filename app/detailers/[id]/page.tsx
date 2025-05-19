@@ -79,6 +79,22 @@ export default async function DetailerProfile({
       return notFound();
     }
 
+    // Fetch categories from the API
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+    const categoriesRes = await fetch(`${baseUrl}/api/categories`, { cache: 'no-store' });
+    const categories = await categoriesRes.json();
+
+    // Sort categories in the desired order
+    const desiredOrder = ['Bundle', 'Exterior', 'Interior', 'Additional'];
+    categories.sort((a: { name: string }, b: { name: string }) => {
+      const aIdx = desiredOrder.indexOf(a.name);
+      const bIdx = desiredOrder.indexOf(b.name);
+      if (aIdx === -1 && bIdx === -1) return a.name.localeCompare(b.name);
+      if (aIdx === -1) return 1;
+      if (bIdx === -1) return -1;
+      return aIdx - bIdx;
+    });
+
     // Combine both image types and ensure they have the correct format
     const combinedImages = [
       ...detailer.images.map(img => ({
@@ -92,8 +108,17 @@ export default async function DetailerProfile({
       }))
     ];
 
-    // Pass the full service objects to the client
-    const serviceObjs = detailer.services.map(ds => ds.service);
+    // Pass the full service objects to the client, ensuring 'category' is present
+    const serviceObjs = detailer.services.map(ds => {
+      const s = ds.service as any;
+      // Always return a service object with a 'category' property as { name: string }
+      return {
+        ...s,
+        category: s.category && typeof s.category === 'object' && 'name' in s.category
+          ? s.category
+          : { name: s.category || '' }
+      };
+    });
 
     console.log('Fetched detailer data:', detailer); // Add debug logging
 
@@ -103,7 +128,7 @@ export default async function DetailerProfile({
       services: serviceObjs,
       images: combinedImages,
       website: detailer.website || undefined
-    }} />;
+    }} categories={categories} />;
   } catch (error) {
     console.error('Error fetching detailer:', error);
     return notFound();

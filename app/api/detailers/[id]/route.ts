@@ -14,7 +14,26 @@ export async function GET(
       include: {
         images: true,
         detailerImages: true,
-        services: { include: { service: true } }
+        services: {
+          include: {
+            service: {
+              select: {
+                id: true,
+                name: true,
+                description: true,
+                icon: true,
+                category: {
+                  select: {
+                    id: true,
+                    name: true,
+                    description: true,
+                    icon: true
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     });
 

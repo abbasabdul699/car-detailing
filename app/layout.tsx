@@ -8,6 +8,7 @@ import PageTransition from './components/PageTransition'
 import { Inter } from 'next/font/google'
 import { SessionProvider } from "next-auth/react";
 import SessionProviderWrapper from '@/app/components/SessionProviderWrapper';
+import { MapLoaderProvider } from '@/app/components/MapLoaderProvider';
 // import Navbar from './components/Navbar';
 
 const geistSans = Geist({
@@ -133,9 +134,11 @@ export default function RootLayout({
         <PageTransition />
         <Navbar />
         <SessionProviderWrapper>
-          <main className="pt-16 flex-grow">
-            {children}
-          </main>
+          <MapLoaderProvider>
+            <main className="pt-16 flex-grow">
+              {children}
+            </main>
+          </MapLoaderProvider>
         </SessionProviderWrapper>
         <Footer />
       </body>

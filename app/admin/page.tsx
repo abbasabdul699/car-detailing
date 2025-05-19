@@ -15,15 +15,26 @@ export default async function AdminHomePage() {
       <AdminNavbar />
       <div className="max-w-2xl mx-auto py-16">
         <h1 className="text-3xl font-bold mb-8 text-center">Admin Dashboard</h1>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <Link href="/admin/add-detailer" className="block p-8 rounded-xl shadow-lg bg-green-50 hover:bg-green-100 transition text-center">
-            <h2 className="text-xl font-semibold mb-2">Add New Detailer</h2>
-            <p>Add a new detailer to the platform.</p>
-          </Link>
-          <Link href="/admin/detailers" className="block p-8 rounded-xl shadow-lg bg-blue-50 hover:bg-blue-100 transition text-center">
-            <h2 className="text-xl font-semibold mb-2">View All Detailers</h2>
-            <p>See and manage all registered detailers.</p>
-          </Link>
+        <div className="flex flex-col items-center gap-8">
+          <div className="flex flex-row gap-8">
+            <div className="bg-green-50 rounded-2xl shadow-lg p-10 w-96 flex flex-col items-center justify-center">
+              <h2 className="text-2xl font-bold mb-2">Add New Detailer</h2>
+              <p className="text-lg text-center mb-4">Add a new detailer to the platform.</p>
+              <Link href="/admin/detailers/new" className="px-6 py-2 bg-green-700 text-white rounded-xl font-semibold hover:bg-green-800 transition">Add Detailer</Link>
+            </div>
+            <div className="bg-blue-50 rounded-2xl shadow-lg p-10 w-96 flex flex-col items-center justify-center">
+              <h2 className="text-2xl font-bold mb-2">View All Detailers</h2>
+              <p className="text-lg text-center mb-4">See and manage all registered detailers.</p>
+              <Link href="/admin/detailers" className="px-6 py-2 bg-blue-700 text-white rounded-xl font-semibold hover:bg-blue-800 transition">View Detailers</Link>
+            </div>
+          </div>
+          <div className="flex flex-row gap-8">
+            <div className="bg-yellow-50 rounded-2xl shadow-lg p-10 w-96 flex flex-col items-center justify-center">
+              <h2 className="text-2xl font-bold mb-2">Manage Services</h2>
+              <p className="text-lg text-center mb-4">Add, edit, or remove car detailing services and icons.</p>
+              <Link href="/admin/services" className="px-6 py-2 bg-yellow-500 text-white rounded-xl font-semibold hover:bg-yellow-600 transition">Manage Services</Link>
+            </div>
+          </div>
         </div>
       </div>
     </>

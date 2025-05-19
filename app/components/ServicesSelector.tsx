@@ -1,12 +1,12 @@
 "use client";
 import React, { useEffect, useState } from "react";
 
-const CATEGORIES = ["Interior", "Exterior", "Additional"] as const;
+const CATEGORIES = ["Bundle", "Exterior", "Interior", "Additional"] as const;
 type Category = typeof CATEGORIES[number];
 
 interface Service {
   name: string;
-  category: Category;
+  category?: { name: string } | string;
 }
 
 interface ServicesSelectorProps {
@@ -32,13 +32,15 @@ export default function ServicesSelector({ value = [], onChange, error }: Servic
 
   // Group services by category
   const grouped: Record<Category, Service[]> = {
+    Bundle: [],
     Interior: [],
     Exterior: [],
     Additional: [],
   };
   existing.forEach(s => {
-    if (grouped[s.category as Category]) {
-      grouped[s.category as Category].push(s);
+    const cat = typeof s.category === 'string' ? s.category : s.category?.name;
+    if (grouped[cat as Category]) {
+      grouped[cat as Category].push(s);
     }
   });
 
@@ -87,32 +89,6 @@ export default function ServicesSelector({ value = [], onChange, error }: Servic
           </div>
         </div>
       ))}
-      <div style={{ marginTop: 12 }}>
-        <input
-          type="text"
-          value={newService}
-          onChange={e => setNewService(e.target.value)}
-          placeholder="Add new service"
-          style={{ marginRight: 8 }}
-        />
-        <select
-          value={newCategory}
-          onChange={e => setNewCategory(e.target.value as Category)}
-          style={{ marginRight: 8 }}
-        >
-          {CATEGORIES.map(cat => (
-            <option key={cat} value={cat}>{cat}</option>
-          ))}
-        </select>
-        <button
-          type="button"
-          onClick={handleAdd}
-          disabled={!newService.trim()}
-          className="bg-green-700 text-white font-bold rounded-lg shadow px-4 py-2 text-sm transition-all duration-200 transform hover:bg-green-800 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-green-800 focus:ring-offset-2 disabled:bg-green-800 disabled:text-white"
-        >
-          Add
-        </button>
-      </div>
       <div className="flex flex-wrap gap-2 mt-2">
         {value.map(service => (
           <span key={service} className="badge badge-primary">{service}</span>

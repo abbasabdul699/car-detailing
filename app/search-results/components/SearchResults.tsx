@@ -1,118 +1,137 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useState, useRef, useEffect } from 'react'
 import DetailerCard from './DetailerCard'
+import MapContainer from './MapContainer'
+import Footer from './Footer'
+import { useSearchParams } from 'next/navigation'
+
+interface DetailerImage {
+  url: string;
+  alt: string;
+}
 
 interface Detailer {
   id: string;
   businessName: string;
-  location: {
-    lat: number;
-    lng: number;
-  };
+  email: string;
+  phone: string;
+  address: string;
+  city: string;
+  state: string;
+  zipCode: string;
+  description: string;
+  latitude: number;
+  longitude: number;
   priceRange: string;
-  googleRating: number;
-  totalReviews: number;
-  images: {
-    url: string;
-    alt: string;
-  }[];
-  services: {
-    name: string;
-    price: number;
-  }[];
-  distance: number;
+  services: string[];
+  images: DetailerImage[];
+  rating?: number;
+  reviewCount?: number;
+  badge?: string;
+  price?: string;
+  driveTime?: string;
 }
 
-export default function SearchResults() {
+interface SearchResultsClientProps {
+  detailers: Detailer[];
+}
+
+export default function SearchResultsClient({ detailers }: SearchResultsClientProps) {
   const searchParams = useSearchParams()
-  const [detailers, setDetailers] = useState<Detailer[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  const [highlightedId, setHighlightedId] = useState<string | null>(null)
+  const [footerHeight, setFooterHeight] = useState(0)
+  const footerRef = useRef<HTMLDivElement>(null)
+  const [mapInteractive, setMapInteractive] = useState(false)
+  const mapRef = useRef<HTMLDivElement>(null)
+
+  // Parse lat/lng from searchParams
+  const lat = parseFloat(searchParams.get('lat') || '42.0834')
+  const lng = parseFloat(searchParams.get('lng') || '-71.0184')
+  const location = searchParams.get('location') || ''
+  console.log('Map center:', { lat, lng })
+
+  console.log('window.location.href:', typeof window !== 'undefined' ? window.location.href : 'server')
+  console.log('searchParams:', searchParams)
 
   useEffect(() => {
-    const fetchDetailers = async () => {
-      try {
-        const lat = searchParams.get('lat')
-        const lng = searchParams.get('lng')
-        
-        console.log('Client: Fetching detailers with:', { lat, lng })
-
-        if (!lat || !lng) {
-          setError('Location not provided')
-          setLoading(false)
-          return
-        }
-
-        const response = await fetch(`/api/detailers/search?lat=${lat}&lng=${lng}`)
-        
-        if (response.redirected) {
-          console.error('Redirected to:', response.url)
-          setError('Authentication required')
-          return
-        }
-
-        if (!response.ok) {
-          const errorText = await response.text()
-          console.error('Server response:', errorText)
-          throw new Error(`HTTP error! status: ${response.status}`)
-        }
-
-        const data = await response.json()
-        console.log('Received detailers:', data)
-        
-        if (Array.isArray(data)) {
-          setDetailers(data)
-        } else if (data.error) {
-          throw new Error(data.error)
-        } else {
-          setDetailers([])
-        }
-      } catch (err) {
-        console.error('Search results error:', err)
-        setError('Failed to load detailers. Please try again.')
-      } finally {
-        setLoading(false)
+    function updateFooterHeight() {
+      if (footerRef.current) {
+        setFooterHeight(footerRef.current.offsetHeight)
       }
     }
+    updateFooterHeight()
+    window.addEventListener('resize', updateFooterHeight)
+    return () => window.removeEventListener('resize', updateFooterHeight)
+  }, [])
 
-    fetchDetailers()
-  }, [searchParams])
-
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="text-center py-8">
-        <p className="text-red-500">{error}</p>
-      </div>
-    )
-  }
+  useEffect(() => {
+    if (!mapInteractive) return;
+    function handleClickOutside(event: MouseEvent) {
+      if (mapRef.current && !mapRef.current.contains(event.target as Node)) {
+        setMapInteractive(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [mapInteractive]);
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold mb-6">
-        {detailers.length} Detailers Found Near You
-      </h1>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {detailers.map((detailer) => (
-          <DetailerCard key={detailer.id} detailer={detailer} />
-        ))}
-      </div>
-
-      {detailers.length === 0 && (
-        <div className="text-center py-8">
-          <p className="text-gray-500">No detailers found in your area yet.</p>
+    <div className="relative min-h-screen flex flex-col">
+      <div className="flex-1 flex">
+        {/* Card grid: full width, but with right margin so cards don't go under the map */}
+        <div
+          className="relative z-10 px-4 pt-8 pb-8 flex-1"
+          style={{
+            maxWidth: 'calc(100% - 40vw)',
+          }}
+        >
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+            {detailers.map((detailer) => (
+              <div
+                key={detailer.id}
+                onMouseEnter={() => setHighlightedId(detailer.id)}
+                onMouseLeave={() => setHighlightedId(null)}
+              >
+                <DetailerCard detailer={detailer} />
+              </div>
+            ))}
+          </div>
         </div>
-      )}
+
+        {/* Map: fixed on the right for large screens */}
+        <div
+          ref={mapRef}
+          className="hidden lg:block fixed top-0 right-0"
+          style={{
+            width: '40vw',
+            height: `calc(100vh - ${footerHeight}px)`,
+            zIndex: 20,
+          }}
+          onMouseEnter={() => setMapInteractive(true)}
+          onMouseLeave={() => setMapInteractive(false)}
+        >
+          <div 
+            className="absolute inset-0"
+            style={{
+              pointerEvents: mapInteractive ? 'auto' : 'none',
+              backgroundColor: mapInteractive ? 'transparent' : 'rgba(255, 255, 255, 0.6)',
+              cursor: mapInteractive ? 'grab' : 'pointer',
+              transition: 'background-color 0.2s ease',
+            }}
+            onClick={() => setMapInteractive(true)}
+          >
+            {!mapInteractive && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-gray-700 font-medium">Click to interact with the map</span>
+              </div>
+            )}
+          </div>
+          <MapContainer detailers={detailers} center={{ lat, lng }} highlightedId={highlightedId} />
+        </div>
+      </div>
     </div>
   )
 } 
