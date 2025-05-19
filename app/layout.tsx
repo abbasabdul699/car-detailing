@@ -121,8 +121,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   // Only show footer if not on /search-results
-  const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
-  const showFooter = !pathname.startsWith('/search-results');
+  const showFooter = true;
   return (
     <html lang="en">
       <head>

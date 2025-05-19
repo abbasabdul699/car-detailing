@@ -41,8 +41,8 @@ interface MapContainerProps {
 
 export default function MapContainer({ detailers, center, highlightedId }: MapContainerProps) {
   return (
-    <div className="rounded-lg overflow-hidden shadow-lg h-[600px] sticky top-4">
+    <div className="w-full h-full">
       <MapComponent detailers={detailers} center={center} highlightedId={highlightedId} />
     </div>
   );
-} 
+}
