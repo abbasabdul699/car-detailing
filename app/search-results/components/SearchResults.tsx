@@ -80,15 +80,40 @@ export default function SearchResultsClient({ detailers }: SearchResultsClientPr
 
   return (
     <div className="relative min-h-screen flex flex-col">
-      <div className="flex-1 flex">
-        {/* Card grid: full width, but with right margin so cards don't go under the map */}
+      {/* MOBILE: Map on top, then cards */}
+      <div className="block lg:hidden w-full">
+        <div className="w-full" style={{ height: '300px' }}>
+          <MapContainer detailers={detailers} center={{ lat, lng }} highlightedId={highlightedId} />
+        </div>
+        {/* Show the searched address/location above the cards */}
+        {location && (
+          <div className="mb-4 mt-4 text-lg font-semibold text-gray-700 px-4">
+            Showing results for: <span className="text-gray-900">{location}</span>
+          </div>
+        )}
+        <div className="px-4 pb-8">
+          <div className="grid grid-cols-1 gap-8">
+            {detailers.map((detailer) => (
+              <div
+                key={detailer.id}
+                onMouseEnter={() => setHighlightedId(detailer.id)}
+                onMouseLeave={() => setHighlightedId(null)}
+              >
+                <DetailerCard detailer={detailer} />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* DESKTOP: Cards left, map right */}
+      <div className="hidden lg:flex flex-1">
         <div
           className="relative z-10 px-4 pt-8 pb-8 flex-1"
           style={{
             maxWidth: 'calc(100% - 40vw)',
           }}
         >
-          {/* Show the searched address/location above the cards */}
           {location && (
             <div className="mb-6 text-lg font-semibold text-gray-700">
               Showing results for: <span className="text-gray-900">{location}</span>
@@ -106,11 +131,9 @@ export default function SearchResultsClient({ detailers }: SearchResultsClientPr
             ))}
           </div>
         </div>
-
-        {/* Map: fixed on the right for large screens */}
         <div
           ref={mapRef}
-          className="hidden lg:block fixed top-0 right-0"
+          className="fixed top-0 right-0"
           style={{
             width: '40vw',
             height: '100vh',
