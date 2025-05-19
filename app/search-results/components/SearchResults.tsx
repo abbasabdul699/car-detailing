@@ -1,9 +1,12 @@
-'use client'
+"use client"
 
 import React, { useState } from 'react'
 import DetailerCard from './DetailerCard'
 import MapContainer from './MapContainer'
 import { useSearchParams } from 'next/navigation'
+import dynamic from 'next/dynamic'
+
+const MobileBottomSheet = dynamic(() => import('./MobileBottomSheet'), { ssr: false });
 
 interface Detailer {
   id: string;
@@ -34,6 +37,7 @@ interface SearchResultsProps {
 export default function SearchResults({ detailers }: SearchResultsProps) {
   const searchParams = useSearchParams()
   const [highlightedId, setHighlightedId] = useState<string | null>(null)
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const lat = parseFloat(searchParams.get('lat') || '42.0834')
   const lng = parseFloat(searchParams.get('lng') || '-71.0184')
@@ -41,31 +45,17 @@ export default function SearchResults({ detailers }: SearchResultsProps) {
 
   return (
     <div className="relative min-h-screen flex flex-col">
-      {/* MOBILE: stacked layout */}
+      {/* MOBILE: bottom sheet over full map */}
       <div className="block lg:hidden w-full">
-        <div className="w-full h-[300px]">
-          <MapContainer detailers={detailers} center={{ lat, lng }} highlightedId={highlightedId} />
-        </div>
-
-        {location && (
-          <div className="mb-4 mt-4 text-lg font-semibold text-gray-700 px-4">
-            Showing results for: <span className="text-gray-900">{location}</span>
-          </div>
-        )}
-
-        <div className="px-4 pb-8">
-          <div className="grid grid-cols-1 gap-8">
-            {detailers.map((detailer) => (
-              <div
-                key={detailer.id}
-                onMouseEnter={() => setHighlightedId(detailer.id)}
-                onMouseLeave={() => setHighlightedId(null)}
-              >
-                <DetailerCard detailer={detailer} />
-              </div>
-            ))}
-          </div>
-        </div>
+        
+        <MobileBottomSheet
+          detailers={detailers}
+          center={{ lat, lng }}
+          highlightedId={highlightedId}
+          locationLabel={location}
+          isExpanded={isExpanded}
+          setIsExpanded={setIsExpanded}
+        />
       </div>
 
       {/* DESKTOP: 2-column layout */}
