@@ -42,6 +42,7 @@ export async function GET(req: NextRequest) {
     const lng = searchParams.get('lng');
 
     const detailers = await prisma.detailer.findMany({
+      where: { verified: true },
       select: {
         id: true,
         businessName: true,
