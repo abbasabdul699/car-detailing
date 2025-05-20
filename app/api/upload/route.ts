@@ -9,6 +9,7 @@ export async function POST(request: Request) {
     const file = formData.get('file') as File;
     const detailerId = formData.get('detailerId') as string;
     const type = formData.get('type') as string || 'portfolio';
+    const businessName = formData.get('businessName') as string || 'detailer';
     
     // Validate required fields
     if (!file) {
@@ -41,19 +42,28 @@ export async function POST(request: Request) {
       );
     }
 
+    // Upload to S3
     const buffer = Buffer.from(await file.arrayBuffer());
-    const fileName = `service-icon-${Date.now()}.svg`;
+    const fileName = `${businessName.replace(/\s+/g, '-')}-${Date.now()}.jpg`;
     const imageUrl = await uploadImage(buffer, 'detailers', fileName);
 
     // Save to database
     const image = await prisma.image.create({
       data: {
         url: imageUrl,
-        alt: `Service icon`,
+        alt: `${businessName} ${type} image`,
         detailerId: detailerId,
         type: type
-      } as any
+      }
     });
+
+    // If this is a profile image, update the detailer's imageUrl
+    if (type === 'profile') {
+      await prisma.detailer.update({
+        where: { id: detailerId },
+        data: { imageUrl }
+      });
+    }
 
     return NextResponse.json({ success: true, image });
   } catch (error) {

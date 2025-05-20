@@ -1,69 +1,47 @@
 "use client";
-import React, { useRef, useEffect, useState } from "react";
+import React, { useRef, useEffect } from "react";
 import { UseFormSetValue } from 'react-hook-form';
 import type { DetailerFormValues } from './DetailerForm';
-import { useLoadScript } from '@react-google-maps/api';
-
-const libraries: ["places"] = ["places"];
+import { useMapLoader } from './MapLoaderProvider';
 
 interface AddressAutocompleteProps {
   address: string;
-  setValue: UseFormSetValue<DetailerFormValues>;
+  setValue: UseFormSetValue<any>;
   error?: string;
 }
 
 export default function AddressAutocomplete({ address, setValue, error }: AddressAutocompleteProps) {
   const inputRef = useRef<HTMLInputElement>(null);
-
-  const { isLoaded, loadError } = useLoadScript({
-    googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
-    libraries,
-  });
+  const { isLoaded } = useMapLoader();
+  const loadError = false;
 
   useEffect(() => {
-    if (!isLoaded || !inputRef.current) return;
-
-    const autocomplete = new window.google.maps.places.Autocomplete(inputRef.current, {
-      types: ["address"],
-      componentRestrictions: { country: "us" },
-    });
-
-    autocomplete.setFields([
-      "address_components",
-      "formatted_address",
-      "geometry"
-    ]);
-
-    autocomplete.addListener("place_changed", () => {
+    if (!isLoaded || !inputRef.current || !window.google || !window.google.maps || !window.google.maps.places) return;
+    const autocomplete = new window.google.maps.places.Autocomplete(inputRef.current, { types: ["address"] });
+    const listener = autocomplete.addListener("place_changed", () => {
       const place = autocomplete.getPlace();
       if (!place.address_components) return;
-      let street = "";
-      let city = "";
-      let state = "";
-      let zip = "";
-      place.address_components.forEach((comp: any) => {
-        if (comp.types.includes("street_number")) street = comp.long_name + " " + street;
-        if (comp.types.includes("route")) street += comp.long_name;
-        if (comp.types.includes("locality")) city = comp.long_name;
-        if (comp.types.includes("administrative_area_level_1")) state = comp.short_name;
-        if (comp.types.includes("postal_code")) zip = comp.long_name;
-      });
-      setValue("address", street, { shouldValidate: true });
-      setValue("city", city, { shouldValidate: true });
-      setValue("state", state, { shouldValidate: true });
-      setValue("zipCode", zip, { shouldValidate: true });
-
-      // Set latitude and longitude if available
-      if (place.geometry && place.geometry.location) {
-        setValue("latitude", Number(place.geometry.location.lat().toFixed(5)), { shouldValidate: true });
-        setValue("longitude", Number(place.geometry.location.lng().toFixed(5)), { shouldValidate: true });
-      }
+      // Helper to get a component by type
+      const getComponent = (type: string) =>
+        place.address_components?.find((c: any) => c.types.includes(type))?.long_name || "";
+      // Extract details
+      const city = getComponent("locality");
+      const state = getComponent("administrative_area_level_1");
+      const zipCode = getComponent("postal_code");
+      const lat = place.geometry?.location?.lat();
+      const lng = place.geometry?.location?.lng();
+      // Set values in the parent form
+      setValue("address", place.formatted_address || "");
+      setValue("city", city);
+      setValue("state", state);
+      setValue("zipCode", zipCode);
+      setValue("latitude", lat ? lat.toFixed(5) : "");
+      setValue("longitude", lng ? lng.toFixed(5) : "");
     });
-
     return () => {
-      google.maps.event.clearInstanceListeners(autocomplete);
+      if (listener) listener.remove();
     };
-  }, [isLoaded, setValue]);
+  }, [isLoaded, inputRef.current, setValue]);
 
   if (loadError) {
     return <div>Error loading Google Maps</div>;
@@ -75,13 +53,14 @@ export default function AddressAutocomplete({ address, setValue, error }: Addres
         ref={inputRef}
         type="text"
         className="input input-bordered w-full"
+        value={address}
+        onChange={e => setValue("address", e.target.value)}
         placeholder={isLoaded ? "Start typing address..." : "Loading..."}
-        defaultValue={address}
         autoComplete="off"
         name="address"
         disabled={!isLoaded}
       />
-      {error && <p className="text-red-500 text-sm">{error}</p>}
+      {error && <div className="text-red-500 text-sm mt-1">{error}</div>}
     </div>
   );
 } 

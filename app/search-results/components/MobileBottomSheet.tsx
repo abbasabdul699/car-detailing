@@ -1,9 +1,9 @@
 // components/MobileBottomSheet.tsx
 'use client';
 
-import { motion, useMotionValue, useTransform, useAnimation } from 'framer-motion';
-import { useEffect, useState } from 'react';
-import DetailerCard from './DetailerCard';
+import { motion, useMotionValue, useAnimation } from 'framer-motion';
+import { useEffect, useRef, useState } from 'react';
+import DetailerCard from '@/app/search-results/components/DetailerCard';
 import MapContainer from './MapContainer';
 
 interface DetailerImage {
@@ -46,18 +46,26 @@ export default function MobileBottomSheet({ detailers, center, highlightedId, lo
   const y = useMotionValue(0);
   const controls = useAnimation();
   const [highlighted, setHighlighted] = useState<string | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setHighlighted(highlightedId ?? null);
   }, [highlightedId]);
 
-  // Snap to expanded/collapsed state when toggled
   useEffect(() => {
     controls.start({ y: isExpanded ? 0 : 400 });
   }, [isExpanded]);
 
+  const handleDragStart = () => {
+    if (scrollRef.current) {
+      scrollRef.current.style.overflowY = 'hidden';
+    }
+  };
+
   const handleDragEnd = (_: any, info: any) => {
-    // Only trigger expansion if user flicks strongly or drags clearly
+    if (scrollRef.current) {
+      scrollRef.current.style.overflowY = 'auto';
+    }
     if (info.offset.y > 100 && info.velocity.y > 20) setIsExpanded(false);
     else if (info.offset.y < -100 || info.velocity.y < -20) setIsExpanded(true);
   };
@@ -72,14 +80,15 @@ export default function MobileBottomSheet({ detailers, center, highlightedId, lo
       {/* Bottom sheet over map */}
       <motion.div
         drag="y"
-        dragElastic={0.2}
+        dragElastic={0.15}
         dragConstraints={{ top: 0, bottom: 500 }}
+        onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
         animate={controls}
-        className="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-lg z-10 max-h-[90vh] overflow-y-scroll touch-pan-y"
+        className="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-lg z-10 max-h-[90vh]"
       >
         {/* Drag Handle */}
-        <div className="w-full flex justify-center py-3">
+        <div className="w-full flex justify-center py-3 cursor-grab active:cursor-grabbing">
           <div className="w-10 h-1.5 bg-gray-300 rounded-full" />
         </div>
 
@@ -89,7 +98,10 @@ export default function MobileBottomSheet({ detailers, center, highlightedId, lo
           </div>
         )}
 
-        <div className="px-4 pb-8 space-y-4">
+        <div
+          ref={scrollRef}
+          className="px-4 pb-8 space-y-4 overflow-y-auto max-h-[75vh]"
+        >
           {detailers.map((detailer) => (
             <div
               key={detailer.id}
