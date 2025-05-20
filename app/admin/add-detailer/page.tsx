@@ -10,6 +10,7 @@ import ServicesSelector from "@/app/components/ServicesSelector";
 import ImageUploader from '@/app/components/ImageUploader';
 import AddressAutocomplete from "@/app/components/AddressAutocomplete";
 import { useForm } from "react-hook-form";
+import AdminNavbar from '@/app/components/AdminNavbar';
 
 
 interface Detailer {
@@ -123,6 +124,7 @@ export default function AddDetailerPage() {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gray-100">
+      <AdminNavbar />
       <h1 className="text-2xl font-bold mb-6">Add New Detailer</h1>
       <form className="space-y-8 max-w-2xl w-full bg-white p-8 rounded-xl shadow-lg" onSubmit={handleSubmit(onSubmit)}>
         {/* Verified Toggle */}
@@ -225,6 +227,11 @@ export default function AddDetailerPage() {
           <ServicesSelector value={services} onChange={handleServicesChange} />
         </div>
         {/* Images */}
+        {!detailerId && (
+          <div className="mb-4 p-3 bg-yellow-100 text-yellow-800 rounded">
+            <strong>Note:</strong> Please submit the form first! Then you can upload profile and portfolio images after the detailer is created.
+          </div>
+        )}
         <div className="bg-gray-50 p-4 rounded-lg shadow">
           <h2 className="text-lg font-semibold mb-4">Profile Image</h2>
           {detailerId && (
