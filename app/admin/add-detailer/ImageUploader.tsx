@@ -1,4 +1,3 @@
-"use client";
 import React, { useRef, useState } from "react";
 
 interface ImageUploaderProps {
@@ -130,17 +129,9 @@ export default function ImageUploader({
         multiple
         ref={fileInputRef}
         onChange={handleFileChange}
-        className="hidden"
+        className="file-input file-input-bordered w-full"
         disabled={uploading}
       />
-      <button
-        type="button"
-        className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded shadow transition-all duration-200 disabled:opacity-50"
-        onClick={() => fileInputRef.current?.click()}
-        disabled={uploading}
-      >
-        Upload Image{type === 'portfolio' ? 's' : ''}
-      </button>
 
       {uploading && <p className="text-blue-500">Uploading images...</p>}
       {error && (
@@ -161,4 +152,4 @@ export default function ImageUploader({
       )}
     </div>
   );
-} 
+}

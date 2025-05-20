@@ -6,4 +6,6 @@ export const GOOGLE_MAPS_CONFIG = {
   version: 'weekly',
   region: 'US',
   language: 'en'
-} 
+}
+
+export const GOOGLE_MAPS_LIBRARIES: string[] = ["places"]; 

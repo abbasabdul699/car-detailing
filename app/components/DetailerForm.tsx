@@ -93,6 +93,7 @@ type DetailerFormValues = z.infer<typeof detailerSchema>;
 export type { DetailerFormValues };
 
 export default function DetailerForm({ onSuccess }: { onSuccess?: () => void }) {
+  const [services, setServices] = useState<string[]>([]);
   const {
     register,
     handleSubmit,
@@ -119,12 +120,12 @@ export default function DetailerForm({ onSuccess }: { onSuccess?: () => void }) 
       tiktok: '',
       instagram: '',
       businessHours: {},
+      services: [],
     },
   });
 
   const businessName = watch('businessName');
   const businessHours = watch('businessHours');
-  const services = watch('services') || [];
   const description = watch('description') || '';
   const descriptionWordCount = description.split(/\s+/).filter(Boolean).length;
   const [showSuccess, setShowSuccess] = useState(false);
@@ -276,7 +277,10 @@ export default function DetailerForm({ onSuccess }: { onSuccess?: () => void }) 
           <h2 className="text-lg font-semibold mb-4">Services</h2>
           <ServicesSelector
             value={services}
-            onChange={services => setValue('services', services, { shouldValidate: true })}
+            onChange={newServices => {
+              setServices(newServices);
+              setValue('services', newServices, { shouldValidate: true });
+            }}
             error={errors.services?.message as string}
           />
         </div>
@@ -297,13 +301,30 @@ export default function DetailerForm({ onSuccess }: { onSuccess?: () => void }) 
       </form>
 
       {detailerId && (
-        <ImageUploader
-          businessName={businessName}
-          detailerId={detailerId}
-          onUpload={url => {
-            // Optionally update the detailer with the image URL, or just show a success message
-          }}
-        />
+        <div className="space-y-6 mt-8">
+          <div>
+            <h3 className="font-semibold mb-2">Profile Image</h3>
+            <ImageUploader
+              businessName={businessName}
+              detailerId={detailerId}
+              onUpload={url => {
+                // Optionally update the detailer with the image URL, or just show a success message
+              }}
+              type="profile"
+            />
+          </div>
+          <div>
+            <h3 className="font-semibold mb-2">Portfolio Images</h3>
+            <ImageUploader
+              businessName={businessName}
+              detailerId={detailerId}
+              onUpload={url => {
+                // Optionally update the detailer with the image URL, or just show a success message
+              }}
+              type="portfolio"
+            />
+          </div>
+        </div>
       )}
 
       <SuccessModal

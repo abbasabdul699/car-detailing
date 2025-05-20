@@ -3,15 +3,14 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { useLoadScript } from '@react-google-maps/api';
+import { useLoadScript, type Library } from '@react-google-maps/api';
+import { GOOGLE_MAPS_LIBRARIES } from '@/lib/googleMaps';
 
 declare global {
   interface Window {
     google: typeof google;
   }
 }
-
-const libraries: ["places"] = ["places"];
 
 const avatars = [
   '/images/avatar1.png',
@@ -29,7 +28,7 @@ export default function SearchSection() {
 
   const { isLoaded, loadError } = useLoadScript({
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
-    libraries,
+    libraries: GOOGLE_MAPS_LIBRARIES,
   });
 
   useEffect(() => {

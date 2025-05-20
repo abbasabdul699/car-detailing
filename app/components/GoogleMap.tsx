@@ -1,6 +1,7 @@
 "use client";
 
-import { useLoadScript, GoogleMap as GoogleMapComponent, MarkerF } from '@react-google-maps/api';
+import { useLoadScript, GoogleMap as GoogleMapComponent, MarkerF, type Library } from '@react-google-maps/api';
+import { GOOGLE_MAPS_LIBRARIES } from '@/lib/googleMaps';
 
 interface Detailer {
   id: string;
@@ -25,7 +26,7 @@ const mapContainerStyle = {
 export function GoogleMap({ detailers, center }: GoogleMapProps) {
   const { isLoaded, loadError } = useLoadScript({
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
-    libraries: ['places'],
+    libraries: GOOGLE_MAPS_LIBRARIES,
   });
 
   if (loadError) {

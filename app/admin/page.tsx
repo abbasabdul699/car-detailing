@@ -20,7 +20,7 @@ export default async function AdminHomePage() {
             <div className="bg-green-50 rounded-2xl shadow-lg p-10 w-96 flex flex-col items-center justify-center">
               <h2 className="text-2xl font-bold mb-2">Add New Detailer</h2>
               <p className="text-lg text-center mb-4">Add a new detailer to the platform.</p>
-              <Link href="/admin/detailers/new" className="px-6 py-2 bg-green-700 text-white rounded-xl font-semibold hover:bg-green-800 transition">Add Detailer</Link>
+              <Link href="/admin/add-detailer" className="px-6 py-2 bg-green-700 text-white rounded-xl font-semibold hover:bg-green-800 transition">Add Detailer</Link>
             </div>
             <div className="bg-blue-50 rounded-2xl shadow-lg p-10 w-96 flex flex-col items-center justify-center">
               <h2 className="text-2xl font-bold mb-2">View All Detailers</h2>
