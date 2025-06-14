@@ -29,6 +29,10 @@ interface Detailer {
   zipCode: string;
   website?: string;
   verified: boolean;
+  googlePlaceId: string;
+  instagram?: string;
+  tiktok?: string;
+  facebook?: string;
 }
 
 // Function to open native maps app
@@ -46,12 +50,8 @@ const openMaps = (address: string, city: string, state: string, zipCode: string)
   }
 };
 
-export default async function DetailerProfile({ 
-  params 
-}: { 
-  params: { id: string } 
-}) {
-  const id = params.id;
+export default async function DetailerProfile({ params }: { params: { id: string } }) {
+  const { id } = await params;
   
   try {
     const detailer = await prisma.detailer.findUnique({
@@ -72,6 +72,10 @@ export default async function DetailerProfile({
         images: true,
         detailerImages: true,
         verified: true,
+        googlePlaceId: true,
+        instagram: true,
+        tiktok: true,
+        facebook: true,
       }
     });
 
@@ -123,11 +127,13 @@ export default async function DetailerProfile({
     console.log('Fetched detailer data:', detailer); // Add debug logging
 
     return <DetailerProfileClient detailer={{
-      ...detailer,
+      ...(detailer as any),
       email: detailer.email || '',
       services: serviceObjs,
       images: combinedImages,
-      website: detailer.website || undefined
+      website: detailer.website || undefined,
+      googlePlaceId: detailer.googlePlaceId || undefined,
+      facebook: detailer.facebook || undefined,
     }} categories={categories} />;
   } catch (error) {
     console.error('Error fetching detailer:', error);

@@ -56,11 +56,13 @@ export async function GET(req: NextRequest) {
         latitude: true,
         longitude: true,
         priceRange: true,
+        googlePlaceId: true,
         services: { include: { service: true } },
         images: {
           select: {
             url: true,
-            alt: true
+            alt: true,
+            type: true
           }
         }
       }

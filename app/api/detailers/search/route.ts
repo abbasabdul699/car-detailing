@@ -10,6 +10,7 @@ export async function GET(request: Request) {
     console.log('Search coordinates:', { lat, lng })
 
     const detailers = await prisma.detailer.findMany({
+      where: { hidden: false },
       include: {
         services: { include: { service: true } },
         images: true

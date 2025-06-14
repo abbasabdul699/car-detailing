@@ -4,14 +4,18 @@ import { useEffect, useState } from 'react';
 import Image from 'next/image';
 
 interface ImageModalProps {
-  imageUrl: string;
-  alt: string;
+  images: DetailerImage[];
+  currentIndex: number;
   onClose: () => void;
+  onPrev: () => void;
+  onNext: () => void;
 }
 
-export default function ImageModal({ imageUrl, alt, onClose }: ImageModalProps) {
+export default function ImageModal({ images, currentIndex, onClose, onPrev, onNext }: ImageModalProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(false);
+
+  const image = images[currentIndex];
 
   useEffect(() => {
     document.body.style.overflow = 'hidden';
@@ -66,13 +70,15 @@ export default function ImageModal({ imageUrl, alt, onClose }: ImageModalProps) 
         )}
 
         <div className="w-full h-full flex items-center justify-center">
+          <button onClick={onPrev} className="absolute left-4 top-1/2 -translate-y-1/2 bg-black bg-opacity-50 text-white rounded-full p-2 hover:bg-opacity-70 transition-opacity">Prev</button>
+          <button onClick={onNext} className="absolute right-4 top-1/2 -translate-y-1/2 bg-black bg-opacity-50 text-white rounded-full p-2 hover:bg-opacity-70 transition-opacity">Next</button>
           <img
-            src={imageUrl}
-            alt={alt}
+            src={image.url}
+            alt={image.alt}
             className="max-w-full max-h-full object-contain"
             onLoad={() => setIsLoading(false)}
             onError={() => {
-              console.error('Error loading image:', imageUrl);
+              console.error('Error loading image:', image.url);
               setError(true);
               setIsLoading(false);
             }}

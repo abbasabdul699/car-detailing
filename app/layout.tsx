@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Script from 'next/script'
-import Navbar from '@/app/components/Navbar'
+import ConditionalNavbar from '@/app/components/ConditionalNavbar'
 import Footer from '@/app/components/Footer'
 import PageTransition from './components/PageTransition'
 import { Inter } from 'next/font/google'
@@ -10,6 +10,8 @@ import { SessionProvider } from "next-auth/react";
 import SessionProviderWrapper from '@/app/components/SessionProviderWrapper';
 import { MapLoaderProvider } from '@/app/components/MapLoaderProvider';
 import { usePathname } from 'next/navigation';
+import { ThemeProvider } from '@/app/components/ThemeContext';
+import GoogleAnalytics from '@/components/GoogleAnalytics';
 // import Navbar from './components/Navbar';
 
 const geistSans = Geist({
@@ -133,17 +135,21 @@ export default function RootLayout({
         />
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} ${inter.className} antialiased min-h-screen flex flex-col`}>
-        <div className="bg-red-500 text-white p-4">If you see a red box, Tailwind is working!</div>
-        <PageTransition />
-        <Navbar />
-        <SessionProviderWrapper>
-          <MapLoaderProvider>
-            <main className="flex-grow">
-              {children}
-            </main>
-          </MapLoaderProvider>
-        </SessionProviderWrapper>
-        {showFooter && <Footer />}
+        <ThemeProvider>
+          <PageTransition />
+          <ConditionalNavbar />
+          <SessionProviderWrapper>
+            <MapLoaderProvider>
+              <main className="flex-grow">
+                {children}
+              </main>
+            </MapLoaderProvider>
+          </SessionProviderWrapper>
+          {showFooter && <Footer />}
+          {process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID && (
+            <GoogleAnalytics GA_MEASUREMENT_ID={process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID} />
+          )}
+        </ThemeProvider>
       </body>
     </html>
   );

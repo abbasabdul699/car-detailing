@@ -22,21 +22,29 @@ interface Detailer {
   website: string;
   businessHours?: any;
   imageUrl?: string;
-  images?: { url: string; alt: string; type?: string }[];
-  detailerImages?: { url: string; alt: string; type?: string }[];
+  images?: { id?: string; url: string; alt: string; type?: string }[];
+  detailerImages?: { id?: string; url: string; alt: string; type?: string }[];
   services?: { service: { id: string; name: string; category?: string } }[];
   instagram?: string;
   tiktok?: string;
   verified?: boolean;
+  hidden?: boolean;
+  googlePlaceId?: string;
+  facebook?: string;
+}
+
+interface DetailerForm extends Detailer {
+  password?: string;
 }
 
 export default function EditDetailerClient({ detailer: initialDetailer }: { detailer: Detailer }) {
-  const { register, setValue, handleSubmit, watch, formState: { errors } } = useForm<Detailer>({
+  const { register, setValue, handleSubmit, watch, formState: { errors } } = useForm<DetailerForm>({
     defaultValues: {
       ...initialDetailer,
       latitude: typeof initialDetailer.latitude === 'string' ? parseFloat(initialDetailer.latitude) : initialDetailer.latitude,
       longitude: typeof initialDetailer.longitude === 'string' ? parseFloat(initialDetailer.longitude) : initialDetailer.longitude,
       verified: initialDetailer.verified ?? false,
+      hidden: initialDetailer.hidden ?? false,
     }
   });
   const [saving, setSaving] = useState(false);
@@ -50,7 +58,7 @@ export default function EditDetailerClient({ detailer: initialDetailer }: { deta
   // For business hours picker
   const [businessHours, setBusinessHours] = useState<any>(initialDetailer.businessHours || {});
 
-  const handleSave = async (data: Detailer) => {
+  const handleSave = async (data: DetailerForm) => {
     setSaving(true);
     setError("");
     setSuccess(false);
@@ -61,7 +69,11 @@ export default function EditDetailerClient({ detailer: initialDetailer }: { deta
       longitude: data.longitude ? Number(Number(data.longitude).toFixed(5)) : '',
       services,
       businessHours,
+      hidden: data.hidden ?? false,
     };
+    if (!data.password) {
+      delete formattedData.password;
+    }
     try {
       const res = await fetch(`/api/detailers/${data.id}`, {
         method: "PATCH",
@@ -81,17 +93,14 @@ export default function EditDetailerClient({ detailer: initialDetailer }: { deta
     }
   };
 
-  const handleDeleteImage = async (imageUrl: string) => {
+  const handleDeleteImage = async (imageId: string) => {
     if (!window.confirm('Are you sure you want to delete this image?')) return;
     try {
-      const res = await fetch(`/api/detailers/${initialDetailer.id}`, {
+      const res = await fetch(`/api/images/${imageId}`, {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageUrl }),
       });
       if (res.ok) {
-        setValue('images', ((prev: any[] = []) => prev.filter((img: any) => img.url !== imageUrl))(watch('images')));
-        setValue('detailerImages', ((prev: any[] = []) => prev.filter((img: any) => img.url !== imageUrl))(watch('detailerImages')));
+        window.location.reload(); // Or update state to remove the image from the UI
       } else {
         alert('Failed to delete image');
       }
@@ -106,20 +115,38 @@ export default function EditDetailerClient({ detailer: initialDetailer }: { deta
     <div className="min-h-screen flex flex-col items-center justify-center bg-gray-100">
       <h1 className="text-2xl font-bold mb-6">Edit Detailer</h1>
       <form className="space-y-8 max-w-2xl w-full bg-white p-8 rounded-xl shadow-lg" onSubmit={handleSubmit(handleSave)}>
-        {/* Verified Toggle */}
-        <div className="flex items-center mb-4">
-          <label className="block font-medium mr-4">Verified</label>
-          <button
-            type="button"
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${watch('verified') ? 'bg-green-600' : 'bg-gray-300'}`}
-            onClick={() => setValue('verified', !watch('verified'))}
-            aria-pressed={watch('verified')}
-          >
-            <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${watch('verified') ? 'translate-x-6' : 'translate-x-1'}`}
-            />
-          </button>
-          <span className={`ml-3 text-sm font-medium ${watch('verified') ? 'text-green-700' : 'text-gray-500'}`}>{watch('verified') ? 'Verified' : 'Not Verified'}</span>
+        {/* Verified & Hide Toggles */}
+        <div className="flex items-center mb-4 gap-8">
+          {/* Verified Toggle */}
+          <div className="flex items-center">
+            <label className="block font-medium mr-4">Verified</label>
+            <button
+              type="button"
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${watch('verified') ? 'bg-green-600' : 'bg-gray-300'}`}
+              onClick={() => setValue('verified', !watch('verified'))}
+              aria-pressed={watch('verified')}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${watch('verified') ? 'translate-x-6' : 'translate-x-1'}`}
+              />
+            </button>
+            <span className={`ml-3 text-sm font-medium ${watch('verified') ? 'text-green-700' : 'text-gray-500'}`}>{watch('verified') ? 'Verified' : 'Not Verified'}</span>
+          </div>
+          {/* Hide Toggle */}
+          <div className="flex items-center">
+            <label className="block font-medium mr-4">Hide Profile</label>
+            <button
+              type="button"
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${watch('hidden') ? 'bg-red-600' : 'bg-gray-300'}`}
+              onClick={() => setValue('hidden', !watch('hidden'))}
+              aria-pressed={watch('hidden')}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${watch('hidden') ? 'translate-x-6' : 'translate-x-1'}`}
+              />
+            </button>
+            <span className={`ml-3 text-sm font-medium ${watch('hidden') ? 'text-red-700' : 'text-gray-500'}`}>{watch('hidden') ? 'Hidden' : 'Visible'}</span>
+          </div>
         </div>
         {/* Business Info */}
         <div className="bg-gray-50 p-4 rounded-lg shadow">
@@ -170,6 +197,11 @@ export default function EditDetailerClient({ detailer: initialDetailer }: { deta
               <input {...register('priceRange')} className="input input-bordered w-full" />
               {errors.priceRange && <p className="text-red-500 text-sm">{errors.priceRange.message}</p>}
             </div>
+            <div>
+              <label className="block font-medium">Google Place ID</label>
+              <input {...register('googlePlaceId')} className="input input-bordered w-full" placeholder="e.g. ChIJN1t_tDeuEmsRUsoyG83frY4" />
+              {errors.googlePlaceId && <p className="text-red-500 text-sm">{errors.googlePlaceId.message}</p>}
+            </div>
           </div>
         </div>
         {/* Contact Info */}
@@ -186,16 +218,26 @@ export default function EditDetailerClient({ detailer: initialDetailer }: { deta
               <input {...register('phone')} className="input input-bordered w-full" />
               {errors.phone && <p className="text-red-500 text-sm">{errors.phone.message}</p>}
             </div>
+            <div>
+              <label className="block font-medium">Password (optional)</label>
+              <input type="password" {...register('password')} className="input input-bordered w-full" placeholder="Set or change password" autoComplete="new-password" />
+              <p className="text-xs text-gray-500">Leave blank to keep the current password.</p>
+            </div>
           </div>
         </div>
         {/* Social Links */}
         <div className="bg-gray-50 p-4 rounded-lg shadow">
           <h2 className="text-lg font-semibold mb-4">Social Links</h2>
-          <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block font-medium">Website (optional)</label>
-              <input {...register('website')} className="input input-bordered w-full" placeholder="https://..." />
+              <input {...register('website')} className="input input-bordered w-full" />
               {errors.website && <p className="text-red-500 text-sm">{errors.website.message}</p>}
+            </div>
+            <div>
+              <label className="block font-medium">Facebook (optional)</label>
+              <input {...register('facebook')} className="input input-bordered w-full" placeholder="https://facebook.com/..." />
+              {errors.facebook && <p className="text-red-500 text-sm">{errors.facebook.message}</p>}
             </div>
             <div>
               <label className="block font-medium">TikTok (optional)</label>
@@ -238,7 +280,7 @@ export default function EditDetailerClient({ detailer: initialDetailer }: { deta
                 <button
                   type="button"
                   className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 hover:bg-red-700"
-                  onClick={() => handleDeleteImage(profileImage.url)}
+                  onClick={() => handleDeleteImage(profileImage.id || '')}
                   title="Delete profile image"
                 >
                   &times;
@@ -265,12 +307,12 @@ export default function EditDetailerClient({ detailer: initialDetailer }: { deta
             {[...(watch('images') || []), ...(watch('detailerImages') || [])]
               .filter(img => img.type !== 'profile')
               .map((img, idx) => (
-                <div key={idx} className="relative w-24 h-24">
+                <div key={img.id || idx} className="relative w-24 h-24">
                   <img src={img.url} alt={img.alt || 'Portfolio image'} className="object-cover w-full h-full rounded" />
                   <button
                     type="button"
                     className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 hover:bg-red-700"
-                    onClick={() => handleDeleteImage(img.url)}
+                    onClick={() => handleDeleteImage(img.id || '')}
                     title="Delete portfolio image"
                   >
                     &times;

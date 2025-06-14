@@ -1,6 +1,6 @@
 'use client';
 
-import { GoogleMap, Marker } from '@react-google-maps/api';
+import { GoogleMap, Marker, Circle } from '@react-google-maps/api';
 import { useMemo, useEffect, useState } from 'react';
 import { useMapLoader } from '@/app/components/MapLoaderProvider';
 
@@ -54,6 +54,7 @@ export default function LocationMap({ address, city, state, zipCode, businessNam
   const { isLoaded } = useMapLoader();
 
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [showMapModal, setShowMapModal] = useState(false);
 
   useEffect(() => {
     async function geocode() {
@@ -75,13 +76,31 @@ export default function LocationMap({ address, city, state, zipCode, businessNam
     geocode();
   }, [address, city, state, zipCode]);
 
+  // Memoize the marker icon to avoid recreating on every render
+  const markerIcon = useMemo(() => {
+    if (
+      typeof window !== 'undefined' &&
+      window.google &&
+      window.google.maps &&
+      typeof window.google.maps.Size === 'function'
+    ) {
+      return {
+        url: '/images/marker.svg',
+        scaledSize: new window.google.maps.Size(40, 40),
+      };
+    }
+    return {
+      url: '/images/marker.svg',
+    };
+  }, [isLoaded]);
+
   return (
     <div className="relative w-full h-full rounded-2xl overflow-hidden bg-white border border-gray-200 shadow-lg">
       {isLoaded && coords && (
         <GoogleMap
           mapContainerStyle={containerStyle}
           center={coords}
-          zoom={14}
+          zoom={10}
           options={{
             styles: mapStyles,
             fullscreenControl: true,
@@ -94,11 +113,22 @@ export default function LocationMap({ address, city, state, zipCode, businessNam
         >
           <Marker
             position={coords}
-            icon={{
-              url: "/images/marker.svg",
-              scaledSize: typeof window !== "undefined" && window.google && window.google.maps
-                ? new window.google.maps.Size(40, 40)
-                : undefined,
+            icon={markerIcon}
+          />
+          <Circle
+            center={coords}
+            radius={48280.32}
+            options={{
+              fillColor: "#22c55e",
+              fillOpacity: 0.1,
+              strokeColor: "#22c55e",
+              strokeOpacity: 0.5,
+              strokeWeight: 2,
+              clickable: false,
+              draggable: false,
+              editable: false,
+              visible: true,
+              zIndex: 1,
             }}
           />
         </GoogleMap>

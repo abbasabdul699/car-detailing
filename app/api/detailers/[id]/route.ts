@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { deleteImageFromS3 } from '@/lib/s3-utils';
+import bcrypt from 'bcryptjs';
 
 export async function GET(
   request: Request,
@@ -11,7 +12,24 @@ export async function GET(
       where: {
         id: params.id
       },
-      include: {
+      select: {
+        id: true,
+        businessName: true,
+        email: true,
+        phone: true,
+        address: true,
+        city: true,
+        state: true,
+        zipCode: true,
+        description: true,
+        priceRange: true,
+        website: true,
+        businessHours: true,
+        latitude: true,
+        longitude: true,
+        verified: true,
+        hidden: true,
+        googlePlaceId: true,
         images: true,
         detailerImages: true,
         services: {
@@ -63,7 +81,8 @@ export async function PATCH(
     // Only allow updatable scalar fields
     const allowedFields = [
       'businessName', 'email', 'phone', 'address', 'city', 'state', 'zipCode',
-      'description', 'latitude', 'longitude', 'priceRange', 'website', 'businessHours', 'imageUrl', 'verified'
+      'description', 'latitude', 'longitude', 'priceRange', 'website', 'businessHours', 'imageUrl', 'verified', 'hidden', 'googlePlaceId',
+      'instagram', 'tiktok', 'facebook'
     ];
     const updateData: Record<string, any> = {};
     for (const key of allowedFields) {
@@ -76,6 +95,12 @@ export async function PATCH(
     if (typeof updateData.longitude === 'string') {
       updateData.longitude = parseFloat(updateData.longitude);
     }
+
+    // --- NEW CODE: Hash password if provided ---
+    if (data.password) {
+      updateData.password = await bcrypt.hash(data.password, 10);
+    }
+    // --- END NEW CODE ---
 
     // --- NEW CODE: Update services ---
     if (Array.isArray(data.services)) {
@@ -105,7 +130,10 @@ export async function PATCH(
 
     const updatedDetailer = await prisma.detailer.update({
       where: { id: params.id },
-      data: updateData,
+      data: {
+        ...updateData,
+        googlePlaceId: data.googlePlaceId,
+      },
     });
     return Response.json(updatedDetailer);
   } catch (error) {

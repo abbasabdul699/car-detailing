@@ -9,6 +9,7 @@ interface DetailerCardProps {
   images?: {
     url: string
     alt: string
+    type?: string
   }[]
   latitude?: number
   longitude?: number
@@ -37,6 +38,8 @@ export default function DetailerCard({
     router.push(`/detailers/${id}`)
   }
 
+  const profileImage = images?.find(img => img.type === 'profile') || images?.[0];
+
   return (
     <div 
       onClick={handleClick}
@@ -48,8 +51,8 @@ export default function DetailerCard({
       <div className="flex p-4 gap-4">
         <div className="relative w-32 h-32 rounded-lg overflow-hidden flex-shrink-0">
           <Image
-            src={images?.[0]?.url || '/images/detailers/default-business.jpg'}
-            alt={images?.[0]?.alt || businessName}
+            src={profileImage?.url || '/images/detailers/default-business.jpg'}
+            alt={profileImage?.alt || businessName}
             fill
             className="object-cover"
           />

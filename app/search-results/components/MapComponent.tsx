@@ -69,7 +69,12 @@ const MapComponent = ({ detailers, center, highlightedId }: MapComponentProps) =
             onClick={() => setSelectedDetailer(detailer)}
             icon={{
               url: '/images/marker.svg',
-              scaledSize: new window.google.maps.Size(40, 40),
+              scaledSize:
+                typeof window !== "undefined" &&
+                window.google &&
+                window.google.maps
+                  ? new window.google.maps.Size(40, 40)
+                  : undefined,
             }}
           />
         ))}

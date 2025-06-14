@@ -66,23 +66,40 @@ export default function ImageUploader({
         const data = await res.json();
         
         if (!res.ok) {
+          // Remove preview on error
+          setPreviews(prev => {
+            const newPreviews = { ...prev };
+            delete newPreviews[file.name];
+            return newPreviews;
+          });
           throw new Error(data.error || 'Upload failed');
         }
 
         if (!data.image?.url) {
+          setPreviews(prev => {
+            const newPreviews = { ...prev };
+            delete newPreviews[file.name];
+            return newPreviews;
+          });
           throw new Error('No image URL returned');
         }
+
+        // Remove preview as soon as upload is successful
+        setPreviews(prev => {
+          const newPreviews = { ...prev };
+          delete newPreviews[file.name];
+          return newPreviews;
+        });
 
         onUpload(data.image.url);
       }
     } catch (err: any) {
       setError(err.message || 'Failed to upload image');
       console.error('Image upload error:', err);
-    } finally {
-      setUploading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
+    }
+    setUploading(false);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   };
 

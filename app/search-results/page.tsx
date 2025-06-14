@@ -27,6 +27,7 @@ interface Detailer {
   badge?: string;
   price?: string;
   driveTime?: string;
+  hidden?: boolean;
 }
 
 interface SearchResultsProps {
@@ -72,6 +73,9 @@ export default async function SearchResults(props: SearchResultsProps) {
     _distance: getDistance(searchLat, searchLng, d.latitude, d.longitude)
   }))
   .sort((a, b) => (a._distance ?? 0) - (b._distance ?? 0));
+
+  // Filter out hidden detailers
+  detailers = detailers.filter(d => !d.hidden);
 
   return (
     <>
