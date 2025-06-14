@@ -95,15 +95,18 @@ export default function MobileBottomSheet({ detailers, center, highlightedId, lo
         {/* Expand/Collapse Button */}
         <button
           onClick={() => setIsExpanded(!isExpanded)}
-          className="absolute top-2 right-4 bg-white rounded-full p-2 shadow-lg hover:bg-gray-50 transition-colors"
+          className="absolute top-2 right-4 bg-white rounded-full px-4 py-2 shadow-lg hover:bg-gray-50 transition-colors flex items-center gap-2"
           aria-label={isExpanded ? "Collapse list" : "Expand list"}
         >
+          <span className="text-sm font-medium text-gray-600">
+            {isExpanded ? "Collapse" : "Expand"}
+          </span>
           {isExpanded ? (
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-600" viewBox="0 0 20 20" fill="currentColor">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-600" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
             </svg>
           ) : (
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-600" viewBox="0 0 20 20" fill="currentColor">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-600" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
             </svg>
           )}
