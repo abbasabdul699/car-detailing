@@ -12,8 +12,11 @@ datasource db {
 
 model Detailer {
   id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  email        String   @unique
+  firstName    String?
+  lastName     String?
+  photo        String?
   businessName String
-  email        String?
   phone        String
   address      String
   city         String
@@ -31,15 +34,21 @@ model Detailer {
   createdAt    DateTime @default(now())
   services     DetailerService[]
   verified     Boolean @default(false)
+  hidden       Boolean @default(false)
+  password     String?
+  googlePlaceId String?
+  instagram    String?
+  tiktok       String?
+  facebook     String?
 }
 
 model Image {
   id         String   @id @default(auto()) @map("_id") @db.ObjectId
   url        String
   alt        String
+  type       String? // 'profile' | 'portfolio'
   detailer   Detailer @relation(fields: [detailerId], references: [id])
   detailerId String   @db.ObjectId
-  type       String   // 'profile' or 'portfolio'
 }
 
 model DetailerImage {
@@ -77,4 +86,19 @@ model DetailerService {
   detailerId String   @db.ObjectId
   service    Service  @relation(fields: [serviceId], references: [id])
   serviceId  String   @db.ObjectId
+}
+
+model Brand {
+  id     String   @id @default(auto()) @map("_id") @db.ObjectId
+  name   String   @unique
+  logo   String
+  models Json?
+  @@map("Brands")
+}
+
+model BookingImage {
+  id        String   @id @default(uuid()) @map("_id") @db.ObjectId
+  url       String
+  alt       String
+  bookingId String
 }

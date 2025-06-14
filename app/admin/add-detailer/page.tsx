@@ -11,6 +11,8 @@ import ImageUploader from '@/app/components/ImageUploader';
 import AddressAutocomplete from "@/app/components/AddressAutocomplete";
 import { useForm } from "react-hook-form";
 import AdminNavbar from '@/app/components/AdminNavbar';
+import { useRouter } from 'next/navigation';
+import Modal from '@/app/admin/add-detailer/Modal';
 
 
 interface Detailer {
@@ -77,6 +79,9 @@ export default function AddDetailerPage() {
   });
   const [services, setServices] = useState<string[]>([]);
   const [businessHours, setBusinessHours] = useState<any>({});
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [imagesUploaded, setImagesUploaded] = useState(false);
+  const router = useRouter();
 
   // Sync services and businessHours with form state
   const handleServicesChange = (newServices: string[]) => {
@@ -89,7 +94,12 @@ export default function AddDetailerPage() {
   };
 
   const handleDeleteImage = async (imageUrl: string) => {
-    // Implement image deletion logic as needed
+    // Call the new image deletion API
+    await fetch(`/api/images?url=${encodeURIComponent(imageUrl)}`, { method: 'DELETE' });
+
+    // Remove from local form state
+    const current = watch('images') || [];
+    setValue('images', current.filter(img => img.url !== imageUrl));
   };
 
   const onSubmit = async (data: Detailer) => {
@@ -111,8 +121,10 @@ export default function AddDetailerPage() {
       });
       if (res.ok) {
         const result = await res.json();
-        setDetailerId(result.id || result.detailer?.id); // Support both possible API shapes
+        console.log('API result:', result);
+        setDetailerId(result.detailer?.id);
         setSuccess(true);
+        setShowImageModal(true);
       } else {
         const result = await res.json();
         setError(result.error || "Failed to add detailer");
@@ -232,63 +244,6 @@ export default function AddDetailerPage() {
             <strong>Note:</strong> Please submit the form first! Then you can upload profile and portfolio images after the detailer is created.
           </div>
         )}
-        <div className="bg-gray-50 p-4 rounded-lg shadow">
-          <h2 className="text-lg font-semibold mb-4">Profile Image</h2>
-          {detailerId && (
-            <ImageUploader
-              businessName={watch('businessName')}
-              detailerId={detailerId}
-              onUpload={url => {
-                setValue('images', [
-                  { url, alt: `${watch('businessName')} profile image`, type: 'profile' },
-                  ...(watch('images') || []).filter(img => img.type !== 'profile')
-                ]);
-              }}
-              type="profile"
-              images={watch('images')?.filter(img => img.type === 'profile') || []}
-              onDelete={handleDeleteImage}
-            />
-          )}
-        </div>
-        {/* Portfolio Images */}
-        <div className="bg-gray-50 p-4 rounded-lg shadow">
-          <h2 className="text-lg font-semibold mb-4">Portfolio Images</h2>
-          {detailerId && (
-            <>
-              <div className="flex flex-wrap gap-4 mb-2">
-                {(watch('images') || [])
-                  .filter(img => img.type !== 'profile')
-                  .map((img, idx) => (
-                    <div key={idx} className="relative w-24 h-24">
-                      <img src={img.url} alt={img.alt || 'Portfolio image'} className="object-cover w-full h-full rounded" />
-                      <button
-                        type="button"
-                        className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 hover:bg-red-700"
-                        onClick={() => handleDeleteImage(img.url)}
-                        title="Delete portfolio image"
-                      >
-                        &times;
-                      </button>
-                    </div>
-                  ))}
-              </div>
-              <ImageUploader
-                businessName={watch('businessName')}
-                detailerId={detailerId}
-                onUpload={url => {
-                  setValue('images', [
-                    ...(watch('images') || []),
-                    { url, alt: `${watch('businessName')} portfolio image`, type: 'portfolio' }
-                  ]);
-                }}
-                type="portfolio"
-                images={watch('images')?.filter(img => img.type === 'portfolio') || []}
-                onDelete={handleDeleteImage}
-              />
-            </>
-          )}
-        </div>
-        {/* Save Button */}
         <div className="flex justify-end">
           <button
             type="submit"
@@ -308,10 +263,66 @@ export default function AddDetailerPage() {
             )}
           </button>
         </div>
-        {/* Success/Error Messages */}
         {success && <div className="text-green-600">Detailer saved successfully!</div>}
         {error && <div className="text-red-600">{error}</div>}
       </form>
+      {/* Image Upload Modal */}
+      {showImageModal && detailerId && (
+        <Modal onClose={() => setShowImageModal(false)}>
+          <h2 className="text-xl font-bold mb-4">Upload Images</h2>
+          <div className="mb-6">
+            <h3 className="font-semibold mb-2">Profile Image</h3>
+            <ImageUploader
+              businessName={watch('businessName')}
+              detailerId={detailerId}
+              onUpload={url => {
+                setValue('images', [
+                  { url, alt: `${watch('businessName')} profile image`, type: 'profile' },
+                  ...(watch('images') || []).filter(img => img.type !== 'profile')
+                ]);
+              }}
+              type="profile"
+              images={watch('images')?.filter(img => img.type === 'profile') || []}
+              onDelete={handleDeleteImage}
+            />
+          </div>
+          <div className="mb-6">
+            <h3 className="font-semibold mb-2">Portfolio Images</h3>
+            <ImageUploader
+              businessName={watch('businessName')}
+              detailerId={detailerId}
+              onUpload={url => {
+                const current = watch('images') || [];
+                if (!current.some(img => img.url === url)) {
+                  setValue('images', [
+                    ...current,
+                    { url, alt: `${watch('businessName')} portfolio image`, type: 'portfolio' }
+                  ]);
+                }
+              }}
+              type="portfolio"
+              images={watch('images')?.filter(img => img.type === 'portfolio') || []}
+              onDelete={handleDeleteImage}
+            />
+          </div>
+          {!imagesUploaded && (
+            <button
+              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded"
+              onClick={() => setImagesUploaded(true)}
+            >
+              Done Uploading Images
+            </button>
+          )}
+          {imagesUploaded && (
+            <button
+              className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-6 rounded mt-4"
+              onClick={() => router.push('/admin')}
+            >
+              Save and Go Home
+            </button>
+          )}
+        </Modal>
+      )}
     </div>
   );
 } 
