@@ -74,6 +74,13 @@ export default function ImageUploader({
         }
 
         onUpload(data.image.url);
+
+        // Remove preview after upload
+        setPreviews(prev => {
+          const newPreviews = { ...prev };
+          delete newPreviews[file.name];
+          return newPreviews;
+        });
       }
     } catch (err: any) {
       setError(err.message || 'Failed to upload image');
