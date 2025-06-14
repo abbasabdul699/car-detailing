@@ -12,7 +12,7 @@ export default function HomePage() {
         <Features />
         <section
           style={{
-            backgroundImage: "url('/images/reeva-hero.jpg')",
+            backgroundImage: "url('https://reevacar.s3.us-east-2.amazonaws.com/homeimages/reeva-hero.jpg')",
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             minHeight: '80vh',
