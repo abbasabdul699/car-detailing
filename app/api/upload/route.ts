@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import { uploadImage, ImageCategory } from '@/lib/s3-utils';
 import { prisma } from '@/lib/prisma';
+import { ObjectId } from 'mongodb';
 
 export async function POST(request: Request) {
   try {
@@ -42,6 +43,14 @@ export async function POST(request: Request) {
       );
     }
 
+    // Validate detailerId as ObjectId
+    let objectId: string;
+    try {
+      objectId = new ObjectId(detailerId).toHexString();
+    } catch (e) {
+      return NextResponse.json({ error: 'Invalid detailerId format' }, { status: 400 });
+    }
+
     // Upload to S3
     const buffer = Buffer.from(await file.arrayBuffer());
     const fileName = `${businessName.replace(/\s+/g, '-')}-${Date.now()}.jpg`;
@@ -52,7 +61,7 @@ export async function POST(request: Request) {
       data: {
         url: imageUrl,
         alt: `${businessName} ${type} image`,
-        detailerId: detailerId,
+        detailerId: objectId,
         type: type
       }
     });

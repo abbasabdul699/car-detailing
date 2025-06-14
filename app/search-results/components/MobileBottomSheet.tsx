@@ -79,11 +79,6 @@ export default function MobileBottomSheet({ detailers, center, highlightedId, lo
 
       {/* Bottom sheet over map */}
       <motion.div
-        drag="y"
-        dragElastic={0.15}
-        dragConstraints={{ top: 0, bottom: 500 }}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
         animate={controls}
         className="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-lg z-10 max-h-[90vh]"
       >

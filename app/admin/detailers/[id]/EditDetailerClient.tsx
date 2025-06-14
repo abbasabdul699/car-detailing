@@ -84,10 +84,8 @@ export default function EditDetailerClient({ detailer: initialDetailer }: { deta
   const handleDeleteImage = async (imageUrl: string) => {
     if (!window.confirm('Are you sure you want to delete this image?')) return;
     try {
-      const res = await fetch(`/api/detailers/${initialDetailer.id}`, {
+      const res = await fetch(`/api/images?url=${encodeURIComponent(imageUrl)}`, {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageUrl }),
       });
       if (res.ok) {
         setValue('images', ((prev: any[] = []) => prev.filter((img: any) => img.url !== imageUrl))(watch('images')));

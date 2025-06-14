@@ -11,6 +11,8 @@ import ImageUploader from '@/app/components/ImageUploader';
 import AddressAutocomplete from "@/app/components/AddressAutocomplete";
 import { useForm } from "react-hook-form";
 import AdminNavbar from '@/app/components/AdminNavbar';
+import { useRouter } from 'next/navigation';
+import Modal from '@/app/admin/add-detailer/Modal';
 
 
 interface Detailer {
@@ -35,7 +37,6 @@ interface Detailer {
   instagram?: string;
   tiktok?: string;
   verified?: boolean;
-  googlePlaceId?: string;
 }
 
 // Default empty detailer for "new" case
@@ -61,37 +62,12 @@ const EMPTY_DETAILER: Detailer = {
   instagram: '',
   tiktok: '',
   verified: false,
-  googlePlaceId: '',
 };
-
-// ErrorModal component
-function ErrorModal({ open, errors, onClose }: { open: boolean; errors: any; onClose: () => void }) {
-  if (!open) return null;
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-lg p-6 max-w-md w-full">
-        <h2 className="text-lg font-bold mb-4">Missing Information</h2>
-        <ul className="mb-4 text-red-600">
-          {Object.values(errors).map((err: any, idx) => (
-            <li key={idx}>{err.message}</li>
-          ))}
-        </ul>
-        <button
-          className="bg-blue-600 text-white px-4 py-2 rounded"
-          onClick={onClose}
-        >
-          OK
-        </button>
-      </div>
-    </div>
-  );
-}
 
 export default function AddDetailerPage() {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
   const [detailerId, setDetailerId] = useState<string | null>(null);
-  const [showErrorModal, setShowErrorModal] = useState(false);
   const {
     register,
     setValue,
@@ -100,10 +76,12 @@ export default function AddDetailerPage() {
     formState: { errors, isSubmitting },
   } = useForm<Detailer>({
     defaultValues: EMPTY_DETAILER,
-    mode: 'onSubmit',
   });
   const [services, setServices] = useState<string[]>([]);
   const [businessHours, setBusinessHours] = useState<any>({});
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [imagesUploaded, setImagesUploaded] = useState(false);
+  const router = useRouter();
 
   // Sync services and businessHours with form state
   const handleServicesChange = (newServices: string[]) => {
@@ -116,16 +94,17 @@ export default function AddDetailerPage() {
   };
 
   const handleDeleteImage = async (imageUrl: string) => {
-    // Implement image deletion logic as needed
+    // Call the new image deletion API
+    await fetch(`/api/images?url=${encodeURIComponent(imageUrl)}`, { method: 'DELETE' });
+
+    // Remove from local form state
+    const current = watch('images') || [];
+    setValue('images', current.filter(img => img.url !== imageUrl));
   };
 
   const onSubmit = async (data: Detailer) => {
     setError("");
     setSuccess(false);
-    if (Object.keys(errors).length > 0) {
-      setShowErrorModal(true);
-      return;
-    }
     // Format lat/lng to 5 decimals before submit
     const formattedData = {
       ...data,
@@ -142,8 +121,10 @@ export default function AddDetailerPage() {
       });
       if (res.ok) {
         const result = await res.json();
-        setDetailerId(result.id || result.detailer?.id); // Support both possible API shapes
+        console.log('API result:', result);
+        setDetailerId(result.detailer?.id);
         setSuccess(true);
+        setShowImageModal(true);
       } else {
         const result = await res.json();
         setError(result.error || "Failed to add detailer");
@@ -213,10 +194,6 @@ export default function AddDetailerPage() {
               <label className="block font-medium">Price Range</label>
               <input {...register('priceRange')} className="input input-bordered w-full" />
             </div>
-            <div>
-              <label className="block font-medium">Google Place ID (optional)</label>
-              <input {...register('googlePlaceId')} className="input input-bordered w-full" placeholder="e.g. ChIJN1t_tDeuEmsRUsoyG83frY4" />
-            </div>
           </div>
         </div>
         {/* Contact Info */}
@@ -225,13 +202,11 @@ export default function AddDetailerPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block font-medium">Email</label>
-              <input {...register('email', { required: 'Email is required' })} className="input input-bordered w-full" />
-              {errors.email && <p className="text-red-500 text-sm">{errors.email.message as string}</p>}
+              <input {...register('email')} className="input input-bordered w-full" />
             </div>
             <div>
               <label className="block font-medium">Phone</label>
-              <input {...register('phone', { required: 'Phone is required' })} className="input input-bordered w-full" />
-              {errors.phone && <p className="text-red-500 text-sm">{errors.phone.message as string}</p>}
+              <input {...register('phone')} className="input input-bordered w-full" />
             </div>
           </div>
         </div>
@@ -269,63 +244,6 @@ export default function AddDetailerPage() {
             <strong>Note:</strong> Please submit the form first! Then you can upload profile and portfolio images after the detailer is created.
           </div>
         )}
-        <div className="bg-gray-50 p-4 rounded-lg shadow">
-          <h2 className="text-lg font-semibold mb-4">Profile Image</h2>
-          {detailerId && (
-            <ImageUploader
-              businessName={watch('businessName')}
-              detailerId={detailerId}
-              onUpload={url => {
-                setValue('images', [
-                  { url, alt: `${watch('businessName')} profile image`, type: 'profile' },
-                  ...(watch('images') || []).filter(img => img.type !== 'profile')
-                ]);
-              }}
-              type="profile"
-              images={watch('images')?.filter(img => img.type === 'profile') || []}
-              onDelete={handleDeleteImage}
-            />
-          )}
-        </div>
-        {/* Portfolio Images */}
-        <div className="bg-gray-50 p-4 rounded-lg shadow">
-          <h2 className="text-lg font-semibold mb-4">Portfolio Images</h2>
-          {detailerId && (
-            <>
-              <div className="flex flex-wrap gap-4 mb-2">
-                {(watch('images') || [])
-                  .filter(img => img.type !== 'profile')
-                  .map((img, idx) => (
-                    <div key={idx} className="relative w-24 h-24">
-                      <img src={img.url} alt={img.alt || 'Portfolio image'} className="object-cover w-full h-full rounded" />
-                      <button
-                        type="button"
-                        className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 hover:bg-red-700"
-                        onClick={() => handleDeleteImage(img.url)}
-                        title="Delete portfolio image"
-                      >
-                        &times;
-                      </button>
-                    </div>
-                  ))}
-              </div>
-              <ImageUploader
-                businessName={watch('businessName')}
-                detailerId={detailerId}
-                onUpload={url => {
-                  setValue('images', [
-                    ...(watch('images') || []),
-                    { url, alt: `${watch('businessName')} portfolio image`, type: 'portfolio' }
-                  ]);
-                }}
-                type="portfolio"
-                images={watch('images')?.filter(img => img.type === 'portfolio') || []}
-                onDelete={handleDeleteImage}
-              />
-            </>
-          )}
-        </div>
-        {/* Save Button */}
         <div className="flex justify-end">
           <button
             type="submit"
@@ -345,11 +263,66 @@ export default function AddDetailerPage() {
             )}
           </button>
         </div>
-        {/* Success/Error Messages */}
         {success && <div className="text-green-600">Detailer saved successfully!</div>}
         {error && <div className="text-red-600">{error}</div>}
       </form>
-      <ErrorModal open={showErrorModal} errors={errors} onClose={() => setShowErrorModal(false)} />
+      {/* Image Upload Modal */}
+      {showImageModal && detailerId && (
+        <Modal onClose={() => setShowImageModal(false)}>
+          <h2 className="text-xl font-bold mb-4">Upload Images</h2>
+          <div className="mb-6">
+            <h3 className="font-semibold mb-2">Profile Image</h3>
+            <ImageUploader
+              businessName={watch('businessName')}
+              detailerId={detailerId}
+              onUpload={url => {
+                setValue('images', [
+                  { url, alt: `${watch('businessName')} profile image`, type: 'profile' },
+                  ...(watch('images') || []).filter(img => img.type !== 'profile')
+                ]);
+              }}
+              type="profile"
+              images={watch('images')?.filter(img => img.type === 'profile') || []}
+              onDelete={handleDeleteImage}
+            />
+          </div>
+          <div className="mb-6">
+            <h3 className="font-semibold mb-2">Portfolio Images</h3>
+            <ImageUploader
+              businessName={watch('businessName')}
+              detailerId={detailerId}
+              onUpload={url => {
+                const current = watch('images') || [];
+                if (!current.some(img => img.url === url)) {
+                  setValue('images', [
+                    ...current,
+                    { url, alt: `${watch('businessName')} portfolio image`, type: 'portfolio' }
+                  ]);
+                }
+              }}
+              type="portfolio"
+              images={watch('images')?.filter(img => img.type === 'portfolio') || []}
+              onDelete={handleDeleteImage}
+            />
+          </div>
+          {!imagesUploaded && (
+            <button
+              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded"
+              onClick={() => setImagesUploaded(true)}
+            >
+              Done Uploading Images
+            </button>
+          )}
+          {imagesUploaded && (
+            <button
+              className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-6 rounded mt-4"
+              onClick={() => router.push('/admin')}
+            >
+              Save and Go Home
+            </button>
+          )}
+        </Modal>
+      )}
     </div>
   );
 } 
