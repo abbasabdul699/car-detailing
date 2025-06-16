@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { Eye, EyeOff } from 'lucide-react';
-import { signIn } from "next-auth/react";
+import { signIn, getSession } from "next-auth/react";
 
 export default function DetailerLogin() {
   const [form, setForm] = useState({ email: "", password: "" });
@@ -25,11 +25,20 @@ export default function DetailerLogin() {
     e.preventDefault();
     setError("");
     setSuccess("");
-    await signIn("credentials", {
-      email: form.email,
-      password: form.password
-    });
-    // No need to handle redirect or success message here; NextAuth will handle it
+    try {
+      const result = await signIn("credentials", {
+        email: form.email,
+        password: form.password,
+        redirect: false
+      });
+      if (result?.error) {
+        setError(result.error);
+      } else if (result?.ok) {
+        router.push("/detailer-dashboard");
+      }
+    } catch (err) {
+      setError("An unexpected error occurred. Please try again.");
+    }
   };
 
   // Placeholder handlers for social logins

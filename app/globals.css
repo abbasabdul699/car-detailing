@@ -24,3 +24,8 @@ body {
   scrollbar-width: none;  /* Firefox */
 }
 
+.rdp-root {
+  --rdp-accent-color: #006400 !important;
+  --rdp-selected-border: 2px solid #006400 !important;
+}
+

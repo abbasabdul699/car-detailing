@@ -17,18 +17,7 @@ import {
   DocumentTextIcon
 } from "@heroicons/react/24/outline";
 import DashboardNavbar from "./components/DashboardNavbar";
-
-const navigation = [
-  { name: "Dashboard", href: "/detailer-dashboard", icon: HomeIcon },
-  { name: "Calendar", href: "/detailer-dashboard/calendar", icon: CalendarDaysIcon },
-  { name: "Profile", href: "/detailer-dashboard/profile", icon: UserIcon },
-  { name: "Services", href: "/detailer-dashboard/services", icon: CalendarIcon },
-  { name: "Images", href: "/detailer-dashboard/images", icon: PhotoIcon },
-  { name: "Reviews", href: "/detailer-dashboard/reviews", icon: StarIcon },
-  { name: "Invoices", href: "/detailer-dashboard/invoices", icon: DocumentTextIcon },
-  { name: "Settings", href: "/detailer-dashboard/settings", icon: CogIcon },
-  { name: "Bookings", href: "/detailer-dashboard/bookings", icon: ChartBarIcon },
-];
+import { useSession } from "next-auth/react";
 
 export default function DetailerDashboardLayout({
   children,
@@ -37,6 +26,22 @@ export default function DetailerDashboardLayout({
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const pathname = usePathname();
+
+  const { data: session } = useSession();
+  const detailerId = (session?.user as any)?.id;
+  const dashboardHref = detailerId ? `/detailer-dashboard/dashboard/${detailerId}` : "/detailer-dashboard";
+
+  const navigation = [
+    { name: "Dashboard", href: "/detailer-dashboard", icon: HomeIcon },
+    { name: "Calendar", href: "/detailer-dashboard/calendar", icon: CalendarDaysIcon },
+    { name: "Profile", href: "/detailer-dashboard/profile", icon: UserIcon },
+    { name: "Services", href: "/detailer-dashboard/services", icon: CalendarIcon },
+    { name: "Images", href: "/detailer-dashboard/images", icon: PhotoIcon },
+    { name: "Reviews", href: "/detailer-dashboard/reviews", icon: StarIcon },
+    { name: "Invoices", href: "/detailer-dashboard/invoices", icon: DocumentTextIcon },
+    { name: "Settings", href: "/detailer-dashboard/settings", icon: CogIcon },
+    { name: "Bookings", href: "/detailer-dashboard/bookings", icon: ChartBarIcon },
+  ];
 
   const handleLogout = async () => {
     try {

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import BusinessHoursPicker, { BusinessHours } from "@/app/components/BusinessHoursPicker";
 
 interface Profile {
   id: string;
@@ -51,6 +52,7 @@ const ProfileEditForm: React.FC<ProfileEditFormProps> = ({ profile, onClose, onS
     tiktok: profile.tiktok || '',
     instagram: profile.instagram || '',
     facebook: profile.facebook || '',
+    businessHours: profile.businessHours || {},
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -99,10 +101,17 @@ const ProfileEditForm: React.FC<ProfileEditFormProps> = ({ profile, onClose, onS
   } else if (section === 'profile') {
     fields = [
       { label: 'Business Name', name: 'businessName' },
-      { label: 'TikTok Link', name: 'tiktok' },
-      { label: 'Instagram Link', name: 'instagram' },
+    ];
+  } else if (section === 'social') {
+    fields = [
       { label: 'Facebook Link', name: 'facebook' },
+      { label: 'Instagram Link', name: 'instagram' },
+      { label: 'TikTok Link', name: 'tiktok' },
       { label: 'Website', name: 'website' },
+    ];
+  } else if (section === 'businessHours') {
+    fields = [
+      { label: 'Business Hours', name: 'businessHours' },
     ];
   } else {
     fields = [
@@ -123,6 +132,8 @@ const ProfileEditForm: React.FC<ProfileEditFormProps> = ({ profile, onClose, onS
   let modalTitle = 'Edit Profile';
   if (section === 'personal') modalTitle = 'Edit Personal Information';
   else if (section === 'address') modalTitle = 'Edit Address';
+  else if (section === 'social') modalTitle = 'Edit Social Media';
+  else if (section === 'businessHours') modalTitle = 'Edit Business Hours';
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
@@ -138,8 +149,14 @@ const ProfileEditForm: React.FC<ProfileEditFormProps> = ({ profile, onClose, onS
               </div>
             </div>
           )}
+          {section === 'businessHours' && (
+            <BusinessHoursPicker
+              value={form.businessHours}
+              onChange={hours => setForm(f => ({ ...f, businessHours: hours }))}
+            />
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {fields.map((field) => (
+            {section !== 'businessHours' && fields.map((field) => (
               <div key={field.name} className={field.textarea ? 'md:col-span-2' : ''}>
                 <label className="block text-sm font-medium">{field.label}</label>
                 {field.textarea ? (

@@ -1,1 +1,89 @@
 /* CSS comment */ 
+.big-calendar .rdp {
+  font-size: 1.5rem;
+}
+.big-calendar .rdp-day {
+  width: 3rem;
+  height: 3rem;
+  font-size: 1.25rem;
+}
+
+/* Make the selected day a filled black circle with white text */
+.big-calendar .rdp-day_selected,
+.big-calendar .rdp-day_selected:focus-visible {
+  background: #000 !important;
+  color: #fff !important;
+  border-radius: 9999px !important;
+  box-shadow: none !important;
+}
+
+.big-calendar .rdp-day_selected:focus {
+  outline: none !important;
+}
+
+/* Calendar: Use dark green for selected date, today, and navigation arrows */
+.big-calendar .rdp-day_selected,
+.big-calendar .rdp-day_today {
+  border: 2px solid #006400 !important;
+  color: #006400 !important;
+  background: #e6f4ea !important; /* optional: light green background */
+  border-radius: 9999px !important;
+  box-shadow: none !important;
+}
+
+.big-calendar .rdp-day_selected:focus,
+.big-calendar .rdp-day_today:focus {
+  outline: 2px solid #006400 !important;
+}
+
+.big-calendar .rdp-nav_button {
+  color: #006400 !important;
+}
+
+.big-calendar .rdp-nav_button:hover {
+  background: #e6f4ea !important;
+  color: #004d1a !important;
+}
+
+/* Force dark green for selected and today in DayPicker */
+.rdp-day_selected,
+.rdp-day_selected:focus-visible,
+.rdp-day_selected:focus,
+.rdp-day_today,
+.rdp-day_today:focus-visible,
+.rdp-day_today:focus,
+.rdp-day_selected.rdp-day_button,
+.rdp-day_today.rdp-day_button {
+  border: 2px solid #006400 !important;
+  color: #006400 !important;
+  background: #e6f4ea !important;
+  border-radius: 9999px !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+/* Force dark green for navigation arrows */
+.rdp-nav_button,
+.rdp-nav_button:focus,
+.rdp-nav_button:active {
+  color: #006400 !important;
+  fill: #006400 !important;
+  background: transparent !important;
+  border: none !important;
+}
+
+.rdp-nav_button:hover {
+  background: #e6f4ea !important;
+  color: #004d1a !important;
+  fill: #004d1a !important;
+}
+
+:root {
+  --rdp-selected-border: 2px solid #006400 !important;
+  --rdp-accent-color: #006400 !important;
+}
+
+.big-calendar {
+  --rdp-selected-border: 2px solid #006400 !important;
+  --rdp-accent-color: #006400 !important;
+} 

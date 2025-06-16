@@ -18,7 +18,6 @@ export async function GET() {
     select: {
       id: true,
       email: true,
-      name: true,
       photo: true,
       businessName: true,
       phone: true,
@@ -34,6 +33,9 @@ export async function GET() {
       imageUrl: true,
       businessHours: true,
       verified: true,
+      facebook: true,
+      instagram: true,
+      tiktok: true,
     },
   });
 
@@ -70,7 +72,8 @@ export async function PATCH(request: Request) {
   // Only allow updating these fields
   const allowedFields = [
     'name', 'photo', 'businessName', 'phone', 'address', 'city', 'state', 'zipCode',
-    'description', 'latitude', 'longitude', 'priceRange', 'website', 'imageUrl', 'businessHours', 'verified'
+    'description', 'latitude', 'longitude', 'priceRange', 'website', 'imageUrl', 'businessHours', 'verified',
+    'facebook', 'instagram', 'tiktok'
   ];
   const updateData: Record<string, any> = {};
   for (const key of allowedFields) {
@@ -84,7 +87,6 @@ export async function PATCH(request: Request) {
       select: {
         id: true,
         email: true,
-        name: true,
         photo: true,
         businessName: true,
         phone: true,
@@ -100,6 +102,9 @@ export async function PATCH(request: Request) {
         imageUrl: true,
         businessHours: true,
         verified: true,
+        facebook: true,
+        instagram: true,
+        tiktok: true,
       },
     });
     return NextResponse.json(updated);

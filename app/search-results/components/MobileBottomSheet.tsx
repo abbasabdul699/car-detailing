@@ -5,6 +5,8 @@ import { motion, useMotionValue, useAnimation } from 'framer-motion';
 import { useEffect, useRef, useState } from 'react';
 import DetailerCard from '@/app/search-results/components/DetailerCard';
 import MapContainer from './MapContainer';
+import FilterBar, { FilterOptions } from './FilterBar';
+import { FunnelIcon } from '@heroicons/react/24/outline';
 
 interface DetailerImage {
   url: string;
@@ -40,9 +42,14 @@ interface Props {
   locationLabel?: string;
   isExpanded: boolean;
   setIsExpanded: (val: boolean) => void;
+  filtersVisible: boolean;
+  setFiltersVisible: (val: boolean) => void;
+  filters: FilterOptions;
+  setFilters: (val: FilterOptions) => void;
+  allServices: string[];
 }
 
-export default function MobileBottomSheet({ detailers, center, highlightedId, locationLabel, isExpanded, setIsExpanded }: Props) {
+export default function MobileBottomSheet({ detailers, center, highlightedId, locationLabel, isExpanded, setIsExpanded, filtersVisible, setFiltersVisible, filters, setFilters, allServices }: Props) {
   const y = useMotionValue(0);
   const controls = useAnimation();
   const [highlighted, setHighlighted] = useState<string | null>(null);
@@ -95,6 +102,25 @@ export default function MobileBottomSheet({ detailers, center, highlightedId, lo
         {locationLabel && (
           <div className="text-center text-sm font-medium text-gray-700 mb-2">
             Showing results for: <span className="text-gray-900">{locationLabel}</span>
+          </div>
+        )}
+
+        {/* Filter toggle button and bar */}
+        <div className="flex items-center gap-4 mb-4 justify-center">
+          <button
+            className="px-4 py-2 bg-teal-600 text-white rounded hover:bg-teal-700 transition-all flex items-center gap-2"
+            onClick={() => setFiltersVisible(!filtersVisible)}
+          >
+            <FunnelIcon className="h-5 w-5 text-white" />
+            {filtersVisible ? 'Hide Filters' : 'Show Filters'}
+          </button>
+        </div>
+        {filtersVisible && (
+          <div className="mb-4">
+            <FilterBar
+              onFilterChange={setFilters}
+              services={allServices}
+            />
           </div>
         )}
 

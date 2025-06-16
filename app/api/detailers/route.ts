@@ -104,6 +104,15 @@ export async function POST(req: NextRequest) {
     }
     const data = parsed.data;
 
+    // Check if email already exists
+    const existingDetailer = await prisma.detailer.findUnique({
+      where: { email: data.email }
+    });
+
+    if (existingDetailer) {
+      return NextResponse.json({ error: 'A detailer with this email already exists' }, { status: 400 });
+    }
+
     // Upsert services and collect their IDs
     const serviceIds: string[] = [];
     for (const name of data.services) {

@@ -1,21 +1,47 @@
 // app/detailer-dashboard/page.tsx
+"use client";
 
-const monthlyVisitors = 1234; // Mock stat
-const visitorsByMonth = [
-  { month: 'Jan', visitors: 800 },
-  { month: 'Feb', visitors: 950 },
-  { month: 'Mar', visitors: 1100 },
-  { month: 'Apr', visitors: 1200 },
-  { month: 'May', visitors: 1050 },
-  { month: 'Jun', visitors: 1234 },
-];
+import { useSession } from "next-auth/react";
+import { useEffect, useState } from "react";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 export default function DetailerDashboardPage() {
-  // Find max for scaling bars
-  const maxVisitors = Math.max(...visitorsByMonth.map(v => v.visitors));
+  const { data: session, status } = useSession();
+  const user = session?.user as any;
+  const detailerId = session?.user?.id;
+  const [visitorsByMonth, setVisitorsByMonth] = useState<{ month: string, visitors: number }[]>([]);
+  const [monthlyVisitors, setMonthlyVisitors] = useState(0);
+
+  useEffect(() => {
+    if (detailerId) {
+      fetch(`/api/visitors/${detailerId}/monthly`)
+        .then(res => res.json())
+        .then(data => {
+          setVisitorsByMonth(data.visitors || []);
+          if (data.visitors && data.visitors.length > 0) {
+            setMonthlyVisitors(data.visitors[data.visitors.length - 1].visitors);
+          } else {
+            setMonthlyVisitors(0);
+          }
+        });
+    }
+  }, [detailerId]);
+
+  if (status === "loading") {
+    return <div>Loading...</div>;
+  }
+  if (!user) {
+    return <div>Not logged in</div>;
+  }
+
+  const maxVisitors = visitorsByMonth.length > 0 ? Math.max(...visitorsByMonth.map(v => v.visitors)) : 1;
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 p-6">
+      <div className="mb-4 p-4 bg-white rounded shadow">
+        <div className="text-gray-700">Logged in as: <b>{user.email}</b></div>
+        <div className="text-gray-700">Detailer ID: <b>{user.id}</b></div>
+      </div>
       <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-8">Dashboard</h1>
 
       {/* Monthly Visitors Stat Card */}
@@ -30,22 +56,15 @@ export default function DetailerDashboardPage() {
       {/* Simple Bar Chart for Monthly Visitors */}
       <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-6">
         <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">Visitors by Month</h2>
-        <div className="flex items-end gap-4 h-48 w-full">
-          {visitorsByMonth.map((v) => (
-            <div key={v.month} className="flex flex-col items-center flex-1">
-              <div
-                className="bg-green-500 rounded-t w-8 transition-all"
-                style={{ height: `${(v.visitors / maxVisitors) * 100}%` }}
-                title={`${v.visitors} visitors`}
-              ></div>
-              <span className="mt-2 text-xs text-gray-500 dark:text-gray-400">{v.month}</span>
-            </div>
-          ))}
-        </div>
-        <div className="flex justify-between mt-4 text-xs text-gray-400 dark:text-gray-500">
-          {visitorsByMonth.map((v) => (
-            <span key={v.month} className="flex-1 text-center">{v.visitors}</span>
-          ))}
+        <div style={{ width: '100%', height: 250 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={visitorsByMonth}>
+              <XAxis dataKey="month" stroke="#8884d8" />
+              <YAxis allowDecimals={false} />
+              <Tooltip />
+              <Bar dataKey="visitors" fill="#166534" barSize={40} />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       </div>
     </div>

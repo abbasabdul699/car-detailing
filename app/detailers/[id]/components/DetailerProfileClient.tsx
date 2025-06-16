@@ -329,6 +329,16 @@ export default function DetailerProfileClient({ detailer, categories }: Detailer
   const profileImage = detailer.images.find(img => img.type === 'profile') || detailer.images[0];
   const portfolioImages = detailer.images.filter(img => img.type === 'portfolio');
 
+  useEffect(() => {
+    if (detailer?.id) {
+      fetch('/api/visitors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ detailerId: detailer.id }),
+      });
+    }
+  }, [detailer?.id]);
+
   return (
     <>
       <Navbar />

@@ -5,25 +5,25 @@ import { useRouter, useSearchParams } from 'next/navigation';
 
 const CONDITION_OPTIONS = [
   {
-    value: 'Level_1',
+    value: 'Barely Dirty',
     label: 'Barely Dirty',
     description: 'Thorough hand wash with microfiber towels to prevent scratches',
     image: '/images/level1.png',
   },
   {
-    value: 'Level_2',
+    value: 'Somewhat dirty',
     label: 'Somewhat dirty',
     description: 'Thorough hand wash with microfiber towels to prevent scratches',
     image: '/images/level2.png',
   },
   {
-    value: 'Level_3',
+    value: 'Dirty',
     label: 'Dirty',
     description: 'Requires extra attention to remove moderate dirt and grime',
     image: '/images/level3a.png',
   },
   {
-    value: 'Level_4',
+    value: 'Very dirty',
     label: 'Very dirty',
     description: 'Extensive cleaning needed for heavy dirt and buildup',
     image: '/images/level3.png',

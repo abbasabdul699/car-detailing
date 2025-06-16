@@ -7,6 +7,7 @@ import type { JWT } from "next-auth/jwt";
 import dbConnect from "@/lib/dbConnect";
 import Detailer from "@/app/models/Detailer";
 import bcrypt from "bcryptjs";
+import ImageModel from "@/app/models/Image";
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -34,11 +35,15 @@ export const authOptions: NextAuthOptions = {
           await dbConnect();
           const detailer = await Detailer.findOne({ email: credentials.email });
           if (detailer && await bcrypt.compare(credentials.password, detailer.password)) {
+            // Fetch profile image
+            const profileImage = await ImageModel.findOne({ detailerId: detailer._id, type: 'profile' });
             return {
               id: detailer._id.toString(),
               name: detailer.firstName ? `${detailer.firstName} ${detailer.lastName}` : detailer.email,
               email: detailer.email,
               role: "detailer",
+              businessName: detailer.businessName,
+              imageUrl: profileImage?.url || "",
             };
           }
         }
@@ -49,12 +54,17 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async session({ session, token }: { session: Session; token: JWT }) {
       (session.user as any).role = token.role;
+      (session.user as any).id = token.id;
+      (session.user as any).businessName = token.businessName;
+      (session.user as any).imageUrl = token.imageUrl;
       return session;
     },
     async jwt({ token, user }: { token: JWT; user?: User }) {
       if (user) {
         (token as any).role = (user as any).role;
         (token as any).id = (user as any).id;
+        (token as any).businessName = (user as any).businessName;
+        (token as any).imageUrl = (user as any).imageUrl;
       }
       return token;
     },

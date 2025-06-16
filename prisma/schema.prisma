@@ -78,6 +78,8 @@ model Service {
   categoryId  String?    @db.ObjectId
   category    Category?  @relation(fields: [categoryId], references: [id])
   detailers   DetailerService[]
+  price       String?
+  detailerId  String?    @db.ObjectId
 }
 
 model DetailerService {
@@ -86,6 +88,8 @@ model DetailerService {
   detailerId String   @db.ObjectId
   service    Service  @relation(fields: [serviceId], references: [id])
   serviceId  String   @db.ObjectId
+  price      Float?
+  category   String?  // "Bundle", "Interior", "Exterior", "Additional"
 }
 
 model Brand {

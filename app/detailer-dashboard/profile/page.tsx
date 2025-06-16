@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import ProfileEditForm from './components/ProfileEditForm';
 import ImageUploader from '../../components/ImageUploader';
+import BusinessHoursPicker, { BusinessHours } from "@/app/components/BusinessHoursPicker";
 
 // Define the Profile type matching the API response
 interface Profile {
@@ -86,27 +87,6 @@ export default function DetailerProfilePage() {
               <div className="font-bold text-xl text-gray-900 dark:text-gray-100">{profile.name}</div>
               <div className="flex items-center gap-2">
                 <input type="text" value={profile.businessName || ''} disabled className="w-full border rounded p-2 bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-100 font-semibold text-lg" />
-                {/* Social Icons */}
-                {profile.instagram && (
-                  <a href={profile.instagram} target="_blank" rel="noopener noreferrer" aria-label="Instagram">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
-                  </a>
-                )}
-                {profile.tiktok && (
-                  <a href={profile.tiktok} target="_blank" rel="noopener noreferrer" aria-label="TikTok">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5"/></svg>
-                  </a>
-                )}
-                {profile.facebook && (
-                  <a href={profile.facebook} target="_blank" rel="noopener noreferrer" aria-label="Facebook">
-                    <svg width="24" height="24" viewBox="0 0 1000 1000" xmlns="http://www.w3.org/2000/svg"><path d="M 75 0C 75 0 75 0 75 0C 33 0 0 33 0 75C 0 75 0 925 0 925C 0 967 33 1000 75 1000C 75 1000 925 1000 925 1000C 967 1000 1000 967 1000 925C 1000 925 1000 75 1000 75C 1000 33 967 0 925 0C 925 0 75 0 75 0 M 690 1000C 690 1000 534 1000 534 1000C 534 1000 534 613 534 613C 534 613 404 613 404 613C 404 613 404 462 404 462C 404 462 534 462 534 462C 534 462 534 350 534 350C 534 221 613 151 729 151C 784 151 831 155 845 157C 845 157 845 292 845 292C 845 292 765 292 765 292C 702 292 690 322 690 365C 690 365 690 462 690 462C 690 462 840 462 840 462C 840 462 820 613 820 613C 820 613 690 613 690 613C 690 613 690 1000 690 1000"/></svg>
-                  </a>
-                )}
-                {profile.website && (
-                  <a href={profile.website} target="_blank" rel="noopener noreferrer" aria-label="Website">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-                  </a>
-                )}
               </div>
               <div className="text-gray-500 dark:text-gray-400 text-sm">{profile.city}, {profile.state}</div>
             </div>
@@ -165,6 +145,39 @@ export default function DetailerProfilePage() {
               <input type="text" value={profile.zipCode || ''} disabled className="w-full border rounded p-2 bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-100" />
             </div>
           </div>
+        </div>
+        {/* Social Media Section */}
+        <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-6 mb-4">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Social Media</h2>
+            <button className="border border-gray-300 rounded-full px-4 py-1 text-sm flex items-center gap-2 hover:bg-gray-100" onClick={() => setEditingSection('social')}>✏️ Edit</button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs text-gray-700 dark:text-gray-200">Facebook</label>
+              <input type="text" value={profile.facebook || ''} disabled className="w-full border rounded p-2 bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-100" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-700 dark:text-gray-200">Instagram</label>
+              <input type="text" value={profile.instagram || ''} disabled className="w-full border rounded p-2 bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-100" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-700 dark:text-gray-200">TikTok</label>
+              <input type="text" value={profile.tiktok || ''} disabled className="w-full border rounded p-2 bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-100" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-700 dark:text-gray-200">Website</label>
+              <input type="text" value={profile.website || ''} disabled className="w-full border rounded p-2 bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-100" />
+            </div>
+          </div>
+        </div>
+        {/* Business Hours Section */}
+        <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-6 mb-4">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Business Hours</h2>
+            <button className="border border-gray-300 rounded-full px-4 py-1 text-sm flex items-center gap-2 hover:bg-gray-100" onClick={() => setEditingSection('businessHours')}>✏️ Edit</button>
+          </div>
+          <BusinessHoursPicker value={profile.businessHours} onChange={() => {}} />
         </div>
         {/* Edit Modal */}
         {editingSection && (

@@ -1,7 +1,12 @@
 import { useTheme } from '@/app/components/ThemeContext';
+import { useSession } from "next-auth/react";
 
 export default function DashboardNavbar() {
   const { theme, toggleTheme } = useTheme();
+  const { data: session } = useSession();
+  const user = session?.user as any;
+  const businessName = user?.businessName || "";
+
   return (
     <header className={`w-full ${theme === 'dark' ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100'} border-b px-6 py-3 flex items-center justify-between`}>
       {/* Left: Hamburger + Search */}
@@ -53,11 +58,11 @@ export default function DashboardNavbar() {
         {/* User Avatar + Name + Dropdown */}
         <div className="flex items-center gap-2 cursor-pointer">
           <img
-            src="/images/detailers/default-business.jpg"
+            src={user?.imageUrl || "/images/detailers/default-business.jpg"}
             alt="User Avatar"
             className="w-9 h-9 rounded-full object-cover border border-gray-200"
           />
-          <span className={`font-medium ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`}>Emirhan Boruch</span>
+          <span className={`font-medium ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`}>{businessName}</span>
           <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
           </svg>
