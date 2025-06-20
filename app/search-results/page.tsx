@@ -44,6 +44,9 @@ export default async function SearchResults(props: SearchResultsProps) {
   const searchLng = parseFloat(awaitedParams.lng || '-71.0184');
   // Fetch detailers from the database (server-side)
   let detailers = await prisma.detailer.findMany({
+    where: {
+      hidden: false,
+    },
     include: {
       images: {
         select: {

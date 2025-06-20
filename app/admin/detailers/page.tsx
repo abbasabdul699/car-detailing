@@ -28,7 +28,8 @@ export default async function AdminDetailerListPage() {
         include: {
           service: true
         }
-      }
+      },
+      createdAt: true
     },
   });
 
