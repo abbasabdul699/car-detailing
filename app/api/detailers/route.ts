@@ -42,7 +42,10 @@ export async function GET(req: NextRequest) {
     const lng = searchParams.get('lng');
 
     const detailers = await prisma.detailer.findMany({
-      where: { verified: true },
+      where: { 
+        verified: true,
+        hidden: false 
+      },
       select: {
         id: true,
         businessName: true,
@@ -107,7 +110,7 @@ export async function POST(req: NextRequest) {
     for (const name of data.services) {
       let service = await prisma.service.findUnique({ where: { name } });
       if (!service) {
-        let category = "Additional";
+        let categoryName = "Additional";
         if (name.toLowerCase().includes("interior") || 
             name.toLowerCase().includes("vacuum") || 
             name.toLowerCase().includes("carpet") || 
@@ -118,7 +121,7 @@ export async function POST(req: NextRequest) {
             name.toLowerCase().includes("window") || 
             name.toLowerCase().includes("mirror") || 
             name.toLowerCase().includes("odor")) {
-          category = "Interior";
+          categoryName = "Interior";
         } else if (name.toLowerCase().includes("exterior") || 
                    name.toLowerCase().includes("wash") || 
                    name.toLowerCase().includes("wax") || 
@@ -129,10 +132,24 @@ export async function POST(req: NextRequest) {
                    name.toLowerCase().includes("rim") || 
                    name.toLowerCase().includes("paint") || 
                    name.toLowerCase().includes("headlight")) {
-          category = "Exterior";
+          categoryName = "Exterior";
         }
-        console.log('Creating service:', name, 'with category:', category);
-        service = await prisma.service.create({ data: { name, category } });
+        
+        // Find or create the category
+        let category = await prisma.category.findUnique({ where: { name: categoryName } });
+        if (!category) {
+          category = await prisma.category.create({ data: { name: categoryName } });
+        }
+
+        console.log('Creating service:', name, 'with category:', categoryName);
+        service = await prisma.service.create({ 
+          data: { 
+            name, 
+            category: { 
+              connect: { id: category.id } 
+            } 
+          } 
+        });
       }
       serviceIds.push(service.id);
     }

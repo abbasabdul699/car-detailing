@@ -28,9 +28,10 @@ model Detailer {
   businessHours Json
   images       Image[]
   detailerImages DetailerImage[]
-  createdAt    DateTime @default(now())
+  createdAt    DateTime? @default(now())
   services     DetailerService[]
   verified     Boolean @default(false)
+  hidden       Boolean @default(false)
 }
 
 model Image {
@@ -43,14 +44,14 @@ model Image {
 }
 
 model DetailerImage {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  url       String
-  key       String   // S3 key for the image
-  alt       String
-  detailer  Detailer @relation(fields: [detailerId], references: [id])
-  detailerId String  @db.ObjectId
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         String    @id @default(auto()) @map("_id") @db.ObjectId
+  url        String
+  key        String // S3 key for the image
+  alt        String
+  detailer   Detailer  @relation(fields: [detailerId], references: [id])
+  detailerId String    @db.ObjectId
+  createdAt  DateTime? @default(now())
+  updatedAt  DateTime? @updatedAt
 }
 
 model Category {

@@ -11,7 +11,24 @@ export async function GET(
       where: {
         id: params.id
       },
-      include: {
+      select: {
+        id: true,
+        businessName: true,
+        email: true,
+        phone: true,
+        address: true,
+        city: true,
+        state: true,
+        zipCode: true,
+        description: true,
+        latitude: true,
+        longitude: true,
+        priceRange: true,
+        website: true,
+        businessHours: true,
+        imageUrl: true,
+        verified: true,
+        hidden: true,
         images: true,
         detailerImages: true,
         services: {
@@ -63,7 +80,7 @@ export async function PATCH(
     // Only allow updatable scalar fields
     const allowedFields = [
       'businessName', 'email', 'phone', 'address', 'city', 'state', 'zipCode',
-      'description', 'latitude', 'longitude', 'priceRange', 'website', 'businessHours', 'imageUrl', 'verified'
+      'description', 'latitude', 'longitude', 'priceRange', 'website', 'businessHours', 'imageUrl', 'verified', 'hidden'
     ];
     const updateData: Record<string, any> = {};
     for (const key of allowedFields) {

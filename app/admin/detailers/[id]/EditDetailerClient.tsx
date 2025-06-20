@@ -28,6 +28,7 @@ interface Detailer {
   instagram?: string;
   tiktok?: string;
   verified?: boolean;
+  hidden?: boolean;
 }
 
 export default function EditDetailerClient({ detailer: initialDetailer }: { detailer: Detailer }) {
@@ -37,6 +38,7 @@ export default function EditDetailerClient({ detailer: initialDetailer }: { deta
       latitude: typeof initialDetailer.latitude === 'string' ? parseFloat(initialDetailer.latitude) : initialDetailer.latitude,
       longitude: typeof initialDetailer.longitude === 'string' ? parseFloat(initialDetailer.longitude) : initialDetailer.longitude,
       verified: initialDetailer.verified ?? false,
+      hidden: initialDetailer.hidden ?? false,
     }
   });
   const [saving, setSaving] = useState(false);
@@ -61,6 +63,7 @@ export default function EditDetailerClient({ detailer: initialDetailer }: { deta
       longitude: data.longitude ? Number(Number(data.longitude).toFixed(5)) : '',
       services,
       businessHours,
+      hidden: data.hidden ?? false,
     };
     try {
       const res = await fetch(`/api/detailers/${data.id}`, {
@@ -104,20 +107,38 @@ export default function EditDetailerClient({ detailer: initialDetailer }: { deta
     <div className="min-h-screen flex flex-col items-center justify-center bg-gray-100">
       <h1 className="text-2xl font-bold mb-6">Edit Detailer</h1>
       <form className="space-y-8 max-w-2xl w-full bg-white p-8 rounded-xl shadow-lg" onSubmit={handleSubmit(handleSave)}>
-        {/* Verified Toggle */}
-        <div className="flex items-center mb-4">
-          <label className="block font-medium mr-4">Verified</label>
-          <button
-            type="button"
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${watch('verified') ? 'bg-green-600' : 'bg-gray-300'}`}
-            onClick={() => setValue('verified', !watch('verified'))}
-            aria-pressed={watch('verified')}
-          >
-            <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${watch('verified') ? 'translate-x-6' : 'translate-x-1'}`}
-            />
-          </button>
-          <span className={`ml-3 text-sm font-medium ${watch('verified') ? 'text-green-700' : 'text-gray-500'}`}>{watch('verified') ? 'Verified' : 'Not Verified'}</span>
+        {/* Verified & Hide Toggles */}
+        <div className="flex items-center mb-4 gap-8">
+          {/* Verified Toggle */}
+          <div className="flex items-center">
+            <label className="block font-medium mr-4">Verified</label>
+            <button
+              type="button"
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${watch('verified') ? 'bg-green-600' : 'bg-gray-300'}`}
+              onClick={() => setValue('verified', !watch('verified'))}
+              aria-pressed={watch('verified')}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${watch('verified') ? 'translate-x-6' : 'translate-x-1'}`}
+              />
+            </button>
+            <span className={`ml-3 text-sm font-medium ${watch('verified') ? 'text-green-700' : 'text-gray-500'}`}>{watch('verified') ? 'Verified' : 'Not Verified'}</span>
+          </div>
+          {/* Hide Toggle */}
+          <div className="flex items-center">
+            <label className="block font-medium mr-4">Hide Profile</label>
+            <button
+              type="button"
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${watch('hidden') ? 'bg-red-600' : 'bg-gray-300'}`}
+              onClick={() => setValue('hidden', !watch('hidden'))}
+              aria-pressed={watch('hidden')}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${watch('hidden') ? 'translate-x-6' : 'translate-x-1'}`}
+              />
+            </button>
+            <span className={`ml-3 text-sm font-medium ${watch('hidden') ? 'text-red-700' : 'text-gray-500'}`}>{watch('hidden') ? 'Hidden' : 'Visible'}</span>
+          </div>
         </div>
         {/* Business Info */}
         <div className="bg-gray-50 p-4 rounded-lg shadow">

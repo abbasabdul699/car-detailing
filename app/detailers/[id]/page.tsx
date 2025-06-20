@@ -29,6 +29,7 @@ interface Detailer {
   zipCode: string;
   website?: string;
   verified: boolean;
+  hidden: boolean;
 }
 
 // Function to open native maps app
@@ -72,10 +73,11 @@ export default async function DetailerProfile({
         images: true,
         detailerImages: true,
         verified: true,
+        hidden: true,
       }
     });
 
-    if (!detailer) {
+    if (!detailer || detailer.hidden) {
       return notFound();
     }
 

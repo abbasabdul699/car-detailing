@@ -33,7 +33,8 @@ export default async function EditDetailerPage({ params }: { params: { id: strin
           }
         }
       },
-      verified: true
+      verified: true,
+      hidden: true
     },
   });
 
@@ -41,14 +42,24 @@ export default async function EditDetailerPage({ params }: { params: { id: strin
     return <div>Detailer not found</div>;
   }
 
+  // Transform the detailer object to match the client component's expected props
+  const transformedDetailer = {
+    ...detailer,
+    email: detailer.email || '',
+    website: detailer.website || '',
+    services: detailer.services.map(s => ({
+      ...s,
+      service: {
+        ...s.service,
+        category: s.service.category?.name
+      }
+    }))
+  };
+
   return (
     <div className="edit-detailer-container">
       <AdminNavbar />
-      <EditDetailerClient detailer={{
-        ...detailer,
-        email: detailer.email || '',
-        website: detailer.website || '',
-      }} />
+      <EditDetailerClient detailer={transformedDetailer} />
     </div>
   );
 } 
