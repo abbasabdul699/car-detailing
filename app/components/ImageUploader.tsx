@@ -3,7 +3,7 @@ import React, { useRef, useState } from "react";
 
 interface ImageUploaderProps {
   businessName: string;
-  detailerId: string;
+  detailerId?: string;
   onUpload: (url: string) => void;
   type: 'profile' | 'portfolio';
   images?: { url: string; alt: string; type?: string }[];
@@ -54,8 +54,10 @@ export default function ImageUploader({
 
         const formData = new FormData();
         formData.append("file", file);
+        if (detailerId) {
+          formData.append("detailerId", detailerId);
+        }
         formData.append("businessName", businessName || 'detailer');
-        formData.append("detailerId", detailerId);
         formData.append("type", type);
 
         const res = await fetch("/api/upload", {

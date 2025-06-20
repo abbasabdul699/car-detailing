@@ -1,23 +1,69 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import ImageUploader from "../../components/ImageUploader";
 
-// Mock images
-const mockImages = [
-  { url: "/images/detailers/default-business.jpg", alt: "Profile Image", type: "profile" },
-  { url: "/images/detailers/default-business.jpg", alt: "Portfolio 1", type: "portfolio" },
-  { url: "/images/detailers/default-business.jpg", alt: "Portfolio 2", type: "portfolio" },
-];
+interface PortfolioImage {
+  id: string;
+  url: string;
+  createdAt: string;
+}
 
 export default function ManageImagesPage() {
-  const [images, setImages] = useState(mockImages);
+  const [images, setImages] = useState<PortfolioImage[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleUpload = (url: string) => {
-    setImages((prev) => [...prev, { url, alt: `Uploaded Image`, type: "portfolio" }]);
+  // Fetch images on mount
+  useEffect(() => {
+    async function fetchImages() {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch("/api/detailer/portfolio-images");
+        if (!res.ok) throw new Error("Failed to fetch images");
+        const data = await res.json();
+        setImages(data);
+      } catch (err: any) {
+        setError(err.message || "Unknown error");
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchImages();
+  }, []);
+
+  // Add image after upload
+  const handleUpload = async (url: string) => {
+    try {
+      const res = await fetch("/api/detailer/portfolio-images", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      if (!res.ok) throw new Error("Failed to add image");
+      const newImage = await res.json();
+      setImages((prev) => [newImage, ...prev]);
+    } catch (err: any) {
+      setError(err.message || "Failed to add image");
+    }
   };
 
-  const handleDelete = (url: string) => {
-    setImages((prev) => prev.filter((img) => img.url !== url));
+  // Delete image
+  const handleDelete = async (url: string) => {
+    const image = images.find((img) => img.url === url);
+    if (!image) return;
+    if (!window.confirm("Are you sure you want to delete this image?")) return;
+    try {
+      const res = await fetch("/api/detailer/portfolio-images", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: image.id }),
+      });
+      if (!res.ok) throw new Error("Failed to delete image");
+      setImages((prev) => prev.filter((img) => img.id !== image.id));
+    } catch (err: any) {
+      setError(err.message || "Failed to delete image");
+    }
   };
 
   return (
@@ -26,32 +72,38 @@ export default function ManageImagesPage() {
       <div className="mb-6">
         <ImageUploader
           businessName="Demo Detailer"
-          detailerId="demo-id"
           onUpload={handleUpload}
           type="portfolio"
-          images={[]}
         />
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-        {images.filter(img => img.type === 'portfolio').map((img, idx) => (
-          <div key={idx} className="relative group rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden bg-white flex flex-col aspect-[4/3]">
-            <img src={img.url} alt={img.alt} className="object-cover w-full h-full" style={{ aspectRatio: '4/3' }} />
-            <button
-              onClick={() => handleDelete(img.url)}
-              className="absolute top-2 right-2 bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-              title="Delete image"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-            <div className="flex-1 flex items-center justify-center text-gray-700 dark:text-gray-200 text-sm font-medium p-2">
-              {img.alt}
+      {loading ? (
+        <div>Loading images...</div>
+      ) : error ? (
+        <div className="text-red-600">{error}</div>
+      ) : images.length === 0 ? (
+        <div className="text-gray-500">No portfolio images found. Click "Upload Images" to add your first portfolio image.</div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+          {images.map((img, idx) => (
+            <div key={img.id} className="relative group rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden bg-white flex flex-col aspect-[4/3]">
+              <img src={img.url} alt={`Portfolio ${idx + 1}`} className="object-cover w-full h-full" style={{ aspectRatio: '4/3' }} />
+              <button
+                onClick={() => handleDelete(img.url)}
+                className="absolute top-2 right-2 bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                title="Delete image"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+              <div className="flex-1 flex items-center justify-center text-gray-700 dark:text-gray-200 text-sm font-medium p-2">
+                Portfolio {idx + 1}
+              </div>
+              <div className="bg-gray-700 text-white text-xs px-2 py-1 text-center">Portfolio</div>
             </div>
-            <div className="bg-gray-700 text-white text-xs px-2 py-1 text-center">Portfolio</div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 } 

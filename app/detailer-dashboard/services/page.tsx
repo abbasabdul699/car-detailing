@@ -43,31 +43,31 @@ export default function ManageServicesPage() {
           ) : services.length === 0 ? (
             <div className="text-gray-500">No services found. Click "+ Add Service" to create your first service.</div>
           ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-gray-500 dark:text-gray-400 border-b dark:border-gray-700">
-                  <th className="text-left py-2">Name</th>
-                  <th className="text-left py-2">Description</th>
-                  <th className="text-left py-2">Category</th>
-                  <th className="text-left py-2">Price</th>
-                  <th className="text-left py-2">Actions</th>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-gray-500 dark:text-gray-400 border-b dark:border-gray-700">
+                <th className="text-left py-2">Name</th>
+                <th className="text-left py-2">Description</th>
+                <th className="text-left py-2">Category</th>
+                <th className="text-left py-2">Price</th>
+                <th className="text-left py-2">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {services.map((service) => (
+                <tr key={service.id} className="border-t dark:border-gray-800">
+                  <td className="py-2 font-medium text-gray-900 dark:text-gray-100">{service.name}</td>
+                  <td className="py-2 text-gray-700 dark:text-gray-200">{service.description}</td>
+                  <td className="py-2 text-gray-700 dark:text-gray-200">{service.category}</td>
+                  <td className="py-2 text-gray-700 dark:text-gray-200">{service.price}</td>
+                  <td className="py-2 flex gap-2">
+                    <button className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition">Edit</button>
+                    <button className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 transition">Delete</button>
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {services.map((service) => (
-                  <tr key={service.id} className="border-t dark:border-gray-800">
-                    <td className="py-2 font-medium text-gray-900 dark:text-gray-100">{service.name}</td>
-                    <td className="py-2 text-gray-700 dark:text-gray-200">{service.description}</td>
-                    <td className="py-2 text-gray-700 dark:text-gray-200">{service.category}</td>
-                    <td className="py-2 text-gray-700 dark:text-gray-200">{service.price}</td>
-                    <td className="py-2 flex gap-2">
-                      <button className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition">Edit</button>
-                      <button className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 transition">Delete</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+              ))}
+            </tbody>
+          </table>
           )}
         </div>
       </div>

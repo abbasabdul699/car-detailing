@@ -103,4 +103,8 @@ export async function DELETE(request: Request) {
   } catch (e) {
     return NextResponse.json({ error: 'Failed to remove service', details: (e as Error).message }, { status: 500 });
   }
-} 
+}
+
+const images = await prisma.image.findMany({
+  where: { detailerId: detailer.id, type: 'portfolio' },
+}); 

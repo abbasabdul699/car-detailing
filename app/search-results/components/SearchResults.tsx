@@ -155,11 +155,11 @@ export default function SearchResults({ detailers }: SearchResultsProps) {
         <div className="overflow-y-auto max-h-screen px-4 pt-8 pb-8 mt-2">
           {/* Address/location and filter toggle in a row */}
           <div className="flex items-center gap-4 mb-6 mt-10">
-            {location && (
+          {location && (
               <div className="text-lg font-semibold text-gray-700">
-                Showing results for: <span className="text-gray-900">{location}</span>
-              </div>
-            )}
+              Showing results for: <span className="text-gray-900">{location}</span>
+            </div>
+          )}
             <button
               className="px-4 py-2 bg-teal-600 text-white rounded hover:bg-teal-700 transition-all flex items-center gap-2"
               onClick={() => setFiltersVisible(v => !v)}

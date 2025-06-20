@@ -2,12 +2,13 @@
 import { NextResponse } from 'next/server';
 import { uploadImage, ImageCategory } from '@/lib/s3-utils';
 import { prisma } from '@/lib/prisma';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 
 export async function POST(request: Request) {
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File;
-    const detailerId = formData.get('detailerId') as string;
     const type = formData.get('type') as string || 'portfolio';
     const businessName = formData.get('businessName') as string || 'detailer';
     
@@ -15,13 +16,6 @@ export async function POST(request: Request) {
     if (!file) {
       return NextResponse.json(
         { error: 'No file provided' },
-        { status: 400 }
-      );
-    }
-
-    if (!detailerId) {
-      return NextResponse.json(
-        { error: 'Detailer ID is required' },
         { status: 400 }
       );
     }
@@ -41,6 +35,20 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+
+    // Get detailerId from session
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const detailer = await prisma.detailer.findUnique({
+      where: { email: session.user.email },
+      select: { id: true }
+    });
+    if (!detailer) {
+      return NextResponse.json({ error: 'Detailer not found' }, { status: 404 });
+    }
+    const detailerId = detailer.id;
 
     // Upload to S3
     const buffer = Buffer.from(await file.arrayBuffer());

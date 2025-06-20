@@ -53,10 +53,15 @@ export const authOptions: NextAuthOptions = {
   ],
   callbacks: {
     async session({ session, token }: { session: Session; token: JWT }) {
-      (session.user as any).role = token.role;
-      (session.user as any).id = token.id;
-      (session.user as any).businessName = token.businessName;
-      (session.user as any).imageUrl = token.imageUrl;
+      await dbConnect();
+      const detailer = await Detailer.findById(token.id);
+      if (detailer && session.user) {
+        session.user.email = detailer.email;
+        (session.user as any).role = token.role;
+        (session.user as any).id = token.id;
+        (session.user as any).businessName = token.businessName;
+        (session.user as any).imageUrl = token.imageUrl;
+      }
       return session;
     },
     async jwt({ token, user }: { token: JWT; user?: User }) {
