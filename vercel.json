@@ -1,4 +1,14 @@
 {
-  "buildCommand": "prisma generate && next build",
-  "installCommand": "npm install"
+  "buildCommand": "cd apps/web && npm install && npm run build",
+  "installCommand": "npm install",
+  "outputDirectory": "apps/web/.next",
+  "framework": "nextjs",
+  "functions": {
+    "apps/web/app/api/**/*.ts": {
+      "runtime": "nodejs18.x"
+    }
+  },
+  "env": {
+    "NODE_ENV": "production"
+  }
 } 

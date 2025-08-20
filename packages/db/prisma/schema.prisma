@@ -1,0 +1,113 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("MONGODB_URI")
+}
+
+model Business {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  phone     String?
+  timezone  String
+  pricingRules Json
+  availability Json
+  playbook Json
+  
+  // Google Calendar Integration
+  gcalAccount      String?
+  gcalAccessToken  String?
+  gcalRefreshToken String?
+  gcalTokenExpiry  DateTime?
+  
+  // Meta Business Integration
+  metaBusinessId   String?
+  metaPageId       String?
+  metaAdAccountId  String?
+  metaAccessToken  String?
+  metaTokenExpiry  DateTime?
+  
+  createdAt DateTime @default(now())
+  
+  contacts      Contact[]
+  leads         Lead[]
+  jobs          Job[]
+  conversations Conversation[]
+}
+
+model Contact {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  businessId String   @db.ObjectId
+  phone      String   @unique
+  name       String?
+  vehicles   Json?
+  createdAt  DateTime @default(now())
+  business   Business @relation(fields: [businessId], references: [id])
+  conversations Conversation[]
+  leads      Lead[]
+  jobs       Job[]
+}
+
+model Lead {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  businessId String   @db.ObjectId
+  contactId  String?  @db.ObjectId
+  source     String
+  payload    Json
+  status     String   @default("new")
+  createdAt  DateTime @default(now())
+  business   Business @relation(fields: [businessId], references: [id])
+  contact    Contact? @relation(fields: [contactId], references: [id])
+}
+
+model Conversation {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  businessId   String   @db.ObjectId
+  contactId    String   @db.ObjectId
+  channel      String   // "sms"
+  stage        String   // intro|gather|quote|schedule|confirm|followup
+  createdAt    DateTime @default(now())
+  business     Business @relation(fields: [businessId], references: [id])
+  contact      Contact  @relation(fields: [contactId], references: [id])
+  messages     Message[]
+}
+
+model Message {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  conversationId String   @db.ObjectId
+  role           String   // ai|user|system
+  text           String
+  meta           Json?
+  createdAt      DateTime @default(now())
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+}
+
+model Job {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  businessId String  @db.ObjectId
+  business  Business @relation(fields: [businessId], references: [id])
+  
+  customerName    String
+  customerPhone   String
+  customerEmail   String?
+  vehicleType     String
+  serviceType     String
+  service         String? // Add this field
+  scheduledDate   DateTime
+  duration        Int // minutes
+  status          String // SCHEDULED, COMPLETED, CANCELLED
+  notes           String?
+  calendarEventId String?
+  
+  // Add relation to Contact
+  contactId String? @db.ObjectId
+  contact  Contact? @relation(fields: [contactId], references: [id])
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
