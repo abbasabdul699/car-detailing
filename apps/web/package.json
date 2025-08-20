@@ -11,7 +11,7 @@
   "dependencies": {
     "@prisma/client": "^6.14.0",
     "@reeva/ai": "workspace:*",
-    "@reeva/core": "workspace:*",
+    "@reeva/core": "workspace:*", 
     "@reeva/db": "workspace:*",
     "googleapis": "^140.0.0",
     "next": "^15.3.2",
