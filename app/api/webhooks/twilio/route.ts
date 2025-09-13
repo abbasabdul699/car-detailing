@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 import { prisma } from '@/lib/prisma'
 import Twilio from 'twilio'
-import { generateResponse } from '@reeva/ai'
 
 const twilio = Twilio(process.env.TWILIO_ACCOUNT_SID!, process.env.TWILIO_AUTH_TOKEN!)
 const SECRET = process.env.TWILIO_WEBHOOK_AUTH_SECRET!
@@ -90,39 +89,34 @@ export async function POST(req: NextRequest){
       } 
     })
 
-    // Generate AI response
-    const aiResponse = await generateResponse(body, convo.stage, {
-      contactId: contact.id,
-      conversationId: convo.id,
-      businessId: detailer.id,
-      detailerId: detailer.id
-    })
+    // Generate simple AI response (temporary)
+    let aiResponse = "Hello! I'm your car detailing assistant. How can I help you today?"
+    
+    if (body.toLowerCase().includes('book') || body.toLowerCase().includes('schedule')) {
+      aiResponse = "I'd be happy to help you book a detailing service! What type of service are you looking for?"
+    } else if (body.toLowerCase().includes('price') || body.toLowerCase().includes('cost')) {
+      aiResponse = "Our pricing varies by service type. Could you tell me what kind of detailing you need?"
+    } else if (body.toLowerCase().includes('hello') || body.toLowerCase().includes('hi')) {
+      aiResponse = "Hello! Welcome to " + detailer.businessName + ". I'm here to help you with your car detailing needs. What can I do for you today?"
+    }
 
     // Save AI response
     await prisma.message.create({
       data: {
         conversationId: convo.id,
         role: 'ai',
-        text: aiResponse.response
+        text: aiResponse
       }
     })
-
-    // Update conversation stage if needed
-    if (aiResponse.nextStage) {
-      await prisma.conversation.update({
-        where: { id: convo.id },
-        data: { stage: aiResponse.nextStage }
-      })
-    }
 
     // Send SMS response using the detailer's Twilio phone number
     await twilio.messages.create({
       to: from,
       from: detailer.twilioPhoneNumber!,
-      body: aiResponse.response
+      body: aiResponse
     })
 
-    console.log(`Sent response to ${from}: ${aiResponse.response}`)
+    console.log(`Sent response to ${from}: ${aiResponse}`)
 
     return NextResponse.json({ ok: true })
   } catch (error) {
