@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 import { prisma } from '@/lib/prisma'
-import Twilio from 'twilio'
+import * as Twilio from 'twilio'
 
 const twilio = Twilio(process.env.TWILIO_ACCOUNT_SID!, process.env.TWILIO_AUTH_TOKEN!)
 const SECRET = process.env.TWILIO_WEBHOOK_AUTH_SECRET!
