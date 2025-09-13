@@ -28,6 +28,7 @@ model Detailer {
   priceRange      String
   website         String?
   imageUrl        String?
+  imageId         String?
   businessHours   Json
   images          Image[]
   detailerImages  DetailerImage[]
@@ -41,6 +42,20 @@ model Detailer {
   tiktok          String?
   facebook        String?
   portfolioImages PortfolioImage[]
+  bundles         Bundle[]
+  reviews         Review[]
+  visitors        Visitor[]
+  bookings        Booking[]
+  notifications   Notification[]
+
+  googleCalendarAccessToken String?
+  googleCalendarRefreshToken String?
+  googleCalendarAccountId String?
+  events            Event[]
+  
+  // SMS Integration
+  twilioPhoneNumber String?  // Twilio phone number for SMS communication
+  smsEnabled        Boolean  @default(false)
 }
 
 model Image {
@@ -50,7 +65,7 @@ model Image {
   type       String?
   detailerId String?   @db.ObjectId
   detailer   Detailer? @relation(fields: [detailerId], references: [id])
-  createdAt  DateTime @default(now())
+  createdAt  DateTime? @default(now())
 }
 
 model DetailerImage {
@@ -66,22 +81,23 @@ model DetailerImage {
 
 model Category {
   id          String    @id @default(auto()) @map("_id") @db.ObjectId
-  name        String    @unique
+  name        String
   description String?
   icon        String?
-  services    Service[] // Relation to services
+  services    Service[]
 }
 
 model Service {
-  id          String            @id @default(auto()) @map("_id") @db.ObjectId
-  name        String            @unique
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
   description String?
   icon        String?
-  categoryId  String?           @db.ObjectId
-  category    Category?         @relation(fields: [categoryId], references: [id])
-  detailers   DetailerService[]
+  category    Category @relation(fields: [categoryId], references: [id])
+  categoryId  String   @db.ObjectId
   price       String?
   detailerId  String?           @db.ObjectId
+  bundles     BundleService[]
+  detailers   DetailerService[]
 }
 
 model DetailerService {
@@ -91,7 +107,9 @@ model DetailerService {
   service    Service  @relation(fields: [serviceId], references: [id])
   serviceId  String   @db.ObjectId
   price      Float?
-  category   String? // "Bundle", "Interior", "Exterior", "Additional"
+  category   String?
+
+  @@unique([detailerId, serviceId])
 }
 
 model Brand {
@@ -116,4 +134,146 @@ model PortfolioImage {
   detailerId String   @db.ObjectId
   url        String
   createdAt  DateTime @default(now())
+}
+
+model Bundle {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  description String?
+  price       Float?
+  imageUrl    String?
+  detailer    Detailer @relation(fields: [detailerId], references: [id])
+  detailerId  String   @db.ObjectId
+  services    BundleService[]
+}
+
+model BundleService {
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  bundle    Bundle  @relation(fields: [bundleId], references: [id])
+  bundleId  String  @db.ObjectId
+  service   Service @relation(fields: [serviceId], references: [id])
+  serviceId String  @db.ObjectId
+
+  @@unique([bundleId, serviceId])
+}
+
+model Review {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  detailer    Detailer @relation(fields: [detailerId], references: [id])
+  detailerId  String   @db.ObjectId
+  authorName  String
+  rating      Int
+  comment     String
+  reply       String?
+  createdAt   DateTime @default(now())
+}
+
+model Event {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  title       String
+  description String?
+  startTime   DateTime
+  endTime     DateTime
+  isAllDay    Boolean  @default(false)
+  color       String?
+  location    String?
+  
+  detailerId  String   @db.ObjectId
+  detailer    Detailer @relation(fields: [detailerId], references: [id])
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([detailerId])
+}
+
+model Booking {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  date        DateTime
+  status      String // e.g., "pending", "confirmed", "cancelled"
+  price       Float
+  
+  // Relations
+  detailerId  String   @db.ObjectId
+  detailer    Detailer @relation(fields: [detailerId], references: [id])
+  
+  userId      String   @db.ObjectId
+  user        User     @relation(fields: [userId], references: [id])
+  
+  // Service details can be added here if needed
+  // For example:
+  // serviceId String @db.ObjectId
+  // service   Service @relation(fields: [serviceId], references: [id])
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([detailerId])
+  @@index([userId])
+}
+
+model User {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  accounts      Account[]
+  sessions      Session[]
+  bookings      Booking[]
+}
+
+model Account {
+  id                String  @id @default(auto()) @map("_id") @db.ObjectId
+  userId            String  @db.ObjectId
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  sessionToken String   @unique
+  userId       String   @db.ObjectId
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Visitor {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  detailerId String   @db.ObjectId
+  detailer   Detailer @relation(fields: [detailerId], references: [id])
+  viewedAt   DateTime @default(now())
+}
+
+model Notification {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  detailer    Detailer @relation(fields: [detailerId], references: [id])
+  detailerId  String   @db.ObjectId
+  message     String
+  type        String   // e.g., "NEW_REVIEW", "NEW_BOOKING"
+  link        String?  // Optional link to the relevant page
+  read        Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@index([detailerId])
 }

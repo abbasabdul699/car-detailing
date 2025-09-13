@@ -1,5 +1,4 @@
-import { google } from 'googleapis'
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient } from '@reeva/db'
 
 const prisma = new PrismaClient()
 
@@ -10,85 +9,29 @@ export interface BookingRequest {
   customerEmail?: string
   vehicleType: string
   serviceType: string
-  date: string // YYYY-MM-DD
-  time: string // HH:MM
-  duration: number // minutes
+  date: string
+  time: string
+  duration: number
   notes?: string
+  contactId?: string
 }
 
 export interface BookingResponse {
   success: boolean
   bookingId?: string
-  calendarEventId?: string
-  message: string
+  message?: string
 }
 
 export class BookingService {
   static async createBooking(request: BookingRequest): Promise<BookingResponse> {
     try {
-      // Get business with Google Calendar tokens
-      const business = await prisma.business.findUnique({
-        where: { id: request.businessId }
-      })
+      // Parse the date and time
+      const [hours, minutes] = request.time.split(':').map(Number)
+      const scheduledDate = new Date(request.date)
+      scheduledDate.setHours(hours, minutes, 0, 0)
 
-      if (!business?.gcalAccessToken) {
-        return {
-          success: false,
-          message: 'Business not connected to Google Calendar'
-        }
-      }
-
-      // Set up Google Calendar API
-      const oauth2Client = new google.auth.OAuth2()
-      oauth2Client.setCredentials({
-        access_token: business.gcalAccessToken,
-        refresh_token: business.gcalRefreshToken
-      })
-
-      const calendar = google.calendar({ version: 'v3', auth: oauth2Client })
-
-      // Parse booking date and time
-      const bookingDateTime = new Date(`${request.date}T${request.time}:00`)
-      const endDateTime = new Date(bookingDateTime.getTime() + (request.duration * 60000))
-
-      // Create calendar event
-      const event = {
-        summary: `Car Detailing - ${request.customerName}`,
-        description: `
-Service: ${request.serviceType}
-Vehicle: ${request.vehicleType}
-Customer: ${request.customerName}
-Phone: ${request.customerPhone}
-${request.customerEmail ? `Email: ${request.customerEmail}` : ''}
-${request.notes ? `Notes: ${request.notes}` : ''}
-        `.trim(),
-        start: {
-          dateTime: bookingDateTime.toISOString(),
-          timeZone: business.timezone || 'America/New_York'
-        },
-        end: {
-          dateTime: endDateTime.toISOString(),
-          timeZone: business.timezone || 'America/New_York'
-        },
-        reminders: {
-          useDefault: false,
-          overrides: [
-            { method: 'email', minutes: 24 * 60 }, // 1 day before
-            { method: 'popup', minutes: 30 } // 30 minutes before
-          ]
-        }
-      }
-
-      // Add event to Google Calendar
-      const calendarResponse = await calendar.events.insert({
-        calendarId: 'primary',
-        requestBody: event
-      })
-
-      const calendarEventId = calendarResponse.data.id
-
-      // Create booking record in database
-      const booking = await prisma.job.create({
+      // Create the booking
+      const job = await prisma.job.create({
         data: {
           businessId: request.businessId,
           customerName: request.customerName,
@@ -96,23 +39,21 @@ ${request.notes ? `Notes: ${request.notes}` : ''}
           customerEmail: request.customerEmail,
           vehicleType: request.vehicleType,
           serviceType: request.serviceType,
-          scheduledDate: bookingDateTime,
+          scheduledDate,
           duration: request.duration,
           status: 'SCHEDULED',
-          notes: request.notes,
-          calendarEventId: calendarEventId
+          notes: request.notes || 'Booked via SMS',
+          contactId: request.contactId
         }
       })
 
       return {
         success: true,
-        bookingId: booking.id,
-        calendarEventId: calendarEventId,
-        message: 'Booking created successfully!'
+        bookingId: job.id,
+        message: 'Booking created successfully'
       }
-
     } catch (error) {
-      console.error('Booking creation error:', error)
+      console.error('Error creating booking:', error)
       return {
         success: false,
         message: 'Failed to create booking'
@@ -121,63 +62,41 @@ ${request.notes ? `Notes: ${request.notes}` : ''}
   }
 
   static async getBooking(bookingId: string) {
-    return await prisma.job.findUnique({
-      where: { id: bookingId }
-    })
+    try {
+      return await prisma.job.findUnique({
+        where: { id: bookingId },
+        include: {
+          business: true,
+          contact: true
+        }
+      })
+    } catch (error) {
+      console.error('Error fetching booking:', error)
+      return null
+    }
   }
 
-  static async cancelBooking(bookingId: string): Promise<BookingResponse> {
+  static async updateBookingStatus(bookingId: string, status: string) {
     try {
-      const booking = await prisma.job.findUnique({
-        where: { id: bookingId }
+      return await prisma.job.update({
+        where: { id: bookingId },
+        data: { status }
       })
+    } catch (error) {
+      console.error('Error updating booking status:', error)
+      return null
+    }
+  }
 
-      if (!booking) {
-        return {
-          success: false,
-          message: 'Booking not found'
-        }
-      }
-
-      // Cancel in Google Calendar if event exists
-      if (booking.calendarEventId) {
-        const business = await prisma.business.findUnique({
-          where: { id: booking.businessId }
-        })
-
-        if (business?.gcalAccessToken) {
-          const oauth2Client = new google.auth.OAuth2()
-          oauth2Client.setCredentials({
-            access_token: business.gcalAccessToken,
-            refresh_token: business.gcalRefreshToken
-          })
-
-          const calendar = google.calendar({ version: 'v3', auth: oauth2Client })
-          
-          await calendar.events.delete({
-            calendarId: 'primary',
-            eventId: booking.calendarEventId
-          })
-        }
-      }
-
-      // Update booking status
-      await prisma.job.update({
+  static async cancelBooking(bookingId: string) {
+    try {
+      return await prisma.job.update({
         where: { id: bookingId },
         data: { status: 'CANCELLED' }
       })
-
-      return {
-        success: true,
-        message: 'Booking cancelled successfully'
-      }
-
     } catch (error) {
-      console.error('Booking cancellation error:', error)
-      return {
-        success: false,
-        message: 'Failed to cancel booking'
-      }
+      console.error('Error cancelling booking:', error)
+      return null
     }
   }
 }

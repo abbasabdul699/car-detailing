@@ -1,5 +1,4 @@
-import { google } from 'googleapis'
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient } from '@reeva/db'
 
 const prisma = new PrismaClient()
 
@@ -10,85 +9,63 @@ export interface TimeSlot {
 }
 
 export interface AvailabilityCheck {
-  businessId: string
-  date: string // YYYY-MM-DD format
+  date: string
   timeSlots: TimeSlot[]
 }
 
 export class CalendarService {
   static async checkAvailability(businessId: string, date: string): Promise<AvailabilityCheck> {
     try {
-      // Get business with Google Calendar tokens
-      const business = await prisma.business.findUnique({
-        where: { id: businessId }
+      // Get existing bookings for the date
+      const startOfDay = new Date(date)
+      startOfDay.setHours(0, 0, 0, 0)
+      
+      const endOfDay = new Date(date)
+      endOfDay.setHours(23, 59, 59, 999)
+
+      const existingBookings = await prisma.job.findMany({
+        where: {
+          businessId,
+          scheduledDate: {
+            gte: startOfDay,
+            lte: endOfDay
+          },
+          status: {
+            in: ['SCHEDULED', 'CONFIRMED']
+          }
+        }
       })
 
-      if (!business?.gcalAccessToken) {
-        throw new Error('Business not connected to Google Calendar')
-      }
-
-      // Set up Google Calendar API
-      const oauth2Client = new google.auth.OAuth2()
-      oauth2Client.setCredentials({
-        access_token: business.gcalAccessToken,
-        refresh_token: business.gcalRefreshToken
-      })
-
-      const calendar = google.calendar({ version: 'v3', auth: oauth2Client })
-
-      // Parse the date
-      const startDate = new Date(date)
-      const endDate = new Date(date)
-      endDate.setDate(endDate.getDate() + 1)
-
-      // Get events for the day
-      const response = await calendar.events.list({
-        calendarId: 'primary',
-        timeMin: startDate.toISOString(),
-        timeMax: endDate.toISOString(),
-        singleEvents: true,
-        orderBy: 'startTime'
-      })
-
-      const events = response.data.items || []
-
-      // Generate time slots (9 AM to 6 PM, 1-hour slots)
+      // Generate time slots (9 AM to 5 PM, 2-hour slots)
       const timeSlots: TimeSlot[] = []
-      const workingHours = business.availability as any
-
-      // Default working hours if not set
-      const startHour = workingHours?.workingHours?.mon?.start || 9
-      const endHour = workingHours?.workingHours?.mon?.end || 18
-
-      for (let hour = startHour; hour < endHour; hour++) {
-        const slotStart = new Date(startDate)
-        slotStart.setHours(hour, 0, 0, 0)
+      for (let hour = 9; hour <= 15; hour += 2) {
+        const start = new Date(startOfDay)
+        start.setHours(hour, 0, 0, 0)
         
-        const slotEnd = new Date(startDate)
-        slotEnd.setHours(hour + 1, 0, 0, 0)
+        const end = new Date(startOfDay)
+        end.setHours(hour + 2, 0, 0, 0)
 
-        // Check if slot conflicts with any events
-        const hasConflict = events.some(event => {
-          const eventStart = new Date(event.start?.dateTime || event.start?.date || '')
-          const eventEnd = new Date(event.end?.dateTime || event.end?.date || '')
+        // Check if this slot conflicts with existing bookings
+        const hasConflict = existingBookings.some(booking => {
+          const bookingStart = new Date(booking.scheduledDate)
+          const bookingEnd = new Date(bookingStart.getTime() + booking.duration * 60000)
           
-          return (slotStart < eventEnd && slotEnd > eventStart)
+          return (start < bookingEnd && end > bookingStart)
         })
 
         timeSlots.push({
-          start: slotStart,
-          end: slotEnd,
+          start,
+          end,
           available: !hasConflict
         })
       }
 
       return {
-        businessId,
         date,
         timeSlots
       }
     } catch (error) {
-      console.error('Calendar availability check error:', error)
+      console.error('Error checking availability:', error)
       throw error
     }
   }
@@ -96,5 +73,33 @@ export class CalendarService {
   static async getAvailableSlots(businessId: string, date: string): Promise<TimeSlot[]> {
     const availability = await this.checkAvailability(businessId, date)
     return availability.timeSlots.filter(slot => slot.available)
+  }
+
+  static async isSlotAvailable(businessId: string, date: string, startTime: string): Promise<boolean> {
+    try {
+      const [hours, minutes] = startTime.split(':').map(Number)
+      const slotStart = new Date(date)
+      slotStart.setHours(hours, minutes, 0, 0)
+
+      const slotEnd = new Date(slotStart.getTime() + 2 * 60 * 60 * 1000) // 2 hours
+
+      const conflictingBooking = await prisma.job.findFirst({
+        where: {
+          businessId,
+          scheduledDate: {
+            gte: slotStart,
+            lt: slotEnd
+          },
+          status: {
+            in: ['SCHEDULED', 'CONFIRMED']
+          }
+        }
+      })
+
+      return !conflictingBooking
+    } catch (error) {
+      console.error('Error checking slot availability:', error)
+      return false
+    }
   }
 }
