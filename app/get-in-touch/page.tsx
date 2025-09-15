@@ -174,6 +174,21 @@ export default function GetInTouch() {
                   />
                 </div>
 
+                <div>
+                  <label htmlFor="companyName" className="block text-sm font-medium text-gray-700 mb-1">
+                    Company name*
+                  </label>
+                  <input
+                    type="text"
+                    id="companyName"
+                    value={formData.companyName}
+                    onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-[#389167] focus:border-[#389167]"
+                    required
+                    disabled={isSubmitting}
+                  />
+                </div>
+
                 <div className="bg-gray-50 p-4 rounded-lg">
                   <label className="flex items-start gap-3 cursor-pointer">
                     <input
@@ -188,21 +203,6 @@ export default function GetInTouch() {
                       <a href="/privacy-page" className="text-[#389167] underline">Privacy Policy</a> & <a href="/terms-page" className="text-[#389167] underline">Terms of Service</a>.
                     </span>
                   </label>
-                </div>
-
-                <div>
-                  <label htmlFor="companyName" className="block text-sm font-medium text-gray-700 mb-1">
-                    Company name*
-                  </label>
-                  <input
-                    type="text"
-                    id="companyName"
-                    value={formData.companyName}
-                    onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-[#389167] focus:border-[#389167]"
-                    required
-                    disabled={isSubmitting}
-                  />
                 </div>
 
                 <button
