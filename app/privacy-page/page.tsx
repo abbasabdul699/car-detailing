@@ -58,15 +58,24 @@ const PrivacyPage: React.FC = () => {
               By providing your mobile number, you consent to receive SMS messages from Reeva Car for purposes such as:
             </p>
             <ul className="list-disc list-inside ml-4 mb-4">
-              <li>Appointment confirmations, reminders, and updates</li>
-              <li>Customer support and service-related notifications</li>
-              <li>Promotional offers and marketing messages (only if you have opted in)</li>
+              <li>Appointment confirmations, reminders, and service updates</li>
+              <li>Customer support and account-related communications</li>
+              <li>Promotional offers and marketing messages (only if you have opted in separately)</li>
             </ul>
             <p>
-              You may opt out of receiving SMS messages at any time by replying "STOP" to any message. Reply "HELP" for assistance. Standard message and data rates may apply depending on your mobile carrier. We are not liable for any delayed or undelivered messages.
+              Message frequency may vary depending on your interactions with Reeva Car. Standard message and data rates may apply. We are not liable for delayed or undelivered messages.
             </p>
             <p>
-              Your mobile number will be retained only as long as reasonably necessary to provide you services or as otherwise required by law.
+              You may opt out of receiving SMS messages at any time by replying "STOP." For assistance, reply "HELP." SMS messaging may be provided through third-party vendors such as Twilio in order to deliver communications on behalf of Reeva Car.
+            </p>
+            <p>
+              Your mobile number will be stored securely and will only be accessible to authorized personnel. We implement appropriate technical and organizational safeguards to protect your information and prevent unauthorized access.
+            </p>
+            <p>
+              Our SMS services are intended for users 18 years of age and older. By opting in, you confirm that you meet this requirement or have parental consent.
+            </p>
+            <p>
+              Use of our SMS services is also subject to this Privacy Policy and our Terms of Service.
             </p>
 
             <h2 className="text-xl font-bold mb-4 mt-8">Your Rights</h2>
