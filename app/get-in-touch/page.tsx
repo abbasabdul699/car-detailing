@@ -160,21 +160,6 @@ export default function GetInTouch() {
                 </div>
 
                 <div>
-                  <label htmlFor="phoneNumber" className="block text-sm font-medium text-gray-700 mb-1">
-                    Phone number*
-                  </label>
-                  <input
-                    type="tel"
-                    id="phoneNumber"
-                    value={formData.phoneNumber}
-                    onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-[#389167] focus:border-[#389167]"
-                    required
-                    disabled={isSubmitting}
-                  />
-                </div>
-
-                <div>
                   <label htmlFor="companyName" className="block text-sm font-medium text-gray-700 mb-1">
                     Company name*
                   </label>
@@ -183,6 +168,21 @@ export default function GetInTouch() {
                     id="companyName"
                     value={formData.companyName}
                     onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-[#389167] focus:border-[#389167]"
+                    required
+                    disabled={isSubmitting}
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="phoneNumber" className="block text-sm font-medium text-gray-700 mb-1">
+                    Phone number*
+                  </label>
+                  <input
+                    type="tel"
+                    id="phoneNumber"
+                    value={formData.phoneNumber}
+                    onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-[#389167] focus:border-[#389167]"
                     required
                     disabled={isSubmitting}
