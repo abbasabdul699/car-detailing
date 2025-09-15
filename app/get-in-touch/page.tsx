@@ -10,6 +10,7 @@ export default function GetInTouch() {
     workEmail: '',
     phoneNumber: '',
     companyName: '',
+    smsOptIn: false,
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -41,6 +42,7 @@ export default function GetInTouch() {
         workEmail: '',
         phoneNumber: '',
         companyName: '',
+        smsOptIn: false,
       });
     } catch (error) {
       console.error('Submission error:', error);
@@ -170,6 +172,22 @@ export default function GetInTouch() {
                     required
                     disabled={isSubmitting}
                   />
+                </div>
+
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.smsOptIn}
+                      onChange={(e) => setFormData({ ...formData, smsOptIn: e.target.checked })}
+                      className="mt-1 h-4 w-4 text-[#389167] focus:ring-[#389167] border-gray-300 rounded"
+                      disabled={isSubmitting}
+                    />
+                    <span className="text-sm text-gray-700">
+                      <span className="font-medium">OPTIONAL:</span> I would like to receive text messages about car detailing services, booking confirmations, and promotions from ReevaCar. Msg & data rates may apply. Msg frequency varies. Reply HELP for help or STOP to cancel.{' '}
+                      <a href="/privacy-page" className="text-[#389167] underline">Privacy Policy</a> & <a href="/terms-page" className="text-[#389167] underline">Terms of Service</a>.
+                    </span>
+                  </label>
                 </div>
 
                 <div>

@@ -4,7 +4,7 @@ import nodemailer from 'nodemailer';
 export async function POST(request: Request) {
   try {
     const data = await request.json();
-    const { companyName, firstName, lastName, phone, email, message, formType } = data;
+    const { companyName, firstName, lastName, phoneNumber, workEmail, message, formType, smsOptIn } = data;
 
     // Create email transporter
     const transporter = nodemailer.createTransport({
@@ -29,9 +29,10 @@ export async function POST(request: Request) {
         <h2>${subject}</h2>
         <p><strong>First Name:</strong> ${firstName}</p>
         <p><strong>Last Name:</strong> ${lastName}</p>
-        <p><strong>Phone Number:</strong> ${phone}</p>
-        <p><strong>Work Email:</strong> ${email}</p>
+        <p><strong>Phone Number:</strong> ${phoneNumber}</p>
+        <p><strong>Work Email:</strong> ${workEmail}</p>
         ${companyName ? `<p><strong>Company Name:</strong> ${companyName}</p>` : ''}
+        <p><strong>SMS Opt-In:</strong> ${smsOptIn ? 'Yes' : 'No'}</p>
         ${message ? `<p><strong>Message:</strong></p><p>${message}</p>` : ''}
       `
     };
