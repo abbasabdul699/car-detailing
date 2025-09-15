@@ -72,7 +72,7 @@ const PrivacyPage: React.FC = () => {
               Your mobile number will be stored securely and will only be accessible to authorized personnel. We implement appropriate technical and organizational safeguards to protect your information and prevent unauthorized access.
             </p>
             <p>
-              Our SMS services are intended for users 18 years of age and older. By opting in, you confirm that you meet this requirement or have parental consent.
+              Our SMS services are intended for users 16 years of age and older. By opting in, you confirm that you meet this requirement or have parental consent.
             </p>
             <p>
               Use of our SMS services is also subject to this Privacy Policy and our Terms of Service.

@@ -196,10 +196,11 @@ export default function GetInTouch() {
                       checked={formData.smsOptIn}
                       onChange={(e) => setFormData({ ...formData, smsOptIn: e.target.checked })}
                       className="mt-1 h-4 w-4 text-[#389167] focus:ring-[#389167] border-gray-300 rounded"
+                      required
                       disabled={isSubmitting}
                     />
                     <span className="text-sm text-gray-700">
-                      <span className="font-medium">OPTIONAL:</span> I would like to receive text messages about car detailing services, booking confirmations, and promotions from ReevaCar. Msg & data rates may apply. Msg frequency varies. Reply HELP for help or STOP to cancel.{' '}
+                      By providing my phone number, I agree to receive SMS messages from Reeva Car regarding appointment confirmations, updates, and reminders. Message frequency may vary. Message & data rates may apply. Reply STOP to opt out, HELP for help. Consent is not a condition of purchase.{' '}
                       <a href="/privacy-page" className="text-[#389167] underline">Privacy Policy</a> & <a href="/terms-page" className="text-[#389167] underline">Terms of Service</a>.
                     </span>
                   </label>
