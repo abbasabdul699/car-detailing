@@ -1,16 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import crypto from 'crypto'
-import { prisma } from '@/lib/prisma'
 import * as Twilio from 'twilio'
 
 const twilio = Twilio(process.env.TWILIO_ACCOUNT_SID!, process.env.TWILIO_AUTH_TOKEN!)
-const SECRET = process.env.TWILIO_WEBHOOK_AUTH_SECRET!
-
-function verify(req: NextRequest, raw: string){
-  const sig = req.headers.get('x-twilio-signature') || ''
-  const mac = crypto.createHmac('sha256', SECRET).update(raw).digest('hex')
-  if (sig !== mac) throw new Error('invalid signature')
-}
 
 export async function POST(req: NextRequest){
   let from = ''
@@ -18,10 +9,6 @@ export async function POST(req: NextRequest){
   
   try {
     const raw = await req.text()
-    
-    // Skip signature verification for testing
-    // verify(req, raw)
-    
     const params = new URLSearchParams(raw)
     from = params.get('From')!  // Customer's phone number
     to = params.get('To')!      // Detailer's Twilio phone number
@@ -29,46 +16,23 @@ export async function POST(req: NextRequest){
 
     console.log(`Received SMS from ${from} to ${to}: ${body}`)
 
-    // Find the detailer by their Twilio phone number
-    const detailer = await prisma.detailer.findFirst({
-      where: {
-        twilioPhoneNumber: to,
-        smsEnabled: true
-      }
-    })
+    // Create a simple AI response
+    const aiResponse = `Hi! Thanks for your message: "${body}". This is ReevaCar AI responding. How can I help you book a car detailing service today?`
 
-    if (!detailer) {
-      console.log(`No detailer found for Twilio number: ${to}`)
-      return NextResponse.json({ ok: true }) // Ignore messages to unknown numbers
-    }
-
-    console.log(`Found detailer: ${detailer.businessName} (${detailer.id})`)
-
-    // Generate simple AI response (temporary)
-    let aiResponse = "Hello! I'm your car detailing assistant. How can I help you today?"
-    
-    if (body.toLowerCase().includes('book') || body.toLowerCase().includes('schedule')) {
-      aiResponse = "I'd be happy to help you book a detailing service! What type of service are you looking for?"
-    } else if (body.toLowerCase().includes('price') || body.toLowerCase().includes('cost')) {
-      aiResponse = "Our pricing varies by service type. Could you tell me what kind of detailing you need?"
-    } else if (body.toLowerCase().includes('hello') || body.toLowerCase().includes('hi')) {
-      aiResponse = "Hello! Welcome to " + detailer.businessName + ". I'm here to help you with your car detailing needs. What can I do for you today?"
-    }
-
-    // Send SMS response using the detailer's Twilio phone number
+    // Send SMS response
     await twilio.messages.create({
       to: from,
-      from: detailer.twilioPhoneNumber!,
+      from: to, // Use the incoming 'To' number as the 'From' number for the reply
       body: aiResponse
     })
 
     console.log(`Sent response to ${from}: ${aiResponse}`)
 
-    return NextResponse.json({ ok: true })
-  } catch (error) {
+    return NextResponse.json({ ok: true, message: 'SMS received and replied' })
+  } catch (error: any) {
     console.error('Twilio webhook error:', error)
     
-    // Send error message to user if we have the phone numbers
+    // Attempt to send an error message back if possible
     if (from && to) {
       try {
         await twilio.messages.create({
@@ -81,6 +45,9 @@ export async function POST(req: NextRequest){
       }
     }
 
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json({ 
+      error: 'Internal server error',
+      details: error.message 
+    }, { status: 500 })
   }
 }
