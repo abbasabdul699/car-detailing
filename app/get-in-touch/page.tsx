@@ -11,6 +11,7 @@ export default function GetInTouch() {
     phoneNumber: '',
     companyName: '',
     smsOptIn: false,
+    promotionalOptIn: false,
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -43,6 +44,7 @@ export default function GetInTouch() {
         phoneNumber: '',
         companyName: '',
         smsOptIn: false,
+        promotionalOptIn: false,
       });
     } catch (error) {
       console.error('Submission error:', error);
@@ -202,6 +204,21 @@ export default function GetInTouch() {
                     <span className="text-sm text-gray-700">
                       By providing my phone number, I agree to receive SMS messages from Reeva Car regarding appointment confirmations, updates, and reminders. Message frequency may vary. Message & data rates may apply. Reply STOP to opt out, HELP for help. Consent is not a condition of purchase.{' '}
                       <a href="/privacy-page" className="text-[#389167] underline">Privacy Policy</a> & <a href="/terms-page" className="text-[#389167] underline">Terms of Service</a>.
+                    </span>
+                  </label>
+                </div>
+
+                <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.promotionalOptIn}
+                      onChange={(e) => setFormData({ ...formData, promotionalOptIn: e.target.checked })}
+                      className="mt-1 h-4 w-4 text-[#389167] focus:ring-[#389167] border-gray-300 rounded"
+                      disabled={isSubmitting}
+                    />
+                    <span className="text-sm text-gray-700">
+                      <span className="font-medium">OPTIONAL:</span> I would also like to receive promotional offers, special deals, and marketing messages from Reeva Car via SMS. You can opt out of these messages at any time by replying "STOP" to any promotional message.
                     </span>
                   </label>
                 </div>
