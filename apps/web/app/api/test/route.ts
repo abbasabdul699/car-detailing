@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
     to = params.get('To') || ''
     const body = params.get('Body') || ''
 
-    console.log(`Received SMS from ${from} to ${to}: ${body}`)
+    console.log(`📱 Received SMS from ${from} to ${to}: ${body}`)
 
     // If this looks like a Twilio SMS webhook, send a reply
     if (from && to && body) {
