@@ -54,6 +54,20 @@ const PrivacyPage: React.FC = () => {
             <p>
               We do not share mobile contact information with third parties or affiliates for marketing or promotional purposes. Mobile information will only be used to send you messages related to your relationship with Reeva Car. This information is not shared with any third parties, except as required to provide services (e.g., customer support).
             </p>
+            <p>
+              By providing your mobile number, you consent to receive SMS messages from Reeva Car for purposes such as:
+            </p>
+            <ul className="list-disc list-inside ml-4 mb-4">
+              <li>Appointment confirmations, reminders, and updates</li>
+              <li>Customer support and service-related notifications</li>
+              <li>Promotional offers and marketing messages (only if you have opted in)</li>
+            </ul>
+            <p>
+              You may opt out of receiving SMS messages at any time by replying "STOP" to any message. Reply "HELP" for assistance. Standard message and data rates may apply depending on your mobile carrier. We are not liable for any delayed or undelivered messages.
+            </p>
+            <p>
+              Your mobile number will be retained only as long as reasonably necessary to provide you services or as otherwise required by law.
+            </p>
 
             <h2 className="text-xl font-bold mb-4 mt-8">Your Rights</h2>
             <p>
