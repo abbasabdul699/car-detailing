@@ -21,7 +21,7 @@ const PrivacyPage: React.FC = () => {
           <span style={{ color: 'rgb(127, 127, 127)' }}>
             <strong>
               <span style={{ fontSize: '15px' }}>
-                <span data-custom-class="subtitle">Last updated February 20, 2025</span>
+                <span data-custom-class="subtitle">Last updated September 15, 2025</span>
               </span>
             </strong>
           </span>
@@ -48,6 +48,11 @@ const PrivacyPage: React.FC = () => {
             <h2 className="text-xl font-bold mb-4 mt-8">Sharing Your Information</h2>
             <p>
               We only share information with your consent, to comply with laws, to provide you with services, to protect your rights, or to fulfill business obligations.
+            </p>
+
+            <h2 className="text-xl font-bold mb-4 mt-8">Mobile Information and SMS Communications</h2>
+            <p>
+              We do not share mobile contact information with third parties or affiliates for marketing or promotional purposes. Mobile information will only be used to send you messages related to your relationship with Reeva Car. This information is not shared with any third parties, except as required to provide services (e.g., customer support).
             </p>
 
             <h2 className="text-xl font-bold mb-4 mt-8">Your Rights</h2>
