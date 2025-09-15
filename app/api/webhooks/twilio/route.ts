@@ -13,12 +13,15 @@ function verify(req: NextRequest, raw: string){
 }
 
 export async function POST(req: NextRequest){
+  let from = ''
+  let to = ''
+  
   try {
     const raw = await req.text()
     verify(req, raw)
     const params = new URLSearchParams(raw)
-    const from = params.get('From')!  // Customer's phone number
-    const to = params.get('To')!      // Detailer's Twilio phone number
+    from = params.get('From')!  // Customer's phone number
+    to = params.get('To')!      // Detailer's Twilio phone number
     const body = params.get('Body') || ''
 
     console.log(`Received SMS from ${from} to ${to}: ${body}`)
@@ -38,57 +41,6 @@ export async function POST(req: NextRequest){
 
     console.log(`Found detailer: ${detailer.businessName} (${detailer.id})`)
 
-    // Look up or create contact
-    let contact = await prisma.contact.findUnique({ 
-      where: { 
-        phone: from,
-        businessId: detailer.id // Associate with this detailer's business
-      } 
-    })
-    
-    if (!contact) {
-      // Create new contact for unknown numbers
-      contact = await prisma.contact.create({
-        data: {
-          phone: from,
-          name: 'Unknown Customer',
-          businessId: detailer.id // Associate with this detailer
-        }
-      })
-    }
-
-    // Find or create active conversation
-    let convo = await prisma.conversation.findFirst({ 
-      where: { 
-        contactId: contact.id,
-        businessId: detailer.id,
-        status: 'active'
-      }, 
-      orderBy: { createdAt: 'desc' } 
-    })
-
-    if (!convo) {
-      // Create new conversation
-      convo = await prisma.conversation.create({
-        data: {
-          contactId: contact.id,
-          businessId: detailer.id, // Use detailer's ID as business ID
-          channel: 'sms',
-          stage: 'greeting',
-          status: 'active'
-        }
-      })
-    }
-
-    // Save user message
-    await prisma.message.create({ 
-      data: { 
-        conversationId: convo.id, 
-        role: 'user', 
-        text: body 
-      } 
-    })
-
     // Generate simple AI response (temporary)
     let aiResponse = "Hello! I'm your car detailing assistant. How can I help you today?"
     
@@ -99,15 +51,6 @@ export async function POST(req: NextRequest){
     } else if (body.toLowerCase().includes('hello') || body.toLowerCase().includes('hi')) {
       aiResponse = "Hello! Welcome to " + detailer.businessName + ". I'm here to help you with your car detailing needs. What can I do for you today?"
     }
-
-    // Save AI response
-    await prisma.message.create({
-      data: {
-        conversationId: convo.id,
-        role: 'ai',
-        text: aiResponse
-      }
-    })
 
     // Send SMS response using the detailer's Twilio phone number
     await twilio.messages.create({
@@ -122,18 +65,17 @@ export async function POST(req: NextRequest){
   } catch (error) {
     console.error('Twilio webhook error:', error)
     
-    // Send error message to user
-    try {
-      const params = new URLSearchParams(await req.text())
-      const from = params.get('From')!
-      
-      await twilio.messages.create({
-        to: from,
-        from: to, // Use the detailer's phone number
-        body: "I'm sorry, I'm having trouble processing your message right now. Please try again in a moment."
-      })
-    } catch (sendError) {
-      console.error('Failed to send error message:', sendError)
+    // Send error message to user if we have the phone numbers
+    if (from && to) {
+      try {
+        await twilio.messages.create({
+          to: from,
+          from: to,
+          body: "I'm sorry, I'm having trouble processing your message right now. Please try again in a moment."
+        })
+      } catch (sendError) {
+        console.error('Failed to send error message:', sendError)
+      }
     }
 
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
