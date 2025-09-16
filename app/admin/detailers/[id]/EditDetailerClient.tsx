@@ -20,10 +20,17 @@ interface Detailer {
   longitude: string | number;
   priceRange: string;
   website: string;
+  firstName?: string;
+  lastName?: string;
   businessHours?: any;
+<<<<<<< Updated upstream
   imageUrl?: string;
   images?: { url: string; alt: string; type?: string }[];
   detailerImages?: { url: string; alt: string; type?: string }[];
+=======
+  profileImage?: { url: string; alt: string; type?: string };
+  portfolioImages?: { id?: string; url: string; alt: string; type?: string }[];
+>>>>>>> Stashed changes
   services?: { service: { id: string; name: string; category?: string } }[];
   instagram?: string;
   tiktok?: string;
@@ -196,6 +203,16 @@ export default function EditDetailerClient({ detailer: initialDetailer }: { deta
           <h2 className="text-lg font-semibold mb-4">Contact Info</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
+              <label className="block font-medium">First Name</label>
+              <input {...register('firstName')} className="input input-bordered w-full" />
+              {errors.firstName && <p className="text-red-500 text-sm">{errors.firstName.message}</p>}
+            </div>
+            <div>
+              <label className="block font-medium">Last Name</label>
+              <input {...register('lastName')} className="input input-bordered w-full" />
+              {errors.lastName && <p className="text-red-500 text-sm">{errors.lastName.message}</p>}
+            </div>
+            <div>
               <label className="block font-medium">Email</label>
               <input {...register('email')} className="input input-bordered w-full" />
               {errors.email && <p className="text-red-500 text-sm">{errors.email.message}</p>}
@@ -244,8 +261,9 @@ export default function EditDetailerClient({ detailer: initialDetailer }: { deta
             onChange={setServices}
           />
         </div>
-        {/* Profile Image */}
+        {/* Image Uploaders */}
         <div className="bg-gray-50 p-4 rounded-lg shadow">
+<<<<<<< Updated upstream
           <h2 className="text-lg font-semibold mb-4">Profile Image</h2>
           {(() => {
             // Find the profile image (by convention: first image, or with a 'profile' type if available)
@@ -306,6 +324,38 @@ export default function EditDetailerClient({ detailer: initialDetailer }: { deta
             }}
             type="portfolio"
           />
+=======
+            <h2 className="text-lg font-semibold mb-4">Images</h2>
+            {/* Profile Image */}
+            <div>
+                <h3 className="text-md font-semibold mb-2">Profile Image</h3>
+                <ImageUploader
+                    businessName={watch('businessName')}
+                    detailerId={watch('id')}
+                    type="profile"
+                    images={initialDetailer.profileImage ? [initialDetailer.profileImage] : []}
+                    onUpload={(url, type) => {
+                        // Logic to update profile image URL if needed, or simply re-fetch
+                        window.location.reload();
+                    }}
+                    onDelete={handleDeleteImage}
+                />
+            </div>
+            {/* Portfolio Images */}
+            <div className="mt-6">
+                <h3 className="text-md font-semibold mb-2">Portfolio Images</h3>
+                <ImageUploader
+                    businessName={watch('businessName')}
+                    detailerId={watch('id')}
+                    type="portfolio"
+                    images={initialDetailer.portfolioImages || []}
+                    onUpload={(url, type) => {
+                        window.location.reload();
+                    }}
+                    onDelete={handleDeleteImage}
+                />
+            </div>
+>>>>>>> Stashed changes
         </div>
         <button
           type="submit"

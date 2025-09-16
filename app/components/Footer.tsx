@@ -77,7 +77,15 @@ const Footer = forwardRef<HTMLDivElement, React.HTMLProps<HTMLDivElement>>((prop
         </div>
         
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center pt-8 border-t border-gray-800">
-          <div className="flex space-x-6 mb-4 md:mb-0">
+          <div className="flex items-center space-x-6 mb-4 md:mb-0">
+            <Link href="/" aria-label="Reeva Home">
+              <img 
+                src="https://reevacar.s3.us-east-2.amazonaws.com/reeva-logo/logo.png" 
+                alt="Reeva Logo" 
+                className="h-10 w-auto" 
+                style={{ maxHeight: '40px' }}
+              />
+            </Link>
             {socialLinks.map((social) => (
               <Link 
                 key={social.name}

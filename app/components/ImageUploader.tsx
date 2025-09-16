@@ -3,9 +3,15 @@ import React, { useRef, useState } from "react";
 
 interface ImageUploaderProps {
   businessName: string;
+<<<<<<< Updated upstream
   detailerId: string;
   onUpload: (url: string) => void;
   type: 'profile' | 'portfolio';
+=======
+  detailerId?: string;
+  onUpload: (url: string, type: string) => void;
+  type: 'profile' | 'portfolio' | 'bundle';
+>>>>>>> Stashed changes
   images?: { url: string; alt: string; type?: string }[];
   onDelete?: (url: string) => void;
 }
@@ -81,6 +87,11 @@ export default function ImageUploader({
           delete newPreviews[file.name];
           return newPreviews;
         });
+<<<<<<< Updated upstream
+=======
+
+        onUpload(data.image.url, type);
+>>>>>>> Stashed changes
       }
     } catch (err: any) {
       setError(err.message || 'Failed to upload image');

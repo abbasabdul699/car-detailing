@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import Navbar from '@/app/components/Navbar';
 import SearchResultsClient from './components/SearchResults';
+import { MapLoaderProvider } from '@/app/components/MapLoaderProvider';
 
 interface DetailerImage {
   url: string;
@@ -27,6 +28,11 @@ interface Detailer {
   badge?: string;
   price?: string;
   driveTime?: string;
+<<<<<<< Updated upstream
+=======
+  hidden?: boolean;
+  verified?: boolean;
+>>>>>>> Stashed changes
 }
 
 interface SearchResultsProps {
@@ -72,6 +78,7 @@ export default async function SearchResults(props: SearchResultsProps) {
 
   detailers = detailers.map(d => ({
     ...d,
+    verified: Boolean(d.verified),
     _distance: getDistance(searchLat, searchLng, d.latitude, d.longitude)
   }))
   .sort((a, b) => (a._distance ?? 0) - (b._distance ?? 0));
@@ -79,7 +86,9 @@ export default async function SearchResults(props: SearchResultsProps) {
   return (
     <>
       <Navbar />
-      <SearchResultsClient detailers={detailers} />
+      <MapLoaderProvider>
+        <SearchResultsClient detailers={detailers} />
+      </MapLoaderProvider>
     </>
   );
 }

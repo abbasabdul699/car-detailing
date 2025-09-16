@@ -2,8 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { GoogleMap, Marker, InfoWindow } from '@react-google-maps/api';
-import { useMapLoader } from '@/app/components/MapLoaderProvider';
+import { GoogleMap, Marker, InfoWindow, useJsApiLoader } from '@react-google-maps/api';
 
 interface DetailerImage {
   url: string;
@@ -33,11 +32,19 @@ interface MapComponentProps {
   highlightedId?: string | null;
 }
 
+const GOOGLE_MAPS_LIBRARIES = ['places'];
+
 const MapComponent = ({ detailers, center, highlightedId }: MapComponentProps) => {
   const router = useRouter();
   const [selectedDetailer, setSelectedDetailer] = useState<Detailer | null>(null);
-  const { isLoaded } = useMapLoader();
+  const { isLoaded, loadError } = useJsApiLoader({
+    googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
+    libraries: GOOGLE_MAPS_LIBRARIES as any,
+  });
 
+  if (loadError) {
+    return <div>Error loading Google Maps</div>;
+  }
   if (!isLoaded) {
     return (
       <div className="flex justify-center items-center h-full">
@@ -69,7 +76,15 @@ const MapComponent = ({ detailers, center, highlightedId }: MapComponentProps) =
             onClick={() => setSelectedDetailer(detailer)}
             icon={{
               url: '/images/marker.svg',
+<<<<<<< Updated upstream
               scaledSize: new window.google.maps.Size(40, 40),
+=======
+              ...(typeof window !== "undefined" &&
+                window.google &&
+                window.google.maps
+                ? { scaledSize: new window.google.maps.Size(40, 40) }
+                : {}),
+>>>>>>> Stashed changes
             }}
           />
         ))}

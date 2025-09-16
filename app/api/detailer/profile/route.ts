@@ -8,12 +8,13 @@ const prisma = new PrismaClient();
 export async function GET() {
   const session = await getServerSession(authOptions);
 
-  if (!session || !session.user?.email) {
+  if (!session || !session.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Fetch the detailer profile from the database using the email from the session
+  // Fetch the detailer profile from the database using the ID from the session
   const detailer = await prisma.detailer.findUnique({
+<<<<<<< Updated upstream
     where: { email: session.user.email },
     select: {
       id: true,
@@ -34,6 +35,12 @@ export async function GET() {
       imageUrl: true,
       businessHours: true,
       verified: true,
+=======
+    where: { id: session.user.id },
+    include: {
+      services: true,
+      portfolioImages: true,
+>>>>>>> Stashed changes
     },
   });
 
@@ -41,27 +48,13 @@ export async function GET() {
     return NextResponse.json({ error: "Profile not found" }, { status: 404 });
   }
 
-  // Fetch the profile image (type: 'profile') for this detailer
-  const profileImage = await prisma.image.findFirst({
-    where: {
-      detailerId: detailer.id,
-      type: 'profile',
-    },
-    select: {
-      url: true,
-    },
-  });
-
-  return NextResponse.json({
-    ...detailer,
-    profileImage: profileImage?.url || null,
-  });
+  return NextResponse.json(detailer);
 }
 
 export async function PATCH(request: Request) {
   const session = await getServerSession(authOptions);
 
-  if (!session || !session.user?.email) {
+  if (!session || !session.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -69,8 +62,14 @@ export async function PATCH(request: Request) {
 
   // Only allow updating these fields
   const allowedFields = [
+<<<<<<< Updated upstream
     'name', 'photo', 'businessName', 'phone', 'address', 'city', 'state', 'zipCode',
     'description', 'latitude', 'longitude', 'priceRange', 'website', 'imageUrl', 'businessHours', 'verified'
+=======
+    'firstName', 'lastName', 'photo', 'businessName', 'phone', 'address', 'city', 'state', 'zipCode',
+    'description', 'latitude', 'longitude', 'priceRange', 'website', 'imageUrl', 'businessHours', 'verified',
+    'facebook', 'instagram', 'tiktok'
+>>>>>>> Stashed changes
   ];
   const updateData: Record<string, any> = {};
   for (const key of allowedFields) {
@@ -79,12 +78,17 @@ export async function PATCH(request: Request) {
 
   try {
     const updated = await prisma.detailer.update({
-      where: { email: session.user.email },
+      where: { id: session.user.id },
       data: updateData,
       select: {
         id: true,
         email: true,
+<<<<<<< Updated upstream
         name: true,
+=======
+        firstName: true,
+        lastName: true,
+>>>>>>> Stashed changes
         photo: true,
         businessName: true,
         phone: true,

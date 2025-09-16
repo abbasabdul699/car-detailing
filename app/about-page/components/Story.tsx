@@ -54,12 +54,16 @@ export default function Story() {
             </div>
 
             <div>
-              <h2 className="text-2xl font-bold mb-4">Chapter One</h2>
+              <h2 className="text-2xl font-bold mb-4">Reeva 1.0</h2>
               <p className="text-gray-600 leading-relaxed">
-                In 2024, we launched Reeva to bridge the gap between car owners and professional detailers. The platform
-                quickly gained traction as people discovered how easy it was to book quality detailing services. What
-                started as a simple solution has grown into a trusted community of car enthusiasts and professional
-                detailers.
+                In 2024, we launched Reeva as a platform focused on two core purposes: making it easy for car owners to connect with professional detailers for calling and booking, and serving as a directory to help detailers get discovered. Our initial mission was to simplify the process of finding and contacting trusted detailers, building a bridge between car owners and professionals.
+              </p>
+            </div>
+
+            <div>
+              <h2 className="text-2xl font-bold mb-4">Reeva 2.0</h2>
+              <p className="text-gray-600 leading-relaxed">
+                Now, with Reeva 2.0, we're taking things further by implementing powerful tools for both detailers and customers. For detailers, we're introducing features to help manage their business, bookings, and customer relationships more efficiently. For customers, we're adding new ways to interact, book, and get the most out of their detailing experience. Our goal is to empower both sides with technology that makes car care seamless, transparent, and community-driven.
               </p>
             </div>
 

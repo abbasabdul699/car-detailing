@@ -49,6 +49,9 @@ module.exports = {
           '4': 'hsl(var(--chart-4))',
           '5': 'hsl(var(--chart-5))',
         },
+        'custom-green': {
+          900: '#173D2D',
+        },
       },
       borderRadius: {
         lg: 'var(--radius)',

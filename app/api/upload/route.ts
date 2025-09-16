@@ -8,16 +8,19 @@ export async function POST(request: Request) {
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File;
+<<<<<<< Updated upstream
     const detailerId = formData.get('detailerId') as string;
     const type = formData.get('type') as string || 'portfolio';
     const businessName = formData.get('businessName') as string || 'detailer';
+=======
+    const businessName = formData.get('businessName') as string;
+    const detailerId = formData.get('detailerId') as string;
+    const type = formData.get('type') as 'profile' | 'portfolio' | 'bundle';
+>>>>>>> Stashed changes
     
     // Validate required fields
-    if (!file) {
-      return NextResponse.json(
-        { error: 'No file provided' },
-        { status: 400 }
-      );
+    if (!file || !businessName || !detailerId || !type) {
+      return NextResponse.json({ error: 'Missing required fields.' }, { status: 400 });
     }
 
     if (!detailerId) {
@@ -50,6 +53,16 @@ export async function POST(request: Request) {
     } catch (e) {
       return NextResponse.json({ error: 'Invalid detailerId format' }, { status: 400 });
     }
+<<<<<<< Updated upstream
+=======
+    const detailer = await prisma.detailer.findUnique({
+      where: { email: session.user.email },
+      select: { id: true }
+    });
+    if (!detailer) {
+      return NextResponse.json({ error: 'Detailer not found' }, { status: 404 });
+    }
+>>>>>>> Stashed changes
 
     // Upload to S3
     const buffer = Buffer.from(await file.arrayBuffer());
@@ -61,7 +74,11 @@ export async function POST(request: Request) {
       data: {
         url: imageUrl,
         alt: `${businessName} ${type} image`,
+<<<<<<< Updated upstream
         detailerId: objectId,
+=======
+        detailerId: detailer.id,
+>>>>>>> Stashed changes
         type: type
       }
     });
@@ -69,7 +86,7 @@ export async function POST(request: Request) {
     // If this is a profile image, update the detailer's imageUrl
     if (type === 'profile') {
       await prisma.detailer.update({
-        where: { id: detailerId },
+        where: { id: detailer.id },
         data: { imageUrl }
       });
     }

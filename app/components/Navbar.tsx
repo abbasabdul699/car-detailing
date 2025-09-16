@@ -42,8 +42,12 @@ const Navbar = () => {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
             >
-              <Link href="/" className="text-2xl font-bold text-white">
-                Reeva
+              <Link href="/" className="flex items-center">
+                <img
+                  src="https://reevacar.s3.us-east-2.amazonaws.com/reeva-logo/Pasted+Graphic+1.png"
+                  alt="Reeva Logo"
+                  className="h-8 w-auto"
+                />
               </Link>
             </motion.div>
 

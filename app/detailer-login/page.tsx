@@ -40,7 +40,7 @@ export default function DetailerLogin() {
     <div className="min-h-screen w-full flex font-sans bg-gray-100">
       {/* Left: Login Form */}
       <div className="flex flex-col justify-center items-start w-full md:w-1/2 px-8 md:px-12 py-16 bg-white relative z-10 shadow-lg">
-        <Link href="/" className="mb-8 flex items-center gap-1 text-sm text-gray-600 hover:text-indigo-600">
+        <Link href="/" className="mb-8 flex items-center gap-1 text-sm text-green-600 hover:text-green-600">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
           Back to Homepage
         </Link>
@@ -90,7 +90,7 @@ export default function DetailerLogin() {
                 name="email"
                 type="email"
                 required
-                className="h-11 px-4 py-2.5 bg-white rounded-lg shadow-[0_0_0_4px_rgba(70,95,255,0.12)] outline outline-1 outline-offset-[-1px] outline-indigo-300 focus:outline-2 focus:outline-indigo-500 text-gray-900 text-sm transition-all"
+                className="h-11 px-4 py-2.5 bg-white rounded-lg shadow-[0_0_0_4px_rgba(70,95,255,0.12)] outline outline-1 outline-offset-[-1px] outline-green-300 focus:outline-2 focus:outline-green-500 text-gray-900 text-sm transition-all"
                 placeholder="Enter your email"
                 value={form.email}
                 onChange={handleChange}
@@ -102,7 +102,7 @@ export default function DetailerLogin() {
                 name="password"
                 type={showPassword ? "text" : "password"}
                 required
-                className="h-11 w-full px-4 pr-10 py-2.5 bg-white rounded-lg shadow-[0_0_0_4px_rgba(70,95,255,0.12)] outline outline-1 outline-offset-[-1px] outline-indigo-300 focus:outline-2 focus:outline-indigo-500 text-gray-900 text-sm transition-all"
+                className="h-11 w-full px-4 pr-10 py-2.5 bg-white rounded-lg shadow-[0_0_0_4px_rgba(70,95,255,0.12)] outline outline-1 outline-offset-[-1px] outline-green-300 focus:outline-2 focus:outline-green-500 text-gray-900 text-sm transition-all"
                 placeholder="Enter your password"
                 value={form.password}
                 onChange={handleChange}
@@ -122,17 +122,17 @@ export default function DetailerLogin() {
                   type="checkbox"
                   checked={keepLoggedIn}
                   onChange={() => setKeepLoggedIn(!keepLoggedIn)}
-                  className="w-4 h-4 rounded border-gray-300 focus:ring-indigo-500"
+                  className="w-4 h-4 rounded border-gray-300 focus:ring-green-500"
                 />
                 Keep me logged in
               </label>
-              <Link href="/detailer-login/forgot-password" className="text-indigo-600 text-sm hover:underline">
+              <Link href="/detailer-login/forgot-password" className="text-green-600 text-sm hover:underline">
                 Forgot password?
               </Link>
             </div>
             <button
               type="submit"
-              className="w-full px-4 py-3 bg-indigo-600 rounded-lg text-white font-medium text-sm shadow hover:bg-indigo-700 transition"
+              className="w-full px-4 py-3 bg-green-600 rounded-lg text-white font-medium text-sm shadow hover:bg-green-700 transition"
             >
               Sign In
             </button>
@@ -143,26 +143,11 @@ export default function DetailerLogin() {
         </div>
       </div>
       {/* Right: Branding Section */}
-      <div className="hidden md:flex w-1/2 bg-[#181C32] relative">
-        <div className="absolute inset-0 flex flex-col justify-center items-center">
-          <div className="flex flex-col items-center gap-5">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-indigo-600 rounded-lg flex items-center justify-center">
-                <Image src="/images/logo.png" alt="Reeva Car Logo" width={64} height={64} />
-              </div>
-              <span className="text-white text-2xl font-semibold">Reeva Car</span>
-            </div>
-            <div className="text-white/60 text-sm text-center max-w-xs">
-              Change the way you get your car detailed
-            </div>
-          </div>
-        </div>
-        {/* Decorative squares */}
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-10 left-10 w-8 h-8 bg-white/10 rounded-lg"></div>
-          <div className="absolute bottom-10 right-10 w-8 h-8 bg-white/10 rounded-lg"></div>
-          <div className="absolute top-1/2 left-1/2 w-8 h-8 bg-white/10 rounded-lg" style={{transform: 'translate(-50%, -50%)'}}></div>
-        </div>
+      <div
+        className="hidden md:flex w-1/2 bg-cover bg-center"
+        style={{ backgroundImage: "url('https://reevacar.s3.us-east-2.amazonaws.com/reeva-logo/Screenshot+2025-06-21+at+12.35.31%E2%80%AFAM.png')" }}
+      >
+        {/* This div is intentionally left empty to only show the background image. */}
       </div>
     </div>
   );

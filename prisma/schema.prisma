@@ -32,6 +32,10 @@ model Detailer {
   services     DetailerService[]
   verified     Boolean @default(false)
   hidden       Boolean @default(false)
+  
+  // SMS Integration
+  twilioPhoneNumber String?  // Twilio phone number for SMS communication
+  smsEnabled        Boolean  @default(false)
 }
 
 model Image {

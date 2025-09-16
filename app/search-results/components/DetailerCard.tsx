@@ -65,12 +65,15 @@ export default function DetailerCard({ detailer }: DetailerCardProps) {
         <div className="p-4">
           <div className="flex justify-between items-center mb-1">
             <span className="font-semibold text-base">{detailer.businessName}</span>
+<<<<<<< Updated upstream
             {detailer.verified && (
               <span className="flex items-center gap-1 text-sm font-medium">
                 <FaCheckCircle className="text-green-500" />
                 Verified
               </span>
             )}
+=======
+>>>>>>> Stashed changes
           </div>
           <div className="text-gray-700 text-sm mb-1">{detailer.description}</div>
           <div className="text-gray-500 text-xs mb-1">{detailer.city}</div>

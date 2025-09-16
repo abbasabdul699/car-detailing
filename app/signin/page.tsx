@@ -32,11 +32,14 @@ function SignInContent() {
     const res = await signIn("credentials", {
       email,
       password,
-      redirect: true,
-      callbackUrl: "/admin"
+      redirect: false,
     });
     setLoading(false);
-    if (res && (res as any).error) {
+
+    if (res?.ok) {
+      // On successful sign-in, redirect to the admin page
+      router.push("/admin");
+    } else {
       setError("Sign in failed. Check the details you provided are correct.");
     }
   };

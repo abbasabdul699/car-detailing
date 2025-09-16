@@ -9,6 +9,8 @@ export default async function EditDetailerPage({ params }: { params: { id: strin
       id: true,
       businessName: true,
       email: true,
+      firstName: true,
+      lastName: true,
       phone: true,
       address: true,
       city: true,
@@ -42,6 +44,7 @@ export default async function EditDetailerPage({ params }: { params: { id: strin
     return <div>Detailer not found</div>;
   }
 
+<<<<<<< Updated upstream
   // Transform the detailer object to match the client component's expected props
   const transformedDetailer = {
     ...detailer,
@@ -55,11 +58,47 @@ export default async function EditDetailerPage({ params }: { params: { id: strin
       }
     }))
   };
+=======
+  // Filter images by type
+  const profileImage = detailer.images.find(img => img.type === 'profile');
+  const portfolioImages = detailer.images.filter(img => img.type === 'portfolio');
+>>>>>>> Stashed changes
 
   return (
     <div className="edit-detailer-container">
       <AdminNavbar />
+<<<<<<< Updated upstream
       <EditDetailerClient detailer={transformedDetailer} />
+=======
+      <EditDetailerClient detailer={{
+        ...(detailer as any),
+        email: detailer.email || '',
+        website: detailer.website || '',
+        instagram: detailer.instagram || '',
+        tiktok: detailer.tiktok || '',
+        facebook: detailer.facebook || '',
+        profileImage: profileImage ? { url: profileImage.url, alt: profileImage.alt || '', type: 'profile' } : undefined,
+        portfolioImages: portfolioImages.map((img: any) => ({
+          id: img.id,
+          url: img.url,
+          alt: img.alt || '',
+          type: 'portfolio',
+        })),
+        detailerImages: Array.isArray(detailer.detailerImages) ? detailer.detailerImages.map((img: any) => ({
+          id: img.id,
+          url: img.url,
+          alt: img.alt,
+        })) : [],
+        services: Array.isArray(detailer.services) ? detailer.services.map((ds: any) => ({
+          service: {
+            id: ds.service.id,
+            name: ds.service.name,
+            category: ds.service.category?.name || undefined
+          }
+        })) : [],
+        googlePlaceId: detailer.googlePlaceId || undefined,
+      }} />
+>>>>>>> Stashed changes
     </div>
   );
 } 

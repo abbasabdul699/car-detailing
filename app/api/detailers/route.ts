@@ -42,9 +42,15 @@ export async function GET(req: NextRequest) {
     const lng = searchParams.get('lng');
 
     const detailers = await prisma.detailer.findMany({
+<<<<<<< Updated upstream
       where: { 
         verified: true,
         hidden: false 
+=======
+      where: {
+        verified: true,
+        hidden: false,
+>>>>>>> Stashed changes
       },
       select: {
         id: true,
@@ -75,10 +81,17 @@ export async function GET(req: NextRequest) {
       const userLat = parseFloat(lat);
       const userLng = parseFloat(lng);
       sortedDetailers = detailers
-        .map(d => ({
+        .map(d => {
+          // Ensure lat/lng are valid numbers before calculating distance
+          if (typeof d.latitude !== 'number' || typeof d.longitude !== 'number' || isNaN(d.latitude) || isNaN(d.longitude)) {
+            return { ...d, distance: Infinity }; // Assign a high distance if location is invalid
+          }
+          return {
           ...d,
           distance: haversineDistance(userLat, userLng, d.latitude, d.longitude)
-        }))
+          };
+        })
+        .filter(d => d.distance !== Infinity) // Filter out detailers with invalid location
         .sort((a, b) => a.distance - b.distance);
     }
     
@@ -105,11 +118,26 @@ export async function POST(req: NextRequest) {
     }
     const data = parsed.data;
 
+<<<<<<< Updated upstream
+=======
+    // Check if email already exists, if provided
+    if (data.email) {
+      const existingDetailer = await prisma.detailer.findUnique({
+        where: { email: data.email }
+      });
+
+      if (existingDetailer) {
+        return NextResponse.json({ error: 'A detailer with this email already exists' }, { status: 400 });
+      }
+    }
+
+>>>>>>> Stashed changes
     // Upsert services and collect their IDs
     const serviceIds: string[] = [];
     for (const name of data.services) {
       let service = await prisma.service.findUnique({ where: { name } });
       if (!service) {
+<<<<<<< Updated upstream
         let categoryName = "Additional";
         if (name.toLowerCase().includes("interior") || 
             name.toLowerCase().includes("vacuum") || 
@@ -136,11 +164,21 @@ export async function POST(req: NextRequest) {
         }
         
         // Find or create the category
+=======
+        let categoryName = "Additional"; // Default category
+        if (name.toLowerCase().includes("interior") || name.toLowerCase().includes("vacuum") || name.toLowerCase().includes("carpet")) {
+          categoryName = "Interior";
+        } else if (name.toLowerCase().includes("exterior") || name.toLowerCase().includes("wash") || name.toLowerCase().includes("wax")) {
+          categoryName = "Exterior";
+        }
+        
+>>>>>>> Stashed changes
         let category = await prisma.category.findUnique({ where: { name: categoryName } });
         if (!category) {
           category = await prisma.category.create({ data: { name: categoryName } });
         }
 
+<<<<<<< Updated upstream
         console.log('Creating service:', name, 'with category:', categoryName);
         service = await prisma.service.create({ 
           data: { 
@@ -149,6 +187,15 @@ export async function POST(req: NextRequest) {
               connect: { id: category.id } 
             } 
           } 
+=======
+        service = await prisma.service.create({
+          data: {
+            name,
+            category: {
+              connect: { id: category.id }
+            }
+          }
+>>>>>>> Stashed changes
         });
       }
       serviceIds.push(service.id);

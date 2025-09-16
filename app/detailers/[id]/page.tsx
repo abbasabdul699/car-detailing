@@ -6,6 +6,7 @@ import LocationMap from './components/LocationMap';
 import ImageModal from './components/ImageModal';
 import { prisma } from '@/lib/prisma';
 import DetailerProfileClient from './components/DetailerProfileClient';
+<<<<<<< Updated upstream
 
 interface DetailerImage {
   url: string;
@@ -31,6 +32,10 @@ interface Detailer {
   verified: boolean;
   hidden: boolean;
 }
+=======
+import type { Detailer } from '@prisma/client';
+import { unstable_noStore as noStore } from 'next/cache';
+>>>>>>> Stashed changes
 
 // Function to open native maps app
 const openMaps = (address: string, city: string, state: string, zipCode: string) => {
@@ -38,7 +43,7 @@ const openMaps = (address: string, city: string, state: string, zipCode: string)
   const encodedAddress = encodeURIComponent(formattedAddress);
   
   // Check if device is iOS
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
   
   if (isIOS) {
     window.location.href = `maps://?address=${encodedAddress}`;
@@ -47,6 +52,7 @@ const openMaps = (address: string, city: string, state: string, zipCode: string)
   }
 };
 
+<<<<<<< Updated upstream
 export default async function DetailerProfile({ 
   params 
 }: { 
@@ -55,22 +61,20 @@ export default async function DetailerProfile({
   const id = params.id;
   
   try {
+=======
+async function getDetailer(id: string) {
+  noStore();
+>>>>>>> Stashed changes
     const detailer = await prisma.detailer.findUnique({
       where: { id },
-      select: {
-        id: true,
-        businessName: true,
-        email: true,
-        phone: true,
-        address: true,
-        city: true,
-        state: true,
-        zipCode: true,
-        description: true,
-        priceRange: true,
-        services: { include: { service: true } },
-        website: true,
+    include: {
+      services: {
+        include: {
+          service: true,
+        },
+      },
         images: true,
+<<<<<<< Updated upstream
         detailerImages: true,
         verified: true,
         hidden: true,
@@ -78,6 +82,27 @@ export default async function DetailerProfile({
     });
 
     if (!detailer || detailer.hidden) {
+=======
+      portfolioImages: true,
+      bundles: {
+        include: {
+          services: {
+            include: {
+              service: true,
+            },
+          },
+        },
+      },
+      reviews: {
+        orderBy: {
+          createdAt: 'desc',
+        },
+      },
+    },
+    });
+
+  if (!detailer || detailer.hidden) {
+>>>>>>> Stashed changes
       return notFound();
     }
 
@@ -97,23 +122,32 @@ export default async function DetailerProfile({
       return aIdx - bIdx;
     });
 
-    // Combine both image types and ensure they have the correct format
-    const combinedImages = [
-      ...detailer.images.map(img => ({
-        ...img,
-        type: (img as any).type || 'portfolio',
-      })),
-      ...detailer.detailerImages.map(img => ({
+  // Start with the new portfolio images
+  const combinedImages = detailer.portfolioImages.map(img => ({
+    id: img.id,
+    url: img.url,
+    alt: `Portfolio image for ${detailer.businessName}`, // Provide a default alt
+    type: 'portfolio',
+  }));
+
+  const existingUrls = new Set(combinedImages.map(img => img.url));
+
+  // Add images from the legacy `images` array only if they're not already included
+  detailer.images.forEach(img => {
+    if (!existingUrls.has(img.url)) {
+      combinedImages.push({
+        id: img.id,
         url: img.url,
-        alt: img.alt,
-        type: 'portfolio', // Default type for legacy images
-      }))
-    ];
+        alt: img.alt || `Legacy portfolio image for ${detailer.businessName}`,
+        type: img.type || 'portfolio',
+      });
+      existingUrls.add(img.url);
+    }
+  });
 
     // Pass the full service objects to the client, ensuring 'category' is present
     const serviceObjs = detailer.services.map(ds => {
       const s = ds.service as any;
-      // Always return a service object with a 'category' property as { name: string }
       return {
         ...s,
         category: s.category && typeof s.category === 'object' && 'name' in s.category
@@ -122,15 +156,29 @@ export default async function DetailerProfile({
       };
     });
 
-    console.log('Fetched detailer data:', detailer); // Add debug logging
-
     return <DetailerProfileClient detailer={{
+<<<<<<< Updated upstream
       ...detailer,
       email: detailer.email || '',
       services: serviceObjs,
       images: combinedImages,
       website: detailer.website || undefined
+=======
+    ...(detailer as any),
+      services: serviceObjs,
+      images: combinedImages,
+    bundles: detailer.bundles,
+    reviews: detailer.reviews,
+>>>>>>> Stashed changes
     }} categories={categories} />;
+}
+
+export default async function DetailerProfile({ params }: { params: { id: string } }) {
+  const awaitedParams = await params;
+  const { id } = awaitedParams;
+  
+  try {
+    return await getDetailer(id);
   } catch (error) {
     console.error('Error fetching detailer:', error);
     return notFound();

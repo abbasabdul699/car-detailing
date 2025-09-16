@@ -15,6 +15,8 @@ export async function GET(
         id: true,
         businessName: true,
         email: true,
+        firstName: true,
+        lastName: true,
         phone: true,
         address: true,
         city: true,
@@ -80,7 +82,12 @@ export async function PATCH(
     // Only allow updatable scalar fields
     const allowedFields = [
       'businessName', 'email', 'phone', 'address', 'city', 'state', 'zipCode',
+<<<<<<< Updated upstream
       'description', 'latitude', 'longitude', 'priceRange', 'website', 'businessHours', 'imageUrl', 'verified', 'hidden'
+=======
+      'description', 'latitude', 'longitude', 'priceRange', 'website', 'businessHours', 'imageUrl', 'verified', 'hidden', 'googlePlaceId',
+      'instagram', 'tiktok', 'facebook', 'firstName', 'lastName'
+>>>>>>> Stashed changes
     ];
     const updateData: Record<string, any> = {};
     for (const key of allowedFields) {
@@ -122,7 +129,13 @@ export async function PATCH(
 
     const updatedDetailer = await prisma.detailer.update({
       where: { id: params.id },
+<<<<<<< Updated upstream
       data: updateData,
+=======
+      data: {
+        ...updateData,
+      },
+>>>>>>> Stashed changes
     });
     return Response.json(updatedDetailer);
   } catch (error) {
