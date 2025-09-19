@@ -218,6 +218,33 @@ export default function GetInTouch() {
               <div className="mt-6 text-center text-gray-600 text-sm">
                 <p>Or email us directly at: <a href="mailto:reevacar@gmail.com" className="text-[#389167]">reevacar@gmail.com</a></p>
               </div>
+
+              <div className="mt-6 text-center">
+                <p className="text-gray-600 text-sm mb-3">Or message us directly:</p>
+                <div className="flex justify-center">
+                  <a 
+                    href="https://bcrw.apple.com/urn:biz:f506e0ef-81da-4425-8790-ad2123759510"
+                    className="inline-block"
+                  >
+                    <img 
+                      src="https://static.zdassets.com/message-us/apple/en/gethelp_black.svg?businessId=f506e0ef-81da-4425-8790-ad2123759510"
+                      alt="Get help on Apple Messages"
+                      className="h-12 w-auto cursor-pointer hover:opacity-80 transition-opacity"
+                      onError={(e) => {
+                        // Fallback if the image fails to load
+                        e.currentTarget.style.display = 'none';
+                        e.currentTarget.nextElementSibling.style.display = 'block';
+                      }}
+                    />
+                    <div 
+                      className="hidden bg-black text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors cursor-pointer"
+                      style={{ display: 'none' }}
+                    >
+                      💬 Message Us
+                    </div>
+                  </a>
+                </div>
+              </div>
             </div>
           </div>
         </div>
