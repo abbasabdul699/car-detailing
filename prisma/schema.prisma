@@ -14,6 +14,8 @@ model Detailer {
   id           String   @id @default(auto()) @map("_id") @db.ObjectId
   businessName String
   email        String?
+  firstName    String?
+  lastName     String?
   phone        String
   address      String
   city         String
@@ -25,17 +27,43 @@ model Detailer {
   priceRange   String
   website      String?
   imageUrl     String?
+  password     String?
+  googlePlaceId String?
+  instagram    String?
+  tiktok       String?
+  facebook     String?
   businessHours Json
   images       Image[]
   detailerImages DetailerImage[]
   createdAt    DateTime? @default(now())
   services     DetailerService[]
+  bundles      Bundle[]
+  reviews      Review[]
+  notifications Notification[]
   verified     Boolean @default(false)
   hidden       Boolean @default(false)
   
   // SMS Integration
   twilioPhoneNumber String?  // Twilio phone number for SMS communication
   smsEnabled        Boolean  @default(false)
+  
+  // Google Calendar Integration
+  googleCalendarConnected   Boolean @default(false)
+  googleCalendarTokens      String? // JSON string of OAuth tokens
+  googleCalendarRefreshToken String?
+  syncAppointments         Boolean @default(false)
+  syncAvailability         Boolean @default(false)
+  
+  // Instagram Integration
+  instagramConnected       Boolean @default(false)
+  instagramTokens          String? // JSON string of OAuth tokens
+  instagramRefreshToken    String?
+  instagramBusinessAccountId String? // Instagram Business Account ID
+  instagramPageId          String? // Connected Facebook Page ID
+  instagramDmEnabled       Boolean @default(false) // Enable AI to respond to DMs
+  
+  // Relations
+  conversations     Conversation[]
 }
 
 model Image {
@@ -74,6 +102,7 @@ model Service {
   categoryId  String?    @db.ObjectId
   category    Category?  @relation(fields: [categoryId], references: [id])
   detailers   DetailerService[]
+  bundles     BundleService[]
 }
 
 model DetailerService {
@@ -82,4 +111,77 @@ model DetailerService {
   detailerId String   @db.ObjectId
   service    Service  @relation(fields: [serviceId], references: [id])
   serviceId  String   @db.ObjectId
+}
+
+model Bundle {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  name       String
+  description String?
+  price      Float
+  imageUrl   String?
+  detailer   Detailer @relation(fields: [detailerId], references: [id])
+  detailerId String   @db.ObjectId
+  services   BundleService[]
+  createdAt  DateTime? @default(now())
+  updatedAt  DateTime? @updatedAt
+}
+
+model BundleService {
+  id       String  @id @default(auto()) @map("_id") @db.ObjectId
+  bundle   Bundle  @relation(fields: [bundleId], references: [id])
+  bundleId String  @db.ObjectId
+  service  Service @relation(fields: [serviceId], references: [id])
+  serviceId String @db.ObjectId
+}
+
+model Review {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  detailer   Detailer @relation(fields: [detailerId], references: [id])
+  detailerId String   @db.ObjectId
+  authorName String
+  rating     Int
+  comment    String
+  reply      String?
+  createdAt  DateTime? @default(now())
+  updatedAt  DateTime? @updatedAt
+}
+
+model Notification {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  detailer   Detailer @relation(fields: [detailerId], references: [id])
+  detailerId String   @db.ObjectId
+  message    String
+  type       String
+  link       String?
+  read       Boolean  @default(false)
+  createdAt  DateTime? @default(now())
+}
+
+model Conversation {
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  detailer     Detailer  @relation(fields: [detailerId], references: [id])
+  detailerId   String    @db.ObjectId
+  customerPhone String   // Customer's phone number
+  customerName  String?  // Customer's name (if provided)
+  status       String    @default("active") // active, completed, cancelled
+  lastMessageAt DateTime? @default(now())
+  createdAt    DateTime? @default(now())
+  updatedAt    DateTime? @updatedAt
+  
+  // Relations
+  messages     Message[]
+  
+  // Index for quick lookups
+  @@unique([detailerId, customerPhone])
+}
+
+model Message {
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  conversationId String       @db.ObjectId
+  direction      String       // "inbound" or "outbound"
+  content        String       // Message content
+  twilioSid      String?      // Twilio message SID for tracking
+  status         String       @default("sent") // sent, delivered, failed
+  createdAt      DateTime?    @default(now())
 }

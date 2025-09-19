@@ -3,20 +3,22 @@ import { NextResponse } from 'next/server';
 import { uploadImage, ImageCategory } from '@/lib/s3-utils';
 import { prisma } from '@/lib/prisma';
 import { ObjectId } from 'mongodb';
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
 export async function POST(request: Request) {
   try {
+    const session = await getServerSession(authOptions);
+    
+    if (!session || !session.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const formData = await request.formData();
     const file = formData.get('file') as File;
-<<<<<<< Updated upstream
-    const detailerId = formData.get('detailerId') as string;
-    const type = formData.get('type') as string || 'portfolio';
-    const businessName = formData.get('businessName') as string || 'detailer';
-=======
     const businessName = formData.get('businessName') as string;
     const detailerId = formData.get('detailerId') as string;
     const type = formData.get('type') as 'profile' | 'portfolio' | 'bundle';
->>>>>>> Stashed changes
     
     // Validate required fields
     if (!file || !businessName || !detailerId || !type) {
@@ -46,56 +48,50 @@ export async function POST(request: Request) {
       );
     }
 
-    // Validate detailerId as ObjectId
-    let objectId: string;
+    // Convert detailerId to ObjectId
+    let objectId;
     try {
-      objectId = new ObjectId(detailerId).toHexString();
+      objectId = new ObjectId(detailerId);
     } catch (e) {
       return NextResponse.json({ error: 'Invalid detailerId format' }, { status: 400 });
     }
-<<<<<<< Updated upstream
-=======
+
     const detailer = await prisma.detailer.findUnique({
-      where: { email: session.user.email },
+      where: { id: session.user.id },
       select: { id: true }
     });
+
     if (!detailer) {
       return NextResponse.json({ error: 'Detailer not found' }, { status: 404 });
     }
->>>>>>> Stashed changes
 
     // Upload to S3
     const buffer = Buffer.from(await file.arrayBuffer());
-    const fileName = `${businessName.replace(/\s+/g, '-')}-${Date.now()}.jpg`;
-    const imageUrl = await uploadImage(buffer, 'detailers', fileName);
+    const imageUrl = await uploadImage(buffer, businessName, ImageCategory.DETAILER);
 
     // Save to database
     const image = await prisma.image.create({
       data: {
         url: imageUrl,
         alt: `${businessName} ${type} image`,
-<<<<<<< Updated upstream
-        detailerId: objectId,
-=======
         detailerId: detailer.id,
->>>>>>> Stashed changes
         type: type
       }
     });
 
-    // If this is a profile image, update the detailer's imageUrl
+    // If it's a profile image, update the detailer's imageUrl
     if (type === 'profile') {
       await prisma.detailer.update({
         where: { id: detailer.id },
-        data: { imageUrl }
+        data: { imageUrl: imageUrl }
       });
     }
 
-    return NextResponse.json({ success: true, image });
+    return NextResponse.json({ image });
   } catch (error) {
     console.error('Upload error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Error uploading image' },
+      { error: 'Failed to upload image' },
       { status: 500 }
     );
   }

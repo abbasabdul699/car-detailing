@@ -25,11 +25,26 @@ export default function DetailerLogin() {
     e.preventDefault();
     setError("");
     setSuccess("");
-    await signIn("credentials", {
-      email: form.email,
-      password: form.password
-    });
-    // No need to handle redirect or success message here; NextAuth will handle it
+    
+    try {
+      // Use the dedicated detailer provider (separate from admin)
+      const result = await signIn("detailer", {
+        email: form.email,
+        password: form.password,
+        callbackUrl: "/detailer-dashboard",
+        redirect: false // Handle redirect manually
+      });
+      
+      if (result?.error) {
+        setError("Invalid email or password");
+      } else if (result?.ok) {
+        setSuccess("Login successful! Redirecting...");
+        // Redirect manually to detailer dashboard
+        router.push("/detailer-dashboard");
+      }
+    } catch (error) {
+      setError("An error occurred during login");
+    }
   };
 
   // Placeholder handlers for social logins

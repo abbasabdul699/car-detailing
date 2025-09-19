@@ -30,10 +30,29 @@ interface Profile {
   tiktok?: string;
   facebook?: string;
   profileImage?: string;
+  googleCalendarConnected?: boolean;
+  syncAppointments?: boolean;
+  syncAvailability?: boolean;
+  instagramConnected?: boolean;
+  instagramDmEnabled?: boolean;
 }
 
 async function getProfile() {
   const res = await fetch('/api/detailer/profile', { cache: 'no-store' });
+  
+  if (!res.ok) {
+    const errorData = await res.text();
+    console.error('Profile API error:', res.status, errorData);
+    throw new Error(`Failed to fetch profile: ${res.status} ${errorData}`);
+  }
+  
+  const contentType = res.headers.get('content-type');
+  if (!contentType || !contentType.includes('application/json')) {
+    const text = await res.text();
+    console.error('Non-JSON response:', text);
+    throw new Error('Invalid response format from profile API');
+  }
+  
   return res.json();
 }
 
@@ -41,14 +60,22 @@ export default function DetailerProfilePage() {
   const { data: session, update: updateSession } = useSession();
   const [profile, setProfile] = React.useState<Profile | null>(null);
   const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
   const [editingSection, setEditingSection] = React.useState<string | null>(null);
   const [showProfileImageModal, setShowProfileImageModal] = React.useState(false);
 
   React.useEffect(() => {
-    getProfile().then((data) => {
-      setProfile(data);
-      setLoading(false);
-    });
+    getProfile()
+      .then((data) => {
+        setProfile(data);
+        setLoading(false);
+        setError(null);
+      })
+      .catch((err) => {
+        console.error('Failed to load profile:', err);
+        setError(err.message || 'Failed to load profile');
+        setLoading(false);
+      });
   }, []);
 
   // Handler for profile image upload
@@ -64,8 +91,185 @@ export default function DetailerProfilePage() {
     }
   };
 
-  if (loading) return <div>Loading...</div>;
-  if (!profile) return <div>Profile not found</div>;
+  // Google Calendar Integration Handlers
+  const handleConnectGoogleCalendar = async () => {
+    try {
+      // Redirect to Google OAuth
+      const response = await fetch('/api/auth/google-calendar/connect', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (response.ok) {
+        const { authUrl } = await response.json();
+        window.location.href = authUrl;
+      } else {
+        console.error('Failed to initiate Google Calendar connection');
+      }
+    } catch (error) {
+      console.error('Error connecting to Google Calendar:', error);
+    }
+  };
+
+  const handleDisconnectGoogleCalendar = async () => {
+    try {
+      const response = await fetch('/api/auth/google-calendar/disconnect', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (response.ok) {
+        // Update local state
+        if (profile) {
+          setProfile({
+            ...profile,
+            googleCalendarConnected: false,
+            syncAppointments: false,
+            syncAvailability: false,
+          });
+        }
+      } else {
+        console.error('Failed to disconnect Google Calendar');
+      }
+    } catch (error) {
+      console.error('Error disconnecting Google Calendar:', error);
+    }
+  };
+
+  const handleSyncSettingChange = async (setting: 'appointments' | 'availability', enabled: boolean) => {
+    try {
+      const response = await fetch('/api/auth/google-calendar/sync-settings', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          [setting]: enabled,
+        }),
+      });
+      
+      if (response.ok) {
+        // Update local state
+        if (profile) {
+          setProfile({
+            ...profile,
+            [setting]: enabled,
+          });
+        }
+      } else {
+        console.error(`Failed to update ${setting} sync setting`);
+      }
+    } catch (error) {
+      console.error(`Error updating ${setting} sync setting:`, error);
+    }
+  };
+
+  // Instagram Integration Handlers
+  const handleConnectInstagram = async () => {
+    try {
+      // Redirect to Instagram OAuth
+      const response = await fetch('/api/auth/instagram/connect', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (response.ok) {
+        const { authUrl } = await response.json();
+        window.location.href = authUrl;
+      } else {
+        console.error('Failed to initiate Instagram connection');
+      }
+    } catch (error) {
+      console.error('Error connecting to Instagram:', error);
+    }
+  };
+
+  const handleDisconnectInstagram = async () => {
+    try {
+      const response = await fetch('/api/auth/instagram/disconnect', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (response.ok) {
+        // Update local state
+        if (profile) {
+          setProfile({
+            ...profile,
+            instagramConnected: false,
+            instagramDmEnabled: false,
+          });
+        }
+      } else {
+        console.error('Failed to disconnect Instagram');
+      }
+    } catch (error) {
+      console.error('Error disconnecting Instagram:', error);
+    }
+  };
+
+  const handleInstagramDmSettingChange = async (enabled: boolean) => {
+    try {
+      const response = await fetch('/api/auth/instagram/dm-settings', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          dmEnabled: enabled,
+        }),
+      });
+      
+      if (response.ok) {
+        // Update local state
+        if (profile) {
+          setProfile({
+            ...profile,
+            instagramDmEnabled: enabled,
+          });
+        }
+      } else {
+        console.error('Failed to update Instagram DM setting');
+      }
+    } catch (error) {
+      console.error('Error updating Instagram DM setting:', error);
+    }
+  };
+
+  if (loading) return <div className="min-h-screen bg-gray-50 dark:bg-gray-950 p-6 flex items-center justify-center">
+    <div className="text-center">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto mb-4"></div>
+      <p className="text-gray-600 dark:text-gray-400">Loading profile...</p>
+    </div>
+  </div>;
+  
+  if (error) return <div className="min-h-screen bg-gray-50 dark:bg-gray-950 p-6 flex items-center justify-center">
+    <div className="text-center">
+      <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+        <strong>Error:</strong> {error}
+      </div>
+      <button 
+        onClick={() => window.location.reload()} 
+        className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+      >
+        Retry
+      </button>
+    </div>
+  </div>;
+  
+  if (!profile) return <div className="min-h-screen bg-gray-50 dark:bg-gray-950 p-6 flex items-center justify-center">
+    <div className="text-center">
+      <p className="text-gray-600 dark:text-gray-400">Profile not found</p>
+    </div>
+  </div>;
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 p-6">
@@ -173,6 +377,195 @@ export default function DetailerProfilePage() {
             </div>
           </div>
         </div>
+        {/* Calendar Integration Section */}
+        <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-6 mb-4">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Calendar Integration</h2>
+            <button 
+              className="border border-gray-300 rounded-full px-4 py-1 text-sm flex items-center gap-2 hover:bg-gray-100" 
+              onClick={() => setEditingSection('calendar')}
+            >
+              ⚙️ Manage
+            </button>
+          </div>
+          
+          <div className="space-y-4">
+            {/* Google Calendar Connection */}
+            <div className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center">
+                  <svg className="w-6 h-6 text-blue-600 dark:text-blue-400" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/>
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="font-medium text-gray-900 dark:text-gray-100">Google Calendar</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    {profile?.googleCalendarConnected ? 'Connected' : 'Not connected'}
+                  </p>
+                </div>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                {profile?.googleCalendarConnected ? (
+                  <>
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                      ✓ Connected
+                    </span>
+                    <button
+                      onClick={() => handleDisconnectGoogleCalendar()}
+                      className="text-red-600 hover:text-red-800 text-sm font-medium"
+                    >
+                      Disconnect
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => handleConnectGoogleCalendar()}
+                    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+                  >
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                    </svg>
+                    <span>Connect</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Calendar Sync Status */}
+            {profile?.googleCalendarConnected && (
+              <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+                <div className="flex items-center space-x-2">
+                  <svg className="w-5 h-5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <p className="text-sm text-green-800 dark:text-green-200">
+                    Your Google Calendar is synced. Appointments will automatically appear in your detailer dashboard calendar.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Sync Settings */}
+            <div className="space-y-3">
+              <h4 className="font-medium text-gray-900 dark:text-gray-100">Sync Settings</h4>
+              <div className="space-y-2">
+                <label className="flex items-center space-x-2">
+                  <input 
+                    type="checkbox" 
+                    checked={profile?.syncAppointments || false}
+                    onChange={(e) => handleSyncSettingChange('appointments', e.target.checked)}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-700 dark:text-gray-300">
+                    Sync appointments to Google Calendar
+                  </span>
+                </label>
+                <label className="flex items-center space-x-2">
+                  <input 
+                    type="checkbox" 
+                    checked={profile?.syncAvailability || false}
+                    onChange={(e) => handleSyncSettingChange('availability', e.target.checked)}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-700 dark:text-gray-300">
+                    Update availability based on Google Calendar
+                  </span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Instagram Integration Section */}
+        <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-6 mb-4">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Instagram Integration</h2>
+            <button className="border border-gray-300 rounded-full px-4 py-1 text-sm flex items-center gap-2 hover:bg-gray-100">
+              ⚙️ Manage
+            </button>
+          </div>
+          
+          <div className="space-y-4">
+            {/* Instagram Connection */}
+            <div className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
+                  <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="font-medium text-gray-900 dark:text-gray-100">Instagram Business</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    {profile?.instagramConnected ? 'Connected' : 'Not connected'}
+                  </p>
+                </div>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                {profile?.instagramConnected ? (
+                  <>
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                      ✓ Connected
+                    </span>
+                    <button
+                      onClick={() => handleDisconnectInstagram()}
+                      className="text-red-600 hover:text-red-800 text-sm font-medium"
+                    >
+                      Disconnect
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => handleConnectInstagram()}
+                    className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:from-purple-600 hover:to-pink-600 transition-colors"
+                  >
+                    Connect Instagram
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Instagram DM Settings */}
+            {profile?.instagramConnected && (
+              <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                <div className="flex items-center space-x-2">
+                  <svg className="w-5 h-5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <p className="text-sm text-green-800 dark:text-green-200">
+                    Your Instagram Business account is connected. Enable AI to automatically respond to direct messages.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* AI DM Settings */}
+            <div className="space-y-3">
+              <h4 className="font-medium text-gray-900 dark:text-gray-100">AI Direct Messages</h4>
+              <div className="space-y-2">
+                <label className="flex items-center space-x-2">
+                  <input 
+                    type="checkbox" 
+                    checked={profile?.instagramDmEnabled || false}
+                    onChange={(e) => handleInstagramDmSettingChange(e.target.checked)}
+                    disabled={!profile?.instagramConnected}
+                    className="rounded border-gray-300 text-purple-600 focus:ring-purple-500 disabled:opacity-50"
+                  />
+                  <span className="text-sm text-gray-700 dark:text-gray-300">
+                    Enable AI to respond to Instagram direct messages
+                  </span>
+                </label>
+                <p className="text-xs text-gray-500 dark:text-gray-400 ml-6">
+                  AI will automatically respond to customer inquiries via Instagram DMs
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Business Hours Section */}
         <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-6 mb-4">
           <div className="flex items-center justify-between mb-4">

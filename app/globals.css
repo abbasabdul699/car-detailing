@@ -24,8 +24,6 @@ body {
   scrollbar-width: none;  /* Firefox */
 }
 
-<<<<<<< Updated upstream
-=======
 .rdp-root {
   --rdp-accent-color: #006400 !important;
   --rdp-selected-border: 2px solid #006400 !important;
@@ -94,5 +92,3 @@ body {
     50% { transform: translateY(-10px); }
   }
 }
-
->>>>>>> Stashed changes

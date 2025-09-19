@@ -9,8 +9,8 @@ import { Inter } from 'next/font/google'
 import { SessionProvider } from "next-auth/react";
 import SessionProviderWrapper from '@/app/components/SessionProviderWrapper';
 import { MapLoaderProvider } from '@/app/components/MapLoaderProvider';
-import { usePathname } from 'next/navigation';
-// import Navbar from './components/Navbar';
+import ConditionalNavbar from '@/app/components/ConditionalNavbar';
+import ConditionalFooter from '@/app/components/ConditionalFooter';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -120,8 +120,6 @@ export default function RootLayout({
 }: {
   children: React.ReactNode
 }) {
-  // Only show footer if not on /search-results
-  const showFooter = true;
   return (
     <html lang="en">
       <head>
@@ -133,9 +131,8 @@ export default function RootLayout({
         />
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} ${inter.className} antialiased min-h-screen flex flex-col`}>
-        <div className="bg-red-500 text-white p-4">If you see a red box, Tailwind is working!</div>
         <PageTransition />
-        <Navbar />
+        <ConditionalNavbar />
         <SessionProviderWrapper>
           <MapLoaderProvider>
             <main className="flex-grow">
@@ -143,7 +140,7 @@ export default function RootLayout({
             </main>
           </MapLoaderProvider>
         </SessionProviderWrapper>
-        {showFooter && <Footer />}
+        <ConditionalFooter />
       </body>
     </html>
   );

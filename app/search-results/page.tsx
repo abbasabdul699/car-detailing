@@ -28,11 +28,8 @@ interface Detailer {
   badge?: string;
   price?: string;
   driveTime?: string;
-<<<<<<< Updated upstream
-=======
   hidden?: boolean;
   verified?: boolean;
->>>>>>> Stashed changes
 }
 
 interface SearchResultsProps {

@@ -2,15 +2,14 @@ import { prisma } from "@/lib/prisma";
 import AdminNavbar from '@/app/components/AdminNavbar';
 import EditDetailerClient from './EditDetailerClient';
 
-export default async function EditDetailerPage({ params }: { params: { id: string } }) {
+export default async function EditDetailerPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const detailer = await prisma.detailer.findUnique({
-    where: { id: params.id },
+    where: { id },
     select: {
       id: true,
       businessName: true,
       email: true,
-      firstName: true,
-      lastName: true,
       phone: true,
       address: true,
       city: true,
@@ -44,32 +43,13 @@ export default async function EditDetailerPage({ params }: { params: { id: strin
     return <div>Detailer not found</div>;
   }
 
-<<<<<<< Updated upstream
-  // Transform the detailer object to match the client component's expected props
-  const transformedDetailer = {
-    ...detailer,
-    email: detailer.email || '',
-    website: detailer.website || '',
-    services: detailer.services.map(s => ({
-      ...s,
-      service: {
-        ...s.service,
-        category: s.service.category?.name
-      }
-    }))
-  };
-=======
   // Filter images by type
   const profileImage = detailer.images.find(img => img.type === 'profile');
   const portfolioImages = detailer.images.filter(img => img.type === 'portfolio');
->>>>>>> Stashed changes
 
   return (
     <div className="edit-detailer-container">
       <AdminNavbar />
-<<<<<<< Updated upstream
-      <EditDetailerClient detailer={transformedDetailer} />
-=======
       <EditDetailerClient detailer={{
         ...(detailer as any),
         email: detailer.email || '',
@@ -98,7 +78,6 @@ export default async function EditDetailerPage({ params }: { params: { id: strin
         })) : [],
         googlePlaceId: detailer.googlePlaceId || undefined,
       }} />
->>>>>>> Stashed changes
     </div>
   );
 } 

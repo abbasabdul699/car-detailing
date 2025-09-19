@@ -100,7 +100,7 @@ export default function DetailersSection() {
           Nearest <span className="text-green-700">Mobile Detailers</span>
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8 items-start">
-          {visibleDetailers.slice(0, 5).map((detailer) => {
+          {detailers.slice(0, 5).map((detailer) => {
             // Combine images and detailerImages for legacy support
             const allImages = [
               ...(detailer.images || []),

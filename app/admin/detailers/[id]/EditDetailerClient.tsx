@@ -22,15 +22,15 @@ interface Detailer {
   website: string;
   firstName?: string;
   lastName?: string;
+  password?: string;
   businessHours?: any;
-<<<<<<< Updated upstream
   imageUrl?: string;
+  twilioPhoneNumber?: string;
+  smsEnabled?: boolean;
   images?: { url: string; alt: string; type?: string }[];
   detailerImages?: { url: string; alt: string; type?: string }[];
-=======
   profileImage?: { url: string; alt: string; type?: string };
   portfolioImages?: { id?: string; url: string; alt: string; type?: string }[];
->>>>>>> Stashed changes
   services?: { service: { id: string; name: string; category?: string } }[];
   instagram?: string;
   tiktok?: string;
@@ -222,6 +222,23 @@ export default function EditDetailerClient({ detailer: initialDetailer }: { deta
               <input {...register('phone')} className="input input-bordered w-full" />
               {errors.phone && <p className="text-red-500 text-sm">{errors.phone.message}</p>}
             </div>
+            <div className="md:col-span-2">
+              <label className="block font-medium">Set New Password (optional)</label>
+              <input type="password" {...register('password')} className="input input-bordered w-full" placeholder="Leave blank to keep current password" />
+            </div>
+            <div>
+              <label className="block font-medium">Twilio Phone Number (for SMS)</label>
+              <input {...register('twilioPhoneNumber')} className="input input-bordered w-full" placeholder="+1234567890" />
+              <p className="text-sm text-gray-600 mt-1">Dedicated Twilio number for this detailer's SMS conversations</p>
+              {errors.twilioPhoneNumber && <p className="text-red-500 text-sm">{errors.twilioPhoneNumber.message}</p>}
+            </div>
+            <div>
+              <label className="block font-medium">SMS Enabled</label>
+              <div className="flex items-center space-x-2">
+                <input type="checkbox" {...register('smsEnabled')} className="checkbox" />
+                <span className="text-sm">Enable SMS messaging for this detailer</span>
+              </div>
+            </div>
           </div>
         </div>
         {/* Social Links */}
@@ -263,99 +280,35 @@ export default function EditDetailerClient({ detailer: initialDetailer }: { deta
         </div>
         {/* Image Uploaders */}
         <div className="bg-gray-50 p-4 rounded-lg shadow">
-<<<<<<< Updated upstream
-          <h2 className="text-lg font-semibold mb-4">Profile Image</h2>
-          {(() => {
-            // Find the profile image (by convention: first image, or with a 'profile' type if available)
-            const allImages = [...(watch('images') || []), ...(watch('detailerImages') || [])];
-            const profileImage = allImages.find(img => img.type === 'profile') || allImages[0];
-            return profileImage ? (
-              <div className="relative w-24 h-24 mb-2">
-                <img src={profileImage.url} alt={profileImage.alt || 'Profile image'} className="object-cover w-full h-full rounded" />
-                <button
-                  type="button"
-                  className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 hover:bg-red-700"
-                  onClick={() => handleDeleteImage(profileImage.url)}
-                  title="Delete profile image"
-                >
-                  &times;
-                </button>
-              </div>
-            ) : (
-              <div className="mb-2 text-gray-500">No profile image set.</div>
-            );
-          })()}
-          <ImageUploader
-            businessName={watch('businessName')}
-            detailerId={watch('id')}
-            onUpload={url => {
-              // Replace the profile image
-              setValue('images', [{ url, alt: `${watch('businessName')} profile image`, type: 'profile' }, ...(watch('images') || []).filter(img => img.type !== 'profile')]);
-            }}
-            type="profile"
-          />
-        </div>
-        {/* Portfolio Images */}
-        <div className="bg-gray-50 p-4 rounded-lg shadow">
-          <h2 className="text-lg font-semibold mb-4">Portfolio Images</h2>
-          <div className="flex flex-wrap gap-4 mb-2">
-            {[...(watch('images') || []), ...(watch('detailerImages') || [])]
-              .filter(img => img.type !== 'profile')
-              .map((img, idx) => (
-                <div key={idx} className="relative w-24 h-24">
-                  <img src={img.url} alt={img.alt || 'Portfolio image'} className="object-cover w-full h-full rounded" />
-                  <button
-                    type="button"
-                    className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 hover:bg-red-700"
-                    onClick={() => handleDeleteImage(img.url)}
-                    title="Delete portfolio image"
-                  >
-                    &times;
-                  </button>
-                </div>
-              ))}
+          <h2 className="text-lg font-semibold mb-4">Images</h2>
+          {/* Profile Image */}
+          <div>
+            <h3 className="text-md font-semibold mb-2">Profile Image</h3>
+            <ImageUploader
+              businessName={watch('businessName')}
+              detailerId={watch('id')}
+              type="profile"
+              images={initialDetailer.profileImage ? [initialDetailer.profileImage] : []}
+              onUpload={(url, type) => {
+                window.location.reload();
+              }}
+              onDelete={handleDeleteImage}
+            />
           </div>
-          <ImageUploader
-            businessName={watch('businessName')}
-            detailerId={watch('id')}
-            onUpload={url => {
-              // Add new portfolio image
-              setValue('images', [...(watch('images') || []), { url, alt: `${watch('businessName')} portfolio image`, type: 'portfolio' }]);
-            }}
-            type="portfolio"
-          />
-=======
-            <h2 className="text-lg font-semibold mb-4">Images</h2>
-            {/* Profile Image */}
-            <div>
-                <h3 className="text-md font-semibold mb-2">Profile Image</h3>
-                <ImageUploader
-                    businessName={watch('businessName')}
-                    detailerId={watch('id')}
-                    type="profile"
-                    images={initialDetailer.profileImage ? [initialDetailer.profileImage] : []}
-                    onUpload={(url, type) => {
-                        // Logic to update profile image URL if needed, or simply re-fetch
-                        window.location.reload();
-                    }}
-                    onDelete={handleDeleteImage}
-                />
-            </div>
-            {/* Portfolio Images */}
-            <div className="mt-6">
-                <h3 className="text-md font-semibold mb-2">Portfolio Images</h3>
-                <ImageUploader
-                    businessName={watch('businessName')}
-                    detailerId={watch('id')}
-                    type="portfolio"
-                    images={initialDetailer.portfolioImages || []}
-                    onUpload={(url, type) => {
-                        window.location.reload();
-                    }}
-                    onDelete={handleDeleteImage}
-                />
-            </div>
->>>>>>> Stashed changes
+          {/* Portfolio Images */}
+          <div className="mt-6">
+            <h3 className="text-md font-semibold mb-2">Portfolio Images</h3>
+            <ImageUploader
+              businessName={watch('businessName')}
+              detailerId={watch('id')}
+              type="portfolio"
+              images={initialDetailer.portfolioImages || []}
+              onUpload={(url, type) => {
+                window.location.reload();
+              }}
+              onDelete={handleDeleteImage}
+            />
+          </div>
         </div>
         <button
           type="submit"

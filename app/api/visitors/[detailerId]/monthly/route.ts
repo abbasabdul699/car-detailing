@@ -26,7 +26,7 @@ export async function GET(req: Request, { params }: { params: { detailerId: stri
 
   // Aggregate by month
   const visitors = await Visitor.aggregate([
-    { $match: { detailerId: new mongoose.Types.ObjectId(detailerId) } },
+    { $match: { detailerId: detailerId } },
     {
       $group: {
         _id: { $dateToString: { format: "%Y-%m", date: "$viewedAt", timezone: "UTC" } },

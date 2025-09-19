@@ -1,15 +1,17 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import bcrypt from 'bcryptjs';
 import { deleteImageFromS3 } from '@/lib/s3-utils';
 
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const detailer = await prisma.detailer.findUnique({
       where: {
-        id: params.id
+        id
       },
       select: {
         id: true,
@@ -75,19 +77,16 @@ export async function GET(
 
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const data = await request.json();
     // Only allow updatable scalar fields
     const allowedFields = [
       'businessName', 'email', 'phone', 'address', 'city', 'state', 'zipCode',
-<<<<<<< Updated upstream
-      'description', 'latitude', 'longitude', 'priceRange', 'website', 'businessHours', 'imageUrl', 'verified', 'hidden'
-=======
       'description', 'latitude', 'longitude', 'priceRange', 'website', 'businessHours', 'imageUrl', 'verified', 'hidden', 'googlePlaceId',
-      'instagram', 'tiktok', 'facebook', 'firstName', 'lastName'
->>>>>>> Stashed changes
+      'firstName', 'lastName', 'instagram', 'tiktok', 'facebook', 'password', 'twilioPhoneNumber', 'smsEnabled'
     ];
     const updateData: Record<string, any> = {};
     for (const key of allowedFields) {
@@ -105,7 +104,7 @@ export async function PATCH(
     if (Array.isArray(data.services)) {
       // 1. Remove all existing services for this detailer
       await prisma.detailerService.deleteMany({
-        where: { detailerId: params.id }
+        where: { detailerId: id }
       });
 
       // 2. Find all service records matching the provided names
@@ -118,7 +117,7 @@ export async function PATCH(
         serviceRecords.map(service =>
           prisma.detailerService.create({
             data: {
-              detailerId: params.id,
+              detailerId: id,
               serviceId: service.id
             }
           })
@@ -127,15 +126,14 @@ export async function PATCH(
     }
     // --- END NEW CODE ---
 
+    // Handle password update if provided
+    if (typeof data.password === 'string' && data.password.trim().length > 0) {
+      updateData.password = await bcrypt.hash(data.password.trim(), 10);
+    }
+
     const updatedDetailer = await prisma.detailer.update({
-      where: { id: params.id },
-<<<<<<< Updated upstream
+      where: { id },
       data: updateData,
-=======
-      data: {
-        ...updateData,
-      },
->>>>>>> Stashed changes
     });
     return Response.json(updatedDetailer);
   } catch (error) {

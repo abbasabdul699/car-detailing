@@ -1,20 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { FaInstagram, FaTiktok, FaGlobe, FaShare, FaPhone, FaTimes, FaWhatsapp } from 'react-icons/fa';
 import Navbar from '@/app/components/Navbar';
-import LocationMap from './LocationMap';
 import ImageModal from './ImageModal';
-<<<<<<< Updated upstream
-=======
+import ContactForm from './ContactForm';
 import { useRouter } from 'next/navigation';
 import Slider from 'react-slick';
 import 'slick-carousel/slick/slick.css';
 import 'slick-carousel/slick/slick-theme.css';
-import LocationMap from "./LocationMap";
-import GoogleReviews from "./GoogleReviews";
->>>>>>> Stashed changes
+import dynamic from 'next/dynamic';
 
 interface DetailerImage {
   url: string;
@@ -85,13 +81,10 @@ interface Detailer {
   website?: string;
   instagram?: string;
   verified?: boolean;
-<<<<<<< Updated upstream
-=======
   googlePlaceId?: string;
   facebook?: string;
   bundles?: Bundle[];
   reviews?: Review[];
->>>>>>> Stashed changes
 }
 
 interface DetailerProfileClientProps {
@@ -99,12 +92,6 @@ interface DetailerProfileClientProps {
   categories: Category[];
 }
 
-<<<<<<< Updated upstream
-export default function DetailerProfileClient({ detailer, categories }: DetailerProfileClientProps) {
-  const [selectedImage, setSelectedImage] = useState<DetailerImage | null>(null);
-  const [activeTab, setActiveTab] = useState<string>(categories[0]?.id || '');
-  const [showContactModal, setShowContactModal] = useState(false);
-=======
 function timeAgo(date: Date) {
   const now = new Date();
   const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
@@ -403,6 +390,7 @@ export default function DetailerProfileClient({ detailer: initialDetailer, categ
   const [showVerifiedModal, setShowVerifiedModal] = useState(false);
   const [isReviewModalOpen, setReviewModalOpen] = useState(false);
   const [expandedBundles, setExpandedBundles] = useState<Record<string, boolean>>({});
+  const [showContactForm, setShowContactForm] = useState(false);
   const router = useRouter();
 
   const toggleBundleExpansion = (bundleId: string) => {
@@ -412,7 +400,6 @@ export default function DetailerProfileClient({ detailer: initialDetailer, categ
   const handleBookNow = () => {
     router.push(`/book/${detailer.id}/service`);
   };
->>>>>>> Stashed changes
 
   const handleShare = () => {
     if (navigator.share) {
@@ -519,13 +506,8 @@ export default function DetailerProfileClient({ detailer: initialDetailer, categ
               {/* Action Buttons */}
               <div className="flex gap-3">
                 <button 
-<<<<<<< Updated upstream
-                  onClick={handleContact}
+                  onClick={() => setShowContactForm(true)}
                   className="px-8 py-2 bg-black text-white rounded-full hover:bg-gray-800 transition-colors flex items-center gap-2"
-=======
-                  onClick={handleBookNow}
-                  className="bg-green-600 text-white font-semibold py-2 px-6 rounded-full hover:bg-green-700 transition flex items-center gap-2"
->>>>>>> Stashed changes
                 >
                   <FaPhone className="w-4 h-4 transform -scale-x-100" />
                   Contact
@@ -561,18 +543,6 @@ export default function DetailerProfileClient({ detailer: initialDetailer, categ
               </div>
             </div>
           </div>
-          {/* Map Section */}
-          <div className="w-full max-w-7xl mx-auto mt-8">
-            <div className="w-full h-64 md:h-80 overflow-hidden">
-              <LocationMap
-                address={detailer.address}
-                city={detailer.city}
-                state={detailer.state}
-                zipCode={detailer.zipCode}
-                businessName={detailer.businessName}
-              />
-            </div>
-          </div>
         </div>
 
         {/* Navigation Tabs */}
@@ -590,15 +560,6 @@ export default function DetailerProfileClient({ detailer: initialDetailer, categ
           </ul>
         </nav>
 
-<<<<<<< Updated upstream
-        {/* Service Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-          {categorizedServices[activeTab] && categorizedServices[activeTab].map((service, index) => (
-            <div
-              key={service.id}
-              className={`p-6 rounded-xl flex flex-col items-center text-center bg-white border`}
-            >
-=======
         {/* Tab Content */}
         <div className="mb-12">
           {categories.map(cat => {
@@ -735,23 +696,10 @@ export default function DetailerProfileClient({ detailer: initialDetailer, categ
                       Most Popular
                     </div>
                   )}
->>>>>>> Stashed changes
               {service.icon && (
                           <img src={service.icon} alt={service.name + ' icon'} className="w-10 h-10 mb-2 mx-auto" />
               )}
               <h3 className="text-xl font-semibold mb-2">{service.name}</h3>
-<<<<<<< Updated upstream
-              <p className="text-gray-600">
-                {service.description}
-              </p>
-            </div>
-          ))}
-          {(!categorizedServices[activeTab] || categorizedServices[activeTab].length === 0) && (
-            <div className="col-span-3 text-center py-8 text-gray-500">
-              No services available in this category
-            </div>
-          )}
-=======
                         <p className="text-gray-400 font-medium">{service.description}</p>
                       </div>
                     );
@@ -760,7 +708,6 @@ export default function DetailerProfileClient({ detailer: initialDetailer, categ
               );
             }
           })}
->>>>>>> Stashed changes
         </div>
 
         {/* Portfolio Section */}
@@ -771,7 +718,7 @@ export default function DetailerProfileClient({ detailer: initialDetailer, categ
               <div 
                 key={index} 
                 className="relative aspect-square rounded-xl overflow-hidden cursor-pointer hover:opacity-90 transition-opacity"
-                onClick={() => setSelectedImage(image)}
+                onClick={() => setSelectedImageIndex(index)}
               >
                 <Image
                   src={image.url}
@@ -786,11 +733,6 @@ export default function DetailerProfileClient({ detailer: initialDetailer, categ
           </div>
         </section>
 
-<<<<<<< Updated upstream
-        {/* Image Modal */}
-        {selectedImage && (
-          <div className="fixed inset-0 z-50 overflow-hidden bg-black bg-opacity-90">
-=======
         {/* Reviews Section - moved above map */}
         {detailer.googlePlaceId && (
           <div className="mt-8 bg-white p-6 sm:p-8 rounded-2xl shadow-sm">
@@ -921,57 +863,23 @@ export default function DetailerProfileClient({ detailer: initialDetailer, categ
 
         {selectedImageIndex !== null && (
           <div className="fixed inset-0 z-50 overflow-hidden bg-black bg-opacity-90 flex items-center justify-center">
->>>>>>> Stashed changes
             <ImageModal
-              imageUrl={selectedImage.url}
-              alt={selectedImage.alt}
-              onClose={() => setSelectedImage(null)}
+              imageUrl={portfolioImages[selectedImageIndex].url}
+              alt={portfolioImages[selectedImageIndex].alt}
+              onClose={() => setSelectedImageIndex(null)}
             />
           </div>
         )}
 
-        {/* Contact Modal for Desktop */}
-        {showContactModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-2xl p-8 max-w-md w-full mx-4 relative">
-              <button 
-                onClick={() => setShowContactModal(false)}
-                className="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
-              >
-                <FaTimes className="w-5 h-5" />
-              </button>
-              
-              <div className="text-center mb-6">
-                <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <FaPhone className="w-8 h-8 text-white" />
-                </div>
-                <h3 className="text-2xl font-bold mb-2">Contact {detailer.businessName}</h3>
-                <p className="text-gray-600 mb-6">Choose how you'd like to reach out</p>
-              </div>
-
-              <div className="space-y-4">
-                <a 
-                  href={`tel:${detailer.phone}`}
-                  className="w-full flex items-center justify-center gap-3 bg-black text-white py-3 rounded-lg hover:bg-gray-800 transition-colors"
-                >
-                  <FaPhone className="w-5 h-5" />
-                  <span>{formatPhoneNumber(detailer.phone)}</span>
-                </a>
-                
-                <a 
-                  href={`https://wa.me/${detailer.phone.replace(/\D/g, '')}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-full flex items-center justify-center gap-3 bg-green-500 text-white py-3 rounded-lg hover:bg-green-600 transition-colors"
-                >
-                  <FaWhatsapp className="w-5 h-5" />
-                  <span>WhatsApp</span>
-                </a>
-              </div>
-            </div>
-          </div>
+        {/* Contact Form */}
+        {showContactForm && (
+          <ContactForm
+            detailerName={detailer.businessName}
+            detailerId={detailer.id}
+            onClose={() => setShowContactForm(false)}
+          />
         )}
       </main>
     </>
   );
-} 
+}
