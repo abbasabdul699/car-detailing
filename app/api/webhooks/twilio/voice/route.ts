@@ -121,160 +121,40 @@ async function generateElevenLabsSpeech(text: string, voice: string = 'pNInz6obp
 // Initial call handler - when customer first calls
 export async function POST(request: NextRequest) {
   try {
-    console.log('=== VOICE WEBHOOK START ===');
+    console.log('=== SIMPLE VOICE WEBHOOK START ===');
     
     const formData = await request.formData();
-    
-    // Extract Twilio voice webhook data
     const from = formData.get('From') as string;
     const to = formData.get('To') as string;
     const callSid = formData.get('CallSid') as string;
     
-    console.log('Incoming Twilio voice call:', {
-      from,
-      to,
-      callSid,
-    });
+    console.log('Simple - Incoming call:', { from, to, callSid });
     
-    // Check critical environment variables
-    if (!process.env.OPENAI_API_KEY) {
-      console.error('Missing OPENAI_API_KEY');
-      throw new Error('OpenAI API key not configured');
-    }
-    
-    if (!process.env.ELEVENLABS_API_KEY) {
-      console.error('Missing ELEVENLABS_API_KEY');
-      throw new Error('ElevenLabs API key not configured');
-    }
-
-    console.log('Environment variables check passed');
-
-    // Find the detailer by their Twilio phone number
-    console.log('Looking for detailer with phone number:', to);
-    
-    // For testing, let's create a mock detailer to bypass database issues
-    const mockDetailer = {
-      id: 'test-detailer',
-      businessName: 'Test Car Detailing',
-      twilioPhoneNumber: to,
-      smsEnabled: true,
-      services: []
-    };
-    
-    let detailer = mockDetailer;
-    
-    // Try to find real detailer, but use mock if it fails
-    try {
-      const realDetailer = await prisma.detailer.findFirst({
-        where: {
-          twilioPhoneNumber: to,
-          smsEnabled: true,
-        },
-        include: {
-          services: {
-            include: {
-              service: true
-            }
-          }
-        }
-      });
-      
-      if (realDetailer) {
-        detailer = realDetailer;
-        console.log('Real detailer found:', detailer.businessName);
-      } else {
-        console.log('No real detailer found, using mock detailer');
-      }
-    } catch (dbError) {
-      console.error('Database error, using mock detailer:', dbError);
-      detailer = mockDetailer;
-    }
-    
-    console.log('Using detailer:', detailer.businessName);
-
-    // Skip conversation handling for now to test basic functionality
-    console.log('Skipping conversation database operations for testing');
-
-    // Skip message creation for now to test basic functionality
-    console.log('Skipping message creation for testing');
-
-    // Create TwiML response for initial greeting
+    // Create TwiML response
     const twiml = new VoiceResponse();
     
-    // Initial greeting - completely natural and conversational
-    const greeting = `Hey! Thanks for calling ${detailer.businessName}. How can I help you today?`;
+    // Simple greeting using Twilio voice
+    twiml.say({
+      voice: 'Polly.Matthew',
+      language: 'en-US'
+    }, 'Hello! Thanks for calling Reeva Car. This is a working test of our voice system. Can you hear me clearly?');
     
-    // Generate speech for greeting using ElevenLabs
-    const greetingAudio = await generateElevenLabsSpeech(greeting, 'pNInz6obpgDQGcFmaJgB');
+    console.log('Simple - TwiML generated successfully');
     
-    if (greetingAudio) {
-      twiml.play(greetingAudio);
-    } else {
-      // If ElevenLabs fails, return error message
-      twiml.say({
-        voice: 'Polly.Matthew',
-        language: 'en-US'
-      }, 'Sorry, our voice system is temporarily unavailable. Please try calling back later.');
-      twiml.hangup();
-      return new NextResponse(twiml.toString(), {
-        headers: { 'Content-Type': 'text/xml' },
-      });
-    }
-
-    // Gather customer input with speech recognition
-    const gather = twiml.gather({
-      input: ['speech'],
-      action: `/api/webhooks/twilio/voice/process?conversationId=${conversation.id}&callSid=${callSid}`,
-      method: 'POST',
-      speechTimeout: 'auto',
-      timeout: 10,
-      language: 'en-US',
-      enhanced: true,
-      speechModel: 'phone_call'
-    });
-
-    // Generate prompt audio using ElevenLabs
-    const promptAudio = await generateElevenLabsSpeech('What do you need help with?', 'pNInz6obpgDQGcFmaJgB');
-    
-    if (promptAudio) {
-      gather.play(promptAudio);
-    } else {
-      gather.say({
-        voice: 'Polly.Matthew',
-        language: 'en-US'
-      }, 'Please tell me what you need, or if you would like to book an appointment.');
-    }
-
-    // Fallback if no speech detected using ElevenLabs
-    const fallbackAudio = await generateElevenLabsSpeech('I didn\'t hear anything. Please try calling back and let me know how I can help you.', 'pNInz6obpgDQGcFmaJgB');
-    
-    if (fallbackAudio) {
-      twiml.play(fallbackAudio);
-    } else {
-      twiml.say({
-        voice: 'Polly.Matthew',
-        language: 'en-US'
-      }, 'I didn\'t hear anything. Please try calling back and let me know how I can help you.');
-    }
-
-    twiml.hangup();
-
     return new NextResponse(twiml.toString(), {
       headers: { 'Content-Type': 'text/xml' },
     });
-
-  } catch (error) {
-    console.error('=== VOICE WEBHOOK ERROR ===');
-    console.error('Error details:', error);
-    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
-    console.error('=== END ERROR ===');
     
-    // Return simple error response without external API calls
+  } catch (error) {
+    console.error('=== SIMPLE VOICE WEBHOOK ERROR ===');
+    console.error('Error details:', error);
+    
+    // Return simple error response
     const twiml = new VoiceResponse();
     twiml.say({
       voice: 'Polly.Matthew',
       language: 'en-US'
-    }, 'I apologize, but I\'m experiencing technical difficulties. Please try calling back later.');
+    }, 'Sorry, there was an error in the simple test. Please try again.');
     twiml.hangup();
     
     return new NextResponse(twiml.toString(), {
