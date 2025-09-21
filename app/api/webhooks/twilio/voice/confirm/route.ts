@@ -4,50 +4,6 @@ import twilio from 'twilio';
 
 const VoiceResponse = twilio.twiml.VoiceResponse;
 
-// Helper function to generate speech using OpenAI TTS
-async function generateOpenAISpeech(text: string, voice: string = 'nova'): Promise<string | null> {
-  try {
-    // Clean up the text for better speech synthesis
-    let cleanText = text
-      .replace(/[^\w\s.,!?-]/g, '') // Remove special characters but keep hyphens
-      .replace(/\s+/g, ' ') // Normalize whitespace
-      .trim();
-
-    // Simple text cleanup
-    cleanText = cleanText
-      .replace(/\s+/g, ' ') // Ensure single spaces
-      .replace(/\.{2,}/g, '.') // Replace multiple dots with single dot
-      .replace(/!{2,}/g, '!') // Replace multiple exclamations with single
-      .replace(/\?{2,}/g, '?'); // Replace multiple questions with single
-
-    const response = await fetch('https://api.openai.com/v1/audio/speech', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'tts-1-hd', // Higher quality voice
-        input: cleanText,
-        voice: voice,
-        response_format: 'mp3',
-        speed: 1.0
-      })
-    });
-
-    if (response.ok) {
-      const audioBuffer = await response.arrayBuffer();
-      const base64Audio = Buffer.from(audioBuffer).toString('base64');
-      return `data:audio/mp3;base64,${base64Audio}`;
-    } else {
-      console.error('OpenAI TTS error:', response.status, await response.text());
-      return null;
-    }
-  } catch (error) {
-    console.error('OpenAI TTS error:', error);
-    return null;
-  }
-}
 
 // Helper function to refresh Google Calendar access token
 async function refreshGoogleCalendarToken(refreshToken: string) {
@@ -276,7 +232,7 @@ export async function POST(request: NextRequest) {
 
       const confirmationMessage = `Perfect! You're all set for ${booking.scheduledDate.toLocaleDateString()} at ${booking.scheduledTime}. We'll see you then! Thanks for calling!`;
       
-      const confirmationAudio = await generateOpenAISpeech(confirmationMessage, 'nova');
+      const confirmationAudio = await generateElevenLabsSpeech(confirmationMessage);
       
       if (confirmationAudio) {
         twiml.play(confirmationAudio);
@@ -307,7 +263,7 @@ export async function POST(request: NextRequest) {
 
       const cancellationMessage = `No worries! I've cancelled that appointment. Just call back whenever you're ready to schedule something else.`;
       
-      const cancellationAudio = await generateOpenAISpeech(cancellationMessage, 'nova');
+      const cancellationAudio = await generateElevenLabsSpeech(cancellationMessage);
       
       if (cancellationAudio) {
         twiml.play(cancellationAudio);
@@ -323,7 +279,7 @@ export async function POST(request: NextRequest) {
       // Unclear response - ask for clarification
       const clarificationMessage = `Sorry, I didn't catch that. Did you say yes to confirm, or no to change something?`;
       
-      const clarificationAudio = await generateOpenAISpeech(clarificationMessage, 'nova');
+      const clarificationAudio = await generateElevenLabsSpeech(clarificationMessage);
       
       if (clarificationAudio) {
         twiml.play(clarificationAudio);
@@ -347,7 +303,7 @@ export async function POST(request: NextRequest) {
         speechModel: 'phone_call'
       });
 
-      const gatherPromptAudio = await generateOpenAISpeech('Just say yes if that sounds good, or no if you want to change something.', 'nova');
+      const gatherPromptAudio = await generateElevenLabsSpeech('Just say yes if that sounds good, or no if you want to change something.');
       
       if (gatherPromptAudio) {
         gather.play(gatherPromptAudio);
@@ -359,7 +315,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Fallback
-      const fallbackAudio = await generateOpenAISpeech('I didn\'t hear a clear response. Please call back to confirm your appointment.', 'nova');
+      const fallbackAudio = await generateElevenLabsSpeech('I didn\'t hear a clear response. Please call back to confirm your appointment.');
       
       if (fallbackAudio) {
         twiml.play(fallbackAudio);

@@ -66,50 +66,6 @@ Don't sound like you're following a script. Just be a helpful, friendly person h
   }
 }
 
-// Helper function to generate speech using OpenAI TTS
-async function generateOpenAISpeech(text: string, voice: string = 'nova'): Promise<string | null> {
-  try {
-    // Clean up the text for better speech synthesis
-    let cleanText = text
-      .replace(/[^\w\s.,!?-]/g, '') // Remove special characters but keep hyphens
-      .replace(/\s+/g, ' ') // Normalize whitespace
-      .trim();
-
-    // Simple text cleanup
-    cleanText = cleanText
-      .replace(/\s+/g, ' ') // Ensure single spaces
-      .replace(/\.{2,}/g, '.') // Replace multiple dots with single dot
-      .replace(/!{2,}/g, '!') // Replace multiple exclamations with single
-      .replace(/\?{2,}/g, '?'); // Replace multiple questions with single
-
-    const response = await fetch('https://api.openai.com/v1/audio/speech', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'tts-1-hd', // Higher quality voice
-        input: cleanText,
-        voice: voice,
-        response_format: 'mp3',
-        speed: 1.0
-      })
-    });
-
-    if (response.ok) {
-      const audioBuffer = await response.arrayBuffer();
-      const base64Audio = Buffer.from(audioBuffer).toString('base64');
-      return `data:audio/mp3;base64,${base64Audio}`;
-    } else {
-      console.error('OpenAI TTS error:', response.status, await response.text());
-      return null;
-    }
-  } catch (error) {
-    console.error('OpenAI TTS error:', error);
-    return null;
-  }
-}
 
 // Helper function to extract booking information from voice transcription
 function extractBookingInfo(transcription: string, conversationHistory: any[]) {
@@ -203,7 +159,7 @@ export async function POST(request: NextRequest) {
     // Check transcription confidence
     if (confidence < 0.5) {
       const twiml = new VoiceResponse();
-      const lowConfidenceAudio = await generateOpenAISpeech('Sorry, what was that? I didn\'t catch it.', 'nova');
+      const lowConfidenceAudio = await generateElevenLabsSpeech('Sorry, what was that? I didn\'t catch it.');
       
       if (lowConfidenceAudio) {
         twiml.play(lowConfidenceAudio);
@@ -303,7 +259,7 @@ export async function POST(request: NextRequest) {
         const confirmationMessage = `${aiResponse} I've created a booking for ${bookingInfo.extractedDate} at ${bookingInfo.extractedTime} for ${bookingInfo.extractedServices.join(', ')}. Is this correct?`;
         
         const twiml = new VoiceResponse();
-        const confirmationAudio = await generateOpenAISpeech(confirmationMessage, 'nova');
+        const confirmationAudio = await generateElevenLabsSpeech(confirmationMessage);
         
         if (confirmationAudio) {
           twiml.play(confirmationAudio);
@@ -327,7 +283,7 @@ export async function POST(request: NextRequest) {
           speechModel: 'phone_call'
         });
 
-        const gatherPromptAudio = await generateOpenAISpeech('Just say yes if that sounds good, or no if you want to change something.', 'nova');
+        const gatherPromptAudio = await generateElevenLabsSpeech('Just say yes if that sounds good, or no if you want to change something.');
         
         if (gatherPromptAudio) {
           gather.play(gatherPromptAudio);
@@ -339,7 +295,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Fallback
-        const fallbackAudio = await generateOpenAISpeech('I didn\'t hear a response. Please call back to confirm your appointment.', 'nova');
+        const fallbackAudio = await generateElevenLabsSpeech('I didn\'t hear a response. Please call back to confirm your appointment.');
         
         if (fallbackAudio) {
           twiml.play(fallbackAudio);
@@ -363,7 +319,7 @@ export async function POST(request: NextRequest) {
     // Continue conversation
     const twiml = new VoiceResponse();
     // Generate OpenAI speech for AI response
-    const aiAudio = await generateOpenAISpeech(aiResponse, 'nova');
+    const aiAudio = await generateElevenLabsSpeech(aiResponse);
     
     if (aiAudio) {
       twiml.play(aiAudio);
@@ -388,7 +344,7 @@ export async function POST(request: NextRequest) {
       speechModel: 'phone_call'
     });
 
-    const gatherHelpAudio = await generateOpenAISpeech('Anything else I can help you with?', 'nova');
+    const gatherHelpAudio = await generateElevenLabsSpeech('Anything else I can help you with?');
     
     if (gatherHelpAudio) {
       gather.play(gatherHelpAudio);
@@ -400,7 +356,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Fallback if no response
-    const goodbyeAudio = await generateOpenAISpeech('Thanks for calling! Have a great day!', 'nova');
+    const goodbyeAudio = await generateElevenLabsSpeech('Thanks for calling! Have a great day!');
     
     if (goodbyeAudio) {
       twiml.play(goodbyeAudio);

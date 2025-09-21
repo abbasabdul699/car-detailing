@@ -117,50 +117,6 @@ async function generateElevenLabsSpeech(text: string, voice: string = 'pNInz6obp
   }
 }
 
-// Helper function to generate speech using OpenAI TTS
-async function generateOpenAISpeech(text: string, voice: string = 'nova'): Promise<string | null> {
-  try {
-    // Clean up the text for better speech synthesis
-    let cleanText = text
-      .replace(/[^\w\s.,!?-]/g, '') // Remove special characters but keep hyphens
-      .replace(/\s+/g, ' ') // Normalize whitespace
-      .trim();
-
-    // Simple text cleanup
-    cleanText = cleanText
-      .replace(/\s+/g, ' ') // Ensure single spaces
-      .replace(/\.{2,}/g, '.') // Replace multiple dots with single dot
-      .replace(/!{2,}/g, '!') // Replace multiple exclamations with single
-      .replace(/\?{2,}/g, '?'); // Replace multiple questions with single
-
-    const response = await fetch('https://api.openai.com/v1/audio/speech', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'tts-1-hd', // Higher quality voice
-        input: cleanText,
-        voice: voice,
-        response_format: 'mp3',
-        speed: 1.0
-      })
-    });
-
-    if (response.ok) {
-      const audioBuffer = await response.arrayBuffer();
-      const base64Audio = Buffer.from(audioBuffer).toString('base64');
-      return `data:audio/mp3;base64,${base64Audio}`;
-    } else {
-      console.error('OpenAI TTS error:', response.status, await response.text());
-      return null;
-    }
-  } catch (error) {
-    console.error('OpenAI TTS error:', error);
-    return null;
-  }
-}
 
 // Initial call handler - when customer first calls
 export async function POST(request: NextRequest) {
@@ -257,21 +213,21 @@ export async function POST(request: NextRequest) {
     // Initial greeting - completely natural and conversational
     const greeting = `Hey! Thanks for calling ${detailer.businessName}. How can I help you today?`;
     
-    // Generate speech for greeting - try ElevenLabs first, then OpenAI, then fallback to Twilio
-    let greetingAudio = await generateElevenLabsSpeech(greeting);
-    if (!greetingAudio) {
-      greetingAudio = await generateOpenAISpeech(greeting, 'nova');
-    }
+    // Generate speech for greeting using ElevenLabs
+    const greetingAudio = await generateElevenLabsSpeech(greeting);
     
     if (greetingAudio) {
       twiml.play(greetingAudio);
     } else {
-      // Fallback to Twilio voice
+      // If ElevenLabs fails, return error message
       twiml.say({
         voice: 'Polly.Matthew',
-        language: 'en-US',
-        speechRate: 'medium'
-      }, greeting);
+        language: 'en-US'
+      }, 'Sorry, our voice system is temporarily unavailable. Please try calling back later.');
+      twiml.hangup();
+      return new NextResponse(twiml.toString(), {
+        headers: { 'Content-Type': 'text/xml' },
+      });
     }
 
     // Gather customer input with speech recognition
@@ -286,11 +242,8 @@ export async function POST(request: NextRequest) {
       speechModel: 'phone_call'
     });
 
-    // Generate prompt audio - try ElevenLabs first, then OpenAI, then fallback to Twilio
-    let promptAudio = await generateElevenLabsSpeech('What do you need help with?');
-    if (!promptAudio) {
-      promptAudio = await generateOpenAISpeech('What do you need help with?', 'nova');
-    }
+    // Generate prompt audio using ElevenLabs
+    const promptAudio = await generateElevenLabsSpeech('What do you need help with?');
     
     if (promptAudio) {
       gather.play(promptAudio);
@@ -301,11 +254,8 @@ export async function POST(request: NextRequest) {
       }, 'Please tell me what you need, or if you would like to book an appointment.');
     }
 
-    // Fallback if no speech detected - try ElevenLabs first, then OpenAI, then fallback to Twilio
-    let fallbackAudio = await generateElevenLabsSpeech('I didn\'t hear anything. Please try calling back and let me know how I can help you.');
-    if (!fallbackAudio) {
-      fallbackAudio = await generateOpenAISpeech('I didn\'t hear anything. Please try calling back and let me know how I can help you.', 'nova');
-    }
+    // Fallback if no speech detected using ElevenLabs
+    const fallbackAudio = await generateElevenLabsSpeech('I didn\'t hear anything. Please try calling back and let me know how I can help you.');
     
     if (fallbackAudio) {
       twiml.play(fallbackAudio);
