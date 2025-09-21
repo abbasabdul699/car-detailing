@@ -69,16 +69,16 @@ Be conversational, friendly, and professional. Keep responses concise but inform
 function textToSpeech(text: string): string {
   // Clean up the text for better speech synthesis
   let cleanText = text
-    .replace(/[^\w\s.,!?]/g, '') // Remove special characters
+    .replace(/[^\w\s.,!?-]/g, '') // Remove special characters but keep hyphens
     .replace(/\s+/g, ' ') // Normalize whitespace
     .trim();
 
-  // Add pauses for better speech flow
+  // Simple text cleanup without SSML breaks that cause speech issues
   cleanText = cleanText
-    .replace(/\./g, '. <break time="0.5s"/>')
-    .replace(/,/g, ', <break time="0.3s"/>')
-    .replace(/\?/g, '? <break time="0.5s"/>')
-    .replace(/!/g, '! <break time="0.5s"/>');
+    .replace(/\s+/g, ' ') // Ensure single spaces
+    .replace(/\.{2,}/g, '.') // Replace multiple dots with single dot
+    .replace(/!{2,}/g, '!') // Replace multiple exclamations with single
+    .replace(/\?{2,}/g, '?'); // Replace multiple questions with single
 
   return cleanText;
 }
