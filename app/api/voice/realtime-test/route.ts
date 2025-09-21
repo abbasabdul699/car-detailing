@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
     
     const twiml = new VoiceResponse();
     
-    if (transcription && confidence > 0.5) {
+    if (transcription && confidence > 0.3) {
       console.log('Realtime test - User said:', transcription);
       
       // Simulate OpenAI Realtime API response
@@ -83,12 +83,34 @@ This is testing real-time conversation flow, so sound like you're talking in rea
         }
       }
     } else {
-      // Low confidence or no speech
-      twiml.say({
-        voice: 'Polly.Matthew',
-        language: 'en-US',
-        speechRate: 'medium'
-      }, 'Sorry, I didn\'t catch that. Could you try again?');
+      // Low confidence or no speech - be more conversational
+      const lowConfidenceResponse = await fetch('https://api.openai.com/v1/audio/speech', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'tts-1-hd',
+          input: 'Sorry, what was that? I didn\'t catch it.',
+          voice: 'nova',
+          response_format: 'mp3',
+          speed: 1.1
+        })
+      });
+
+      if (lowConfidenceResponse.ok) {
+        const audioBuffer = await lowConfidenceResponse.arrayBuffer();
+        const base64Audio = Buffer.from(audioBuffer).toString('base64');
+        const dataUri = `data:audio/mp3;base64,${base64Audio}`;
+        twiml.play(dataUri);
+      } else {
+        twiml.say({
+          voice: 'Polly.Matthew',
+          language: 'en-US',
+          speechRate: 'fast'
+        }, 'Sorry, what was that? I didn\'t catch it.');
+      }
     }
 
     // Continue the conversation
@@ -97,7 +119,7 @@ This is testing real-time conversation flow, so sound like you're talking in rea
       action: '/api/voice/realtime-test',
       method: 'POST',
       speechTimeout: 'auto',
-      timeout: 8, // Shorter timeout for real-time feel
+      timeout: 10, // Back to normal timeout for better recognition
       language: 'en-US',
       enhanced: true,
       speechModel: 'phone_call'
