@@ -66,6 +66,57 @@ Don't sound like you're following a script. Just be a helpful, friendly person h
   }
 }
 
+// Helper function to generate speech using ElevenLabs TTS
+async function generateElevenLabsSpeech(text: string, voice: string = 'pNInz6obpgDQGcFmaJgB'): Promise<string | null> {
+  try {
+    if (!process.env.ELEVENLABS_API_KEY) {
+      return null;
+    }
+
+    // Clean up the text for better speech synthesis
+    let cleanText = text
+      .replace(/[^\w\s.,!?-]/g, '') // Remove special characters but keep hyphens
+      .replace(/\s+/g, ' ') // Normalize whitespace
+      .trim();
+
+    // Simple text cleanup
+    cleanText = cleanText
+      .replace(/\s+/g, ' ') // Ensure single spaces
+      .replace(/\.{2,}/g, '.') // Replace multiple dots with single dot
+      .replace(/!{2,}/g, '!') // Replace multiple exclamations with single
+      .replace(/\?{2,}/g, '?'); // Replace multiple questions with single
+
+    const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voice}`, {
+      method: 'POST',
+      headers: {
+        'Accept': 'audio/mpeg',
+        'Content-Type': 'application/json',
+        'xi-api-key': process.env.ELEVENLABS_API_KEY
+      },
+      body: JSON.stringify({
+        text: cleanText,
+        model_id: 'eleven_monolingual_v1',
+        voice_settings: {
+          stability: 0.5,
+          similarity_boost: 0.5
+        }
+      })
+    });
+
+    if (response.ok) {
+      const audioBuffer = await response.arrayBuffer();
+      const base64Audio = Buffer.from(audioBuffer).toString('base64');
+      return `data:audio/mpeg;base64,${base64Audio}`;
+    } else {
+      console.error('ElevenLabs TTS error:', response.status, await response.text());
+      return null;
+    }
+  } catch (error) {
+    console.error('ElevenLabs TTS error:', error);
+    return null;
+  }
+}
+
 // Helper function to generate speech using OpenAI TTS
 async function generateOpenAISpeech(text: string, voice: string = 'nova'): Promise<string | null> {
   try {
@@ -206,8 +257,11 @@ export async function POST(request: NextRequest) {
     // Initial greeting - completely natural and conversational
     const greeting = `Hey! Thanks for calling ${detailer.businessName}. How can I help you today?`;
     
-    // Generate OpenAI speech for greeting
-    const greetingAudio = await generateOpenAISpeech(greeting, 'nova');
+    // Generate speech for greeting - try ElevenLabs first, then OpenAI, then fallback to Twilio
+    let greetingAudio = await generateElevenLabsSpeech(greeting);
+    if (!greetingAudio) {
+      greetingAudio = await generateOpenAISpeech(greeting, 'nova');
+    }
     
     if (greetingAudio) {
       twiml.play(greetingAudio);
@@ -232,8 +286,11 @@ export async function POST(request: NextRequest) {
       speechModel: 'phone_call'
     });
 
-    // Generate prompt audio - completely natural
-    const promptAudio = await generateOpenAISpeech('What do you need help with?', 'nova');
+    // Generate prompt audio - try ElevenLabs first, then OpenAI, then fallback to Twilio
+    let promptAudio = await generateElevenLabsSpeech('What do you need help with?');
+    if (!promptAudio) {
+      promptAudio = await generateOpenAISpeech('What do you need help with?', 'nova');
+    }
     
     if (promptAudio) {
       gather.play(promptAudio);
@@ -244,8 +301,11 @@ export async function POST(request: NextRequest) {
       }, 'Please tell me what you need, or if you would like to book an appointment.');
     }
 
-    // Fallback if no speech detected
-    const fallbackAudio = await generateOpenAISpeech('I didn\'t hear anything. Please try calling back and let me know how I can help you.', 'nova');
+    // Fallback if no speech detected - try ElevenLabs first, then OpenAI, then fallback to Twilio
+    let fallbackAudio = await generateElevenLabsSpeech('I didn\'t hear anything. Please try calling back and let me know how I can help you.');
+    if (!fallbackAudio) {
+      fallbackAudio = await generateOpenAISpeech('I didn\'t hear anything. Please try calling back and let me know how I can help you.', 'nova');
+    }
     
     if (fallbackAudio) {
       twiml.play(fallbackAudio);
