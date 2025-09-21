@@ -268,11 +268,11 @@ export async function POST(request: NextRequest) {
         const confirmationMessage = `${aiResponse} I've created a booking for ${bookingInfo.extractedDate} at ${bookingInfo.extractedTime} for ${bookingInfo.extractedServices.join(', ')}. Is this correct?`;
         
         const twiml = new VoiceResponse();
-        twiml.say({
-          voice: 'Polly.Joanna',
-          language: 'en-US',
-          speechRate: 'medium'
-        }, textToSpeech(confirmationMessage));
+      twiml.say({
+        voice: 'Polly.Matthew',
+        language: 'en-US',
+        speechRate: 'medium'
+      }, textToSpeech(confirmationMessage));
 
         // Ask for confirmation
         const gather = twiml.gather({
@@ -287,13 +287,13 @@ export async function POST(request: NextRequest) {
         });
 
         gather.say({
-          voice: 'Polly.Joanna',
+          voice: 'Polly.Matthew',
           language: 'en-US'
         }, 'Please say yes to confirm or no to make changes.');
 
         // Fallback
         twiml.say({
-          voice: 'Polly.Joanna',
+          voice: 'Polly.Matthew',
           language: 'en-US'
         }, 'I didn\'t hear a response. Please call back to confirm your appointment.');
         twiml.hangup();
@@ -310,7 +310,7 @@ export async function POST(request: NextRequest) {
     // Continue conversation
     const twiml = new VoiceResponse();
     twiml.say({
-      voice: 'Polly.Joanna',
+      voice: 'Polly.Matthew',
       language: 'en-US',
       speechRate: 'medium'
     }, textToSpeech(aiResponse));
@@ -328,13 +328,13 @@ export async function POST(request: NextRequest) {
     });
 
     gather.say({
-      voice: 'Polly.Joanna',
+      voice: 'Polly.Matthew',
       language: 'en-US'
     }, 'How else can I help you today?');
 
     // Fallback if no response
     twiml.say({
-      voice: 'Polly.Joanna',
+      voice: 'Polly.Matthew',
       language: 'en-US'
     }, 'Thank you for calling. Have a great day!');
     twiml.hangup();
@@ -349,7 +349,7 @@ export async function POST(request: NextRequest) {
     // Return error response
     const twiml = new VoiceResponse();
     twiml.say({
-      voice: 'Polly.Joanna',
+      voice: 'Polly.Matthew',
       language: 'en-US'
     }, 'I apologize, but I\'m experiencing technical difficulties. Please try calling back later.');
     twiml.hangup();

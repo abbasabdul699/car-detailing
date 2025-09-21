@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
     const twiml = new VoiceResponse();
     
     twiml.say({
-      voice: 'Polly.Joanna',
+      voice: 'Polly.Matthew',
       language: 'en-US',
       speechRate: 'medium'
     }, 'Hello! This is a test of the AI voice system. The system is working correctly.');
@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
     const twiml = new VoiceResponse();
     
     twiml.say({
-      voice: 'Polly.Joanna',
+      voice: 'Polly.Matthew',
       language: 'en-US',
       speechRate: 'medium'
     }, response);

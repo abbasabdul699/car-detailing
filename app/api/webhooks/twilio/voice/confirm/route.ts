@@ -250,7 +250,7 @@ export async function POST(request: NextRequest) {
       const confirmationMessage = `Perfect! Your appointment with ${booking.detailer.businessName} is confirmed for ${booking.scheduledDate.toLocaleDateString()} at ${booking.scheduledTime}. We'll see you then! Thank you for calling.`;
       
       twiml.say({
-        voice: 'Polly.Joanna',
+        voice: 'Polly.Matthew',
         language: 'en-US',
         speechRate: 'medium'
       }, textToSpeech(confirmationMessage));
@@ -275,7 +275,7 @@ export async function POST(request: NextRequest) {
       const cancellationMessage = `No problem! I've cancelled that appointment. Please call back when you're ready to schedule, or if you'd like to make changes to your appointment details.`;
       
       twiml.say({
-        voice: 'Polly.Joanna',
+        voice: 'Polly.Matthew',
         language: 'en-US',
         speechRate: 'medium'
       }, textToSpeech(cancellationMessage));
@@ -285,7 +285,7 @@ export async function POST(request: NextRequest) {
       const clarificationMessage = `I'm sorry, I didn't quite understand. Did you say yes to confirm this appointment, or no to make changes?`;
       
       twiml.say({
-        voice: 'Polly.Joanna',
+        voice: 'Polly.Matthew',
         language: 'en-US',
         speechRate: 'medium'
       }, textToSpeech(clarificationMessage));
@@ -303,13 +303,13 @@ export async function POST(request: NextRequest) {
       });
 
       gather.say({
-        voice: 'Polly.Joanna',
+        voice: 'Polly.Matthew',
         language: 'en-US'
       }, 'Please say yes to confirm or no to make changes.');
 
       // Fallback
       twiml.say({
-        voice: 'Polly.Joanna',
+        voice: 'Polly.Matthew',
         language: 'en-US'
       }, 'I didn\'t hear a clear response. Please call back to confirm your appointment.');
     }
@@ -326,7 +326,7 @@ export async function POST(request: NextRequest) {
     // Return error response
     const twiml = new VoiceResponse();
     twiml.say({
-      voice: 'Polly.Joanna',
+      voice: 'Polly.Matthew',
       language: 'en-US'
     }, 'I apologize, but I\'m experiencing technical difficulties. Please try calling back later.');
     twiml.hangup();

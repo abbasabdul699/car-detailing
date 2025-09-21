@@ -120,7 +120,7 @@ export async function POST(request: NextRequest) {
       // Return a generic response if detailer not found
       const twiml = new VoiceResponse();
       twiml.say({
-        voice: 'Polly.Joanna',
+        voice: 'Polly.Matthew',
         language: 'en-US'
       }, 'Thank you for calling. We are currently unavailable. Please try again later or send us a text message.');
       twiml.hangup();
@@ -179,7 +179,7 @@ export async function POST(request: NextRequest) {
     const greeting = `Hello! Thank you for calling ${detailer.businessName}. I'm your AI assistant. How can I help you today?`;
     
     twiml.say({
-      voice: 'Polly.Joanna',
+      voice: 'Polly.Matthew',
       language: 'en-US',
       speechRate: 'medium'
     }, textToSpeech(greeting));
@@ -197,13 +197,13 @@ export async function POST(request: NextRequest) {
     });
 
     gather.say({
-      voice: 'Polly.Joanna',
+      voice: 'Polly.Matthew',
       language: 'en-US'
     }, 'Please tell me what you need, or if you would like to book an appointment.');
 
     // Fallback if no speech detected
     twiml.say({
-      voice: 'Polly.Joanna',
+      voice: 'Polly.Matthew',
       language: 'en-US'
     }, 'I didn\'t hear anything. Please try calling back and let me know how I can help you.');
 
@@ -219,7 +219,7 @@ export async function POST(request: NextRequest) {
     // Return error response
     const twiml = new VoiceResponse();
     twiml.say({
-      voice: 'Polly.Joanna',
+      voice: 'Polly.Matthew',
       language: 'en-US'
     }, 'I apologize, but I\'m experiencing technical difficulties. Please try calling back later.');
     twiml.hangup();
