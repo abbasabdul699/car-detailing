@@ -7,27 +7,26 @@ const VoiceResponse = twilio.twiml.VoiceResponse;
 // Helper function to get AI response for voice
 async function getVoiceAIResponse(transcription: string, detailerInfo: any, conversationHistory: any[] = []) {
   try {
-    const systemPrompt = `You are an AI voice assistant for ${detailerInfo.businessName}, a car detailing service. You are speaking to a customer on the phone.
+    const systemPrompt = `You are a friendly, helpful assistant for ${detailerInfo.businessName}, a car detailing business. You're talking to customers over the phone, so sound completely natural and conversational - just like a real person would.
 
-Business Information:
-- Business Name: ${detailerInfo.businessName}
+Business Info:
+- Business: ${detailerInfo.businessName}
 - Location: ${detailerInfo.city}, ${detailerInfo.state}
 - Services: ${detailerInfo.services?.map((s: any) => s.service?.name).join(', ') || 'Various car detailing services'}
 
-Your role:
-1. Help customers book appointments
-2. Answer questions about services and pricing
-3. Collect necessary details for booking (date, time, vehicle type, services needed)
-4. Provide information about availability
+You can help with:
+- Booking car detailing appointments
+- Answering questions about services and pricing
+- General business information
 
-When booking appointments:
-- Ask for preferred date and time
-- Ask about the vehicle (type, model, year)
-- Ask what services they need
-- Ask where the vehicle is located
-- Confirm all details before finalizing
+When booking appointments, casually collect:
+- Name and phone number
+- Car details (what kind of car, year)
+- When they want the service
+- What service they need
+- Where their car is located
 
-Be conversational, friendly, and professional. Keep responses concise but informative. Speak naturally as if you're a real person.`;
+CRITICAL: Sound completely natural and human. Use casual, friendly language like "Hey", "Sure thing", "No problem", "Great!". Use contractions like "I'm", "we'll", "that's", "you're". Be conversational and warm. Don't sound robotic, formal, or scripted. If someone asks if you're AI, casually say you're here to help them out. Keep responses flowing naturally - avoid sounding blocky or like you're reading from a script.`;
 
     const conversationContext = conversationHistory.map(msg => ({
       role: msg.direction === 'inbound' ? 'user' : 'assistant',
@@ -64,22 +63,49 @@ Be conversational, friendly, and professional. Keep responses concise but inform
   }
 }
 
-// Helper function to convert text to speech using Twilio
-function textToSpeech(text: string): string {
-  // Clean up the text for better speech synthesis
-  let cleanText = text
-    .replace(/[^\w\s.,!?-]/g, '') // Remove special characters but keep hyphens
-    .replace(/\s+/g, ' ') // Normalize whitespace
-    .trim();
+// Helper function to generate speech using OpenAI TTS
+async function generateOpenAISpeech(text: string, voice: string = 'nova'): Promise<string | null> {
+  try {
+    // Clean up the text for better speech synthesis
+    let cleanText = text
+      .replace(/[^\w\s.,!?-]/g, '') // Remove special characters but keep hyphens
+      .replace(/\s+/g, ' ') // Normalize whitespace
+      .trim();
 
-  // Simple text cleanup without SSML breaks that cause speech issues
-  cleanText = cleanText
-    .replace(/\s+/g, ' ') // Ensure single spaces
-    .replace(/\.{2,}/g, '.') // Replace multiple dots with single dot
-    .replace(/!{2,}/g, '!') // Replace multiple exclamations with single
-    .replace(/\?{2,}/g, '?'); // Replace multiple questions with single
+    // Simple text cleanup
+    cleanText = cleanText
+      .replace(/\s+/g, ' ') // Ensure single spaces
+      .replace(/\.{2,}/g, '.') // Replace multiple dots with single dot
+      .replace(/!{2,}/g, '!') // Replace multiple exclamations with single
+      .replace(/\?{2,}/g, '?'); // Replace multiple questions with single
 
-  return cleanText;
+    const response = await fetch('https://api.openai.com/v1/audio/speech', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'tts-1-hd', // Higher quality voice
+        input: cleanText,
+        voice: voice,
+        response_format: 'mp3',
+        speed: 1.0
+      })
+    });
+
+    if (response.ok) {
+      const audioBuffer = await response.arrayBuffer();
+      const base64Audio = Buffer.from(audioBuffer).toString('base64');
+      return `data:audio/mp3;base64,${base64Audio}`;
+    } else {
+      console.error('OpenAI TTS error:', response.status, await response.text());
+      return null;
+    }
+  } catch (error) {
+    console.error('OpenAI TTS error:', error);
+    return null;
+  }
 }
 
 // Helper function to extract booking information from voice transcription
@@ -174,10 +200,16 @@ export async function POST(request: NextRequest) {
     // Check transcription confidence
     if (confidence < 0.5) {
       const twiml = new VoiceResponse();
-      twiml.say({
-        voice: 'Polly.Joanna',
-        language: 'en-US'
-      }, 'I\'m sorry, I didn\'t quite catch that. Could you please repeat what you said?');
+      const lowConfidenceAudio = await generateOpenAISpeech('Sorry, I didn\'t quite catch that. Could you repeat what you said?', 'nova');
+      
+      if (lowConfidenceAudio) {
+        twiml.play(lowConfidenceAudio);
+      } else {
+        twiml.say({
+          voice: 'Polly.Joanna',
+          language: 'en-US'
+        }, 'I\'m sorry, I didn\'t quite catch that. Could you please repeat what you said?');
+      }
       
       const gather = twiml.gather({
         input: ['speech'],
@@ -268,11 +300,17 @@ export async function POST(request: NextRequest) {
         const confirmationMessage = `${aiResponse} I've created a booking for ${bookingInfo.extractedDate} at ${bookingInfo.extractedTime} for ${bookingInfo.extractedServices.join(', ')}. Is this correct?`;
         
         const twiml = new VoiceResponse();
-      twiml.say({
-        voice: 'Polly.Matthew',
-        language: 'en-US',
-        speechRate: 'medium'
-      }, textToSpeech(confirmationMessage));
+        const confirmationAudio = await generateOpenAISpeech(confirmationMessage, 'nova');
+        
+        if (confirmationAudio) {
+          twiml.play(confirmationAudio);
+        } else {
+          twiml.say({
+            voice: 'Polly.Matthew',
+            language: 'en-US',
+            speechRate: 'medium'
+          }, confirmationMessage);
+        }
 
         // Ask for confirmation
         const gather = twiml.gather({
@@ -286,16 +324,28 @@ export async function POST(request: NextRequest) {
           speechModel: 'phone_call'
         });
 
-        gather.say({
-          voice: 'Polly.Matthew',
-          language: 'en-US'
-        }, 'Please say yes to confirm or no to make changes.');
+        const gatherPromptAudio = await generateOpenAISpeech('Please say yes to confirm or no to make changes.', 'nova');
+        
+        if (gatherPromptAudio) {
+          gather.play(gatherPromptAudio);
+        } else {
+          gather.say({
+            voice: 'Polly.Matthew',
+            language: 'en-US'
+          }, 'Please say yes to confirm or no to make changes.');
+        }
 
         // Fallback
-        twiml.say({
-          voice: 'Polly.Matthew',
-          language: 'en-US'
-        }, 'I didn\'t hear a response. Please call back to confirm your appointment.');
+        const fallbackAudio = await generateOpenAISpeech('I didn\'t hear a response. Please call back to confirm your appointment.', 'nova');
+        
+        if (fallbackAudio) {
+          twiml.play(fallbackAudio);
+        } else {
+          twiml.say({
+            voice: 'Polly.Matthew',
+            language: 'en-US'
+          }, 'I didn\'t hear a response. Please call back to confirm your appointment.');
+        }
         twiml.hangup();
 
         return new NextResponse(twiml.toString(), {
@@ -309,11 +359,19 @@ export async function POST(request: NextRequest) {
 
     // Continue conversation
     const twiml = new VoiceResponse();
-    twiml.say({
-      voice: 'Polly.Matthew',
-      language: 'en-US',
-      speechRate: 'medium'
-    }, textToSpeech(aiResponse));
+    // Generate OpenAI speech for AI response
+    const aiAudio = await generateOpenAISpeech(aiResponse, 'nova');
+    
+    if (aiAudio) {
+      twiml.play(aiAudio);
+    } else {
+      // Fallback to Twilio voice
+      twiml.say({
+        voice: 'Polly.Matthew',
+        language: 'en-US',
+        speechRate: 'medium'
+      }, aiResponse);
+    }
 
     // Gather next input
     const gather = twiml.gather({
@@ -327,16 +385,28 @@ export async function POST(request: NextRequest) {
       speechModel: 'phone_call'
     });
 
-    gather.say({
-      voice: 'Polly.Matthew',
-      language: 'en-US'
-    }, 'How else can I help you today?');
+    const gatherHelpAudio = await generateOpenAISpeech('How else can I help you today?', 'nova');
+    
+    if (gatherHelpAudio) {
+      gather.play(gatherHelpAudio);
+    } else {
+      gather.say({
+        voice: 'Polly.Matthew',
+        language: 'en-US'
+      }, 'How else can I help you today?');
+    }
 
     // Fallback if no response
-    twiml.say({
-      voice: 'Polly.Matthew',
-      language: 'en-US'
-    }, 'Thank you for calling. Have a great day!');
+    const goodbyeAudio = await generateOpenAISpeech('Thank you for calling. Have a great day!', 'nova');
+    
+    if (goodbyeAudio) {
+      twiml.play(goodbyeAudio);
+    } else {
+      twiml.say({
+        voice: 'Polly.Matthew',
+        language: 'en-US'
+      }, 'Thank you for calling. Have a great day!');
+    }
     twiml.hangup();
 
     return new NextResponse(twiml.toString(), {

@@ -8,11 +8,39 @@ export async function GET(request: NextRequest) {
     // Create a simple test TwiML response
     const twiml = new VoiceResponse();
     
+  // Generate OpenAI speech for test
+  try {
+    const response = await fetch('https://api.openai.com/v1/audio/speech', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'tts-1-hd',
+        input: 'Hello! This is a test of the AI voice system using the nova voice. The system is working correctly.',
+        voice: 'nova',
+        response_format: 'mp3',
+        speed: 1.0
+      })
+    });
+
+    if (response.ok) {
+      const audioBuffer = await response.arrayBuffer();
+      const base64Audio = Buffer.from(audioBuffer).toString('base64');
+      const dataUri = `data:audio/mp3;base64,${base64Audio}`;
+      twiml.play(dataUri);
+    } else {
+      throw new Error('OpenAI TTS failed');
+    }
+  } catch (error) {
+    // Fallback to Twilio voice
     twiml.say({
       voice: 'Polly.Matthew',
       language: 'en-US',
       speechRate: 'medium'
     }, 'Hello! This is a test of the AI voice system. The system is working correctly.');
+  }
 
     twiml.hangup();
 

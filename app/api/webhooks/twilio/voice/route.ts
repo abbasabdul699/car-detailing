@@ -7,28 +7,26 @@ const VoiceResponse = twilio.twiml.VoiceResponse;
 // Helper function to get AI response for voice
 async function getVoiceAIResponse(transcription: string, detailerInfo: any, conversationHistory: any[] = []) {
   try {
-    const systemPrompt = `You are an AI voice assistant for ${detailerInfo.businessName}, a car detailing service. You are speaking to a customer on the phone.
+    const systemPrompt = `You are a friendly, helpful assistant for ${detailerInfo.businessName}, a car detailing business. You're talking to customers over the phone, so sound completely natural and conversational - just like a real person would.
 
-Business Information:
-- Business Name: ${detailerInfo.businessName}
+Business Info:
+- Business: ${detailerInfo.businessName}
 - Location: ${detailerInfo.city}, ${detailerInfo.state}
 - Services: ${detailerInfo.services?.map((s: any) => s.service?.name).join(', ') || 'Various car detailing services'}
 
-Your role:
-1. Answer the phone professionally and warmly
-2. Help customers book appointments
-3. Answer questions about services and pricing
-4. Collect necessary details for booking (date, time, vehicle type, services needed)
-5. Provide information about availability
+You can help with:
+- Booking car detailing appointments
+- Answering questions about services and pricing
+- General business information
 
-When booking appointments:
-- Ask for preferred date and time
-- Ask about the vehicle (type, model, year)
-- Ask what services they need
-- Ask where the vehicle is located
-- Confirm all details before finalizing
+When booking appointments, casually collect:
+- Name and phone number
+- Car details (what kind of car, year)
+- When they want the service
+- What service they need
+- Where their car is located
 
-Be conversational, friendly, and professional. Keep responses concise but informative. Speak naturally as if you're a real person answering the phone.`;
+CRITICAL: Sound completely natural and human. Use casual, friendly language like "Hey", "Sure thing", "No problem", "Great!". Use contractions like "I'm", "we'll", "that's", "you're". Be conversational and warm. Don't sound robotic, formal, or scripted. If someone asks if you're AI, casually say you're here to help them out. Keep responses flowing naturally - avoid sounding blocky or like you're reading from a script.`;
 
     const conversationContext = conversationHistory.map(msg => ({
       role: msg.direction === 'inbound' ? 'user' : 'assistant',
@@ -66,7 +64,7 @@ Be conversational, friendly, and professional. Keep responses concise but inform
 }
 
 // Helper function to generate speech using OpenAI TTS
-async function generateOpenAISpeech(text: string, voice: string = 'alloy'): Promise<string | null> {
+async function generateOpenAISpeech(text: string, voice: string = 'nova'): Promise<string | null> {
   try {
     // Clean up the text for better speech synthesis
     let cleanText = text
@@ -202,11 +200,11 @@ export async function POST(request: NextRequest) {
     // Create TwiML response for initial greeting
     const twiml = new VoiceResponse();
     
-    // Initial greeting
-    const greeting = `Hello! Thank you for calling ${detailer.businessName}. I'm your AI assistant. How can I help you today?`;
+    // Initial greeting - more natural and conversational
+    const greeting = `Hey there! Thanks for calling ${detailer.businessName}. I'm here to help you out today. What can I do for you?`;
     
     // Generate OpenAI speech for greeting
-    const greetingAudio = await generateOpenAISpeech(greeting, 'alloy');
+    const greetingAudio = await generateOpenAISpeech(greeting, 'nova');
     
     if (greetingAudio) {
       twiml.play(greetingAudio);
@@ -231,8 +229,8 @@ export async function POST(request: NextRequest) {
       speechModel: 'phone_call'
     });
 
-    // Generate prompt audio
-    const promptAudio = await generateOpenAISpeech('Please tell me what you need, or if you would like to book an appointment.', 'alloy');
+    // Generate prompt audio - more conversational
+    const promptAudio = await generateOpenAISpeech('Just let me know what you need - whether it\'s booking an appointment or anything else I can help with.', 'nova');
     
     if (promptAudio) {
       gather.play(promptAudio);
@@ -244,7 +242,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Fallback if no speech detected
-    const fallbackAudio = await generateOpenAISpeech('I didn\'t hear anything. Please try calling back and let me know how I can help you.', 'alloy');
+    const fallbackAudio = await generateOpenAISpeech('I didn\'t hear anything. Please try calling back and let me know how I can help you.', 'nova');
     
     if (fallbackAudio) {
       twiml.play(fallbackAudio);
@@ -266,7 +264,7 @@ export async function POST(request: NextRequest) {
     
     // Return error response
     const twiml = new VoiceResponse();
-    const errorAudio = await generateOpenAISpeech('I apologize, but I\'m experiencing technical difficulties. Please try calling back later.', 'alloy');
+    const errorAudio = await generateOpenAISpeech('I apologize, but I\'m experiencing technical difficulties. Please try calling back later.', 'nova');
     
     if (errorAudio) {
       twiml.play(errorAudio);

@@ -4,22 +4,49 @@ import twilio from 'twilio';
 
 const VoiceResponse = twilio.twiml.VoiceResponse;
 
-// Helper function to convert text to speech using Twilio
-function textToSpeech(text: string): string {
-  // Clean up the text for better speech synthesis
-  let cleanText = text
-    .replace(/[^\w\s.,!?-]/g, '') // Remove special characters but keep hyphens
-    .replace(/\s+/g, ' ') // Normalize whitespace
-    .trim();
+// Helper function to generate speech using OpenAI TTS
+async function generateOpenAISpeech(text: string, voice: string = 'nova'): Promise<string | null> {
+  try {
+    // Clean up the text for better speech synthesis
+    let cleanText = text
+      .replace(/[^\w\s.,!?-]/g, '') // Remove special characters but keep hyphens
+      .replace(/\s+/g, ' ') // Normalize whitespace
+      .trim();
 
-  // Simple text cleanup without SSML breaks that cause speech issues
-  cleanText = cleanText
-    .replace(/\s+/g, ' ') // Ensure single spaces
-    .replace(/\.{2,}/g, '.') // Replace multiple dots with single dot
-    .replace(/!{2,}/g, '!') // Replace multiple exclamations with single
-    .replace(/\?{2,}/g, '?'); // Replace multiple questions with single
+    // Simple text cleanup
+    cleanText = cleanText
+      .replace(/\s+/g, ' ') // Ensure single spaces
+      .replace(/\.{2,}/g, '.') // Replace multiple dots with single dot
+      .replace(/!{2,}/g, '!') // Replace multiple exclamations with single
+      .replace(/\?{2,}/g, '?'); // Replace multiple questions with single
 
-  return cleanText;
+    const response = await fetch('https://api.openai.com/v1/audio/speech', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'tts-1-hd', // Higher quality voice
+        input: cleanText,
+        voice: voice,
+        response_format: 'mp3',
+        speed: 1.0
+      })
+    });
+
+    if (response.ok) {
+      const audioBuffer = await response.arrayBuffer();
+      const base64Audio = Buffer.from(audioBuffer).toString('base64');
+      return `data:audio/mp3;base64,${base64Audio}`;
+    } else {
+      console.error('OpenAI TTS error:', response.status, await response.text());
+      return null;
+    }
+  } catch (error) {
+    console.error('OpenAI TTS error:', error);
+    return null;
+  }
 }
 
 // Helper function to refresh Google Calendar access token
@@ -249,11 +276,17 @@ export async function POST(request: NextRequest) {
 
       const confirmationMessage = `Perfect! Your appointment with ${booking.detailer.businessName} is confirmed for ${booking.scheduledDate.toLocaleDateString()} at ${booking.scheduledTime}. We'll see you then! Thank you for calling.`;
       
-      twiml.say({
-        voice: 'Polly.Matthew',
-        language: 'en-US',
-        speechRate: 'medium'
-      }, textToSpeech(confirmationMessage));
+      const confirmationAudio = await generateOpenAISpeech(confirmationMessage, 'nova');
+      
+      if (confirmationAudio) {
+        twiml.play(confirmationAudio);
+      } else {
+        twiml.say({
+          voice: 'Polly.Matthew',
+          language: 'en-US',
+          speechRate: 'medium'
+        }, confirmationMessage);
+      }
 
     } else if (isDeclined) {
       // Cancel the booking
@@ -274,21 +307,33 @@ export async function POST(request: NextRequest) {
 
       const cancellationMessage = `No problem! I've cancelled that appointment. Please call back when you're ready to schedule, or if you'd like to make changes to your appointment details.`;
       
-      twiml.say({
-        voice: 'Polly.Matthew',
-        language: 'en-US',
-        speechRate: 'medium'
-      }, textToSpeech(cancellationMessage));
+      const cancellationAudio = await generateOpenAISpeech(cancellationMessage, 'nova');
+      
+      if (cancellationAudio) {
+        twiml.play(cancellationAudio);
+      } else {
+        twiml.say({
+          voice: 'Polly.Matthew',
+          language: 'en-US',
+          speechRate: 'medium'
+        }, cancellationMessage);
+      }
 
     } else {
       // Unclear response - ask for clarification
       const clarificationMessage = `I'm sorry, I didn't quite understand. Did you say yes to confirm this appointment, or no to make changes?`;
       
-      twiml.say({
-        voice: 'Polly.Matthew',
-        language: 'en-US',
-        speechRate: 'medium'
-      }, textToSpeech(clarificationMessage));
+      const clarificationAudio = await generateOpenAISpeech(clarificationMessage, 'nova');
+      
+      if (clarificationAudio) {
+        twiml.play(clarificationAudio);
+      } else {
+        twiml.say({
+          voice: 'Polly.Matthew',
+          language: 'en-US',
+          speechRate: 'medium'
+        }, clarificationMessage);
+      }
 
       // Gather clarification
       const gather = twiml.gather({
@@ -302,16 +347,28 @@ export async function POST(request: NextRequest) {
         speechModel: 'phone_call'
       });
 
-      gather.say({
-        voice: 'Polly.Matthew',
-        language: 'en-US'
-      }, 'Please say yes to confirm or no to make changes.');
+      const gatherPromptAudio = await generateOpenAISpeech('Please say yes to confirm or no to make changes.', 'nova');
+      
+      if (gatherPromptAudio) {
+        gather.play(gatherPromptAudio);
+      } else {
+        gather.say({
+          voice: 'Polly.Matthew',
+          language: 'en-US'
+        }, 'Please say yes to confirm or no to make changes.');
+      }
 
       // Fallback
-      twiml.say({
-        voice: 'Polly.Matthew',
-        language: 'en-US'
-      }, 'I didn\'t hear a clear response. Please call back to confirm your appointment.');
+      const fallbackAudio = await generateOpenAISpeech('I didn\'t hear a clear response. Please call back to confirm your appointment.', 'nova');
+      
+      if (fallbackAudio) {
+        twiml.play(fallbackAudio);
+      } else {
+        twiml.say({
+          voice: 'Polly.Matthew',
+          language: 'en-US'
+        }, 'I didn\'t hear a clear response. Please call back to confirm your appointment.');
+      }
     }
 
     twiml.hangup();
