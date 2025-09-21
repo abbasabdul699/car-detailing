@@ -121,6 +121,8 @@ async function generateElevenLabsSpeech(text: string, voice: string = 'pNInz6obp
 // Initial call handler - when customer first calls
 export async function POST(request: NextRequest) {
   try {
+    console.log('=== VOICE WEBHOOK START ===');
+    
     const formData = await request.formData();
     
     // Extract Twilio voice webhook data
@@ -133,6 +135,17 @@ export async function POST(request: NextRequest) {
       to,
       callSid,
     });
+    
+    // Check critical environment variables
+    if (!process.env.OPENAI_API_KEY) {
+      console.error('Missing OPENAI_API_KEY');
+      throw new Error('OpenAI API key not configured');
+    }
+    
+    if (!process.env.ELEVENLABS_API_KEY) {
+      console.error('Missing ELEVENLABS_API_KEY');
+      throw new Error('ElevenLabs API key not configured');
+    }
 
     // Find the detailer by their Twilio phone number
     const detailer = await prisma.detailer.findFirst({
@@ -273,20 +286,17 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Twilio voice webhook error:', error);
+    console.error('=== VOICE WEBHOOK ERROR ===');
+    console.error('Error details:', error);
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    console.error('=== END ERROR ===');
     
-    // Return error response
+    // Return simple error response without external API calls
     const twiml = new VoiceResponse();
-    const errorAudio = await generateOpenAISpeech('I apologize, but I\'m experiencing technical difficulties. Please try calling back later.', 'nova');
-    
-    if (errorAudio) {
-      twiml.play(errorAudio);
-    } else {
-      twiml.say({
-        voice: 'Polly.Matthew',
-        language: 'en-US'
-      }, 'I apologize, but I\'m experiencing technical difficulties. Please try calling back later.');
-    }
+    twiml.say({
+      voice: 'Polly.Matthew',
+      language: 'en-US'
+    }, 'I apologize, but I\'m experiencing technical difficulties. Please try calling back later.');
     twiml.hangup();
     
     return new NextResponse(twiml.toString(), {
