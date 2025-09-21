@@ -56,32 +56,41 @@ export async function POST(request: NextRequest) {
         
         console.log('ElevenLabs test - AI responding:', aiResponse);
         
-        // Generate speech with ElevenLabs
-        const speechResponse = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
-          method: 'POST',
-          headers: {
-            'Accept': 'audio/mpeg',
-            'Content-Type': 'application/json',
-            'xi-api-key': process.env.ELEVENLABS_API_KEY || ''
-          },
-          body: JSON.stringify({
-            text: aiResponse,
-            model_id: 'eleven_monolingual_v1',
-            voice_settings: {
-              stability: 0.5,
-              similarity_boost: 0.5
-            }
-          })
-        });
+        // Generate speech with ElevenLabs or fallback
+        if (process.env.ELEVENLABS_API_KEY) {
+          const speechResponse = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+            method: 'POST',
+            headers: {
+              'Accept': 'audio/mpeg',
+              'Content-Type': 'application/json',
+              'xi-api-key': process.env.ELEVENLABS_API_KEY
+            },
+            body: JSON.stringify({
+              text: aiResponse,
+              model_id: 'eleven_monolingual_v1',
+              voice_settings: {
+                stability: 0.5,
+                similarity_boost: 0.5
+              }
+            })
+          });
 
-        if (speechResponse.ok) {
-          const audioBuffer = await speechResponse.arrayBuffer();
-          const base64Audio = Buffer.from(audioBuffer).toString('base64');
-          const dataUri = `data:audio/mpeg;base64,${base64Audio}`;
-          twiml.play(dataUri);
+          if (speechResponse.ok) {
+            const audioBuffer = await speechResponse.arrayBuffer();
+            const base64Audio = Buffer.from(audioBuffer).toString('base64');
+            const dataUri = `data:audio/mpeg;base64,${base64Audio}`;
+            twiml.play(dataUri);
+          } else {
+            console.error('ElevenLabs TTS error:', speechResponse.status, await speechResponse.text());
+            // Fallback to Twilio voice
+            twiml.say({
+              voice: 'Polly.Matthew',
+              language: 'en-US',
+              speechRate: 'medium'
+            }, aiResponse);
+          }
         } else {
-          console.error('ElevenLabs TTS error:', speechResponse.status, await speechResponse.text());
-          // Fallback to Twilio voice
+          // Fallback to Twilio voice when ElevenLabs API key is not set
           twiml.say({
             voice: 'Polly.Matthew',
             language: 'en-US',
@@ -91,28 +100,36 @@ export async function POST(request: NextRequest) {
       }
     } else {
       // Low confidence or no speech
-      const lowConfidenceResponse = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
-        method: 'POST',
-        headers: {
-          'Accept': 'audio/mpeg',
-          'Content-Type': 'application/json',
-          'xi-api-key': process.env.ELEVENLABS_API_KEY || ''
-        },
-        body: JSON.stringify({
-          text: 'Sorry, I didn\'t catch that. Could you repeat that?',
-          model_id: 'eleven_monolingual_v1',
-          voice_settings: {
-            stability: 0.5,
-            similarity_boost: 0.5
-          }
-        })
-      });
+      if (process.env.ELEVENLABS_API_KEY) {
+        const lowConfidenceResponse = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+          method: 'POST',
+          headers: {
+            'Accept': 'audio/mpeg',
+            'Content-Type': 'application/json',
+            'xi-api-key': process.env.ELEVENLABS_API_KEY
+          },
+          body: JSON.stringify({
+            text: 'Sorry, I didn\'t catch that. Could you repeat that?',
+            model_id: 'eleven_monolingual_v1',
+            voice_settings: {
+              stability: 0.5,
+              similarity_boost: 0.5
+            }
+          })
+        });
 
-      if (lowConfidenceResponse.ok) {
-        const audioBuffer = await lowConfidenceResponse.arrayBuffer();
-        const base64Audio = Buffer.from(audioBuffer).toString('base64');
-        const dataUri = `data:audio/mpeg;base64,${base64Audio}`;
-        twiml.play(dataUri);
+        if (lowConfidenceResponse.ok) {
+          const audioBuffer = await lowConfidenceResponse.arrayBuffer();
+          const base64Audio = Buffer.from(audioBuffer).toString('base64');
+          const dataUri = `data:audio/mpeg;base64,${base64Audio}`;
+          twiml.play(dataUri);
+        } else {
+          twiml.say({
+            voice: 'Polly.Matthew',
+            language: 'en-US',
+            speechRate: 'medium'
+          }, 'Sorry, I didn\'t catch that. Could you repeat that?');
+        }
       } else {
         twiml.say({
           voice: 'Polly.Matthew',
@@ -171,35 +188,44 @@ export async function GET(request: NextRequest) {
     
     const greeting = `Hey! Welcome to the ElevenLabs voice test. I'm using the ${voice.name} voice - ${voice.description}. How can I help you today?`;
     
-    const greetingResponse = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
-      method: 'POST',
-      headers: {
-        'Accept': 'audio/mpeg',
-        'Content-Type': 'application/json',
-        'xi-api-key': process.env.ELEVENLABS_API_KEY || ''
-      },
-      body: JSON.stringify({
-        text: greeting,
-        model_id: 'eleven_monolingual_v1',
-        voice_settings: {
-          stability: 0.5,
-          similarity_boost: 0.5
-        }
-      })
-    });
+    if (process.env.ELEVENLABS_API_KEY) {
+      const greetingResponse = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+        method: 'POST',
+        headers: {
+          'Accept': 'audio/mpeg',
+          'Content-Type': 'application/json',
+          'xi-api-key': process.env.ELEVENLABS_API_KEY
+        },
+        body: JSON.stringify({
+          text: greeting,
+          model_id: 'eleven_monolingual_v1',
+          voice_settings: {
+            stability: 0.5,
+            similarity_boost: 0.5
+          }
+        })
+      });
 
-    if (greetingResponse.ok) {
-      const audioBuffer = await greetingResponse.arrayBuffer();
-      const base64Audio = Buffer.from(audioBuffer).toString('base64');
-      const dataUri = `data:audio/mpeg;base64,${base64Audio}`;
-      twiml.play(dataUri);
+      if (greetingResponse.ok) {
+        const audioBuffer = await greetingResponse.arrayBuffer();
+        const base64Audio = Buffer.from(audioBuffer).toString('base64');
+        const dataUri = `data:audio/mpeg;base64,${base64Audio}`;
+        twiml.play(dataUri);
+      } else {
+        console.error('ElevenLabs greeting error:', greetingResponse.status, await greetingResponse.text());
+        twiml.say({
+          voice: 'Polly.Matthew',
+          language: 'en-US',
+          speechRate: 'medium'
+        }, greeting);
+      }
     } else {
-      console.error('ElevenLabs greeting error:', greetingResponse.status, await greetingResponse.text());
+      // Fallback when ElevenLabs API key is not set
       twiml.say({
         voice: 'Polly.Matthew',
         language: 'en-US',
         speechRate: 'medium'
-      }, greeting);
+      }, `Hey! This is the ElevenLabs voice test. Currently using Twilio's Matthew voice as a fallback. To hear the actual ElevenLabs ${voice.name} voice, please add your ELEVENLABS_API_KEY to the environment variables. How can I help you today?`);
     }
 
     // Start gathering input

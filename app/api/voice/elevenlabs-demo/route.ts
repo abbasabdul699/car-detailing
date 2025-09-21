@@ -29,35 +29,45 @@ export async function POST(request: NextRequest) {
       if (voiceIndex >= 0 && voiceIndex < ELEVENLABS_VOICES.length) {
         const selectedVoice = ELEVENLABS_VOICES[voiceIndex];
         
-        // Play voice demo
-        const demoResponse = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${selectedVoice.id}`, {
-          method: 'POST',
-          headers: {
-            'Accept': 'audio/mpeg',
-            'Content-Type': 'application/json',
-            'xi-api-key': process.env.ELEVENLABS_API_KEY || ''
-          },
-          body: JSON.stringify({
-            text: `Hello! This is the ${selectedVoice.name} voice from ElevenLabs. ${selectedVoice.description}. I'm ready to help you with your car detailing needs. How can I assist you today?`,
-            model_id: 'eleven_monolingual_v1',
-            voice_settings: {
-              stability: 0.5,
-              similarity_boost: 0.5
-            }
-          })
-        });
+        // Play voice demo with fallback
+        if (process.env.ELEVENLABS_API_KEY) {
+          const demoResponse = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${selectedVoice.id}`, {
+            method: 'POST',
+            headers: {
+              'Accept': 'audio/mpeg',
+              'Content-Type': 'application/json',
+              'xi-api-key': process.env.ELEVENLABS_API_KEY
+            },
+            body: JSON.stringify({
+              text: `Hello! This is the ${selectedVoice.name} voice from ElevenLabs. ${selectedVoice.description}. I'm ready to help you with your car detailing needs. How can I assist you today?`,
+              model_id: 'eleven_monolingual_v1',
+              voice_settings: {
+                stability: 0.5,
+                similarity_boost: 0.5
+              }
+            })
+          });
 
-        if (demoResponse.ok) {
-          const audioBuffer = await demoResponse.arrayBuffer();
-          const base64Audio = Buffer.from(audioBuffer).toString('base64');
-          const dataUri = `data:audio/mpeg;base64,${base64Audio}`;
-          twiml.play(dataUri);
+          if (demoResponse.ok) {
+            const audioBuffer = await demoResponse.arrayBuffer();
+            const base64Audio = Buffer.from(audioBuffer).toString('base64');
+            const dataUri = `data:audio/mpeg;base64,${base64Audio}`;
+            twiml.play(dataUri);
+          } else {
+            console.error('ElevenLabs demo error:', demoResponse.status, await demoResponse.text());
+            twiml.say({
+              voice: 'Polly.Matthew',
+              language: 'en-US',
+              speechRate: 'medium'
+            }, `This is the ${selectedVoice.name} voice. ${selectedVoice.description}.`);
+          }
         } else {
+          // Fallback to Twilio voice when ElevenLabs API key is not set
           twiml.say({
             voice: 'Polly.Matthew',
             language: 'en-US',
             speechRate: 'medium'
-          }, `This is the ${selectedVoice.name} voice. ${selectedVoice.description}.`);
+          }, `This would be the ${selectedVoice.name} voice from ElevenLabs. ${selectedVoice.description}. To hear the actual ElevenLabs voice, please add your ELEVENLABS_API_KEY to the environment variables.`);
         }
 
         // Start conversation with selected voice
@@ -72,28 +82,35 @@ export async function POST(request: NextRequest) {
           speechModel: 'phone_call'
         });
 
-        const conversationPrompt = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${selectedVoice.id}`, {
-          method: 'POST',
-          headers: {
-            'Accept': 'audio/mpeg',
-            'Content-Type': 'application/json',
-            'xi-api-key': process.env.ELEVENLABS_API_KEY || ''
-          },
-          body: JSON.stringify({
-            text: 'What can I help you with today?',
-            model_id: 'eleven_monolingual_v1',
-            voice_settings: {
-              stability: 0.5,
-              similarity_boost: 0.5
-            }
-          })
-        });
+        if (process.env.ELEVENLABS_API_KEY) {
+          const conversationPrompt = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${selectedVoice.id}`, {
+            method: 'POST',
+            headers: {
+              'Accept': 'audio/mpeg',
+              'Content-Type': 'application/json',
+              'xi-api-key': process.env.ELEVENLABS_API_KEY
+            },
+            body: JSON.stringify({
+              text: 'What can I help you with today?',
+              model_id: 'eleven_monolingual_v1',
+              voice_settings: {
+                stability: 0.5,
+                similarity_boost: 0.5
+              }
+            })
+          });
 
-        if (conversationPrompt.ok) {
-          const audioBuffer = await conversationPrompt.arrayBuffer();
-          const base64Audio = Buffer.from(audioBuffer).toString('base64');
-          const dataUri = `data:audio/mpeg;base64,${base64Audio}`;
-          gather.play(dataUri);
+          if (conversationPrompt.ok) {
+            const audioBuffer = await conversationPrompt.arrayBuffer();
+            const base64Audio = Buffer.from(audioBuffer).toString('base64');
+            const dataUri = `data:audio/mpeg;base64,${base64Audio}`;
+            gather.play(dataUri);
+          } else {
+            gather.say({
+              voice: 'Polly.Matthew',
+              language: 'en-US'
+            }, 'What can I help you with today?');
+          }
         } else {
           gather.say({
             voice: 'Polly.Matthew',
