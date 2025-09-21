@@ -460,7 +460,7 @@ export default function CalendarPage() {
           }),
         
         // Fetch Google Calendar events
-        fetch('/api/detailer/calendar-events')
+        fetch(`/api/detailer/calendar-events?month=${monthStr}`)
           .then(res => {
             console.log('Google Calendar API response status:', res.status);
             return res.json();

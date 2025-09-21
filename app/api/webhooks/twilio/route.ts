@@ -73,18 +73,32 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // TODO: Here you would integrate with your AI system
-    // For now, we'll just log the message and return success
     console.log('Message stored for conversation:', conversation.id);
     console.log('Customer message:', body);
     console.log('Detailer:', detailer.businessName);
 
-    // TODO: Process the message with AI and send response
-    // This is where you would:
-    // 1. Get conversation history
-    // 2. Process with AI (OpenAI, etc.)
-    // 3. Send response back to customer
-    // 4. Store the outbound message
+    // Process the message with AI
+    try {
+      const aiResponse = await fetch(`${process.env.NEXTAUTH_URL}/api/ai/conversation`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          conversationId: conversation.id,
+          message: body
+        })
+      });
+
+      if (aiResponse.ok) {
+        const result = await aiResponse.json();
+        console.log('AI processed message successfully:', result);
+      } else {
+        console.error('AI processing failed:', await aiResponse.text());
+      }
+    } catch (error) {
+      console.error('Error calling AI conversation API:', error);
+    }
 
     return NextResponse.json({ success: true });
 

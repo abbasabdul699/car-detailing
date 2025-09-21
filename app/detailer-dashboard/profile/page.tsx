@@ -381,12 +381,6 @@ export default function DetailerProfilePage() {
         <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-6 mb-4">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Calendar Integration</h2>
-            <button 
-              className="border border-gray-300 rounded-full px-4 py-1 text-sm flex items-center gap-2 hover:bg-gray-100" 
-              onClick={() => setEditingSection('calendar')}
-            >
-              ⚙️ Manage
-            </button>
           </div>
           
           <div className="space-y-4">
@@ -482,9 +476,6 @@ export default function DetailerProfilePage() {
         <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-6 mb-4">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Instagram Integration</h2>
-            <button className="border border-gray-300 rounded-full px-4 py-1 text-sm flex items-center gap-2 hover:bg-gray-100">
-              ⚙️ Manage
-            </button>
           </div>
           
           <div className="space-y-4">

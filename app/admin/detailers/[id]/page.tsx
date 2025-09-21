@@ -2,6 +2,9 @@ import { prisma } from "@/lib/prisma";
 import AdminNavbar from '@/app/components/AdminNavbar';
 import EditDetailerClient from './EditDetailerClient';
 
+// Force fresh data on each request
+export const dynamic = 'force-dynamic';
+
 export default async function EditDetailerPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const detailer = await prisma.detailer.findUnique({
@@ -11,6 +14,8 @@ export default async function EditDetailerPage({ params }: { params: Promise<{ i
       businessName: true,
       email: true,
       phone: true,
+      twilioPhoneNumber: true,
+      smsEnabled: true,
       address: true,
       city: true,
       state: true,
@@ -23,6 +28,11 @@ export default async function EditDetailerPage({ params }: { params: Promise<{ i
       businessHours: true,
       images: true,
       detailerImages: true,
+      firstName: true,
+      lastName: true,
+      instagram: true,
+      tiktok: true,
+      facebook: true,
       services: {
         include: {
           service: {
@@ -57,6 +67,10 @@ export default async function EditDetailerPage({ params }: { params: Promise<{ i
         instagram: detailer.instagram || '',
         tiktok: detailer.tiktok || '',
         facebook: detailer.facebook || '',
+        twilioPhoneNumber: detailer.twilioPhoneNumber || '',
+        smsEnabled: detailer.smsEnabled || false,
+        firstName: detailer.firstName || '',
+        lastName: detailer.lastName || '',
         profileImage: profileImage ? { url: profileImage.url, alt: profileImage.alt || '', type: 'profile' } : undefined,
         portfolioImages: portfolioImages.map((img: any) => ({
           id: img.id,

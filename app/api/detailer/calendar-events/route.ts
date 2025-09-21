@@ -1,0 +1,174 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+// Helper function to refresh Google Calendar access token
+async function refreshGoogleCalendarToken(refreshToken: string) {
+  try {
+    const response = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        client_id: process.env.GOOGLE_CLIENT_ID!,
+        client_secret: process.env.GOOGLE_CLIENT_SECRET!,
+        refresh_token: refreshToken,
+        grant_type: 'refresh_token',
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to refresh token');
+    }
+
+    const data = await response.json();
+    return data.access_token;
+  } catch (error) {
+    console.error('Error refreshing Google Calendar token:', error);
+    throw error;
+  }
+}
+
+// Helper function to fetch events from Google Calendar
+async function fetchGoogleCalendarEvents(accessToken: string, timeMin?: string, timeMax?: string) {
+  try {
+    const params = new URLSearchParams({
+      timeMin: timeMin || new Date().toISOString(),
+      timeMax: timeMax || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
+      singleEvents: 'true',
+      orderBy: 'startTime',
+      maxResults: '250',
+    });
+
+    const response = await fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/primary/events?${params}`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Google Calendar API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.items || [];
+  } catch (error) {
+    console.error('Error fetching Google Calendar events:', error);
+    throw error;
+  }
+}
+
+export async function GET(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+    
+    if (!session || !session.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const detailerId = session.user.id;
+    const { searchParams } = new URL(request.url);
+    const month = searchParams.get('month'); // Format: YYYY-MM
+
+    // Get detailer with Google Calendar tokens
+    const detailer = await prisma.detailer.findUnique({
+      where: { id: detailerId },
+      select: { 
+        id: true, 
+        businessName: true,
+        googleCalendarConnected: true,
+        googleCalendarTokens: true,
+        googleCalendarRefreshToken: true,
+        syncAppointments: true,
+        syncAvailability: true
+      }
+    });
+
+    if (!detailer) {
+      return NextResponse.json({ error: 'Detailer not found' }, { status: 404 });
+    }
+
+    let events = [];
+
+    // If Google Calendar is connected and tokens exist, fetch events
+    if (detailer.googleCalendarConnected && detailer.googleCalendarTokens && detailer.googleCalendarRefreshToken) {
+      try {
+        const tokens = JSON.parse(detailer.googleCalendarTokens);
+        let accessToken = tokens.access_token;
+
+        // Calculate time range for the requested month
+        let timeMin, timeMax;
+        if (month) {
+          const [year, monthNum] = month.split('-');
+          const startDate = new Date(parseInt(year), parseInt(monthNum) - 1, 1);
+          const endDate = new Date(parseInt(year), parseInt(monthNum), 0, 23, 59, 59);
+          timeMin = startDate.toISOString();
+          timeMax = endDate.toISOString();
+        }
+
+        // Try to fetch events with current access token
+        try {
+          events = await fetchGoogleCalendarEvents(accessToken, timeMin, timeMax);
+        } catch (error) {
+          // If access token is expired, try to refresh it
+          console.log('Access token expired, refreshing...');
+          accessToken = await refreshGoogleCalendarToken(detailer.googleCalendarRefreshToken);
+          
+          // Update the stored tokens
+          const updatedTokens = {
+            ...tokens,
+            access_token: accessToken,
+          };
+          
+          await prisma.detailer.update({
+            where: { id: detailerId },
+            data: {
+              googleCalendarTokens: JSON.stringify(updatedTokens),
+            },
+          });
+
+          // Retry fetching events with new access token
+          events = await fetchGoogleCalendarEvents(accessToken, timeMin, timeMax);
+        }
+
+        // Transform Google Calendar events to match our calendar format
+        events = events.map((event: any) => ({
+          id: event.id,
+          title: event.summary || 'No Title',
+          start: event.start?.dateTime || event.start?.date,
+          end: event.end?.dateTime || event.end?.date,
+          allDay: !event.start?.dateTime, // If no time, it's an all-day event
+          color: 'blue', // Default color for Google Calendar events
+          source: 'google',
+          description: event.description || '',
+          location: event.location || '',
+        }));
+
+      } catch (error) {
+        console.error('Error fetching Google Calendar events:', error);
+        // Return empty events array if Google Calendar fetch fails
+        events = [];
+      }
+    }
+
+    return NextResponse.json({ 
+      events,
+      googleCalendarConnected: detailer.googleCalendarConnected || false,
+      syncAppointments: detailer.syncAppointments || false,
+      syncAvailability: detailer.syncAvailability || false
+    });
+  } catch (error) {
+    console.error('Error fetching calendar events:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}

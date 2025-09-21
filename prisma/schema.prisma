@@ -64,6 +64,7 @@ model Detailer {
   
   // Relations
   conversations     Conversation[]
+  bookings          Booking[]
 }
 
 model Image {
@@ -170,6 +171,7 @@ model Conversation {
   
   // Relations
   messages     Message[]
+  bookings     Booking[]
   
   // Index for quick lookups
   @@unique([detailerId, customerPhone])
@@ -184,4 +186,30 @@ model Message {
   twilioSid      String?      // Twilio message SID for tracking
   status         String       @default("sent") // sent, delivered, failed
   createdAt      DateTime?    @default(now())
+}
+
+model Booking {
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  detailer       Detailer     @relation(fields: [detailerId], references: [id])
+  detailerId     String       @db.ObjectId
+  conversation   Conversation? @relation(fields: [conversationId], references: [id])
+  conversationId String?      @db.ObjectId
+  customerPhone  String       // Customer's phone number
+  customerName   String?      // Customer's name
+  customerEmail  String?      // Customer's email
+  vehicleType    String?      // Car type, model, year, etc.
+  vehicleLocation String?     // Where the vehicle is located
+  services       String[]     // Array of service names
+  totalPrice     Float?       // Total price for the booking
+  scheduledDate  DateTime     // When the service is scheduled
+  scheduledTime  String?      // Specific time slot
+  duration       Int?         // Duration in minutes
+  status         String       @default("pending") // pending, confirmed, completed, cancelled
+  notes          String?      // Additional notes from customer or detailer
+  googleEventId  String?      // Google Calendar event ID if synced
+  createdAt      DateTime?    @default(now())
+  updatedAt      DateTime?    @updatedAt
+  
+  // Relations
+  @@unique([detailerId, scheduledDate, customerPhone])
 }

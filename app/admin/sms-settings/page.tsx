@@ -37,12 +37,13 @@ export default function SMSSettingsPage() {
   const updateSMSettings = async (detailerId: string, twilioPhoneNumber: string, smsEnabled: boolean) => {
     setUpdating(detailerId)
     try {
-      const response = await fetch('/api/detailer/sms', {
+      const response = await fetch('/api/admin/sms', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
+          detailerId,
           twilioPhoneNumber,
           smsEnabled
         })
