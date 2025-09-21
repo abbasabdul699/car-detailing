@@ -7,26 +7,29 @@ const VoiceResponse = twilio.twiml.VoiceResponse;
 // Helper function to get AI response for voice
 async function getVoiceAIResponse(transcription: string, detailerInfo: any, conversationHistory: any[] = []) {
   try {
-    const systemPrompt = `You are a friendly, helpful assistant for ${detailerInfo.businessName}, a car detailing business. You're talking to customers over the phone, so sound completely natural and conversational - just like a real person would.
+    const systemPrompt = `You're answering the phone for ${detailerInfo.businessName}, a car detailing business in ${detailerInfo.city}, ${detailerInfo.state}. 
 
-Business Info:
-- Business: ${detailerInfo.businessName}
-- Location: ${detailerInfo.city}, ${detailerInfo.state}
-- Services: ${detailerInfo.services?.map((s: any) => s.service?.name).join(', ') || 'Various car detailing services'}
+Available services: ${detailerInfo.services?.map((s: any) => s.service?.name).join(', ') || 'Various car detailing services'}
 
-You can help with:
-- Booking car detailing appointments
-- Answering questions about services and pricing
-- General business information
+You're having a casual phone conversation with a customer. Sound like a real person who's genuinely helpful and friendly. 
 
-When booking appointments, casually collect:
-- Name and phone number
-- Car details (what kind of car, year)
+IMPORTANT CONVERSATION STYLE:
+- Talk like you're chatting with a friend, not giving a business presentation
+- Use natural speech patterns: "Oh great!", "Sure thing!", "Perfect!", "No worries!"
+- Ask follow-up questions naturally: "What kind of car do you have?", "When were you thinking?"
+- Show enthusiasm: "Awesome!", "That sounds great!", "Perfect timing!"
+- Use conversational fillers: "Um", "Let me see", "Actually", "Well"
+- Respond to what they say: "Oh really?", "That's cool!", "Nice!"
+- Be encouraging: "You got it!", "Absolutely!", "For sure!"
+
+When booking appointments, just have a natural conversation and collect:
+- Their name and phone number
+- What kind of car they have
 - When they want the service
-- What service they need
-- Where their car is located
+- What they need done
+- Where their car is
 
-CRITICAL: Sound completely natural and human. Use casual, friendly language like "Hey", "Sure thing", "No problem", "Great!". Use contractions like "I'm", "we'll", "that's", "you're". Be conversational and warm. Don't sound robotic, formal, or scripted. If someone asks if you're AI, casually say you're here to help them out. Keep responses flowing naturally - avoid sounding blocky or like you're reading from a script.`;
+Don't sound like you're following a script. Just be a helpful, friendly person having a conversation.`;
 
     const conversationContext = conversationHistory.map(msg => ({
       role: msg.direction === 'inbound' ? 'user' : 'assistant',
@@ -200,7 +203,7 @@ export async function POST(request: NextRequest) {
     // Check transcription confidence
     if (confidence < 0.5) {
       const twiml = new VoiceResponse();
-      const lowConfidenceAudio = await generateOpenAISpeech('Sorry, I didn\'t quite catch that. Could you repeat what you said?', 'nova');
+      const lowConfidenceAudio = await generateOpenAISpeech('Sorry, what was that? I didn\'t catch it.', 'nova');
       
       if (lowConfidenceAudio) {
         twiml.play(lowConfidenceAudio);
@@ -324,7 +327,7 @@ export async function POST(request: NextRequest) {
           speechModel: 'phone_call'
         });
 
-        const gatherPromptAudio = await generateOpenAISpeech('Please say yes to confirm or no to make changes.', 'nova');
+        const gatherPromptAudio = await generateOpenAISpeech('Just say yes if that sounds good, or no if you want to change something.', 'nova');
         
         if (gatherPromptAudio) {
           gather.play(gatherPromptAudio);
@@ -385,7 +388,7 @@ export async function POST(request: NextRequest) {
       speechModel: 'phone_call'
     });
 
-    const gatherHelpAudio = await generateOpenAISpeech('How else can I help you today?', 'nova');
+    const gatherHelpAudio = await generateOpenAISpeech('Anything else I can help you with?', 'nova');
     
     if (gatherHelpAudio) {
       gather.play(gatherHelpAudio);
@@ -397,7 +400,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Fallback if no response
-    const goodbyeAudio = await generateOpenAISpeech('Thank you for calling. Have a great day!', 'nova');
+    const goodbyeAudio = await generateOpenAISpeech('Thanks for calling! Have a great day!', 'nova');
     
     if (goodbyeAudio) {
       twiml.play(goodbyeAudio);

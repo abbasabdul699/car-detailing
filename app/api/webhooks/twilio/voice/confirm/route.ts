@@ -274,7 +274,7 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      const confirmationMessage = `Perfect! Your appointment with ${booking.detailer.businessName} is confirmed for ${booking.scheduledDate.toLocaleDateString()} at ${booking.scheduledTime}. We'll see you then! Thank you for calling.`;
+      const confirmationMessage = `Perfect! You're all set for ${booking.scheduledDate.toLocaleDateString()} at ${booking.scheduledTime}. We'll see you then! Thanks for calling!`;
       
       const confirmationAudio = await generateOpenAISpeech(confirmationMessage, 'nova');
       
@@ -305,7 +305,7 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      const cancellationMessage = `No problem! I've cancelled that appointment. Please call back when you're ready to schedule, or if you'd like to make changes to your appointment details.`;
+      const cancellationMessage = `No worries! I've cancelled that appointment. Just call back whenever you're ready to schedule something else.`;
       
       const cancellationAudio = await generateOpenAISpeech(cancellationMessage, 'nova');
       
@@ -321,7 +321,7 @@ export async function POST(request: NextRequest) {
 
     } else {
       // Unclear response - ask for clarification
-      const clarificationMessage = `I'm sorry, I didn't quite understand. Did you say yes to confirm this appointment, or no to make changes?`;
+      const clarificationMessage = `Sorry, I didn't catch that. Did you say yes to confirm, or no to change something?`;
       
       const clarificationAudio = await generateOpenAISpeech(clarificationMessage, 'nova');
       
@@ -347,7 +347,7 @@ export async function POST(request: NextRequest) {
         speechModel: 'phone_call'
       });
 
-      const gatherPromptAudio = await generateOpenAISpeech('Please say yes to confirm or no to make changes.', 'nova');
+      const gatherPromptAudio = await generateOpenAISpeech('Just say yes if that sounds good, or no if you want to change something.', 'nova');
       
       if (gatherPromptAudio) {
         gather.play(gatherPromptAudio);
