@@ -147,20 +147,31 @@ export async function POST(request: NextRequest) {
       throw new Error('ElevenLabs API key not configured');
     }
 
+    console.log('Environment variables check passed');
+
     // Find the detailer by their Twilio phone number
-    const detailer = await prisma.detailer.findFirst({
-      where: {
-        twilioPhoneNumber: to,
-        smsEnabled: true, // Using smsEnabled as a general "communication enabled" flag
-      },
-      include: {
-        services: {
-          include: {
-            service: true
+    console.log('Looking for detailer with phone number:', to);
+    
+    let detailer;
+    try {
+      detailer = await prisma.detailer.findFirst({
+        where: {
+          twilioPhoneNumber: to,
+          smsEnabled: true, // Using smsEnabled as a general "communication enabled" flag
+        },
+        include: {
+          services: {
+            include: {
+              service: true
+            }
           }
         }
-      }
-    });
+      });
+      console.log('Database query completed, detailer found:', !!detailer);
+    } catch (dbError) {
+      console.error('Database error:', dbError);
+      throw new Error('Database connection failed');
+    }
 
     if (!detailer) {
       console.error('No detailer found for Twilio number:', to);
@@ -177,6 +188,8 @@ export async function POST(request: NextRequest) {
         headers: { 'Content-Type': 'text/xml' },
       });
     }
+    
+    console.log('Detailer found:', detailer.businessName);
 
     // Find or create conversation for this call
     let conversation = await prisma.conversation.findUnique({
@@ -227,7 +240,7 @@ export async function POST(request: NextRequest) {
     const greeting = `Hey! Thanks for calling ${detailer.businessName}. How can I help you today?`;
     
     // Generate speech for greeting using ElevenLabs
-    const greetingAudio = await generateElevenLabsSpeech(greeting);
+    const greetingAudio = await generateElevenLabsSpeech(greeting, 'pNInz6obpgDQGcFmaJgB');
     
     if (greetingAudio) {
       twiml.play(greetingAudio);
@@ -256,7 +269,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Generate prompt audio using ElevenLabs
-    const promptAudio = await generateElevenLabsSpeech('What do you need help with?');
+    const promptAudio = await generateElevenLabsSpeech('What do you need help with?', 'pNInz6obpgDQGcFmaJgB');
     
     if (promptAudio) {
       gather.play(promptAudio);
@@ -268,7 +281,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Fallback if no speech detected using ElevenLabs
-    const fallbackAudio = await generateElevenLabsSpeech('I didn\'t hear anything. Please try calling back and let me know how I can help you.');
+    const fallbackAudio = await generateElevenLabsSpeech('I didn\'t hear anything. Please try calling back and let me know how I can help you.', 'pNInz6obpgDQGcFmaJgB');
     
     if (fallbackAudio) {
       twiml.play(fallbackAudio);
