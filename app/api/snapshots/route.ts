@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { detailerId, phone: phoneRaw, customerName, address, vehicle, vehicleYear, vehicleMake, vehicleModel, data } = body || {}
+    const { detailerId, phone: phoneRaw, customerName, address, vehicle, vehicleYear, vehicleMake, vehicleModel, vcardSent, data } = body || {}
     const phone = normalizeToE164(phoneRaw) || phoneRaw
     if (!detailerId || !phone) {
       return NextResponse.json({ error: 'Missing detailerId or phone' }, { status: 400 })
@@ -34,8 +34,8 @@ export async function POST(request: NextRequest) {
 
     const snapshot = await prisma.customerSnapshot.upsert({
       where: { detailerId_customerPhone: { detailerId, customerPhone: phone } },
-      update: { customerName, address, vehicle, vehicleYear, vehicleMake, vehicleModel, data },
-      create: { detailerId, customerPhone: phone, customerName, address, vehicle, vehicleYear, vehicleMake, vehicleModel, data },
+      update: { customerName, address, vehicle, vehicleYear, vehicleMake, vehicleModel, vcardSent, data },
+      create: { detailerId, customerPhone: phone, customerName, address, vehicle, vehicleYear, vehicleMake, vehicleModel, vcardSent, data },
     })
 
     return NextResponse.json({ snapshot })
