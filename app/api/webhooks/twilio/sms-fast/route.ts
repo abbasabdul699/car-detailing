@@ -271,11 +271,21 @@ Keep responses under 160 characters and conversational.`;
       const tw = await client.messages.create({ to: from, from: to, body: aiResponse })
       
       // Check if this is a first-time customer who just agreed to SMS consent
-      if (isFirstTimeCustomer && (body?.toLowerCase().includes('yes') || body?.toLowerCase().includes('okay') || body?.toLowerCase().includes('sure') || body?.toLowerCase().includes('ok'))) {
+      console.log('DEBUG: isFirstTimeCustomer:', isFirstTimeCustomer)
+      console.log('DEBUG: body:', body)
+      console.log('DEBUG: body includes yes:', body?.toLowerCase().includes('yes'))
+      console.log('DEBUG: body includes okay:', body?.toLowerCase().includes('okay'))
+      console.log('DEBUG: body includes sure:', body?.toLowerCase().includes('sure'))
+      console.log('DEBUG: body includes ok:', body?.toLowerCase().includes('ok'))
+      
+      if (isFirstTimeCustomer && body && (body.toLowerCase().includes('yes') || body.toLowerCase().includes('okay') || body.toLowerCase().includes('sure') || body.toLowerCase().includes('ok'))) {
         // Send the opt-in confirmation message immediately
         const optInMessage = `${detailer.businessName}: You are now opted-in to receive appointment confirmations and updates. For help, reply HELP. To opt-out, reply STOP.`
+        console.log('SENDING OPT-IN MESSAGE:', optInMessage)
         await client.messages.create({ to: from, from: to, body: optInMessage })
         console.log('Sent opt-in confirmation message to first-time customer')
+      } else {
+        console.log('NOT sending opt-in message - conditions not met')
       }
       
       // After sending the first AI message in a conversation, send vCard once if not sent
