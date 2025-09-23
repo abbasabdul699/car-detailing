@@ -3,58 +3,67 @@ import twilio from 'twilio';
 
 const VoiceResponse = twilio.twiml.VoiceResponse;
 
-// Simple debug version to test basic functionality
+// Debug webhook - minimal functionality
 export async function POST(request: NextRequest) {
   try {
     console.log('=== DEBUG VOICE WEBHOOK START ===');
     
-    const formData = await request.formData();
-    const from = formData.get('From') as string;
-    const to = formData.get('To') as string;
-    const callSid = formData.get('CallSid') as string;
-    
-    console.log('Debug - Incoming call:', { from, to, callSid });
-    
-    // Check environment variables
-    const hasOpenAI = !!process.env.OPENAI_API_KEY;
-    const hasElevenLabs = !!process.env.ELEVENLABS_API_KEY;
-    const hasPrisma = !!process.env.DATABASE_URL;
-    
-    console.log('Debug - Environment variables:', {
-      hasOpenAI,
-      hasElevenLabs,
-      hasPrisma
-    });
-    
+    // Create a very simple TwiML response
     const twiml = new VoiceResponse();
     
-    // Simple greeting without any external API calls
     twiml.say({
       voice: 'Polly.Matthew',
       language: 'en-US'
-    }, 'Hello! This is a test call to debug the voice system. If you can hear this, the basic webhook is working.');
+    }, 'Hello! This is a debug test. Can you hear me?');
     
     twiml.hangup();
     
-    console.log('Debug - Response generated successfully');
-    console.log('=== DEBUG VOICE WEBHOOK END ===');
+    console.log('Debug Voice - TwiML generated:', twiml.toString());
     
     return new NextResponse(twiml.toString(), {
       headers: { 'Content-Type': 'text/xml' },
     });
     
   } catch (error) {
-    console.error('Debug - Error in voice webhook:', error);
+    console.error('=== DEBUG VOICE WEBHOOK ERROR ===');
+    console.error('Error details:', error);
     
+    // Return simple error response
     const twiml = new VoiceResponse();
     twiml.say({
       voice: 'Polly.Matthew',
       language: 'en-US'
-    }, 'Sorry, there was an error processing your call.');
+    }, 'Debug error occurred.');
     twiml.hangup();
     
     return new NextResponse(twiml.toString(), {
       headers: { 'Content-Type': 'text/xml' },
+    });
+  }
+}
+
+// Also add a GET method for testing
+export async function GET(request: NextRequest) {
+  try {
+    console.log('=== DEBUG VOICE WEBHOOK GET ===');
+    
+    return new NextResponse(JSON.stringify({
+      message: 'Debug voice webhook is working',
+      timestamp: new Date().toISOString()
+    }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+    
+  } catch (error) {
+    console.error('=== DEBUG VOICE WEBHOOK GET ERROR ===');
+    console.error('Error details:', error);
+    
+    return new NextResponse(JSON.stringify({
+      error: 'Debug webhook error',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }), {
+      headers: { 'Content-Type': 'application/json' },
+      status: 500
     });
   }
 }

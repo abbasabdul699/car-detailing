@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Get updated messages for AI processing
-    const updatedMessages = [...conversation.messages, testMessage];
+    const updatedMessages = [...(conversation.messages || []), testMessage];
 
     // Generate AI response using the same logic as the webhook
     const systemPrompt = `You are an AI assistant for ${detailer.businessName}, a car detailing service. Your role is to help customers book appointments and answer questions about services.
@@ -91,7 +91,7 @@ When booking appointments:
 
 Be friendly, professional, and helpful. Keep responses concise but informative.`;
 
-    const conversationContext = conversation.messages.map(msg => ({
+    const conversationContext = (conversation.messages || []).map(msg => ({
       role: msg.direction === 'inbound' ? 'user' : 'assistant',
       content: msg.content
     }));

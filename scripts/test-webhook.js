@@ -1,51 +1,65 @@
-#!/usr/bin/env node
+const { PrismaClient } = require('@prisma/client');
 
-/**
- * Test script to verify the webhook endpoint is working
- */
+const prisma = new PrismaClient();
 
-const https = require('https');
-
-const WEBHOOK_URL = 'https://www.reevacar.com/api/webhooks/twilio';
-
-function testWebhook() {
-  console.log('🧪 Testing webhook endpoint...');
-  console.log(`🔗 URL: ${WEBHOOK_URL}`);
-  
-  const options = {
-    method: 'GET',
-    timeout: 10000
-  };
-
-  const req = https.request(WEBHOOK_URL, options, (res) => {
-    console.log(`✅ Webhook is accessible!`);
-    console.log(`📊 Status: ${res.statusCode}`);
-    console.log(`📋 Headers:`, res.headers);
+async function testWebhook() {
+  try {
+    console.log('Testing webhook logic...');
     
-    if (res.statusCode === 405) {
-      console.log('✅ Perfect! 405 Method Not Allowed means the endpoint exists but only accepts POST (which is correct)');
-    } else if (res.statusCode === 200) {
-      console.log('✅ Webhook is responding!');
-    } else {
-      console.log(`⚠️  Unexpected status code: ${res.statusCode}`);
+    // Test the detailer lookup
+    const detailer = await prisma.detailer.findFirst({
+      where: {
+        twilioPhoneNumber: '+15551234567',
+        smsEnabled: true,
+      },
+      include: {
+        services: {
+          include: {
+            service: true
+          }
+        }
+      }
+    });
+    
+    if (!detailer) {
+      console.log('❌ No detailer found with Twilio phone number +15551234567');
+      return;
     }
-  });
-
-  req.on('error', (error) => {
-    console.error('❌ Webhook test failed:', error.message);
-    console.log('💡 Make sure:');
-    console.log('   1. Your app is deployed to www.reevacar.com');
-    console.log('   2. The webhook route exists at /api/webhooks/twilio');
-    console.log('   3. Your domain is accessible');
-  });
-
-  req.on('timeout', () => {
-    console.error('❌ Webhook test timed out');
-    req.destroy();
-  });
-
-  req.end();
+    
+    console.log('✅ Detailer found:', detailer.businessName);
+    console.log('Twilio Phone:', detailer.twilioPhoneNumber);
+    console.log('SMS Enabled:', detailer.smsEnabled);
+    
+    // Test OpenAI API
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-3.5-turbo',
+        messages: [
+          { role: 'system', content: 'You are a helpful AI assistant.' },
+          { role: 'user', content: 'Hello, test message' }
+        ],
+        max_tokens: 50,
+        temperature: 0.7,
+      }),
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      console.log('✅ OpenAI API working:', data.choices[0]?.message?.content);
+    } else {
+      console.log('❌ OpenAI API error:', response.status);
+    }
+    
+  } catch (error) {
+    console.error('❌ Error:', error);
+  } finally {
+    await prisma.$disconnect();
+  }
 }
 
-// Run the test
 testWebhook();
