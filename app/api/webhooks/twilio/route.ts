@@ -77,16 +77,18 @@ export async function POST(request: NextRequest) {
     console.log('Customer message:', body);
     console.log('Detailer:', detailer.businessName);
 
-    // Process the message with AI
+    // Process the message with AI using sms-fast endpoint
     try {
-      const aiResponse = await fetch(`${process.env.NEXTAUTH_URL}/api/ai/conversation`, {
+      const aiResponse = await fetch(`${process.env.NEXTAUTH_URL}/api/webhooks/twilio/sms-fast`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: JSON.stringify({
-          conversationId: conversation.id,
-          message: body
+        body: new URLSearchParams({
+          From: from,
+          To: to,
+          Body: body,
+          MessageSid: messageSid
         })
       });
 
