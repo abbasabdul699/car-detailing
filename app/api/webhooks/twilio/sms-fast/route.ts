@@ -76,8 +76,15 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Get detailer's available services from MongoDB
+    const detailerServices = await prisma.detailerService.findMany({
+      where: { detailerId: detailer.id },
+      include: { service: true }
+    })
+    const availableServices = detailerServices.map(ds => ds.service.name).join(', ')
+
     // Update snapshot with any hints from this message
-    const inferred = extractSnapshotHints(body || '')
+    const inferred = extractSnapshotHints(body || '', detailerServices.map(ds => ds.service.name))
     if (Object.keys(inferred).length > 0) {
       await upsertCustomerSnapshot(detailer.id, from, inferred)
     }
@@ -131,6 +138,7 @@ BOOKING SEQUENCE: When someone wants to book, ALWAYS start by asking "What's you
 Business: ${detailer.businessName}
 ${detailer.city && detailer.state ? `Location: ${detailer.city}, ${detailer.state}` : ''}
 Business Hours: ${JSON.stringify(detailer.businessHours)}
+Available Services: ${availableServices || 'Various car detailing services'}
 
 Known customer context (if any):
 Name: ${snapshot?.customerName || 'unknown'}
@@ -161,6 +169,9 @@ SERVICES REQUIREMENTS:
 - If you already know their services (like "interior detail"), don't ask for services again
 - Use the known services information to confirm what they want
 - Only ask for services if you don't have this information yet
+- ONLY suggest services from the "Available Services" list above
+- If a customer asks for a service not in the available services, politely explain what services you actually offer
+- Never suggest services that aren't in the detailer's available services list
 
 ADDRESS REQUIREMENTS:
 - Always ask for the COMPLETE address (street number, street name, city, state, ZIP)

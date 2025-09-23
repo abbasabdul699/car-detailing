@@ -44,7 +44,7 @@ export async function upsertCustomerSnapshot(
 }
 
 // Very lightweight heuristics to pull name/vehicle/address from plain SMS
-export function extractSnapshotHints(text: string) {
+export function extractSnapshotHints(text: string, availableServices?: string[]) {
   const result: SnapshotUpdate = {}
   const normalized = collapseWhitespace(text).trim()
 
@@ -192,8 +192,22 @@ export function extractSnapshotHints(text: string) {
     if (m) {
       const service = m[1]?.trim() || m[0]?.trim()
       if (service) {
-        result.services = [service]
-        break
+        // If availableServices is provided, validate the service
+        if (availableServices && availableServices.length > 0) {
+          const normalizedService = service.toLowerCase()
+          const matchingService = availableServices.find(avail => 
+            avail.toLowerCase().includes(normalizedService) || 
+            normalizedService.includes(avail.toLowerCase())
+          )
+          if (matchingService) {
+            result.services = [matchingService]
+            break
+          }
+        } else {
+          // No validation, accept the service
+          result.services = [service]
+          break
+        }
       }
     }
   }
