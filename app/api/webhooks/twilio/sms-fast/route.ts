@@ -85,12 +85,42 @@ export async function POST(request: NextRequest) {
     // Load snapshot for context
     const snapshot = await getCustomerSnapshot(detailer.id, from)
 
+    // Check availability for today and next few days
+    const today = new Date();
+    const availabilityData = [];
+    
+    for (let i = 0; i < 7; i++) {
+      const checkDate = new Date(today);
+      checkDate.setDate(today.getDate() + i);
+      const dateStr = checkDate.toISOString().split('T')[0];
+      
+      try {
+        const availabilityResponse = await fetch(
+          `${process.env.NEXT_PUBLIC_BASE_URL || 'https://www.reevacar.com'}/api/availability?detailerId=${detailer.id}&date=${dateStr}&duration=120`
+        );
+        if (availabilityResponse.ok) {
+          const availability = await availabilityResponse.json();
+          availabilityData.push(availability);
+        }
+      } catch (error) {
+        console.error('Failed to fetch availability:', error);
+      }
+    }
+
     // Generate conversational AI response
     const recentMessages = conversation.messages || [];
     const conversationHistory = recentMessages.reverse().map(msg => ({
       role: msg.direction === 'inbound' ? 'user' : 'assistant',
       content: msg.content
     }));
+
+    // Format availability data for the AI
+    const availabilitySummary = availabilityData.map(day => {
+      const date = new Date(day.date);
+      const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
+      const availableTimes = day.availableSlots.slice(0, 5).map(slot => slot.timeString).join(', ');
+      return `${dayName}: ${availableTimes || 'No availability'}`;
+    }).join('\n');
 
     const systemPrompt = `You are a friendly, conversational AI assistant for ${detailer.businessName}, a mobile car detailing service. 
 
@@ -100,11 +130,15 @@ BOOKING SEQUENCE: When someone wants to book, ALWAYS start by asking "What's you
 
 Business: ${detailer.businessName}
 ${detailer.city && detailer.state ? `Location: ${detailer.city}, ${detailer.state}` : ''}
+Business Hours: ${JSON.stringify(detailer.businessHours)}
 
 Known customer context (if any):
 Name: ${snapshot?.customerName || 'unknown'}
 Vehicle: ${snapshot?.vehicle || [snapshot?.vehicleYear, snapshot?.vehicleMake, snapshot?.vehicleModel].filter(Boolean).join(' ') || 'unknown'}
 Service Address: ${snapshot?.address || 'unknown'}
+
+REAL-TIME AVAILABILITY:
+${availabilitySummary}
 
 IMPORTANT: Use the known information above. If you already know their name, vehicle, or address, don't ask for it again. Only ask for information you don't have yet.
 
@@ -120,6 +154,13 @@ When booking, follow this order but ONLY ask for information you don't already k
 3. If you don't know what services they want, ask what services they're interested in
 4. If you don't know their address, ask for their address where they want the mobile service
 5. If you don't know their preferred time, ask about their preferred date and time
+
+AVAILABILITY GUIDANCE:
+- Use the REAL-TIME AVAILABILITY data above to suggest specific available times
+- Only suggest times that are actually available according to the business hours and calendar
+- If someone asks for a time outside business hours, politely explain the business hours
+- If they want a time that's not available, suggest the closest available alternative
+- Always confirm the exact time slot before finalizing the booking
 
 CRITICAL: Don't ask for information you already have. Use the known context above.
 
