@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getCustomerSnapshot, upsertCustomerSnapshot, extractSnapshotHints } from '@/lib/customerSnapshot';
 import twilio from 'twilio';
 
 // Helper function to call OpenAI API for AI responses
@@ -192,6 +193,17 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Ensure we have recent messages loaded for context
+    conversation = await prisma.conversation.findUnique({
+      where: { id: conversation.id },
+      include: {
+        messages: {
+          orderBy: { createdAt: 'asc' },
+          take: 20,
+        },
+      },
+    }) as any;
+
     // Store the incoming message
     const incomingMessage = await prisma.message.create({
       data: {
@@ -207,12 +219,25 @@ export async function POST(request: NextRequest) {
     console.log('Customer message:', body);
     console.log('Detailer:', detailer.businessName);
 
+    // Merge snapshot hints from the latest inbound text
+    const inferred = extractSnapshotHints(body || '')
+    if (Object.keys(inferred).length > 0) {
+      await upsertCustomerSnapshot(detailer.id, from, inferred)
+    }
+
+    // Load snapshot and include as context
+    const snapshot = await getCustomerSnapshot(detailer.id, from)
+
     // Get updated messages for AI processing
-    const updatedMessages = [...conversation.messages, incomingMessage];
+    const history = Array.isArray(conversation?.messages) ? conversation.messages : []
+    const updatedMessages = [...history, incomingMessage];
 
     // Get AI response
     console.log('Generating AI response...');
-    const aiResponse = await getAIResponse(updatedMessages, detailer, conversation.messages);
+    const aiResponse = await getAIResponse(updatedMessages, {
+      ...detailer,
+      snapshot,
+    }, history);
 
     // Store the AI response
     const aiMessage = await prisma.message.create({
@@ -224,39 +249,57 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Send SMS response via Twilio
-    console.log('Sending AI response via Twilio...');
-    const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
-    const twilioMessage = await client.messages.create({
-      to: from,
-      from: to,
-      body: aiResponse
-    });
-
-    // Update the message with Twilio SID
-    await prisma.message.update({
-      where: { id: aiMessage.id },
-      data: {
-        twilioSid: twilioMessage.sid,
-        status: 'sent',
-      },
-    });
+    // Send SMS response via Twilio (skip in dev if disabled or creds missing)
+    let twilioSid: string | undefined
+    const sendDisabled = process.env.TWILIO_SEND_DISABLED === '1'
+    const hasTwilioCreds = !!process.env.TWILIO_ACCOUNT_SID && !!process.env.TWILIO_AUTH_TOKEN
+    if (!sendDisabled && hasTwilioCreds) {
+      console.log('Sending AI response via Twilio...');
+      const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+      try {
+        const twilioMessage = await client.messages.create({
+          to: from,
+          from: to,
+          body: aiResponse
+        });
+        twilioSid = twilioMessage.sid
+        await prisma.message.update({
+          where: { id: aiMessage.id },
+          data: { twilioSid, status: 'sent' },
+        });
+      } catch (e) {
+        console.error('Twilio send failed, storing as simulated. Error:', e)
+        await prisma.message.update({
+          where: { id: aiMessage.id },
+          data: { status: 'simulated' },
+        });
+      }
+    } else {
+      console.log('Twilio send disabled or creds missing; marking message as simulated.')
+      await prisma.message.update({
+        where: { id: aiMessage.id },
+        data: { status: 'simulated' },
+      });
+    }
 
     // Check if this is a booking request and extract information
     const bookingInfo = extractBookingInfo(updatedMessages);
     
     if (bookingInfo.isBookingRequest && bookingInfo.extractedDate) {
-      // Create a pending booking
+      // Create a pending booking (use snapshot fallbacks)
+      const snap = snapshot || (await getCustomerSnapshot(detailer.id, from))
       const booking = await prisma.booking.create({
         data: {
           detailerId: conversation.detailerId,
           conversationId: conversation.id,
           customerPhone: from,
+          customerName: snap?.customerName,
+          vehicleType: snap?.vehicle,
           scheduledDate: new Date(bookingInfo.extractedDate),
           scheduledTime: bookingInfo.extractedTime,
           services: bookingInfo.extractedServices,
           status: 'pending',
-          notes: `AI booking request from SMS conversation`
+          notes: `AI booking request from SMS conversation${snap?.address ? ` | Address: ${snap.address}` : ''}`
         }
       });
 
@@ -265,13 +308,13 @@ export async function POST(request: NextRequest) {
 
     console.log('=== AI SMS WEBHOOK SUCCESS ===');
     console.log('AI Response:', aiResponse);
-    console.log('Twilio Message SID:', twilioMessage.sid);
+    if (twilioSid) console.log('Twilio Message SID:', twilioSid);
 
     return NextResponse.json({ 
       success: true,
       aiResponse,
       messageId: aiMessage.id,
-      twilioSid: twilioMessage.sid,
+      twilioSid: twilioSid,
       bookingCreated: bookingInfo.isBookingRequest
     });
 
