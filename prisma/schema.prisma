@@ -200,6 +200,10 @@ model CustomerSnapshot {
   address        String?
   // Simple vehicle description string (e.g., "Toyota RAV4 2023")
   vehicle        String?
+  // Structured vehicle fields for better filtering
+  vehicleYear    Int?
+  vehicleMake    String?
+  vehicleModel   String?
   // Additional structured data as JSON for flexibility
   data           Json?
   createdAt      DateTime? @default(now())

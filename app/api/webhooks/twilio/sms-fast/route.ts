@@ -98,7 +98,7 @@ Location: ${detailer.city}, ${detailer.state}
 
 Known customer context (if any):
 Name: ${snapshot?.customerName || 'unknown'}
-Vehicle: ${snapshot?.vehicle || 'unknown'}
+Vehicle: ${snapshot?.vehicle || [snapshot?.vehicleYear, snapshot?.vehicleMake, snapshot?.vehicleModel].filter(Boolean).join(' ') || 'unknown'}
 Address: ${snapshot?.address || 'unknown'}
 
 When customers ask about services:

@@ -294,7 +294,7 @@ export async function POST(request: NextRequest) {
           conversationId: conversation.id,
           customerPhone: from,
           customerName: snap?.customerName,
-          vehicleType: snap?.vehicle,
+          vehicleType: snap?.vehicle ?? [snap?.vehicleYear, snap?.vehicleMake, snap?.vehicleModel].filter(Boolean).join(' '),
           scheduledDate: new Date(bookingInfo.extractedDate),
           scheduledTime: bookingInfo.extractedTime,
           services: bookingInfo.extractedServices,

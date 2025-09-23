@@ -4,6 +4,9 @@ export type SnapshotUpdate = {
   customerName?: string | null
   address?: string | null
   vehicle?: string | null
+  vehicleYear?: number | null
+  vehicleMake?: string | null
+  vehicleModel?: string | null
   data?: Record<string, unknown> | null
 }
 
@@ -22,6 +25,9 @@ export async function upsertCustomerSnapshot(
   if (update.customerName !== undefined) cleaned.customerName = update.customerName
   if (update.address !== undefined) cleaned.address = update.address
   if (update.vehicle !== undefined) cleaned.vehicle = update.vehicle
+  if (update.vehicleYear !== undefined) cleaned.vehicleYear = update.vehicleYear
+  if (update.vehicleMake !== undefined) cleaned.vehicleMake = update.vehicleMake
+  if (update.vehicleModel !== undefined) cleaned.vehicleModel = update.vehicleModel
   if (update.data !== undefined) cleaned.data = update.data
 
   return prisma.customerSnapshot.upsert({
@@ -54,12 +60,29 @@ export function extractSnapshotHints(text: string) {
   // Vehicle: capture year (19xx/20xx), make, model with a modest length
   // Examples: "I have a 2023 Toyota RAV4", "driving a 2018 Honda Civic"
   const vehiclePatterns = [
-    /\b(?:have|driving|drive|car is|vehicle is)\s+(?:a|an)?\s*((?:19|20)\d{2}\s+[A-Za-z][A-Za-z\-]{1,20}\s+[A-Za-z0-9][A-Za-z0-9\-]{1,20})\b/i,
-    /\b(?:have|driving|drive|car is|vehicle is)\s+(?:a|an)?\s*([A-Za-z][A-Za-z\-]{1,20}\s+[A-Za-z0-9][A-Za-z0-9\-]{1,20})\b/i,
+    /\b(?:have|driving|drive|car is|vehicle is)\s+(?:a|an)?\s*((?:19|20)\d{2})\s+([A-Za-z][A-Za-z\-]{1,20})\s+([A-Za-z0-9][A-Za-z0-9\-]{1,20})\b/i,
+    /\b(?:have|driving|drive|car is|vehicle is)\s+(?:a|an)?\s*([A-Za-z][A-Za-z\-]{1,20})\s+([A-Za-z0-9][A-Za-z0-9\-]{1,20})\b/i,
   ]
   for (const p of vehiclePatterns) {
     const m = normalized.match(p)
-    if (m) { result.vehicle = m[1].trim(); break }
+    if (m) {
+      if (m.length === 4) {
+        const year = parseInt(m[1], 10)
+        const make = m[2].trim()
+        const model = m[3].trim()
+        result.vehicleYear = Number.isFinite(year) ? year : undefined
+        result.vehicleMake = make
+        result.vehicleModel = model
+        result.vehicle = `${year} ${make} ${model}`
+      } else if (m.length === 3) {
+        const make = m[1].trim()
+        const model = m[2].trim()
+        result.vehicleMake = make
+        result.vehicleModel = model
+        result.vehicle = `${make} ${model}`
+      }
+      break
+    }
   }
 
   // Address: handle “at/Address is/located at” and allow comma-separated city, state ZIP
