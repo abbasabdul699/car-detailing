@@ -160,7 +160,13 @@ Keep responses under 160 characters and conversational.`;
       if (!snapshot?.vcardSent) {
         const vcardUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'https://www.reevacar.com'}/api/vcard?detailerId=${detailer.id}`
         try {
-          await client.messages.create({ to: from, from: to, body: `Save our contact: ${vcardUrl}` })
+          // Send MMS with vCard attachment
+          await client.messages.create({ 
+            to: from, 
+            from: to, 
+            body: `Save our contact! 📇`,
+            mediaUrl: [vcardUrl]
+          })
           await upsertCustomerSnapshot(detailer.id, from, { data: null, customerName: snapshot?.customerName ?? null, address: snapshot?.address ?? null, vehicle: snapshot?.vehicle ?? null, vehicleYear: snapshot?.vehicleYear ?? null, vehicleMake: snapshot?.vehicleMake ?? null, vehicleModel: snapshot?.vehicleModel ?? null })
           await prisma.customerSnapshot.update({ where: { detailerId_customerPhone: { detailerId: detailer.id, customerPhone: from } }, data: { vcardSent: true } })
         } catch {}
