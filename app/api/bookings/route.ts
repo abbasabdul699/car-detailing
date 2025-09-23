@@ -178,6 +178,7 @@ export async function POST(request: NextRequest) {
       select: {
         id: true,
         businessName: true,
+        twilioPhoneNumber: true,
         googleCalendarConnected: true,
         googleCalendarTokens: true,
         googleCalendarRefreshToken: true,
@@ -251,6 +252,23 @@ export async function POST(request: NextRequest) {
         console.error('Failed to create Google Calendar event:', error);
         // Don't fail the booking creation if Google Calendar fails
       }
+    }
+
+    // Send booking confirmation SMS with opt-out reminder
+    try {
+      const twilio = require('twilio');
+      const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+      
+      const confirmationMessage = `Booking confirmed! ${detailer.businessName} - ${new Date(scheduledDate).toLocaleDateString()}${scheduledTime ? ` at ${scheduledTime}` : ''}. Services: ${(services || []).join(', ')}. Reply STOP to opt out.`;
+      
+      await client.messages.create({
+        to: customerPhone,
+        from: detailer.twilioPhoneNumber,
+        body: confirmationMessage
+      });
+    } catch (smsError) {
+      console.error('Failed to send booking confirmation SMS:', smsError);
+      // Don't fail the booking creation if SMS fails
     }
 
     return NextResponse.json({ 

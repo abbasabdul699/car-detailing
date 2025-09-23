@@ -46,9 +46,9 @@ export async function POST(request: NextRequest) {
     // Send confirmation/cancellation message
     let message = '';
     if (action === 'confirm') {
-      message = `Great! Your appointment with ${booking.detailer.businessName} is confirmed for ${booking.scheduledDate.toLocaleDateString()}${booking.scheduledTime ? ` at ${booking.scheduledTime}` : ''}. Services: ${booking.services.join(', ')}. We'll see you then!`;
+      message = `Great! Your appointment with ${booking.detailer.businessName} is confirmed for ${booking.scheduledDate.toLocaleDateString()}${booking.scheduledTime ? ` at ${booking.scheduledTime}` : ''}. Services: ${booking.services.join(', ')}. We'll see you then! Reply STOP to opt out of messages.`;
     } else {
-      message = `Your appointment with ${booking.detailer.businessName} has been cancelled. If you'd like to reschedule, please let us know!`;
+      message = `Your appointment with ${booking.detailer.businessName} has been cancelled. If you'd like to reschedule, please let us know! Reply STOP to opt out of messages.`;
     }
 
     // Send SMS notification

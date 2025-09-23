@@ -108,6 +108,9 @@ export async function POST(request: NextRequest) {
 
     // Load snapshot for context
     const snapshot = await getCustomerSnapshot(detailer.id, from)
+    
+    // Check if this is a first-time customer (no snapshot exists)
+    const isFirstTimeCustomer = !snapshot
 
     // Check availability for today and next few days
     const today = new Date();
@@ -149,6 +152,8 @@ export async function POST(request: NextRequest) {
     const systemPrompt = `You are Arian from ${detailer.businessName}, a mobile car detailing service.
 
 IMPORTANT: Be conversational, engaging, and natural. Don't give generic responses. Respond like a real person would. Your name is Arian. Never mention being an AI assistant - you're just Arian from the business.
+
+${isFirstTimeCustomer ? `COMPLIANCE REQUIREMENT: This is a first-time customer. You MUST start your response by asking for SMS consent before any business conversation. Say: "Hi! I'm Arian from ${detailer.businessName}. To help you book your mobile car detailing service, I'll need to send you appointment confirmations and updates via SMS. Is that okay with you?" Only proceed with booking after they agree.` : ''}
 
 BOOKING SEQUENCE: When someone wants to book, ALWAYS start by asking "What's your name?" first, then follow the order: car details, services, address, date/time.
 

@@ -256,7 +256,7 @@ export async function POST(request: NextRequest) {
         console.log('Booking created from voice call:', booking.id);
         
         // Update AI response to include booking confirmation
-        const confirmationMessage = `${aiResponse} I've created a booking for ${bookingInfo.extractedDate} at ${bookingInfo.extractedTime} for ${bookingInfo.extractedServices.join(', ')}. Is this correct?`;
+        const confirmationMessage = `${aiResponse} I've created a booking for ${bookingInfo.extractedDate} at ${bookingInfo.extractedTime} for ${bookingInfo.extractedServices.join(', ')}. Is this correct? You can reply STOP to opt out of future messages.`;
         
         const twiml = new VoiceResponse();
         const confirmationAudio = await generateElevenLabsSpeech(confirmationMessage);
