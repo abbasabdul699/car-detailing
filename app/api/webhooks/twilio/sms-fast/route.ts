@@ -106,6 +106,8 @@ export async function POST(request: NextRequest) {
     
     console.log('DEBUG: isFirstTimeCustomer:', isFirstTimeCustomer)
     console.log('DEBUG: existingSnapshot:', existingSnapshot)
+    console.log('DEBUG: detailer.id:', detailer.id)
+    console.log('DEBUG: from phone:', from)
 
     // Update snapshot with any hints from this message
     const inferred = extractSnapshotHints(body || '', detailerServices.map(ds => ds.service.name))
@@ -149,6 +151,8 @@ export async function POST(request: NextRequest) {
     // Format availability data for the AI
     const availabilitySummary = 'Availability: Please ask for preferred date and time';
 
+    console.log('DEBUG: Generating system prompt with isFirstTimeCustomer:', isFirstTimeCustomer)
+    
     const systemPrompt = `You are Arian from ${detailer.businessName}, a mobile car detailing service.
 
 IMPORTANT: Be conversational, engaging, and natural. Don't give generic responses. Respond like a real person would. Your name is Arian. Never mention being an AI assistant - you're just Arian from the business.
