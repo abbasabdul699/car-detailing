@@ -155,6 +155,16 @@ Keep responses under 160 characters and conversational.`;
     if (!sendDisabled && hasTwilioCreds) {
       const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
       const tw = await client.messages.create({ to: from, from: to, body: aiResponse })
+      // After sending the first AI message in a conversation, send vCard once if not sent
+      const snapshot = await getCustomerSnapshot(detailer.id, from)
+      if (!snapshot?.vcardSent) {
+        const vcardUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'https://www.reevacar.com'}/api/vcard?detailerId=${detailer.id}`
+        try {
+          await client.messages.create({ to: from, from: to, body: `Save our contact: ${vcardUrl}` })
+          await upsertCustomerSnapshot(detailer.id, from, { data: null, customerName: snapshot?.customerName ?? null, address: snapshot?.address ?? null, vehicle: snapshot?.vehicle ?? null, vehicleYear: snapshot?.vehicleYear ?? null, vehicleMake: snapshot?.vehicleMake ?? null, vehicleModel: snapshot?.vehicleModel ?? null })
+          await prisma.customerSnapshot.update({ where: { detailerId_customerPhone: { detailerId: detailer.id, customerPhone: from } }, data: { vcardSent: true } })
+        } catch {}
+      }
       twilioSid = tw.sid
     }
 
