@@ -46,14 +46,14 @@ export function extractSnapshotHints(text: string) {
   const result: SnapshotUpdate = {}
   const normalized = collapseWhitespace(text).trim()
 
-  // Name patterns
+  // Name patterns - be more specific to avoid false matches
   const namePatterns = [
     /\bmy name is\s+([a-zA-Z][a-zA-Z\s'-]{1,40})/i,
     /\bi am\s+([a-zA-Z][a-zA-Z\s'-]{1,40})/i,
     /\bthis is\s+([a-zA-Z][a-zA-Z\s'-]{1,40})/i,
     /\b(?:i'm|im)\s+([a-zA-Z][a-zA-Z\s'-]{1,40})/i,
-    // Standalone name patterns (no trigger words needed)
-    /\b([A-Z][a-z]+\s+[A-Z][a-z]+)\b/,
+    // Standalone name patterns (no trigger words needed) - but exclude addresses
+    /\b([A-Z][a-z]+\s+[A-Z][a-z]+)\b(?!\s+(?:St|Street|Ave|Avenue|Rd|Road|Dr|Drive|Blvd|Boulevard|Ln|Lane|Ct|Court|Pl|Place|Way|Cir|Circle|Suite|Apt|Unit))/,
   ]
   for (const p of namePatterns) {
     const m = normalized.match(p)
@@ -72,6 +72,9 @@ export function extractSnapshotHints(text: string) {
     // Standalone vehicle patterns (no trigger words needed)
     /\b((?:19|20)\d{2})\s+([A-Za-z][A-Za-z\-]{1,20})\s+([A-Za-z0-9][A-Za-z0-9\-]{1,20})\b/i,
     /\b([A-Za-z][A-Za-z\-]{1,20})\s+([A-Za-z0-9][A-Za-z0-9\-]{1,20})\s+((?:19|20)\d{2})\b/i,
+    // Handle "Tesla Model 3" and "2020" in separate messages
+    /\b([A-Za-z][A-Za-z\-]{1,20})\s+([A-Za-z0-9][A-Za-z0-9\-]{1,20})\b/i,
+    /\b((?:19|20)\d{2})\b/,
   ]
   
   for (const p of vehiclePatterns) {
@@ -112,6 +115,17 @@ export function extractSnapshotHints(text: string) {
         result.vehicleMake = make
         result.vehicleModel = model
         result.vehicle = `${make} ${model}`
+      } else if (m.length === 2) {
+        // Handle standalone year or make model
+        if (make && make.match(/^(19|20)\d{2}$/)) {
+          // Just a year
+          result.vehicleYear = parseInt(make, 10)
+        } else {
+          // Make Model only
+          result.vehicleMake = make
+          result.vehicleModel = model
+          result.vehicle = `${make} ${model}`
+        }
       }
       break
     }
@@ -129,6 +143,8 @@ export function extractSnapshotHints(text: string) {
     /\b([0-9]{1,6}\s+[A-Za-z][A-Za-z\s]+(?:St|Street|Ave|Avenue|Rd|Road|Dr|Drive|Blvd|Boulevard|Ln|Lane|Ct|Court|Pl|Place|Way|Cir|Circle))\b/i,
     // Flexible address format (number + street name, city, state ZIP) - no suffix required
     /\b([0-9]{1,6}\s+[A-Za-z][A-Za-z\s]*,\s*[A-Za-z][A-Za-z\s]*,\s*[A-Z]{2}\s*\d{5}(?:-\d{4})?)\b/i,
+    // Address with Suite/Apt (like "4 Hovendon Ave Suite 11 Brockton, MA 02302")
+    /\b([0-9]{1,6}\s+[A-Za-z][A-Za-z\s]*(?:\s+(?:Suite|Apt|Unit|#)\s*\d+)?,\s*[A-Za-z][A-Za-z\s]*,\s*[A-Z]{2}\s*\d{5}(?:-\d{4})?)\b/i,
   ]
   
   // Check for incomplete addresses (just city names)
