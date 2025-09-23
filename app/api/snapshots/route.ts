@@ -17,7 +17,12 @@ export async function GET(request: NextRequest) {
       where: { detailerId_customerPhone: { detailerId, customerPhone: phone } },
     })
 
-    return NextResponse.json({ snapshot })
+    return NextResponse.json({ 
+      snapshot,
+      isFirstTimeCustomer: !snapshot,
+      phone: phone,
+      detailerId: detailerId
+    })
   } catch (e) {
     return NextResponse.json({ error: 'Failed to fetch snapshot' }, { status: 500 })
   }
