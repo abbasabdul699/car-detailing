@@ -262,9 +262,15 @@ Keep responses under 160 characters and conversational.`;
     }
 
     const data = await response.json();
-    const aiResponse = data.choices[0]?.message?.content || 'Hey! Thanks for reaching out! What can I help you with today?';
+    let aiResponse = data.choices[0]?.message?.content || 'Hey! Thanks for reaching out! What can I help you with today?';
 
     console.log('AI Response:', aiResponse);
+
+    // Check if this is a first-time customer who just agreed to SMS consent
+    if (isFirstTimeCustomer && body && (body.toLowerCase().includes('yes') || body.toLowerCase().includes('okay') || body.toLowerCase().includes('sure') || body.toLowerCase().includes('ok'))) {
+      console.log('First-time customer agreed to SMS consent - will send opt-in confirmation');
+      // Don't send the AI response yet, we'll send the opt-in confirmation first
+    }
 
     // Send response immediately
     let twilioSid: string | undefined
@@ -272,7 +278,6 @@ Keep responses under 160 characters and conversational.`;
     const hasTwilioCreds = !!process.env.TWILIO_ACCOUNT_SID && !!process.env.TWILIO_AUTH_TOKEN
     if (!sendDisabled && hasTwilioCreds) {
       const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
-      const tw = await client.messages.create({ to: from, from: to, body: aiResponse })
       
       // Check if this is a first-time customer who just agreed to SMS consent
       console.log('DEBUG: isFirstTimeCustomer:', isFirstTimeCustomer)
@@ -283,13 +288,20 @@ Keep responses under 160 characters and conversational.`;
       console.log('DEBUG: body includes ok:', body?.toLowerCase().includes('ok'))
       
       if (isFirstTimeCustomer && body && (body.toLowerCase().includes('yes') || body.toLowerCase().includes('okay') || body.toLowerCase().includes('sure') || body.toLowerCase().includes('ok'))) {
-        // Send the opt-in confirmation message immediately
+        // Send the opt-in confirmation message FIRST
         const optInMessage = `${detailer.businessName}: You are now opted-in to receive appointment confirmations and updates. For help, reply HELP. To opt-out, reply STOP.`
         console.log('SENDING OPT-IN MESSAGE:', optInMessage)
         await client.messages.create({ to: from, from: to, body: optInMessage })
         console.log('Sent opt-in confirmation message to first-time customer')
+        
+        // Then send the AI response
+        const tw = await client.messages.create({ to: from, from: to, body: aiResponse })
+        twilioSid = tw.sid
       } else {
         console.log('NOT sending opt-in message - conditions not met')
+        // Normal flow - just send AI response
+        const tw = await client.messages.create({ to: from, from: to, body: aiResponse })
+        twilioSid = tw.sid
       }
       
       // After sending the first AI message in a conversation, send vCard once if not sent
