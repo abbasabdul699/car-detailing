@@ -6,7 +6,7 @@ import twilio from 'twilio';
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('=== FAST SMS WEBHOOK START ===');
+    console.log('=== FAST SMS WEBHOOK START (v2) ===');
     
     const formData = await request.formData();
     const fromRaw = formData.get('From') as string;
