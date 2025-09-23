@@ -51,6 +51,9 @@ export function extractSnapshotHints(text: string) {
     /\bmy name is\s+([a-zA-Z][a-zA-Z\s'-]{1,40})/i,
     /\bi am\s+([a-zA-Z][a-zA-Z\s'-]{1,40})/i,
     /\bthis is\s+([a-zA-Z][a-zA-Z\s'-]{1,40})/i,
+    /\b(?:i'm|im)\s+([a-zA-Z][a-zA-Z\s'-]{1,40})/i,
+    // Standalone name patterns (no trigger words needed)
+    /\b([A-Z][a-z]+\s+[A-Z][a-z]+)\b/,
   ]
   for (const p of namePatterns) {
     const m = normalized.match(p)
@@ -58,14 +61,17 @@ export function extractSnapshotHints(text: string) {
   }
 
   // Vehicle: capture year (19xx/20xx), make, model with better filtering
-  // Examples: "I have a 2023 Toyota RAV4", "driving a 2018 Honda Civic", "it's a Toyota Sienna 2007"
+  // Examples: "I have a 2023 Toyota RAV4", "driving a 2018 Honda Civic", "it's a Toyota Sienna 2007", "I think its a 2012 toyota Camry"
   const vehiclePatterns = [
-    // Year Make Model: "2023 Toyota RAV4", "2015 Honda Civic"
-    /\b(?:have|driving|drive|car is|vehicle is|it's a|its a)\s+(?:a|an)?\s*((?:19|20)\d{2})\s+([A-Za-z][A-Za-z\-]{1,20})\s+([A-Za-z0-9][A-Za-z0-9\-]{1,20})\b/i,
+    // Year Make Model: "2023 Toyota RAV4", "2015 Honda Civic", "2012 toyota Camry"
+    /\b(?:have|driving|drive|car is|vehicle is|it's a|its a|think its a|think it's a)\s+(?:a|an)?\s*((?:19|20)\d{2})\s+([A-Za-z][A-Za-z\-]{1,20})\s+([A-Za-z0-9][A-Za-z0-9\-]{1,20})\b/i,
     // Make Model Year: "Toyota Sienna 2007", "Honda Accord 2019"
-    /\b(?:have|driving|drive|car is|vehicle is|it's a|its a)\s+(?:a|an)?\s*([A-Za-z][A-Za-z\-]{1,20})\s+([A-Za-z0-9][A-Za-z0-9\-]{1,20})\s+((?:19|20)\d{2})\b/i,
+    /\b(?:have|driving|drive|car is|vehicle is|it's a|its a|think its a|think it's a)\s+(?:a|an)?\s*([A-Za-z][A-Za-z\-]{1,20})\s+([A-Za-z0-9][A-Za-z0-9\-]{1,20})\s+((?:19|20)\d{2})\b/i,
     // Make Model only: "Toyota Camry", "Honda Civic"
-    /\b(?:have|driving|drive|car is|vehicle is|it's a|its a)\s+(?:a|an)?\s*([A-Za-z][A-Za-z\-]{1,20})\s+([A-Za-z0-9][A-Za-z0-9\-]{1,20})\b/i,
+    /\b(?:have|driving|drive|car is|vehicle is|it's a|its a|think its a|think it's a)\s+(?:a|an)?\s*([A-Za-z][A-Za-z\-]{1,20})\s+([A-Za-z0-9][A-Za-z0-9\-]{1,20})\b/i,
+    // Standalone vehicle patterns (no trigger words needed)
+    /\b((?:19|20)\d{2})\s+([A-Za-z][A-Za-z\-]{1,20})\s+([A-Za-z0-9][A-Za-z0-9\-]{1,20})\b/i,
+    /\b([A-Za-z][A-Za-z\-]{1,20})\s+([A-Za-z0-9][A-Za-z0-9\-]{1,20})\s+((?:19|20)\d{2})\b/i,
   ]
   
   for (const p of vehiclePatterns) {
@@ -113,14 +119,16 @@ export function extractSnapshotHints(text: string) {
 
   // Address: handle various ways addresses are mentioned
   const addressPatterns = [
-    // Full address with city, state ZIP
+    // Full address with city, state ZIP (flexible format)
     /\b(?:address is|located at|at|address:|my address is|the address is)\s+([0-9]{1,6}[^\n,]*?,\s*[^\n,]+,\s*[A-Z]{2}\s*\d{5}(?:-\d{4})?)/i,
     // Just street address with city, state ZIP
     /\b(?:address is|located at|at|address:|my address is|the address is)\s+([0-9]{1,6}[^\n,]*?,\s*[^\n,]+\s*[A-Z]{2}\s*\d{5}(?:-\d{4})?)/i,
-    // Simple street address (number + street name)
+    // Simple street address (number + street name with suffix)
     /\b(?:address is|located at|at|address:|my address is|the address is|it's|its)\s+([0-9]{1,6}\s+[A-Za-z][A-Za-z\s]+(?:St|Street|Ave|Avenue|Rd|Road|Dr|Drive|Blvd|Boulevard|Ln|Lane|Ct|Court|Pl|Place|Way|Cir|Circle))/i,
-    // Standalone street address (number + street name) - no trigger words needed
+    // Standalone street address (number + street name with suffix) - no trigger words needed
     /\b([0-9]{1,6}\s+[A-Za-z][A-Za-z\s]+(?:St|Street|Ave|Avenue|Rd|Road|Dr|Drive|Blvd|Boulevard|Ln|Lane|Ct|Court|Pl|Place|Way|Cir|Circle))\b/i,
+    // Flexible address format (number + street name, city, state ZIP) - no suffix required
+    /\b([0-9]{1,6}\s+[A-Za-z][A-Za-z\s]*,\s*[A-Za-z][A-Za-z\s]*,\s*[A-Z]{2}\s*\d{5}(?:-\d{4})?)\b/i,
   ]
   
   // Check for incomplete addresses (just city names)
