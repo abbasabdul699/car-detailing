@@ -122,9 +122,37 @@ export function extractSnapshotHints(text: string) {
     // Standalone street address (number + street name) - no trigger words needed
     /\b([0-9]{1,6}\s+[A-Za-z][A-Za-z\s]+(?:St|Street|Ave|Avenue|Rd|Road|Dr|Drive|Blvd|Boulevard|Ln|Lane|Ct|Court|Pl|Place|Way|Cir|Circle))\b/i,
   ]
+  
+  // Check for incomplete addresses (just city names)
+  const incompleteAddressPatterns = [
+    /\b(?:address is|located at|at|address:|my address is|the address is|it's|its)\s+([A-Za-z][A-Za-z\s]{2,30})\b/i,
+    /\b(?:in|at)\s+([A-Za-z][A-Za-z\s]{2,30})\b/i,
+  ]
+  
+  // First check for complete addresses
   for (const p of addressPatterns) {
     const m = normalized.match(p)
-    if (m) { result.address = cleanupAddress(m[1]); break }
+    if (m) { 
+      const address = m[1].trim()
+      // Only accept if it has a street number (complete address)
+      if (address.match(/^\d/)) {
+        result.address = cleanupAddress(address)
+        break
+      }
+    }
+  }
+  
+  // If no complete address found, check for incomplete addresses
+  if (!result.address) {
+    for (const p of incompleteAddressPatterns) {
+      const m = normalized.match(p)
+      if (m) { 
+        const location = m[1].trim()
+        // Don't store incomplete addresses, but we can use this to prompt for more info
+        result.address = null // Explicitly set to null for incomplete addresses
+        break
+      }
+    }
   }
 
   return result
