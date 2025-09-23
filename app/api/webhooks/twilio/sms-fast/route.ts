@@ -271,8 +271,7 @@ Keep responses under 160 characters and conversational.`;
       const tw = await client.messages.create({ to: from, from: to, body: aiResponse })
       
       // Check if this is a first-time customer who just agreed to SMS consent
-      const snapshot = await getCustomerSnapshot(detailer.id, from)
-      if (isFirstTimeCustomer && snapshot && (body?.toLowerCase().includes('yes') || body?.toLowerCase().includes('okay') || body?.toLowerCase().includes('sure') || body?.toLowerCase().includes('ok'))) {
+      if (isFirstTimeCustomer && (body?.toLowerCase().includes('yes') || body?.toLowerCase().includes('okay') || body?.toLowerCase().includes('sure') || body?.toLowerCase().includes('ok'))) {
         // Send the opt-in confirmation message immediately
         const optInMessage = `${detailer.businessName}: You are now opted-in to receive appointment confirmations and updates. For help, reply HELP. To opt-out, reply STOP.`
         await client.messages.create({ to: from, from: to, body: optInMessage })
@@ -280,6 +279,7 @@ Keep responses under 160 characters and conversational.`;
       }
       
       // After sending the first AI message in a conversation, send vCard once if not sent
+      const snapshot = await getCustomerSnapshot(detailer.id, from)
       if (!snapshot?.vcardSent) {
         const vcardUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'https://www.reevacar.com'}/api/vcard?detailerId=${detailer.id}`
         try {
