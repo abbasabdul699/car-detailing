@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getCustomerSnapshot, upsertCustomerSnapshot, extractSnapshotHints } from '@/lib/customerSnapshot';
+import { normalizeToE164 } from '@/lib/phone';
 import twilio from 'twilio';
 
 export async function POST(request: NextRequest) {
@@ -8,10 +9,12 @@ export async function POST(request: NextRequest) {
     console.log('=== FAST SMS WEBHOOK START ===');
     
     const formData = await request.formData();
-    const from = formData.get('From') as string;
-    const to = formData.get('To') as string;
+    const fromRaw = formData.get('From') as string;
+    const toRaw = formData.get('To') as string;
     const body = formData.get('Body') as string;
     const messageSid = formData.get('MessageSid') as string;
+    const from = normalizeToE164(fromRaw) || fromRaw;
+    const to = normalizeToE164(toRaw) || toRaw;
     
     console.log('Fast - Incoming message:', { from, to, body, messageSid });
     
@@ -89,7 +92,7 @@ export async function POST(request: NextRequest) {
       content: msg.content
     }));
 
-    const systemPrompt = `You are a friendly, conversational AI assistant for ${detailer.businessName}, a car detailing service. 
+    const systemPrompt = `You are a friendly, conversational AI assistant for ${detailer.businessName}, a mobile car detailing service. 
 
 IMPORTANT: Be conversational, engaging, and natural. Don't give generic responses. Respond like a real person would.
 
@@ -99,7 +102,7 @@ Location: ${detailer.city}, ${detailer.state}
 Known customer context (if any):
 Name: ${snapshot?.customerName || 'unknown'}
 Vehicle: ${snapshot?.vehicle || [snapshot?.vehicleYear, snapshot?.vehicleMake, snapshot?.vehicleModel].filter(Boolean).join(' ') || 'unknown'}
-Address: ${snapshot?.address || 'unknown'}
+Service Address: ${snapshot?.address || 'unknown'}
 
 When customers ask about services:
 - Be enthusiastic and helpful
@@ -112,6 +115,9 @@ If they want to book:
 - Then ask about date/time preferences
 - Ask about their vehicle
 - Ask what services they need
+- Ask for their address (where they want the mobile service)
+
+IMPORTANT: This is a MOBILE service. We come to the customer's location. Never mention "our shop" or "our location" - always ask for their address where they want the service performed.
 
 Keep responses under 160 characters and conversational.`;
 

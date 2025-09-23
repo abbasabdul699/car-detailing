@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getCustomerSnapshot, upsertCustomerSnapshot, extractSnapshotHints } from '@/lib/customerSnapshot';
+import { normalizeToE164 } from '@/lib/phone';
 import twilio from 'twilio';
 
 // Helper function to call OpenAI API for AI responses
 async function getAIResponse(messages: any[], detailerInfo: any, conversationHistory: any[] = []) {
   try {
-    const systemPrompt = `You are an AI assistant for ${detailerInfo.businessName}, a car detailing service. Your role is to help customers book appointments and answer questions about services.
+    const systemPrompt = `You are an AI assistant for ${detailerInfo.businessName}, a mobile car detailing service. Your role is to help customers book appointments and answer questions about services.
 
 Business Information:
 - Business Name: ${detailerInfo.businessName}
@@ -17,14 +18,16 @@ Your capabilities:
 1. Help customers book appointments
 2. Answer questions about services and pricing
 3. Provide information about availability
-4. Collect necessary details for booking (date, time, vehicle type, services needed)
+4. Collect necessary details for booking (date, time, vehicle type, services needed, service address)
 
 When booking appointments:
 - Ask for preferred date and time
 - Ask about the vehicle (type, model, year)
 - Ask what services they need
-- Ask where the vehicle is located
+- Ask for their address (where they want the mobile service performed)
 - Confirm all details before finalizing
+
+IMPORTANT: This is a MOBILE service. We come to the customer's location. Never mention "our shop" or "our location" - always ask for their address where they want the service performed.
 
 Be friendly, professional, and helpful. Keep responses concise but informative.`;
 
@@ -124,10 +127,12 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     
     // Extract Twilio webhook data
-    const from = formData.get('From') as string;
-    const to = formData.get('To') as string;
+    const fromRaw = formData.get('From') as string;
+    const toRaw = formData.get('To') as string;
     const body = formData.get('Body') as string;
     const messageSid = formData.get('MessageSid') as string;
+    const from = normalizeToE164(fromRaw) || fromRaw;
+    const to = normalizeToE164(toRaw) || toRaw;
     
     console.log('Incoming AI SMS message:', {
       from,
