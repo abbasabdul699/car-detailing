@@ -155,6 +155,56 @@ export async function POST(request: NextRequest) {
       await upsertCustomerSnapshot(detailer.id, from, inferred);
     }
 
+    // Check if we have enough information to create a booking
+    const snapshot = await getCustomerSnapshot(detailer.id, from);
+    if (snapshot && snapshot.customerName && snapshot.vehicle && snapshot.address && snapshot.services && snapshot.services.length > 0) {
+      // Check if this looks like a booking request (mentions date/time)
+      const hasDate = body && (body.toLowerCase().includes('tomorrow') || body.toLowerCase().includes('today') || body.toLowerCase().includes('monday') || body.toLowerCase().includes('tuesday') || body.toLowerCase().includes('wednesday') || body.toLowerCase().includes('thursday') || body.toLowerCase().includes('friday') || body.toLowerCase().includes('saturday') || body.toLowerCase().includes('sunday') || /\d{1,2}\/\d{1,2}/.test(body));
+      const hasTime = body && (body.toLowerCase().includes('am') || body.toLowerCase().includes('pm') || body.toLowerCase().includes('morning') || body.toLowerCase().includes('afternoon') || body.toLowerCase().includes('evening'));
+      
+      if (hasDate || hasTime) {
+        console.log('SMS BOOKING DETECTED - Creating booking from SMS conversation');
+        
+        // Create booking from SMS conversation
+        const booking = await prisma.booking.create({
+          data: {
+            detailerId: detailer.id,
+            customerPhone: from,
+            customerName: snapshot.customerName,
+            vehicleType: snapshot.vehicle,
+            vehicleLocation: snapshot.address,
+            services: snapshot.services,
+            scheduledDate: new Date(), // Default to today, can be updated
+            scheduledTime: '10:00 AM', // Default time
+            status: 'pending',
+            notes: `Booking created from SMS conversation`,
+            conversationId: conversation.id
+          }
+        });
+
+        console.log('SMS BOOKING CREATED:', booking.id);
+        
+        // Send booking confirmation
+        const confirmationMessage = `Great! I've created a booking for you. Here are the details:
+        
+Service: ${snapshot.services.join(', ')}
+Vehicle: ${snapshot.vehicle}
+Location: ${snapshot.address}
+Date: ${new Date().toLocaleDateString()}
+Time: 10:00 AM
+
+I'll confirm the exact time with you shortly. Is this correct?`;
+        
+        const confirmationResponse = await client.messages.create({
+          to: from,
+          from: to,
+          body: confirmationMessage
+        });
+
+        console.log('SENT BOOKING CONFIRMATION:', confirmationResponse.sid);
+      }
+    }
+
     return NextResponse.json({ success: true });
 
   } catch (error) {
