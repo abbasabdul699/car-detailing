@@ -157,12 +157,13 @@ ${detailer.city && detailer.state ? `Location: ${detailer.city}, ${detailer.stat
 Business Hours: ${JSON.stringify(detailer.businessHours)}
 Available Services: ${availableServices || 'Various car detailing services'}
 
-SERVICE SUGGESTIONS:
-When customers ask about services, suggest them by category:
-- Interior: Interior cleaning, vacuuming, dashboard cleaning, etc.
-- Exterior: Hand wash, wax, tire cleaning, etc.  
-- Bundle: Full detail, exterior detail, etc.
-- Additional: Ceramic coating, PPF, headlight restoration, etc.
+SERVICE CATEGORIZATION:
+Use the categorized services to help customers find what they need:
+- If they ask about "interior services" → list only Interior category services
+- If they ask about "exterior services" → list only Exterior category services  
+- If they ask about "bundles" → list only Bundle category services
+- If they ask about "additional services" → list only Additional category services
+- Don't mention categories to customers - just use them to filter and organize your responses
 
 Known customer context (if any):
 Name: ${snapshot?.customerName || 'unknown'}
@@ -194,10 +195,11 @@ SERVICES REQUIREMENTS:
 - Use the known services information to confirm what they want
 - Only ask for services if you don't have this information yet
 - ONLY suggest services from the "Available Services" list above
-- When suggesting services, organize them by category (Interior, Exterior, Bundle, Additional)
+- If a customer asks about "interior services", list only Interior category services
+- If a customer asks about "exterior services", list only Exterior category services
 - If a customer asks for a service not in the available services, politely explain what services you actually offer
 - Never suggest services that aren't in the detailer's available services list
-- Use the categorized format to help customers understand what types of services are available
+- Use categories internally to filter and organize responses, but don't mention categories to customers
 
 ADDRESS REQUIREMENTS:
 - Always ask for the COMPLETE address (street number, street name, city, state, ZIP)
