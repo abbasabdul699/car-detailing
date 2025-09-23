@@ -100,6 +100,13 @@ export async function POST(request: NextRequest) {
       .map(([category, services]) => `${category}: ${services.join(', ')}`)
       .join(' | ')
 
+    // Check if this is a first-time customer BEFORE updating snapshot
+    const existingSnapshot = await getCustomerSnapshot(detailer.id, from)
+    const isFirstTimeCustomer = !existingSnapshot
+    
+    console.log('DEBUG: isFirstTimeCustomer:', isFirstTimeCustomer)
+    console.log('DEBUG: existingSnapshot:', existingSnapshot)
+
     // Update snapshot with any hints from this message
     const inferred = extractSnapshotHints(body || '', detailerServices.map(ds => ds.service.name))
     if (Object.keys(inferred).length > 0) {
@@ -108,9 +115,6 @@ export async function POST(request: NextRequest) {
 
     // Load snapshot for context
     const snapshot = await getCustomerSnapshot(detailer.id, from)
-    
-    // Check if this is a first-time customer (no snapshot exists)
-    const isFirstTimeCustomer = !snapshot
 
     // Check availability for today and next few days
     const today = new Date();
