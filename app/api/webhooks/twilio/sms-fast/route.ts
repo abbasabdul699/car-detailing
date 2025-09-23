@@ -331,7 +331,6 @@ Keep responses under 160 characters and conversational.`;
           await prisma.customerSnapshot.update({ where: { detailerId_customerPhone: { detailerId: detailer.id, customerPhone: from } }, data: { vcardSent: true } })
         }
       }
-      twilioSid = tw.sid
     }
 
     // Store AI response
