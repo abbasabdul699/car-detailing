@@ -204,6 +204,8 @@ model CustomerSnapshot {
   vehicleYear    Int?
   vehicleMake    String?
   vehicleModel   String?
+  // Services requested by customer
+  services       String[]
   // Additional structured data as JSON for flexibility
   data           Json?
   vcardSent      Boolean? @default(false)

@@ -136,6 +136,7 @@ Known customer context (if any):
 Name: ${snapshot?.customerName || 'unknown'}
 Vehicle: ${snapshot?.vehicle || [snapshot?.vehicleYear, snapshot?.vehicleMake, snapshot?.vehicleModel].filter(Boolean).join(' ') || 'unknown'}
 Service Address: ${snapshot?.address || 'unknown'}
+Services: ${snapshot?.services?.join(', ') || 'unknown'}
 
 REAL-TIME AVAILABILITY:
 ${availabilitySummary}
@@ -155,6 +156,11 @@ When booking, follow this order but ONLY ask for information you don't already k
 4. If you don't know their FULL address, ask for their COMPLETE address where they want the mobile service
 5. If you don't know their preferred date, ask "What date would work for you?"
 6. If you don't know their preferred time, ask about their preferred time
+
+SERVICES REQUIREMENTS:
+- If you already know their services (like "interior detail"), don't ask for services again
+- Use the known services information to confirm what they want
+- Only ask for services if you don't have this information yet
 
 ADDRESS REQUIREMENTS:
 - Always ask for the COMPLETE address (street number, street name, city, state, ZIP)

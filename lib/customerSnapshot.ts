@@ -7,6 +7,8 @@ export type SnapshotUpdate = {
   vehicleYear?: number | null
   vehicleMake?: string | null
   vehicleModel?: string | null
+  services?: string[] | null
+  vcardSent?: boolean | null
   data?: Record<string, unknown> | null
 }
 
@@ -174,6 +176,23 @@ export function extractSnapshotHints(text: string) {
         const location = m[1].trim()
         // Don't store incomplete addresses, but we can use this to prompt for more info
         result.address = null // Explicitly set to null for incomplete addresses
+        break
+      }
+    }
+  }
+
+  // Service patterns
+  const servicePatterns = [
+    /\b(?:want|need|looking for|interested in|book|get)\s+(?:a|an)?\s*(interior\s+detail|exterior\s+detail|full\s+detail|wash|wax|ppf|paint\s+protection|ceramic\s+coating|detailing)/i,
+    /\b(interior\s+detail|exterior\s+detail|full\s+detail|wash|wax|ppf|paint\s+protection|ceramic\s+coating|detailing)\b/i,
+  ]
+  
+  for (const p of servicePatterns) {
+    const m = normalized.match(p)
+    if (m) {
+      const service = m[1]?.trim() || m[0]?.trim()
+      if (service) {
+        result.services = [service]
         break
       }
     }
