@@ -115,24 +115,25 @@ export async function POST(request: NextRequest) {
     // Check availability for today and next few days
     const today = new Date();
     const availabilityData = [];
-    
-    for (let i = 0; i < 7; i++) {
-      const checkDate = new Date(today);
-      checkDate.setDate(today.getDate() + i);
-      const dateStr = checkDate.toISOString().split('T')[0];
-      
-      try {
-        const availabilityResponse = await fetch(
-          `${process.env.NEXT_PUBLIC_BASE_URL || 'https://www.reevacar.com'}/api/availability?detailerId=${detailer.id}&date=${dateStr}&duration=120`
-        );
-        if (availabilityResponse.ok) {
-          const availability = await availabilityResponse.json();
-          availabilityData.push(availability);
-        }
-      } catch (error) {
-        console.error('Failed to fetch availability:', error);
-      }
-    }
+
+    // TEMPORARILY DISABLED - availability endpoint has RangeError
+    // for (let i = 0; i < 7; i++) {
+    //   const checkDate = new Date(today);
+    //   checkDate.setDate(today.getDate() + i);
+    //   const dateStr = checkDate.toISOString().split('T')[0];
+
+    //   try {
+    //     const availabilityResponse = await fetch(
+    //       `${process.env.NEXT_PUBLIC_BASE_URL || 'https://www.reevacar.com'}/api/availability?detailerId=${detailer.id}&date=${dateStr}&duration=120`
+    //     );
+    //     if (availabilityResponse.ok) {
+    //       const availability = await availabilityResponse.json();
+    //       availabilityData.push(availability);
+    //     }
+    //   } catch (error) {
+    //     console.error('Failed to fetch availability:', error);
+    //   }
+    // }
 
     // Generate conversational AI response
     const recentMessages = conversation.messages || [];
@@ -142,12 +143,7 @@ export async function POST(request: NextRequest) {
     }));
 
     // Format availability data for the AI
-    const availabilitySummary = availabilityData.map(day => {
-      const date = new Date(day.date);
-      const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
-      const availableTimes = day.availableSlots.slice(0, 5).map(slot => slot.timeString).join(', ');
-      return `${dayName}: ${availableTimes || 'No availability'}`;
-    }).join('\n');
+    const availabilitySummary = 'Availability: Please ask for preferred date and time';
 
     const systemPrompt = `You are Arian from ${detailer.businessName}, a mobile car detailing service.
 
