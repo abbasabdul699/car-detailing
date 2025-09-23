@@ -123,6 +123,8 @@ IMPORTANT: This is a MOBILE service. We come to the customer's location. Never m
 
 Be conversational and natural - ask one or two questions at a time, not everything at once. Make it feel like a real person having a conversation.
 
+NEVER mention specific cities like "Boston" unless the customer has already provided their address. Always ask for their address without assuming any location.
+
 Keep responses under 160 characters and conversational.`;
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -132,14 +134,14 @@ Keep responses under 160 characters and conversational.`;
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-3.5-turbo',
+        model: 'gpt-4o-mini',
         messages: [
           { role: 'system', content: systemPrompt },
           ...conversationHistory,
           { role: 'user', content: body }
         ],
-        max_tokens: 100, // Shorter responses for speed
-        temperature: 0.8, // More creative and conversational
+        max_tokens: 120, // Slightly longer for more natural responses
+        temperature: 0.9, // More creative and conversational
       }),
     });
 
