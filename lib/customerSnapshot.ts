@@ -57,26 +57,52 @@ export function extractSnapshotHints(text: string) {
     if (m) { result.customerName = m[1].trim(); break }
   }
 
-  // Vehicle: capture year (19xx/20xx), make, model with a modest length
-  // Examples: "I have a 2023 Toyota RAV4", "driving a 2018 Honda Civic"
+  // Vehicle: capture year (19xx/20xx), make, model with better filtering
+  // Examples: "I have a 2023 Toyota RAV4", "driving a 2018 Honda Civic", "it's a Toyota Sienna 2007"
   const vehiclePatterns = [
-    /\b(?:have|driving|drive|car is|vehicle is)\s+(?:a|an)?\s*((?:19|20)\d{2})\s+([A-Za-z][A-Za-z\-]{1,20})\s+([A-Za-z0-9][A-Za-z0-9\-]{1,20})\b/i,
-    /\b(?:have|driving|drive|car is|vehicle is)\s+(?:a|an)?\s*([A-Za-z][A-Za-z\-]{1,20})\s+([A-Za-z0-9][A-Za-z0-9\-]{1,20})\b/i,
+    // Year Make Model: "2023 Toyota RAV4", "2015 Honda Civic"
+    /\b(?:have|driving|drive|car is|vehicle is|it's a|its a)\s+(?:a|an)?\s*((?:19|20)\d{2})\s+([A-Za-z][A-Za-z\-]{1,20})\s+([A-Za-z0-9][A-Za-z0-9\-]{1,20})\b/i,
+    // Make Model Year: "Toyota Sienna 2007", "Honda Accord 2019"
+    /\b(?:have|driving|drive|car is|vehicle is|it's a|its a)\s+(?:a|an)?\s*([A-Za-z][A-Za-z\-]{1,20})\s+([A-Za-z0-9][A-Za-z0-9\-]{1,20})\s+((?:19|20)\d{2})\b/i,
+    // Make Model only: "Toyota Camry", "Honda Civic"
+    /\b(?:have|driving|drive|car is|vehicle is|it's a|its a)\s+(?:a|an)?\s*([A-Za-z][A-Za-z\-]{1,20})\s+([A-Za-z0-9][A-Za-z0-9\-]{1,20})\b/i,
   ]
+  
   for (const p of vehiclePatterns) {
     const m = normalized.match(p)
     if (m) {
-      if (m.length === 4) {
-        const year = parseInt(m[1], 10)
-        const make = m[2].trim()
-        const model = m[3].trim()
-        result.vehicleYear = Number.isFinite(year) ? year : undefined
+      // Filter out common non-vehicle words
+      const excludeWords = ['another', 'other', 'different', 'new', 'old', 'car', 'vehicle', 'auto']
+      const make = m[1]?.trim() || ''
+      const model = m[2]?.trim() || ''
+      const year = m[3]?.trim() || ''
+      
+      if (excludeWords.some(word => make.toLowerCase().includes(word) || model.toLowerCase().includes(word))) {
+        continue // Skip this match
+      }
+      
+      if (m.length === 4 && year) {
+        // Year Make Model format
+        const yearNum = parseInt(year, 10)
+        result.vehicleYear = Number.isFinite(yearNum) ? yearNum : undefined
         result.vehicleMake = make
         result.vehicleModel = model
-        result.vehicle = `${year} ${make} ${model}`
+        result.vehicle = `${yearNum} ${make} ${model}`
+      } else if (m.length === 4 && !year) {
+        // Make Model Year format
+        const yearNum = parseInt(model, 10)
+        if (Number.isFinite(yearNum) && yearNum >= 1900 && yearNum <= 2030) {
+          result.vehicleYear = yearNum
+          result.vehicleMake = make
+          result.vehicleModel = m[2].trim()
+          result.vehicle = `${make} ${m[2].trim()} ${yearNum}`
+        } else {
+          result.vehicleMake = make
+          result.vehicleModel = model
+          result.vehicle = `${make} ${model}`
+        }
       } else if (m.length === 3) {
-        const make = m[1].trim()
-        const model = m[2].trim()
+        // Make Model only
         result.vehicleMake = make
         result.vehicleModel = model
         result.vehicle = `${make} ${model}`
