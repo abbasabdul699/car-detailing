@@ -76,12 +76,29 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Get detailer's available services from MongoDB
+    // Get detailer's available services from MongoDB with categories
     const detailerServices = await prisma.detailerService.findMany({
       where: { detailerId: detailer.id },
-      include: { service: true }
+      include: { 
+        service: {
+          include: {
+            category: true
+          }
+        }
+      }
     })
-    const availableServices = detailerServices.map(ds => ds.service.name).join(', ')
+    
+    // Group services by category for better organization
+    const servicesByCategory = detailerServices.reduce((acc, ds) => {
+      const category = ds.service.category?.name || 'Other'
+      if (!acc[category]) acc[category] = []
+      acc[category].push(ds.service.name)
+      return acc
+    }, {} as Record<string, string[]>)
+    
+    const availableServices = Object.entries(servicesByCategory)
+      .map(([category, services]) => `${category}: ${services.join(', ')}`)
+      .join(' | ')
 
     // Update snapshot with any hints from this message
     const inferred = extractSnapshotHints(body || '', detailerServices.map(ds => ds.service.name))
@@ -140,6 +157,13 @@ ${detailer.city && detailer.state ? `Location: ${detailer.city}, ${detailer.stat
 Business Hours: ${JSON.stringify(detailer.businessHours)}
 Available Services: ${availableServices || 'Various car detailing services'}
 
+SERVICE SUGGESTIONS:
+When customers ask about services, suggest them by category:
+- Interior: Interior cleaning, vacuuming, dashboard cleaning, etc.
+- Exterior: Hand wash, wax, tire cleaning, etc.  
+- Bundle: Full detail, exterior detail, etc.
+- Additional: Ceramic coating, PPF, headlight restoration, etc.
+
 Known customer context (if any):
 Name: ${snapshot?.customerName || 'unknown'}
 Vehicle: ${snapshot?.vehicle || [snapshot?.vehicleYear, snapshot?.vehicleMake, snapshot?.vehicleModel].filter(Boolean).join(' ') || 'unknown'}
@@ -170,8 +194,10 @@ SERVICES REQUIREMENTS:
 - Use the known services information to confirm what they want
 - Only ask for services if you don't have this information yet
 - ONLY suggest services from the "Available Services" list above
+- When suggesting services, organize them by category (Interior, Exterior, Bundle, Additional)
 - If a customer asks for a service not in the available services, politely explain what services you actually offer
 - Never suggest services that aren't in the detailer's available services list
+- Use the categorized format to help customers understand what types of services are available
 
 ADDRESS REQUIREMENTS:
 - Always ask for the COMPLETE address (street number, street name, city, state, ZIP)
