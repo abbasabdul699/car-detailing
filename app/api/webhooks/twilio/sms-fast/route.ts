@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
 IMPORTANT: Be conversational, engaging, and natural. Don't give generic responses. Respond like a real person would.
 
 Business: ${detailer.businessName}
-Location: ${detailer.city}, ${detailer.state}
+${detailer.city && detailer.state ? `Location: ${detailer.city}, ${detailer.state}` : ''}
 
 Known customer context (if any):
 Name: ${snapshot?.customerName || 'unknown'}
@@ -116,6 +116,8 @@ If they want to book:
 - Ask about their vehicle
 - Ask what services they need
 - Ask for their address (where they want the mobile service)
+
+CRITICAL: This is a MOBILE service - we come to the customer's location. Always ask for their specific address where they want the service performed. Never assume a location or mention a specific city unless the customer has already provided their address.
 
 IMPORTANT: This is a MOBILE service. We come to the customer's location. Never mention "our shop" or "our location" - always ask for their address where they want the service performed.
 
