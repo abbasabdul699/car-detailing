@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getCustomerSnapshot, upsertCustomerSnapshot, extractSnapshotHints } from '@/lib/customerSnapshot';
 import twilio from 'twilio';
 
 export async function POST(request: NextRequest) {
@@ -62,7 +63,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Store incoming message
-    await prisma.message.create({
+    const inbound = await prisma.message.create({
       data: {
         conversationId: conversation.id,
         direction: 'inbound',
@@ -71,6 +72,15 @@ export async function POST(request: NextRequest) {
         status: 'received',
       },
     });
+
+    // Update snapshot with any hints from this message
+    const inferred = extractSnapshotHints(body || '')
+    if (Object.keys(inferred).length > 0) {
+      await upsertCustomerSnapshot(detailer.id, from, inferred)
+    }
+
+    // Load snapshot for context
+    const snapshot = await getCustomerSnapshot(detailer.id, from)
 
     // Generate conversational AI response
     const recentMessages = conversation.messages || [];
@@ -85,6 +95,11 @@ IMPORTANT: Be conversational, engaging, and natural. Don't give generic response
 
 Business: ${detailer.businessName}
 Location: ${detailer.city}, ${detailer.state}
+
+Known customer context (if any):
+Name: ${snapshot?.customerName || 'unknown'}
+Vehicle: ${snapshot?.vehicle || 'unknown'}
+Address: ${snapshot?.address || 'unknown'}
 
 When customers ask about services:
 - Be enthusiastic and helpful
@@ -128,12 +143,14 @@ Keep responses under 160 characters and conversational.`;
     console.log('AI Response:', aiResponse);
 
     // Send response immediately
-    const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
-    const twilioMessage = await client.messages.create({
-      to: from,
-      from: to,
-      body: aiResponse
-    });
+    let twilioSid: string | undefined
+    const sendDisabled = process.env.TWILIO_SEND_DISABLED === '1'
+    const hasTwilioCreds = !!process.env.TWILIO_ACCOUNT_SID && !!process.env.TWILIO_AUTH_TOKEN
+    if (!sendDisabled && hasTwilioCreds) {
+      const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+      const tw = await client.messages.create({ to: from, from: to, body: aiResponse })
+      twilioSid = tw.sid
+    }
 
     // Store AI response
     await prisma.message.create({
@@ -141,18 +158,18 @@ Keep responses under 160 characters and conversational.`;
         conversationId: conversation.id,
         direction: 'outbound',
         content: aiResponse,
-        twilioSid: twilioMessage.sid,
-        status: 'sent',
+        twilioSid: twilioSid,
+        status: twilioSid ? 'sent' : 'simulated',
       },
     });
 
     console.log('=== FAST SMS WEBHOOK SUCCESS ===');
-    console.log('Response sent:', twilioMessage.sid);
+    if (twilioSid) console.log('Response sent:', twilioSid);
 
     return NextResponse.json({ 
       success: true,
       aiResponse,
-      twilioSid: twilioMessage.sid
+      twilioSid: twilioSid
     });
 
   } catch (error) {
