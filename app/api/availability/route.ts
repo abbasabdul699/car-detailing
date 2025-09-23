@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 
 // Helper function to check if a time is within business hours
 function isWithinBusinessHours(date: Date, businessHours: any): boolean {
-  const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'lowercase' }).slice(0, 3); // mon, tue, etc.
+  const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'short' }).toLowerCase(); // mon, tue, etc.
   const dayHours = businessHours[dayOfWeek];
   
   if (!dayHours || dayHours.length === 0) {
