@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import twilio from 'twilio';
 
-const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
-
 // Helper function to call OpenAI API for AI responses
 async function getAIResponse(messages: any[], detailerInfo: any, conversationHistory: any[] = []) {
   try {
@@ -228,6 +226,7 @@ export async function POST(request: NextRequest) {
 
     // Send SMS response via Twilio
     console.log('Sending AI response via Twilio...');
+    const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
     const twilioMessage = await client.messages.create({
       to: from,
       from: to,
