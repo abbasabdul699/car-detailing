@@ -111,10 +111,16 @@ export function extractSnapshotHints(text: string) {
     }
   }
 
-  // Address: handle “at/Address is/located at” and allow comma-separated city, state ZIP
+  // Address: handle various ways addresses are mentioned
   const addressPatterns = [
-    /\b(?:address is|located at|at|address:)\s+([0-9]{1,6}[^\n,]*?,\s*[^\n,]+,\s*[A-Z]{2}\s*\d{5}(?:-\d{4})?)/i,
-    /\b(?:address is|located at|at|address:)\s+([0-9]{1,6}[^\n,]*?,\s*[^\n,]+\s*[A-Z]{2}\s*\d{5}(?:-\d{4})?)/i,
+    // Full address with city, state ZIP
+    /\b(?:address is|located at|at|address:|my address is|the address is)\s+([0-9]{1,6}[^\n,]*?,\s*[^\n,]+,\s*[A-Z]{2}\s*\d{5}(?:-\d{4})?)/i,
+    // Just street address with city, state ZIP
+    /\b(?:address is|located at|at|address:|my address is|the address is)\s+([0-9]{1,6}[^\n,]*?,\s*[^\n,]+\s*[A-Z]{2}\s*\d{5}(?:-\d{4})?)/i,
+    // Simple street address (number + street name)
+    /\b(?:address is|located at|at|address:|my address is|the address is|it's|its)\s+([0-9]{1,6}\s+[A-Za-z][A-Za-z\s]+(?:St|Street|Ave|Avenue|Rd|Road|Dr|Drive|Blvd|Boulevard|Ln|Lane|Ct|Court|Pl|Place|Way|Cir|Circle))/i,
+    // Standalone street address (number + street name) - no trigger words needed
+    /\b([0-9]{1,6}\s+[A-Za-z][A-Za-z\s]+(?:St|Street|Ave|Avenue|Rd|Road|Dr|Drive|Blvd|Boulevard|Ln|Lane|Ct|Court|Pl|Place|Way|Cir|Circle))\b/i,
   ]
   for (const p of addressPatterns) {
     const m = normalized.match(p)
