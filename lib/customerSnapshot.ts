@@ -50,23 +50,37 @@ export function extractSnapshotHints(text: string, availableServices?: string[])
 
   // Name patterns - be more specific to avoid false matches
   const namePatterns = [
-    /\bmy name is\s+([a-zA-Z][a-zA-Z\s'-]{1,40})/i,
-    /\bi am\s+([a-zA-Z][a-zA-Z\s'-]{1,40})/i,
-    /\bthis is\s+([a-zA-Z][a-zA-Z\s'-]{1,40})/i,
-    /\b(?:i'm|im)\s+([a-zA-Z][a-zA-Z\s'-]{1,40})/i,
+    /\bmy name is\s+([a-zA-Z][a-zA-Z\s'-]{1,40}?)(?:\s+and\s+|\s+at\s+|\s+have\s+|\s+want\s+|\s+need\s+|\s+looking\s+)/i,
+    /\bi am\s+([a-zA-Z][a-zA-Z\s'-]{1,40}?)(?:\s+and\s+|\s+at\s+|\s+have\s+|\s+want\s+|\s+need\s+|\s+looking\s+)/i,
+    /\bthis is\s+([a-zA-Z][a-zA-Z\s'-]{1,40}?)(?:\s+and\s+|\s+at\s+|\s+have\s+|\s+want\s+|\s+need\s+|\s+looking\s+)/i,
+    /\b(?:i'm|im)\s+([a-zA-Z][a-zA-Z\s'-]{1,40}?)(?:\s+and\s+|\s+at\s+|\s+have\s+|\s+want\s+|\s+need\s+|\s+looking\s+)/i,
     // Standalone name patterns (no trigger words needed) - but exclude addresses
     /\b([A-Z][a-z]+\s+[A-Z][a-z]+)\b(?!\s+(?:St|Street|Ave|Avenue|Rd|Road|Dr|Drive|Blvd|Boulevard|Ln|Lane|Ct|Court|Pl|Place|Way|Cir|Circle|Suite|Apt|Unit))/,
   ]
   for (const p of namePatterns) {
     const m = normalized.match(p)
-    if (m) { result.customerName = m[1].trim(); break }
+    if (m) { 
+      const name = m[1].trim()
+      // Clean up name - remove common trailing words
+      const cleanName = name.replace(/\s+(and|at|have|want|need|looking|for|to|get|book|schedule).*$/i, '').trim()
+      // Extra guard: avoid capturing street fragments like "Dyer St" as a name
+      const parts = cleanName.split(/\s+/)
+      const second = (parts[1] || '').toLowerCase()
+      const streetTokens = ['st','street','ave','avenue','rd','road','dr','drive','blvd','boulevard','ln','lane','ct','court','pl','place','way','cir','circle','hwy','highway','pkwy','parkway','suite','apt','unit']
+      if (streetTokens.includes(second)) {
+        // Skip this match; it's likely an address fragment
+        continue
+      }
+      result.customerName = cleanName
+      break 
+    }
   }
 
   // Vehicle: capture year (19xx/20xx), make, model with better filtering
   // Examples: "I have a 2023 Toyota RAV4", "driving a 2018 Honda Civic", "it's a Toyota Sienna 2007", "I think its a 2012 toyota Camry"
   const vehiclePatterns = [
-    // Year Make Model: "2023 Toyota RAV4", "2015 Honda Civic", "2012 toyota Camry"
-    /\b(?:have|driving|drive|car is|vehicle is|it's a|its a|think its a|think it's a)\s+(?:a|an)?\s*((?:19|20)\d{2})\s+([A-Za-z][A-Za-z\-]{1,20})\s+([A-Za-z0-9][A-Za-z0-9\-]{1,20})\b/i,
+    // Year Make Model: "2023 Toyota RAV4", "2015 Honda Civic", "2012 toyota Camry", "2020 Tesla Model 3"
+    /\b(?:have|driving|drive|car is|vehicle is|it's a|its a|think its a|think it's a)\s+(?:a|an)?\s*((?:19|20)\d{2})\s+([A-Za-z][A-Za-z\-]{1,20})\s+([A-Za-z0-9][A-Za-z0-9\s\-]{1,20})\b/i,
     // Make Model Year: "Toyota Sienna 2007", "Honda Accord 2019"
     /\b(?:have|driving|drive|car is|vehicle is|it's a|its a|think its a|think it's a)\s+(?:a|an)?\s*([A-Za-z][A-Za-z\-]{1,20})\s+([A-Za-z0-9][A-Za-z0-9\-]{1,20})\s+((?:19|20)\d{2})\b/i,
     // Make Model only: "Toyota Camry", "Honda Civic"
@@ -75,7 +89,8 @@ export function extractSnapshotHints(text: string, availableServices?: string[])
     /\b((?:19|20)\d{2})\s+([A-Za-z][A-Za-z\-]{1,20})\s+([A-Za-z0-9][A-Za-z0-9\-]{1,20})\b/i,
     /\b([A-Za-z][A-Za-z\-]{1,20})\s+([A-Za-z0-9][A-Za-z0-9\-]{1,20})\s+((?:19|20)\d{2})\b/i,
     // Handle "Tesla Model 3" and "2020" in separate messages
-    /\b([A-Za-z][A-Za-z\-]{1,20})\s+([A-Za-z0-9][A-Za-z0-9\-]{1,20})\b/i,
+    // Make Model only, but guard against common phrases like "thank you", "you there"
+    /\b(?!thank\b|you\b|thanks\b|between\b|morning\b|afternoon\b|evening\b|tonight\b|night\b|monday\b|tuesday\b|wednesday\b|thursday\b|friday\b|saturday\b|sunday\b|am\b|pm\b)([A-Za-z][A-Za-z\-]{2,20})\s+([A-Za-z0-9][A-Za-z0-9\-]{2,20})\b/i,
     /\b((?:19|20)\d{2})\b/,
   ]
   
@@ -83,7 +98,7 @@ export function extractSnapshotHints(text: string, availableServices?: string[])
     const m = normalized.match(p)
     if (m) {
       // Filter out common non-vehicle words
-      const excludeWords = ['another', 'other', 'different', 'new', 'old', 'car', 'vehicle', 'auto']
+      const excludeWords = ['another', 'other', 'different', 'new', 'old', 'car', 'vehicle', 'auto', 'thank', 'thanks', 'you', 'between', 'morning', 'afternoon', 'evening', 'tonight', 'night', 'am', 'pm', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
       const make = m[1]?.trim() || ''
       const model = m[2]?.trim() || ''
       const year = m[3]?.trim() || ''
@@ -113,6 +128,11 @@ export function extractSnapshotHints(text: string, availableServices?: string[])
           result.vehicle = `${make} ${model}`
         }
       } else if (m.length === 3) {
+        // Additional guard: avoid capturing phrases like "thank you"
+        const phrase = `${make} ${model}`.toLowerCase()
+        if (phrase.includes('thank you') || phrase === 'thank you') {
+          continue
+        }
         // Make Model only
         result.vehicleMake = make
         result.vehicleModel = model
@@ -135,9 +155,9 @@ export function extractSnapshotHints(text: string, availableServices?: string[])
 
   // Address: handle various ways addresses are mentioned
   const addressPatterns = [
-    // Full address with city, state ZIP (flexible format)
+    // Full address with city, state ZIP (flexible format) - "at 65 Dyer St Brockton MA 02302"
     /\b(?:address is|located at|at|address:|my address is|the address is)\s+([0-9]{1,6}[^\n,]*?,\s*[^\n,]+,\s*[A-Z]{2}\s*\d{5}(?:-\d{4})?)/i,
-    // Just street address with city, state ZIP
+    // Just street address with city, state ZIP - "at 65 Dyer St Brockton MA 02302"
     /\b(?:address is|located at|at|address:|my address is|the address is)\s+([0-9]{1,6}[^\n,]*?,\s*[^\n,]+\s*[A-Z]{2}\s*\d{5}(?:-\d{4})?)/i,
     // Simple street address (number + street name with suffix)
     /\b(?:address is|located at|at|address:|my address is|the address is|it's|its)\s+([0-9]{1,6}\s+[A-Za-z][A-Za-z\s]+(?:St|Street|Ave|Avenue|Rd|Road|Dr|Drive|Blvd|Boulevard|Ln|Lane|Ct|Court|Pl|Place|Way|Cir|Circle))/i,
@@ -147,6 +167,8 @@ export function extractSnapshotHints(text: string, availableServices?: string[])
     /\b([0-9]{1,6}\s+[A-Za-z][A-Za-z\s]*,\s*[A-Za-z][A-Za-z\s]*,\s*[A-Z]{2}\s*\d{5}(?:-\d{4})?)\b/i,
     // Address with Suite/Apt (like "4 Hovendon Ave Suite 11 Brockton, MA 02302")
     /\b([0-9]{1,6}\s+[A-Za-z][A-Za-z\s]*(?:\s+(?:Suite|Apt|Unit|#)\s*\d+)?,\s*[A-Za-z][A-Za-z\s]*,\s*[A-Z]{2}\s*\d{5}(?:-\d{4})?)\b/i,
+    // Handle "at 65 Dyer St Brockton MA 02302" format (no commas)
+    /\b(?:at|address is|located at|my address is|the address is)\s+([0-9]{1,6}\s+[A-Za-z][A-Za-z\s]+\s+[A-Za-z][A-Za-z\s]+\s+[A-Z]{2}\s*\d{5}(?:-\d{4})?)\b/i,
   ]
   
   // Check for incomplete addresses (just city names)
@@ -185,6 +207,8 @@ export function extractSnapshotHints(text: string, availableServices?: string[])
   const servicePatterns = [
     /\b(?:want|need|looking for|interested in|book|get)\s+(?:a|an)?\s*(interior\s+detail|exterior\s+detail|full\s+detail|wash|wax|ppf|paint\s+protection|ceramic\s+coating|detailing)/i,
     /\b(interior\s+detail|exterior\s+detail|full\s+detail|wash|wax|ppf|paint\s+protection|ceramic\s+coating|detailing)\b/i,
+    // Handle "want interior detail" format
+    /\b(?:want|need|looking for|interested in|book|get)\s+(interior\s+detail|exterior\s+detail|full\s+detail|wash|wax|ppf|paint\s+protection|ceramic\s+coating|detailing)\b/i,
   ]
   
   for (const p of servicePatterns) {

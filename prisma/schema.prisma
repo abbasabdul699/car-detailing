@@ -66,6 +66,7 @@ model Detailer {
   conversations     Conversation[]
   bookings          Booking[]
   customerSnapshots CustomerSnapshot[]
+  events            Event[]
 }
 
 model Image {
@@ -238,5 +239,26 @@ model Booking {
   updatedAt      DateTime?    @updatedAt
   
   // Relations
+  events            Event[]
   @@unique([detailerId, scheduledDate, customerPhone])
+}
+
+model Event {
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  detailer       Detailer  @relation(fields: [detailerId], references: [id])
+  detailerId     String    @db.ObjectId
+  title          String
+  date           DateTime
+  time           String?
+  allDay         Boolean   @default(false)
+  color          String    @default("blue")
+  description    String?
+  location       String?
+  googleEventId  String?
+  bookingId      String?   @db.ObjectId
+  booking        Booking?  @relation(fields: [bookingId], references: [id])
+  createdAt      DateTime? @default(now())
+  updatedAt      DateTime? @updatedAt
+
+  @@map("events")
 }

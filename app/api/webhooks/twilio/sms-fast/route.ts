@@ -16,13 +16,26 @@ export async function POST(request: NextRequest) {
     const from = normalizeToE164(fromRaw) || fromRaw;
     const to = normalizeToE164(toRaw) || toRaw;
     
+    // Idempotency: if we've already stored a message with this SID, acknowledge and return
+    if (messageSid) {
+      const existing = await prisma.message.findFirst({ where: { twilioSid: messageSid } }).catch(() => null)
+      if (existing) {
+        console.log('Duplicate webhook for MessageSid, acknowledging without reprocessing:', messageSid)
+        return NextResponse.json({ success: true, deduped: true });
+      }
+    }
+    
     console.log('Fast - Incoming message:', { from, to, body, messageSid });
     
-    // Find the detailer quickly
+    // Find the detailer quickly (robust match: exact E.164 OR last 10 digits)
+    const last10 = to.replace(/\D/g, '').slice(-10)
     const detailer = await prisma.detailer.findFirst({
       where: {
-        twilioPhoneNumber: to,
         smsEnabled: true,
+        OR: [
+          { twilioPhoneNumber: to },
+          { twilioPhoneNumber: { contains: last10 } },
+        ],
       },
     });
 
@@ -47,13 +60,20 @@ export async function POST(request: NextRequest) {
     });
 
     if (!conversation) {
-      conversation = await prisma.conversation.create({
+      const created = await prisma.conversation.create({
         data: {
           detailerId: detailer.id,
           customerPhone: from,
           status: 'active',
           lastMessageAt: new Date(),
         },
+      });
+      // Re-fetch with messages included to satisfy typing downstream
+      conversation = await prisma.conversation.findUnique({
+        where: { id: created.id },
+        include: {
+          messages: { orderBy: { createdAt: 'desc' }, take: 5 }
+        }
       });
     } else {
       await prisma.conversation.update({
@@ -63,6 +83,17 @@ export async function POST(request: NextRequest) {
           lastMessageAt: new Date(),
         },
       });
+      // Ensure we have latest messages relation
+      conversation = await prisma.conversation.findUnique({
+        where: { id: conversation.id },
+        include: {
+          messages: { orderBy: { createdAt: 'desc' }, take: 5 }
+        }
+      });
+    }
+
+    if (!conversation) {
+      return NextResponse.json({ error: 'Conversation unavailable' }, { status: 500 })
     }
 
     // Store incoming message
@@ -239,30 +270,41 @@ NEVER mention specific cities like "Boston" unless the customer has already prov
 
 Keep responses under 160 characters and conversational.`;
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          ...conversationHistory,
-          { role: 'user', content: body }
-        ],
-        max_tokens: 120, // Slightly longer for more natural responses
-        temperature: 0.9, // More creative and conversational
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`OpenAI API error: ${response.status}`);
+    // OpenAI call with timeout protection
+    let aiResponse = 'Hey! Thanks for reaching out! What can I help you with today?'
+    try {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 7000)
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            ...conversationHistory,
+            { role: 'user', content: body }
+          ],
+          max_tokens: 120,
+          temperature: 0.9,
+        }),
+      });
+      clearTimeout(timeout)
+      if (response.ok) {
+        const data = await response.json();
+        aiResponse = data.choices[0]?.message?.content || aiResponse
+      } else {
+        console.warn('OpenAI API non-OK:', response.status)
+      }
+    } catch (e) {
+      console.warn('OpenAI call failed, using fallback:', e)
     }
-
-    const data = await response.json();
-    let aiResponse = data.choices[0]?.message?.content || 'Hey! Thanks for reaching out! What can I help you with today?';
+    // Ensure SMS-length
+    aiResponse = aiResponse.slice(0, 160)
 
     console.log('AI Response:', aiResponse);
 
@@ -304,32 +346,36 @@ Keep responses under 160 characters and conversational.`;
         twilioSid = tw.sid
       }
       
-      // After sending the first AI message in a conversation, send vCard once if not sent
-      const snapshot = await getCustomerSnapshot(detailer.id, from)
-      if (!snapshot?.vcardSent) {
-        const vcardUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'https://www.reevacar.com'}/api/vcard?detailerId=${detailer.id}`
-        try {
-          console.log('Sending MMS vCard to:', from, 'URL:', vcardUrl)
-          // Send MMS with vCard attachment
-          const mmsResponse = await client.messages.create({ 
-            to: from, 
-            from: to, 
-            body: `Save our contact! 📇`,
-            mediaUrl: [vcardUrl]
+      // After sending the first AI message in a conversation, send vCard once if not sent (atomic flip)
+      try {
+        const vcardCheck = await prisma.$transaction(async (tx) => {
+          const snap = await tx.customerSnapshot.upsert({
+            where: { detailerId_customerPhone: { detailerId: detailer.id, customerPhone: from } },
+            update: {},
+            create: { detailerId: detailer.id, customerPhone: from, vcardSent: false }
           })
-          console.log('MMS sent successfully:', mmsResponse.sid)
-          await upsertCustomerSnapshot(detailer.id, from, { data: null, customerName: snapshot?.customerName ?? null, address: snapshot?.address ?? null, vehicle: snapshot?.vehicle ?? null, vehicleYear: snapshot?.vehicleYear ?? null, vehicleMake: snapshot?.vehicleMake ?? null, vehicleModel: snapshot?.vehicleModel ?? null })
-          await prisma.customerSnapshot.update({ where: { detailerId_customerPhone: { detailerId: detailer.id, customerPhone: from } }, data: { vcardSent: true } })
-        } catch (mmsError) {
-          console.error('MMS failed, falling back to SMS:', mmsError)
-          // Fallback: send as SMS with link
-          await client.messages.create({
-            to: from,
-            from: to,
-            body: `Save our contact: ${vcardUrl}`
-          })
-          await prisma.customerSnapshot.update({ where: { detailerId_customerPhone: { detailerId: detailer.id, customerPhone: from } }, data: { vcardSent: true } })
+          if (!snap.vcardSent) {
+            await tx.customerSnapshot.update({
+              where: { detailerId_customerPhone: { detailerId: detailer.id, customerPhone: from } },
+              data: { vcardSent: true }
+            })
+            return true
+          }
+          return false
+        })
+
+        if (vcardCheck) {
+          const vcardUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'https://www.reevacar.com'}/api/vcard?detailerId=${detailer.id}`
+          try {
+            console.log('Sending MMS vCard to:', from, 'URL:', vcardUrl)
+            await client.messages.create({ to: from, from: to, body: `Save our contact! 📇`, mediaUrl: [vcardUrl] })
+          } catch (mmsError) {
+            console.error('MMS failed, falling back to SMS:', mmsError)
+            await client.messages.create({ to: from, from: to, body: `Save our contact: ${vcardUrl}` })
+          }
         }
+      } catch (vcErr) {
+        console.error('vCard send-once flow failed:', vcErr)
       }
     }
 
@@ -343,6 +389,134 @@ Keep responses under 160 characters and conversational.`;
         status: twilioSid ? 'sent' : 'simulated',
       },
     });
+
+    // Lightweight booking creation: if user message includes a clear date and time
+    // and we already have key details in the snapshot (name, vehicle, address),
+    // create a pending booking so it appears in the dashboard immediately.
+    try {
+      const hasDate = /\b(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|\d{1,2}[\/\-]\d{1,2}(?:[\/\-]\d{2,4})?|\d{4}-\d{2}-\d{2})\b/i.test(body || '')
+      const hasTime = /\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i.test(body || '') || /(morning|afternoon|evening|tonight|night)/i.test(body || '') || /\b\d{1,2}\s*(?:am|pm)?\s*[-–]\s*\d{1,2}\s*(?:am|pm)\b/i.test(body || '')
+
+      const snapForBooking = await getCustomerSnapshot(detailer.id, from)
+      const hasMinimumDetails = !!(snapForBooking && (snapForBooking.customerName || snapForBooking.vehicle || snapForBooking.address))
+
+      // Helper to parse natural dates from text
+      const parseDateFromText = (text: string): Date | null => {
+        const lower = text.toLowerCase()
+        const today = new Date()
+
+        if (/(^|\b)today(\b|$)/i.test(lower)) return today
+        if (/(^|\b)tomorrow(\b|$)/i.test(lower)) { const d = new Date(today); d.setDate(today.getDate() + 1); return d }
+
+        const weekdays = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'] as const
+        for (let i = 0; i < weekdays.length; i++) {
+          const day = weekdays[i]
+          const re = new RegExp(`\\b${day}\\b`, 'i')
+          if (re.test(lower)) {
+            const d = new Date(today)
+            const current = d.getDay()
+            const target = i
+            let diff = target - current
+            if (diff <= 0) diff += 7
+            d.setDate(d.getDate() + diff)
+            return d
+          }
+        }
+
+        // MM/DD or M/D, with optional year
+        const md = text.match(/\b(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?\b/)
+        if (md) {
+          const month = parseInt(md[1], 10) - 1
+          const day = parseInt(md[2], 10)
+          const yearNum = md[3] ? parseInt(md[3], 10) : today.getFullYear()
+          const year = yearNum < 100 ? 2000 + yearNum : yearNum
+          const d = new Date(year, month, day)
+          if (!isNaN(d.getTime())) return d
+        }
+
+        // ISO YYYY-MM-DD
+        const iso = text.match(/\b(\d{4})-(\d{2})-(\d{2})\b/)
+        if (iso) {
+          const d = new Date(`${iso[1]}-${iso[2]}-${iso[3]}T00:00:00`)
+          if (!isNaN(d.getTime())) return d
+        }
+
+        return null
+      }
+
+      // Helper to parse specific times, time ranges, and dayparts
+      const parseTimeFromText = (text: string): { time?: string, note?: string } => {
+        // Explicit HH[:MM] am/pm
+        const explicit = text.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i)
+        if (explicit) {
+          const h = parseInt(explicit[1], 10)
+          const m = explicit[2] ? parseInt(explicit[2], 10) : 0
+          const p = explicit[3].toLowerCase()
+          const hh = h
+          const mm = m.toString().padStart(2, '0')
+          return { time: `${hh}:${mm} ${p.toUpperCase()}` }
+        }
+
+        // Ranges like 2-4pm, 2pm-4pm, between 2 and 4 pm
+        const range1 = text.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s*[-–]\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i)
+        if (range1) {
+          const startHour = parseInt(range1[1], 10)
+          const startMin = range1[2] ? parseInt(range1[2], 10) : 0
+          const endPeriod = range1[6].toLowerCase()
+          const startPeriod = (range1[3] ? range1[3] : endPeriod).toLowerCase()
+          const start = `${startHour}:${startMin.toString().padStart(2,'0')} ${startPeriod.toUpperCase()}`
+          const endHour = parseInt(range1[4], 10)
+          const endMin = range1[5] ? parseInt(range1[5], 10) : 0
+          const end = `${endHour}:${endMin.toString().padStart(2,'0')} ${endPeriod.toUpperCase()}`
+          return { time: start, note: `Requested window ${start} - ${end}` }
+        }
+
+        const between = text.match(/between\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s+(?:and|\-)\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i)
+        if (between) {
+          const startHour = parseInt(between[1], 10)
+          const startMin = between[2] ? parseInt(between[2], 10) : 0
+          const endPeriod = between[6].toLowerCase()
+          const startPeriod = (between[3] ? between[3] : endPeriod).toLowerCase()
+          const start = `${startHour}:${startMin.toString().padStart(2,'0')} ${startPeriod.toUpperCase()}`
+          const endHour = parseInt(between[4], 10)
+          const endMin = between[5] ? parseInt(between[5], 10) : 0
+          const end = `${endHour}:${endMin.toString().padStart(2,'0')} ${endPeriod.toUpperCase()}`
+          return { time: start, note: `Requested window ${start} - ${end}` }
+        }
+
+        // Dayparts
+        if (/morning/i.test(text)) return { time: '9:00 AM' }
+        if (/afternoon/i.test(text)) return { time: '1:00 PM' }
+        if (/evening|tonight|night/i.test(text)) return { time: '6:00 PM' }
+
+        return {}
+      }
+
+      if (hasDate && hasTime && hasMinimumDetails) {
+        const when = parseDateFromText(body) || new Date()
+        const services = Array.isArray(snapForBooking?.services) ? snapForBooking?.services as string[] : []
+
+        const parsed = parseTimeFromText(body)
+
+        await prisma.booking.create({
+          data: {
+            detailerId: detailer.id,
+            conversationId: conversation.id,
+            customerPhone: from,
+            customerName: snapForBooking?.customerName || undefined,
+            vehicleType: snapForBooking?.vehicle || [snapForBooking?.vehicleYear, snapForBooking?.vehicleMake, snapForBooking?.vehicleModel].filter(Boolean).join(' ') || undefined,
+            vehicleLocation: snapForBooking?.address || undefined,
+            services: services.length ? services : ['Detailing'],
+            scheduledDate: when,
+            scheduledTime: parsed.time || undefined,
+            status: 'pending',
+            notes: parsed.note ? `Auto-captured from SMS conversation (fast webhook) | ${parsed.note}` : 'Auto-captured from SMS conversation (fast webhook)'
+          }
+        })
+      }
+    } catch (e) {
+      console.error('Non-fatal error creating lightweight booking:', e)
+    }
 
     console.log('=== FAST SMS WEBHOOK SUCCESS ===');
     if (twilioSid) console.log('Response sent:', twilioSid);

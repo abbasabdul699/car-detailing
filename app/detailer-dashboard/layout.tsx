@@ -39,7 +39,6 @@ export default function DetailerDashboardLayout({
     { name: "Images", href: "/detailer-dashboard/images", icon: PhotoIcon },
     { name: "Reviews", href: "/detailer-dashboard/reviews", icon: StarIcon },
     { name: "Invoices", href: "/detailer-dashboard/invoices", icon: DocumentTextIcon },
-    { name: "Calendar Settings", href: "/detailer-dashboard/calendar-settings", icon: CalendarDaysIcon },
     { name: "Settings", href: "/detailer-dashboard/settings", icon: CogIcon },
     { name: "Bookings", href: "/detailer-dashboard/bookings", icon: ChartBarIcon },
   ];

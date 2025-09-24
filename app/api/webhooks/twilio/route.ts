@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getCustomerSnapshot, upsertCustomerSnapshot, extractSnapshotHints } from '@/lib/customerSnapshot';
 import { normalizeToE164 } from '@/lib/phone';
+import { createCalendarEvent, syncToGoogleCalendar } from '@/lib/calendarSync';
 import twilio from 'twilio';
 
 export async function POST(request: NextRequest) {
@@ -183,6 +184,21 @@ export async function POST(request: NextRequest) {
         });
 
         console.log('SMS BOOKING CREATED:', booking.id);
+        
+        // Create calendar event in our system
+        try {
+          const calendarEvent = await createCalendarEvent(detailer.id, booking);
+          console.log('CALENDAR EVENT CREATED:', calendarEvent.id);
+          
+          // Sync to Google Calendar if connected
+          const googleEventId = await syncToGoogleCalendar(detailer.id, calendarEvent);
+          if (googleEventId) {
+            console.log('GOOGLE CALENDAR SYNCED:', googleEventId);
+          }
+        } catch (error) {
+          console.error('Error creating calendar event:', error);
+          // Don't fail the booking creation if calendar sync fails
+        }
         
         // Send booking confirmation
         const confirmationMessage = `Great! I've created a booking for you. Here are the details:

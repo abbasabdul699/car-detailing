@@ -96,6 +96,81 @@ export async function GET(request: NextRequest) {
     }
 
     let events = [];
+    let localEvents = [];
+
+    // First, fetch local events from our database
+    try {
+      localEvents = await prisma.event.findMany({
+        where: { detailerId },
+        orderBy: { date: 'asc' }
+      });
+
+      // Transform local events to match calendar format
+      localEvents = localEvents.map((event: any) => {
+        const eventDate = new Date(event.date);
+        
+        // Handle time parsing more safely
+        let startDateTime, endDateTime;
+        
+        if (event.time) {
+          // Parse time more carefully - convert 12-hour to 24-hour format
+          let timeStr = event.time;
+          
+          // Convert 12-hour format to 24-hour format
+          if (timeStr.includes('PM') || timeStr.includes('AM')) {
+            const isPM = timeStr.includes('PM');
+            const timeOnly = timeStr.replace(/\s*(AM|PM)/i, '').trim();
+            const [hours, minutes] = timeOnly.split(':').map(Number);
+            
+            let hour24 = hours;
+            if (isPM && hours !== 12) {
+              hour24 = hours + 12;
+            } else if (!isPM && hours === 12) {
+              hour24 = 0;
+            }
+            
+            timeStr = `${hour24.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
+          } else if (!timeStr.includes(':')) {
+            timeStr = `${timeStr}:00`;
+          }
+          
+          const dateStr = event.date.toISOString().split('T')[0];
+          startDateTime = new Date(`${dateStr}T${timeStr}`);
+          
+          // If time parsing fails, fall back to event date
+          if (isNaN(startDateTime.getTime())) {
+            startDateTime = eventDate;
+          }
+        } else {
+          startDateTime = eventDate;
+        }
+        
+        // Calculate end time
+        if (event.time && !isNaN(startDateTime.getTime())) {
+          endDateTime = new Date(startDateTime.getTime() + 2 * 60 * 60 * 1000); // 2 hours later
+        } else {
+          endDateTime = new Date(eventDate.getTime() + 24 * 60 * 60 * 1000); // 24 hours later for all-day
+        }
+
+        return {
+          id: event.id,
+          title: event.title,
+          start: startDateTime.toISOString(),
+          end: endDateTime.toISOString(),
+          date: event.date.toISOString().split('T')[0],
+          time: event.time,
+          allDay: event.allDay,
+          color: event.color,
+          description: event.description || '',
+          location: event.location || '',
+          source: 'local',
+          bookingId: event.bookingId
+        };
+      });
+    } catch (error) {
+      console.error('Error fetching local events:', error);
+      localEvents = [];
+    }
 
     // If Google Calendar is connected and tokens exist, fetch events
     if (detailer.googleCalendarConnected && detailer.googleCalendarTokens && detailer.googleCalendarRefreshToken) {
@@ -158,8 +233,13 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Combine local and Google Calendar events
+    const allEvents = [...localEvents, ...events];
+
     return NextResponse.json({ 
-      events,
+      events: allEvents,
+      localEvents,
+      googleEvents: events,
       googleCalendarConnected: detailer.googleCalendarConnected || false,
       syncAppointments: detailer.syncAppointments || false,
       syncAvailability: detailer.syncAvailability || false
