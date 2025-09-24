@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getCustomerSnapshot, upsertCustomerSnapshot, extractSnapshotHints } from '@/lib/customerSnapshot';
+import { getCustomerSnapshot, upsertCustomerSnapshot } from '@/lib/customerSnapshot';
 import { normalizeToE164 } from '@/lib/phone';
 import twilio from 'twilio';
 
@@ -14,32 +14,46 @@ const KNOWN_MAKES = new Set([
   'toyota','volkswagen','vw','volvo','rivian','lucid','polestar','smart','hummer','scion'
 ])
 
+const STOPWORDS = new Set([
+  'available','availability','today','tomorrow','monday','tuesday','wednesday','thursday','friday','saturday','sunday',
+  'morning','afternoon','evening','tonight','am','pm','this','next','then','okay','ok','sure'
+])
+
 function clean(s?: string | null) {
   return (s ?? '').trim().replace(/\s+/g, ' ')
 }
 
 function pickName(text: string) {
   const t = text.toLowerCase()
-  let m = t.match(/\bmy name is\s+([a-z][a-z .'’-]{1,40})/i)
-  if (!m) m = t.match(/\b(?:i am|i'm)\s+([a-z][a-z .'’-]{1,40})/i)
+  let m = t.match(/\bmy name is\s+([a-z][a-z .'’-]{1,50})\b/i)
+  if (!m) m = t.match(/\b(?:i am|i'm)\s+([a-z][a-z .'’-]{1,50})\b/i)
   if (m) {
-    const name = m[1].replace(/\s+/g, ' ').trim()
-    if (/^[a-z][a-z .'’-]{1,50}$/i.test(name) && name.split(' ').length <= 4) return name
+    const candidate = clean(m[1])
+    const tokens = candidate.toLowerCase().split(/\s+/)
+    if (tokens.length <= 4 && !tokens.some(w => STOPWORDS.has(w))) return candidate.replace(/\b[a-z]/g, c => c.toUpperCase())
   }
-  if (/^[a-z][a-z .'’-]{1,50}$/i.test(text.trim()) && text.trim().split(' ').length <= 4) {
-    return text.trim()
+  const trimmed = clean(text)
+  if (/^[a-z .'-]{2,50}$/i.test(trimmed)) {
+    const tokens = trimmed.split(/\s+/)
+    const okLen = tokens.length >= 1 && tokens.length <= 3
+    const noStop = !tokens.some(w => STOPWORDS.has(w.toLowerCase()))
+    if (okLen && noStop) return trimmed.replace(/\b[a-z]/g, c => c.toUpperCase())
   }
   return undefined
 }
 
 function pickAddress(text: string) {
-  const rx = /\b(\d{3,6})\s+([A-Za-z0-9.'’-]+\s+(?:Ave|Avenue|St|Street|Rd|Road|Blvd|Boulevard|Ln|Lane|Dr|Drive|Ct|Court|Way|Terr|Terrace|Pl|Place|Cir|Circle|Hwy|Highway)\b\.?)(?:[,\s]+([A-Za-z .'-]{2,30}))(?:[,\s]+([A-Z]{2}))?(?:[,\s]+(\d{5}(?:-\d{4})?))?/i
-  const m = text.match(rx)
+  const t = text.replace(/\s+in\s+/gi, ' ')
+  const rx = /\b(\d{3,6})\s+([A-Za-z0-9.'’-]+(?:\s+[A-Za-z0-9.'’-]+)*?)\s+(Ave|Avenue|St|Street|Rd|Road|Blvd|Boulevard|Ln|Lane|Dr|Drive|Ct|Court|Way|Terr|Terrace|Pl|Place|Cir|Circle|Hwy|Highway)\b\.?\s*,?\s*([A-Za-z .'-]{2,30})\s*,?\s*([A-Z]{2})\s*,?\s*(\d{5}(?:-\d{4})?)?/i
+  const m = t.match(rx)
   if (!m) return undefined
-  const num = m[1], street = m[2], city = m[3], state = m[4], zip = m[5]
-  const cityOk = city && /[a-z]/i.test(city)
-  const line = [num, street, cityOk ? city : null, state, zip].filter(Boolean).join(', ')
-  return line.length >= 8 ? line : undefined
+  const num = m[1]
+  const streetName = `${m[2]} ${m[3]}`
+  const city = m[4]
+  const state = m[5]
+  const zip = m[6]
+  const line = [num, streetName.replace(/\b[a-z]/g, c => c.toUpperCase()), city?.replace(/\b[a-z]/g, c => c.toUpperCase()), state?.toUpperCase(), zip].filter(Boolean).join(', ')
+  return line
 }
 
 function normalizeMake(s: string) {
@@ -121,6 +135,37 @@ export function extractSnapshotHintsSafe(message: string, availableServices: str
   const services = pickServices(text, availableServices)
   if (services.length) out.services = services
 
+  // preferred date/time to keep availability words out of name/address
+  const lower = text.toLowerCase()
+  // date words or explicit formats
+  const wd = /(this|next)?\s*(monday|tuesday|wednesday|thursday|friday|saturday|sunday)/i.exec(lower)
+  if (/\btoday\b/.test(lower)) out.preferredDate = 'today'
+  else if (/\btomorrow\b/.test(lower)) out.preferredDate = 'tomorrow'
+  else if (wd) out.preferredDate = `${wd[1] ? wd[1] + ' ' : ''}${wd[2]}`.trim()
+  else {
+    const mdy = text.match(/\b(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?\b/)
+    if (mdy) out.preferredDate = mdy[0]
+    const iso = text.match(/\b(20\d{2})-(\d{2})-(\d{2})\b/)
+    if (!out.preferredDate && iso) out.preferredDate = iso[0]
+  }
+
+  const single = text.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i)
+  if (single) {
+    const h = single[1]
+    const m = single[2] ? single[2] : '00'
+    out.preferredTime = `${h}:${m} ${single[3].toUpperCase()}`
+  } else {
+    const window = text.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s*[-–]\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i)
+    if (window) {
+      const sp = (window[3] || window[6]).toUpperCase()
+      const sH = window[1], sM = window[2] ? window[2] : '00'
+      const eH = window[4], eM = window[5] ? window[5] : '00'
+      out.preferredTime = `${sH}:${sM} ${sp} - ${eH}:${eM} ${window[6].toUpperCase()}`
+    } else if (/morning/i.test(text)) out.preferredTime = 'morning'
+    else if (/afternoon/i.test(text)) out.preferredTime = 'afternoon'
+    else if (/(evening|tonight|night)/i.test(text)) out.preferredTime = 'evening'
+  }
+
   return out
 }
 
@@ -138,7 +183,7 @@ export async function safeUpsertSnapshot(detailerId: string, phone: string, inco
     return false
   }
 
-  for (const k of ['customerName','address','vehicle','vehicleYear','vehicleMake','vehicleModel','services']) {
+  for (const k of ['customerName','address','vehicle','vehicleYear','vehicleMake','vehicleModel','services','preferredDate','preferredTime']) {
     if (canSet(k, incoming[k])) out[k] = incoming[k]
   }
   if (Object.keys(out).length) {
