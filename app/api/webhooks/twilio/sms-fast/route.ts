@@ -606,7 +606,8 @@ Be conversational and natural.`;
         
         console.log('DEBUG: Sending to OpenAI:', { messageCount: messages.length, lastUserMessage: body });
         
-        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        // Try GPT-5 first, fallback to GPT-4o if it fails
+        let response = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
           signal: controller.signal,
           headers: {
@@ -619,14 +620,39 @@ Be conversational and natural.`;
             max_completion_tokens: 200, // Fixed for GPT-5 compatibility
           }),
         });
+        
+        // If GPT-5 fails or returns empty, try GPT-4o
+        if (!response.ok || (response.ok && !(await response.clone().json()).choices?.[0]?.message?.content?.trim())) {
+          console.log('DEBUG: GPT-5 failed or empty, trying GPT-4o fallback');
+          clearTimeout(timeout);
+          const newController = new AbortController();
+          const newTimeout = setTimeout(() => newController.abort(), 15000);
+          
+          response = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            signal: newController.signal,
+            headers: {
+              'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              model: 'gpt-4o',
+              messages,
+              max_tokens: 200,
+              temperature: 0.9,
+            }),
+          });
+          clearTimeout(newTimeout);
+        }
         clearTimeout(timeout)
         if (response.ok) {
           const data = await response.json();
+          console.log('DEBUG: Full OpenAI response:', JSON.stringify(data, null, 2));
           if (data.choices?.length && data.choices[0].message?.content?.trim()) {
             aiResponse = data.choices[0].message.content.trim()
             console.log('DEBUG: OpenAI response:', aiResponse);
           } else {
-            console.warn('Empty AI response, using fallback')
+            console.warn('Empty AI response, using fallback. Data:', data);
             aiResponse = buildNextSlotPrompt(snapshot)
           }
         } else {
