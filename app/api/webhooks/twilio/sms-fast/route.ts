@@ -4,6 +4,59 @@ import { getCustomerSnapshot, upsertCustomerSnapshot, extractSnapshotHints } fro
 import { normalizeToE164 } from '@/lib/phone';
 import twilio from 'twilio';
 
+// GSM vs UCS-2 length limits
+function isGsm(text: string) {
+  // very simple heuristic: if any char is outside basic GSM, treat as UCS-2
+  return /^[\x00-\x7F€£¥èéùìòÇØøÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !"\#\$%&'\(\)\*\+,\-\.\/0-9:;<=>\?@A-Z\[\\\]\^_`a-z\{\|\}~\n\r]*$/.test(text)
+}
+
+// split into nicely sized parts, breaking on sentence/word boundaries
+function chunkForSms(text: string) {
+  const limitSingle = isGsm(text) ? 160 : 70
+  const limitConcat = isGsm(text) ? 153 : 67 // space for UDH
+  if (text.length <= limitSingle) return [text]
+
+  // soft-clean markdown bullets/asterisks
+  const cleaned = text.replace(/\*\*/g, '').replace(/\*/g, '•')
+
+  const parts: string[] = []
+  let remaining = cleaned.trim()
+  while (remaining.length) {
+    const limit = parts.length === 0 ? limitConcat : limitConcat
+    if (remaining.length <= limit) {
+      parts.push(remaining)
+      break
+    }
+    // prefer break at end of sentence, else at last comma, else at space
+    let cut = Math.max(
+      remaining.lastIndexOf('. ', limit),
+      remaining.lastIndexOf('! ', limit),
+      remaining.lastIndexOf('? ', limit),
+      remaining.lastIndexOf('\n', limit),
+      remaining.lastIndexOf(', ', limit),
+      remaining.lastIndexOf(' ', limit)
+    )
+    if (cut <= 0) cut = limit
+    parts.push(remaining.slice(0, cut).trim())
+    remaining = remaining.slice(cut).trim()
+  }
+
+  // add (1/3) style counters
+  const total = parts.length
+  return parts.map((p, i) => `${p} (${i + 1}/${total})`)
+}
+
+// Safe Twilio send with error handling
+async function safeSend(client: any, to: string, from: string, body: string): Promise<string | undefined> {
+  try {
+    const message = await client.messages.create({ to, from, body })
+    return message.sid
+  } catch (error) {
+    console.error('Twilio send failed:', error)
+    return undefined
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     console.log('=== FAST SMS WEBHOOK START (v2) ===');
@@ -268,7 +321,7 @@ Be conversational and natural - ask one or two questions at a time, not everythi
 
 NEVER mention specific cities like "Boston" unless the customer has already provided their address. Always ask for their address without assuming any location.
 
-Keep responses under 160 characters and conversational.`;
+Be conversational and natural.`;
 
     // OpenAI call with timeout protection
     let aiResponse = 'Hey! Thanks for reaching out! What can I help you with today?'
@@ -303,8 +356,7 @@ Keep responses under 160 characters and conversational.`;
     } catch (e) {
       console.warn('OpenAI call failed, using fallback:', e)
     }
-    // Ensure SMS-length
-    aiResponse = aiResponse.slice(0, 160)
+    // AI response is ready for chunked sending
 
     console.log('AI Response:', aiResponse);
 
@@ -314,36 +366,26 @@ Keep responses under 160 characters and conversational.`;
       // Don't send the AI response yet, we'll send the opt-in confirmation first
     }
 
-    // Send response immediately
-    let twilioSid: string | undefined
+    // --- Twilio send(s) with consent handling ---
     const sendDisabled = process.env.TWILIO_SEND_DISABLED === '1'
     const hasTwilioCreds = !!process.env.TWILIO_ACCOUNT_SID && !!process.env.TWILIO_AUTH_TOKEN
+    let twilioSid: string | undefined
+
     if (!sendDisabled && hasTwilioCreds) {
-      const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
-      
-      // Check if this is a first-time customer who just agreed to SMS consent
-      console.log('DEBUG: isFirstTimeCustomer:', isFirstTimeCustomer)
-      console.log('DEBUG: body:', body)
-      console.log('DEBUG: body includes yes:', body?.toLowerCase().includes('yes'))
-      console.log('DEBUG: body includes okay:', body?.toLowerCase().includes('okay'))
-      console.log('DEBUG: body includes sure:', body?.toLowerCase().includes('sure'))
-      console.log('DEBUG: body includes ok:', body?.toLowerCase().includes('ok'))
-      
-      if (isFirstTimeCustomer && body && (body.toLowerCase().includes('yes') || body.toLowerCase().includes('okay') || body.toLowerCase().includes('sure') || body.toLowerCase().includes('ok'))) {
-        // Send the opt-in confirmation message FIRST
-        const optInMessage = `${detailer.businessName}: You are now opted-in to receive appointment confirmations and updates. For help, reply HELP. To opt-out, reply STOP.`
-        console.log('SENDING OPT-IN MESSAGE:', optInMessage)
-        await client.messages.create({ to: from, from: to, body: optInMessage })
-        console.log('Sent opt-in confirmation message to first-time customer')
-        
-        // Then send the AI response
-        const tw = await client.messages.create({ to: from, from: to, body: aiResponse })
-        twilioSid = tw.sid
-      } else {
-        console.log('NOT sending opt-in message - conditions not met')
-        // Normal flow - just send AI response
-        const tw = await client.messages.create({ to: from, from: to, body: aiResponse })
-        twilioSid = tw.sid
+      const client = twilio(process.env.TWILIO_ACCOUNT_SID!, process.env.TWILIO_AUTH_TOKEN!)
+      const text = body.toLowerCase()
+      const gaveConsent = /\b(yes|okay|ok|sure|agree|consent)\b/.test(text)
+
+      if (isFirstTimeCustomer && gaveConsent) {
+        const optIn = `${detailer.businessName}: You are now opted-in to receive appointment confirmations and updates. For help, reply HELP. To opt-out, reply STOP.`
+        await safeSend(client, from, to, optIn)
+      }
+
+      // CHUNK + SEND
+      const parts = chunkForSms(aiResponse)
+      for (const [idx, part] of parts.entries()) {
+        const tw = await safeSend(client, from, to, part)
+        if (idx === 0) twilioSid = tw // keep first SID for logging
       }
       
       // After sending the first AI message in a conversation, send vCard once if not sent (atomic flip)
