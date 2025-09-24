@@ -617,7 +617,6 @@ Be conversational and natural.`;
             model: 'gpt-5',
             messages,
             max_completion_tokens: 200, // Fixed for GPT-5 compatibility
-            temperature: 0.9,
           }),
         });
         clearTimeout(timeout)
