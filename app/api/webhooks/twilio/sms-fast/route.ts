@@ -606,7 +606,7 @@ Be conversational and natural.`;
         
         console.log('DEBUG: Sending to OpenAI:', { messageCount: messages.length, lastUserMessage: body });
         
-        // Use GPT-5 with proper parameters (based on OpenAI docs)
+        // Use GPT-4o (most reliable and available model)
         const response = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
           signal: controller.signal,
@@ -615,12 +615,10 @@ Be conversational and natural.`;
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: 'gpt-5',
+            model: 'gpt-4o',
             messages,
-            max_output_tokens: 200, // GPT-5 uses max_output_tokens instead of max_tokens
-            reasoning: { effort: "medium" }, // GPT-5 specific parameter
-            text: { verbosity: "medium" }, // GPT-5 specific parameter
-            // Note: temperature, top_p, logprobs are NOT supported with GPT-5
+            max_tokens: 200,
+            temperature: 0.9,
           }),
         });
         clearTimeout(timeout)
