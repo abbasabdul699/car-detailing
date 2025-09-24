@@ -590,7 +590,7 @@ Be conversational and natural.`;
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: process.env.OPENAI_CHAT_MODEL || 'gpt-4o-mini',
+          model: process.env.OPENAI_CHAT_MODEL || 'gpt-4o',
           messages,
           max_tokens: 200,
           temperature: 0.9,
