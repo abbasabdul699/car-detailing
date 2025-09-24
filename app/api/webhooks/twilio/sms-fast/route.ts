@@ -69,15 +69,28 @@ async function safeSendMms(client: any, to: string, from: string, body: string, 
 
 async function sendAsMmsIfLong(client: any, to: string, from: string, body: string): Promise<string | undefined> {
   const longThreshold = 320
-  if (body.length <= longThreshold) {
+  const forceSms = process.env.TWILIO_FORCE_SMS === '1'
+  if (body.length <= longThreshold || forceSms) {
+    console.log('SMS mode selected', { forceSms, length: body.length })
+    // chunk for long SMS when forceSms is on
+    if (forceSms && body.length > longThreshold) {
+      let firstSid: string | undefined
+      for (const [i, part] of chunkForSms(body).entries()) {
+        const sid = await safeSend(client, to, from, part)
+        if (i === 0) firstSid = sid
+      }
+      return firstSid
+    }
     return safeSend(client, to, from, body)
   }
   // Use an existing public asset to force MMS; avoids 404s
   const mediaUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'https://www.reevacar.com'}/icon.png`
+  console.log('Attempting MMS send due to long message', { length: body.length })
   const mmsSid = await safeSendMms(client, to, from, body, [mediaUrl])
   if (mmsSid) return mmsSid
 
   // fallback to SMS chunks
+  console.warn('MMS send failed, falling back to SMS chunks')
   let firstSid: string | undefined
   for (const [i, part] of chunkForSms(body).entries()) {
     const sid = await safeSend(client, to, from, part)
