@@ -415,6 +415,26 @@ export async function POST(request: NextRequest) {
       .map(([category, services]) => `${category}: ${services.join(', ')}`)
       .join(' | ')
 
+    // Nicely format services for SMS/MMS
+    function renderServices(byCat: Record<string,string[]>) {
+      const order = ['Interior','Exterior','Bundle','Additional','Other']
+      const parts: string[] = []
+      for (const key of order) {
+        const list = byCat[key]
+        if (list && list.length) parts.push(`${key}: ${list.join(', ')}`)
+      }
+      // include any leftover categories
+      for (const [k,v] of Object.entries(byCat)) {
+        if (!order.includes(k) && v.length) parts.push(`${k}: ${v.join(', ')}`)
+      }
+      const text = `Here’s what we offer — ${parts.join(' | ')}`
+      // keep it readable; the sender later decides SMS vs MMS
+      return text
+    }
+
+    // If the user explicitly asks for services, answer deterministically
+    const asksForServices = /\b(what\s+services|services\s*\?|do\s+you\s+(offer|provide)\s+.*services?)\b/i.test((body || '').toLowerCase())
+
     // Check if this is a first-time customer BEFORE updating snapshot
     const existingSnapshot = await getCustomerSnapshot(detailer.id, from)
     const isFirstTimeCustomer = !existingSnapshot
@@ -568,55 +588,60 @@ Be conversational and natural.`;
       return "Great! Anything else you'd like to add?"
     }
 
-    // OpenAI call with timeout protection
+    // If user intent is clearly "what services", skip the LLM and send catalog
     let aiResponse = 'Hey! Thanks for reaching out! What can I help you with today?'
-    try {
-      const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), 15000)
-      
-      const messages = [
-        { role: 'system', content: systemPrompt },
-        ...conversationHistory,
-        { role: 'user', content: body }
-      ];
-      
-      console.log('DEBUG: Sending to OpenAI:', { messageCount: messages.length, lastUserMessage: body });
-      
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        signal: controller.signal,
-        headers: {
-          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'gpt-5',
-          messages,
-          max_tokens: 200,
-          temperature: 0.9,
-        }),
-      });
-      clearTimeout(timeout)
-      if (response.ok) {
-        const data = await response.json();
-        if (data.choices?.length && data.choices[0].message?.content?.trim()) {
-          aiResponse = data.choices[0].message.content.trim()
-          console.log('DEBUG: OpenAI response:', aiResponse);
+    if (asksForServices) {
+      aiResponse = renderServices(servicesByCategory)
+      console.log('INTENT: Services catalog requested. Bypassing LLM.')
+    } else {
+      try {
+        const controller = new AbortController()
+        const timeout = setTimeout(() => controller.abort(), 15000)
+        
+        const messages = [
+          { role: 'system', content: systemPrompt },
+          ...conversationHistory,
+          { role: 'user', content: body }
+        ];
+        
+        console.log('DEBUG: Sending to OpenAI:', { messageCount: messages.length, lastUserMessage: body });
+        
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          signal: controller.signal,
+          headers: {
+            'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'gpt-5',
+            messages,
+            max_completion_tokens: 200, // Fixed for GPT-5 compatibility
+            temperature: 0.9,
+          }),
+        });
+        clearTimeout(timeout)
+        if (response.ok) {
+          const data = await response.json();
+          if (data.choices?.length && data.choices[0].message?.content?.trim()) {
+            aiResponse = data.choices[0].message.content.trim()
+            console.log('DEBUG: OpenAI response:', aiResponse);
+          } else {
+            console.warn('Empty AI response, using fallback')
+            aiResponse = buildNextSlotPrompt(snapshot)
+          }
         } else {
-          console.warn('Empty AI response, using fallback')
+          const errText = await response.text()
+          console.warn('OpenAI API non-OK:', response.status, errText)
+          // Fallback to next-missing-slot prompt when API fails
           aiResponse = buildNextSlotPrompt(snapshot)
         }
-      } else {
-        const errText = await response.text()
-        console.warn('OpenAI API non-OK:', response.status, errText)
-        // Fallback to next-missing-slot prompt when API fails
+      } catch (e) {
+        console.warn('OpenAI call failed, using fallback:', e)
         aiResponse = buildNextSlotPrompt(snapshot)
       }
-    } catch (e) {
-      console.warn('OpenAI call failed, using fallback:', e)
-      aiResponse = buildNextSlotPrompt(snapshot)
+      // AI response is ready for chunked sending
     }
-    // AI response is ready for chunked sending
 
     console.log('AI Response:', aiResponse);
 
