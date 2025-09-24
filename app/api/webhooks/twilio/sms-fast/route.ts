@@ -57,6 +57,34 @@ async function safeSend(client: any, to: string, from: string, body: string): Pr
   }
 }
 
+async function safeSendMms(client: any, to: string, from: string, body: string, mediaUrl: string[]): Promise<string | undefined> {
+  try {
+    const message = await client.messages.create({ to, from, body, mediaUrl })
+    return message.sid
+  } catch (error) {
+    console.warn('Twilio MMS failed:', error)
+    return undefined
+  }
+}
+
+async function sendAsMmsIfLong(client: any, to: string, from: string, body: string): Promise<string | undefined> {
+  const longThreshold = 320
+  if (body.length <= longThreshold) {
+    return safeSend(client, to, from, body)
+  }
+  const dotUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'https://www.reevacar.com'}/api/dot`
+  const mmsSid = await safeSendMms(client, to, from, body, [dotUrl])
+  if (mmsSid) return mmsSid
+
+  // fallback to SMS chunks
+  let firstSid: string | undefined
+  for (const [i, part] of chunkForSms(body).entries()) {
+    const sid = await safeSend(client, to, from, part)
+    if (i === 0) firstSid = sid
+  }
+  return firstSid
+}
+
 export async function POST(request: NextRequest) {
   try {
     console.log('=== FAST SMS WEBHOOK START (v2) ===');
@@ -381,12 +409,8 @@ Be conversational and natural.`;
         await safeSend(client, from, to, optIn)
       }
 
-      // CHUNK + SEND
-      const parts = chunkForSms(aiResponse)
-      for (const [idx, part] of parts.entries()) {
-        const tw = await safeSend(client, from, to, part)
-        if (idx === 0) twilioSid = tw // keep first SID for logging
-      }
+      // Prefer MMS (single bubble) for long messages; fallback to SMS chunks
+      twilioSid = await sendAsMmsIfLong(client, from, to, aiResponse)
       
       // After sending the first AI message in a conversation, send vCard once if not sent (atomic flip)
       try {
