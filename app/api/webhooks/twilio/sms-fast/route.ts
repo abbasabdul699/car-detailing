@@ -572,7 +572,7 @@ Be conversational and natural.`;
     let aiResponse = 'Hey! Thanks for reaching out! What can I help you with today?'
     try {
       const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), 7000)
+      const timeout = setTimeout(() => controller.abort(), 15000)
       
       const messages = [
         { role: 'system', content: systemPrompt },
@@ -599,8 +599,13 @@ Be conversational and natural.`;
       clearTimeout(timeout)
       if (response.ok) {
         const data = await response.json();
-        aiResponse = data.choices[0]?.message?.content || aiResponse
-        console.log('DEBUG: OpenAI response:', aiResponse);
+        if (data.choices?.length && data.choices[0].message?.content?.trim()) {
+          aiResponse = data.choices[0].message.content.trim()
+          console.log('DEBUG: OpenAI response:', aiResponse);
+        } else {
+          console.warn('Empty AI response, using fallback')
+          aiResponse = buildNextSlotPrompt(snapshot)
+        }
       } else {
         const errText = await response.text()
         console.warn('OpenAI API non-OK:', response.status, errText)
@@ -645,16 +650,9 @@ Be conversational and natural.`;
           const snap = await tx.customerSnapshot.upsert({
             where: { detailerId_customerPhone: { detailerId: detailer.id, customerPhone: from } },
             update: {},
-            create: { detailerId: detailer.id, customerPhone: from, vcardSent: false }
+            create: { detailerId: detailer.id, customerPhone: from, vcardSent: true }
           })
-          if (!snap.vcardSent) {
-            await tx.customerSnapshot.update({
-              where: { detailerId_customerPhone: { detailerId: detailer.id, customerPhone: from } },
-              data: { vcardSent: true }
-            })
-            return true
-          }
-          return false
+          return !snap.vcardSent
         })
 
         if (vcardCheck) {
