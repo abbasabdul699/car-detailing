@@ -557,6 +557,17 @@ NEVER mention specific cities like "Boston" unless the customer has already prov
 
 Be conversational and natural.`;
 
+    // Helper: ask for the next missing slot if AI call fails
+    function buildNextSlotPrompt(snap: any): string {
+      if (!snap?.customerName) return "What's your name?"
+      if (!snap?.vehicle && !(snap?.vehicleMake || snap?.vehicleModel || snap?.vehicleYear)) return "What vehicle do you have? (make, model, year)"
+      if (!snap?.services || snap?.services.length === 0) return "What services are you interested in? (e.g., interior detail, exterior wash)"
+      if (!snap?.address) return "What's the complete address where you'd like the service?"
+      if (!snap?.preferredDate) return "What date works for you?"
+      if (!snap?.preferredTime) return "What time works for you?"
+      return "Great! Anything else you'd like to add?"
+    }
+
     // OpenAI call with timeout protection
     let aiResponse = 'Hey! Thanks for reaching out! What can I help you with today?'
     try {
@@ -579,7 +590,7 @@ Be conversational and natural.`;
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'gpt-5',
+          model: process.env.OPENAI_CHAT_MODEL || 'gpt-4o-mini',
           messages,
           max_tokens: 200,
           temperature: 0.9,
@@ -591,10 +602,14 @@ Be conversational and natural.`;
         aiResponse = data.choices[0]?.message?.content || aiResponse
         console.log('DEBUG: OpenAI response:', aiResponse);
       } else {
-        console.warn('OpenAI API non-OK:', response.status, await response.text())
+        const errText = await response.text()
+        console.warn('OpenAI API non-OK:', response.status, errText)
+        // Fallback to next-missing-slot prompt when API fails
+        aiResponse = buildNextSlotPrompt(snapshot)
       }
     } catch (e) {
       console.warn('OpenAI call failed, using fallback:', e)
+      aiResponse = buildNextSlotPrompt(snapshot)
     }
     // AI response is ready for chunked sending
 
