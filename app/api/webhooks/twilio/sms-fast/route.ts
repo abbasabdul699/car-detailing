@@ -4,6 +4,150 @@ import { getCustomerSnapshot, upsertCustomerSnapshot, extractSnapshotHints } fro
 import { normalizeToE164 } from '@/lib/phone';
 import twilio from 'twilio';
 
+// --- BEGIN STRONG SNAPSHOT EXTRACTOR + SAFE UPSERT ---
+// A lightweight list of common car makes. Extend as needed.
+const KNOWN_MAKES = new Set([
+  'acura','alfa romeo','aston martin','audi','bentley','bmw','buick','cadillac','chevrolet','chevy','chrysler',
+  'citroen','dodge','ferrari','fiat','ford','gmc','genesis','honda','hyundai','infiniti','jaguar','jeep','kia',
+  'lamborghini','land rover','lexus','lincoln','lotus','maserati','mazda','mclaren','mercedes','mercedes-benz',
+  'mini','mitsubishi','nissan','peugeot','porsche','ram','renault','rolls-royce','saab','subaru','suzuki','tesla',
+  'toyota','volkswagen','vw','volvo','rivian','lucid','polestar','smart','hummer','scion'
+])
+
+function clean(s?: string | null) {
+  return (s ?? '').trim().replace(/\s+/g, ' ')
+}
+
+function pickName(text: string) {
+  const t = text.toLowerCase()
+  let m = t.match(/\bmy name is\s+([a-z][a-z .'’-]{1,40})/i)
+  if (!m) m = t.match(/\b(?:i am|i'm)\s+([a-z][a-z .'’-]{1,40})/i)
+  if (m) {
+    const name = m[1].replace(/\s+/g, ' ').trim()
+    if (/^[a-z][a-z .'’-]{1,50}$/i.test(name) && name.split(' ').length <= 4) return name
+  }
+  if (/^[a-z][a-z .'’-]{1,50}$/i.test(text.trim()) && text.trim().split(' ').length <= 4) {
+    return text.trim()
+  }
+  return undefined
+}
+
+function pickAddress(text: string) {
+  const rx = /\b(\d{3,6})\s+([A-Za-z0-9.'’-]+\s+(?:Ave|Avenue|St|Street|Rd|Road|Blvd|Boulevard|Ln|Lane|Dr|Drive|Ct|Court|Way|Terr|Terrace|Pl|Place|Cir|Circle|Hwy|Highway)\b\.?)(?:[,\s]+([A-Za-z .'-]{2,30}))(?:[,\s]+([A-Z]{2}))?(?:[,\s]+(\d{5}(?:-\d{4})?))?/i
+  const m = text.match(rx)
+  if (!m) return undefined
+  const num = m[1], street = m[2], city = m[3], state = m[4], zip = m[5]
+  const cityOk = city && /[a-z]/i.test(city)
+  const line = [num, street, cityOk ? city : null, state, zip].filter(Boolean).join(', ')
+  return line.length >= 8 ? line : undefined
+}
+
+function normalizeMake(s: string) {
+  const low = s.toLowerCase()
+  if (low === 'vw') return 'Volkswagen'
+  if (low === 'chevy') return 'Chevrolet'
+  if (low === 'mercedes' || low === 'mercedes-benz') return 'Mercedes-Benz'
+  return s.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ')
+}
+
+function pickVehicle(text: string) {
+  const t = text.replace(/\s+/g, ' ')
+  const yearRx = /\b(19[8-9]\d|20[0-4]\d|2050)\b/
+  const yearM = t.match(yearRx)
+  const tokens = t.toLowerCase().split(/[^a-z0-9\-]+/)
+
+  let makeIdx = -1
+  for (let i = 0; i < tokens.length; i++) {
+    const w = tokens[i]
+    const two = `${w} ${tokens[i+1] ?? ''}`.trim()
+    if (KNOWN_MAKES.has(two) || KNOWN_MAKES.has(w)) { makeIdx = i; break }
+  }
+  if (makeIdx === -1 && !yearM) return undefined
+
+  let year: number | undefined
+  if (yearM) {
+    const y = parseInt(yearM[1], 10)
+    if (y >= 1980 && y <= 2050) year = y
+  }
+
+  let make: string | undefined
+  let model: string | undefined
+
+  if (makeIdx >= 0) {
+    const maybeTwo = `${tokens[makeIdx]} ${tokens[makeIdx+1] ?? ''}`.trim()
+    if (KNOWN_MAKES.has(maybeTwo)) {
+      make = normalizeMake(maybeTwo)
+      model = tokens[makeIdx+2]
+    } else if (KNOWN_MAKES.has(tokens[makeIdx])) {
+      make = normalizeMake(tokens[makeIdx])
+      model = tokens[makeIdx+1]
+    }
+    if (model) {
+      model = model.toUpperCase().length <= 10 ? model.toUpperCase() : model.slice(0, 10).toUpperCase()
+      if (!/^[a-z0-9\-]+$/i.test(model)) model = undefined
+    }
+  }
+
+  if (make && (model || year)) {
+    return { vehicleYear: year, vehicleMake: make, vehicleModel: model, vehicle: [year, make, model].filter(Boolean).join(' ') }
+  }
+  return undefined
+}
+
+function pickServices(text: string, available: string[]) {
+  const low = text.toLowerCase()
+  const hits = new Set<string>()
+  for (const s of available) {
+    const kw = s.toLowerCase()
+    if (kw.length < 3) continue
+    if (low.includes(kw)) hits.add(s)
+  }
+  return Array.from(hits).slice(0, 8)
+}
+
+export function extractSnapshotHintsSafe(message: string, availableServices: string[]) {
+  const text = clean(message)
+  const out: any = {}
+
+  const name = pickName(text)
+  if (name) out.customerName = name
+
+  const addr = pickAddress(text)
+  if (addr) out.address = addr
+
+  const veh = pickVehicle(text)
+  if (veh) Object.assign(out, veh)
+
+  const services = pickServices(text, availableServices)
+  if (services.length) out.services = services
+
+  return out
+}
+
+// Only write new, valid fields; never overwrite existing non-empty values.
+export async function safeUpsertSnapshot(detailerId: string, phone: string, incoming: any) {
+  const snap = await getCustomerSnapshot(detailerId, phone).catch(() => null)
+  const out: any = {}
+
+  function canSet(key: string, val: any) {
+    if (val === undefined || val === null) return false
+    const existing = (snap as any)?.[key]
+    if (existing === undefined || existing === null) return true
+    if (typeof existing === 'string' && existing.trim() === '') return true
+    if (typeof existing === 'string' && typeof val === 'string' && val.length > existing.length + 2) return true
+    return false
+  }
+
+  for (const k of ['customerName','address','vehicle','vehicleYear','vehicleMake','vehicleModel','services']) {
+    if (canSet(k, incoming[k])) out[k] = incoming[k]
+  }
+  if (Object.keys(out).length) {
+    await upsertCustomerSnapshot(detailerId, phone, out)
+  }
+  return { ...snap, ...out }
+}
+// --- END STRONG SNAPSHOT EXTRACTOR + SAFE UPSERT ---
+
 // GSM vs UCS-2 length limits
 function isGsm(text: string) {
   // very simple heuristic: if any char is outside basic GSM, treat as UCS-2
@@ -236,10 +380,8 @@ export async function POST(request: NextRequest) {
     console.log('DEBUG: from phone:', from)
 
     // Update snapshot with any hints from this message
-    const inferred = extractSnapshotHints(body || '', detailerServices.map(ds => ds.service.name))
-    if (Object.keys(inferred).length > 0) {
-      await upsertCustomerSnapshot(detailer.id, from, inferred)
-    }
+    const inferred = extractSnapshotHintsSafe(body || '', detailerServices.map(ds => ds.service.name))
+    await safeUpsertSnapshot(detailer.id, from, inferred)
 
     // Load snapshot for context
     const snapshot = await getCustomerSnapshot(detailer.id, from)
