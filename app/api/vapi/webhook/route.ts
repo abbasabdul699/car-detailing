@@ -197,40 +197,30 @@ async function checkAvailability(parameters: any) {
   const { date, time } = parameters;
   
   try {
-    // Find detailer from the call context
-    const detailer = await prisma.detailer.findFirst({
-      where: {
-        // This would need to be passed from the call context
-        // For now, we'll use a default or find by phone number
-      }
-    });
-
-    if (!detailer) {
-      return NextResponse.json({
-        result: 'Sorry, I could not find the business information. Please try again.'
-      });
-    }
-
-    // Call our availability API
-    const availabilityResponse = await fetch(`${process.env.NEXTAUTH_URL}/api/vapi/availability`, {
+    // Call your n8n workflow for availability checking
+    const n8nResponse = await fetch(`${process.env.N8N_WEBHOOK_URL}/calendar_availability`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        detailerId: detailer.id,
         date,
-        time
+        time,
+        action: 'check_availability'
       })
     });
 
-    const availabilityData = await availabilityResponse.json();
+    if (!n8nResponse.ok) {
+      throw new Error('n8n workflow failed');
+    }
 
-    if (availabilityData.available) {
+    const n8nData = await n8nResponse.json();
+
+    if (n8nData.available) {
       return NextResponse.json({
         result: `Great! ${date} at ${time} is available. Would you like to book this time slot?`
       });
     } else {
       return NextResponse.json({
-        result: `Sorry, ${date} at ${time} is not available. ${availabilityData.reason || 'Please choose a different time.'}`
+        result: `Sorry, ${date} at ${time} is not available. ${n8nData.reason || 'Please choose a different time.'}`
       });
     }
 
@@ -256,25 +246,11 @@ async function createBooking(parameters: any, call: any) {
   } = parameters;
 
   try {
-    // Find detailer
-    const detailer = await prisma.detailer.findFirst({
-      where: {
-        twilioPhoneNumber: call.assistant?.phoneNumber || call.assistant?.number
-      }
-    });
-
-    if (!detailer) {
-      return NextResponse.json({
-        result: 'Error: Detailer not found'
-      });
-    }
-
-    // Call our booking API
-    const bookingResponse = await fetch(`${process.env.NEXTAUTH_URL}/api/vapi/booking`, {
+    // Call your n8n workflow for booking creation
+    const n8nResponse = await fetch(`${process.env.N8N_WEBHOOK_URL}/calendar_set_appointment`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        detailerId: detailer.id,
         customerName,
         customerPhone,
         vehicleMake,
@@ -283,13 +259,18 @@ async function createBooking(parameters: any, call: any) {
         services,
         scheduledDate,
         scheduledTime,
-        address
+        address,
+        action: 'create_booking'
       })
     });
 
-    const bookingData = await bookingResponse.json();
+    if (!n8nResponse.ok) {
+      throw new Error('n8n workflow failed');
+    }
 
-    if (bookingData.success) {
+    const n8nData = await n8nResponse.json();
+
+    if (n8nData.success) {
       return NextResponse.json({
         result: `Perfect! I've booked your appointment for ${scheduledDate} at ${scheduledTime}. You'll receive a confirmation text shortly. Is there anything else I can help you with?`
       });
