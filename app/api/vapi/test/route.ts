@@ -5,11 +5,11 @@ export async function GET(request: NextRequest) {
   try {
     // Test the Vapi integration
     const { searchParams } = new URL(request.url);
-    const phoneNumber = searchParams.get('phone') || process.env.VAPI_PHONE_NUMBER;
+    const phoneNumber = searchParams.get('phone') || process.env.TWILIO_PHONE_NUMBER;
 
     if (!phoneNumber) {
       return NextResponse.json({ 
-        error: 'No phone number provided. Add ?phone=+1234567890 or set VAPI_PHONE_NUMBER env var' 
+        error: 'No phone number provided. Add ?phone=+1234567890 or set TWILIO_PHONE_NUMBER env var' 
       }, { status: 400 });
     }
 
@@ -99,7 +99,7 @@ export async function GET(request: NextRequest) {
       },
       webhookUrl: `${process.env.NEXTAUTH_URL}/api/vapi/webhook`,
       environment: {
-        vapiPhoneNumber: process.env.VAPI_PHONE_NUMBER,
+        twilioPhoneNumber: process.env.TWILIO_PHONE_NUMBER,
         nextauthUrl: process.env.NEXTAUTH_URL
       }
     });

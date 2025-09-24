@@ -197,11 +197,11 @@ async function checkAvailability(parameters: any) {
   const { date, time } = parameters;
   
   try {
-    // Find detailer from call context (you'll need to pass this from Vapi)
+    // Find detailer by the Twilio phone number that Vapi is using
     const detailer = await prisma.detailer.findFirst({
       where: {
-        // This should match your Vapi phone number
-        twilioPhoneNumber: process.env.VAPI_PHONE_NUMBER // Set this in your .env
+        // This should match the Twilio phone number configured in Vapi
+        twilioPhoneNumber: process.env.TWILIO_PHONE_NUMBER // Your Twilio number used by Vapi
       }
     });
 
@@ -256,10 +256,10 @@ async function createBooking(parameters: any, call: any) {
   } = parameters;
 
   try {
-    // Find detailer
+    // Find detailer by the Twilio phone number that Vapi is using
     const detailer = await prisma.detailer.findFirst({
       where: {
-        twilioPhoneNumber: process.env.VAPI_PHONE_NUMBER // Set this in your .env
+        twilioPhoneNumber: process.env.TWILIO_PHONE_NUMBER // Your Twilio number used by Vapi
       }
     });
 

@@ -151,21 +151,24 @@ Click on the **"Tools"** tab and add these two functions:
 
 ## 📋 **Step 2: Environment Variables**
 
-### **2.1 Add to Vercel**
+### **2.1 Phone Number Setup**
 
-1. **Go to**: Vercel Dashboard → Your Project → Settings → Environment Variables
-2. **Add**:
-   ```
-   VAPI_PHONE_NUMBER = +1234567890
-   ```
-   (Replace with your actual Vapi phone number)
+**Important**: Vapi uses Twilio phone numbers, not its own phone numbers.
+
+1. **Get a Twilio phone number** (if you don't have one)
+2. **Configure that Twilio number in Vapi**
+3. **Make sure your detailer record has the same Twilio number**
 
 ### **2.2 Verify Your Detailer Record**
 
 Make sure your detailer record in the database has:
-- `twilioPhoneNumber` matching your Vapi phone number
+- `twilioPhoneNumber` matching your Twilio number used in Vapi
 - `googleCalendarConnected: true`
 - Valid Google Calendar tokens
+
+### **2.3 Environment Variables**
+
+You don't need a separate `VAPI_PHONE_NUMBER` variable. The system will use your existing `TWILIO_PHONE_NUMBER` environment variable.
 
 ## 📋 **Step 3: Test the Integration**
 
@@ -213,8 +216,9 @@ AI: "Perfect! Let me book that for you... *calls create_booking function* Done! 
 ## 🔧 **Troubleshooting**
 
 ### **Issue: "Detailer not found"**
-- **Check**: `VAPI_PHONE_NUMBER` matches your detailer's `twilioPhoneNumber`
+- **Check**: Your Twilio phone number in Vapi matches your detailer's `twilioPhoneNumber`
 - **Check**: Your detailer record exists in the database
+- **Check**: The `TWILIO_PHONE_NUMBER` environment variable is set correctly
 
 ### **Issue: Availability check fails**
 - **Check**: Your detailer has Google Calendar connected
