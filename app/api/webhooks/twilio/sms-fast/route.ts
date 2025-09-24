@@ -456,10 +456,15 @@ export async function POST(request: NextRequest) {
 
     // Generate conversational AI response
     const recentMessages = conversation.messages || [];
+    console.log('DEBUG: Recent messages count:', recentMessages.length);
+    console.log('DEBUG: Recent messages:', recentMessages.map(m => ({ direction: m.direction, content: m.content })));
+    
     const conversationHistory = recentMessages.reverse().map(msg => ({
       role: msg.direction === 'inbound' ? 'user' : 'assistant',
       content: msg.content
     }));
+    
+    console.log('DEBUG: Conversation history for AI:', conversationHistory);
 
     // Format availability data for the AI
     const availabilitySummary = 'Availability: Please ask for preferred date and time';
@@ -557,6 +562,15 @@ Be conversational and natural.`;
     try {
       const controller = new AbortController()
       const timeout = setTimeout(() => controller.abort(), 7000)
+      
+      const messages = [
+        { role: 'system', content: systemPrompt },
+        ...conversationHistory,
+        { role: 'user', content: body }
+      ];
+      
+      console.log('DEBUG: Sending to OpenAI:', { messageCount: messages.length, lastUserMessage: body });
+      
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         signal: controller.signal,
@@ -566,12 +580,8 @@ Be conversational and natural.`;
         },
         body: JSON.stringify({
           model: 'gpt-5',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            ...conversationHistory,
-            { role: 'user', content: body }
-          ],
-          max_tokens: 120,
+          messages,
+          max_tokens: 200,
           temperature: 0.9,
         }),
       });
@@ -579,8 +589,9 @@ Be conversational and natural.`;
       if (response.ok) {
         const data = await response.json();
         aiResponse = data.choices[0]?.message?.content || aiResponse
+        console.log('DEBUG: OpenAI response:', aiResponse);
       } else {
-        console.warn('OpenAI API non-OK:', response.status)
+        console.warn('OpenAI API non-OK:', response.status, await response.text())
       }
     } catch (e) {
       console.warn('OpenAI call failed, using fallback:', e)
