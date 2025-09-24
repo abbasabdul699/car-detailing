@@ -72,8 +72,9 @@ async function sendAsMmsIfLong(client: any, to: string, from: string, body: stri
   if (body.length <= longThreshold) {
     return safeSend(client, to, from, body)
   }
-  const dotUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'https://www.reevacar.com'}/api/dot`
-  const mmsSid = await safeSendMms(client, to, from, body, [dotUrl])
+  // Use an existing public asset to force MMS; avoids 404s
+  const mediaUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'https://www.reevacar.com'}/icon.png`
+  const mmsSid = await safeSendMms(client, to, from, body, [mediaUrl])
   if (mmsSid) return mmsSid
 
   // fallback to SMS chunks
