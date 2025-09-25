@@ -316,7 +316,7 @@ async function checkAvailability(parameters: any, call: any) {
     const assistantNumber = call?.assistant?.phoneNumber || call?.assistant?.number || '';
     const lookupNumber = assistantNumber || process.env.TWILIO_PHONE_NUMBER || '';
     
-    console.log('Vapi availability check:', { 
+    console.log('Vapi availability check v3:', { 
       assistantNumber, 
       lookupNumber, 
       date, 
@@ -352,14 +352,30 @@ async function checkAvailability(parameters: any, call: any) {
     const availabilityData = await availabilityResponse.json();
     
     console.log('Availability API response:', availabilityData);
+    console.log('Business hours from API:', availabilityData.businessHours);
 
     if (availabilityData.available) {
       return NextResponse.json({
         result: `Great! ${date} at ${time} is available. Would you like to book this time slot?`
       });
     } else {
+      // Always suggest available times when not available
+      const availableTimes = [];
+      const dayName = new Date(date).toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+      
+      // Use detailer business hours to suggest available times
+      const startHour = parseInt(detailer.businessHours[dayName][0].split(':')[0]);
+      const endHour = parseInt(detailer.businessHours[dayName][1].split(':')[0]);
+      
+      // Suggest times within business hours
+      for (let hour = startHour; hour < endHour; hour += 0.5) {
+        const timeString = `${Math.floor(hour).toString().padStart(2, '0')}:${hour % 1 === 0 ? '00' : '30'}`;
+        const time12Hour = convertTo12Hour(timeString);
+        availableTimes.push(time12Hour);
+      }
+      
       return NextResponse.json({
-        result: `Sorry, ${date} at ${time} is not available. ${availabilityData.reason || 'Please choose a different time.'}`
+        result: `Sorry, ${date} at ${time} is not available. I'm available on ${date} at ${availableTimes.join(', ')}. Which time works for you?`
       });
     }
 
@@ -449,6 +465,13 @@ async function handleEndOfCallReport(body: any) {
   return NextResponse.json({ success: true });
 }
 
+function convertTo12Hour(time24: string): string {
+  const [hours, minutes] = time24.split(':').map(Number);
+  const period = hours >= 12 ? 'PM' : 'AM';
+  const hours12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+  return `${hours12}:${minutes.toString().padStart(2, '0')} ${period}`;
+}
+
 async function handleCalendarSlots(functionName: string, parameters: any, call: any) {
   const { date } = parameters;
   
@@ -497,9 +520,27 @@ async function handleCalendarSlots(functionName: string, parameters: any, call: 
     const availableSlots = [];
     const startHour = parseInt(businessHours[0].split(':')[0]);
     const endHour = parseInt(businessHours[1].split(':')[0]);
+    const businessDuration = endHour - startHour;
+
+    console.log('Calendar slots debug:', {
+      functionName,
+      date,
+      startHour,
+      endHour,
+      businessDuration,
+      duration,
+      businessHours
+    });
+
+    // Check if the requested duration fits within business hours
+    if (duration > businessDuration) {
+      return NextResponse.json({
+        result: `Sorry, I don't have any ${duration}-hour slots available on ${date}. My business hours are only ${businessDuration} hours long. Please choose a shorter service or a different day.`
+      });
+    }
 
     // Generate slots every 30 minutes within business hours
-    for (let hour = startHour; hour < endHour - duration; hour += 0.5) {
+    for (let hour = startHour; hour < endHour - duration + 0.5; hour += 0.5) {
       const timeString = `${Math.floor(hour).toString().padStart(2, '0')}:${hour % 1 === 0 ? '00' : '30'}`;
       availableSlots.push({
         time: timeString,
@@ -514,10 +555,14 @@ async function handleCalendarSlots(functionName: string, parameters: any, call: 
       });
     }
 
-    // Return the first available slot
+    // Return the first available slot with proper formatting
     const firstSlot = availableSlots[0];
+    const time12Hour = convertTo12Hour(firstSlot.time);
+    const dayName = new Date(date).toLocaleDateString('en-US', { weekday: 'long' });
+    const monthDay = new Date(date).toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+    
     return NextResponse.json({
-      result: `I have a ${duration}-hour slot available on ${date} at ${firstSlot.time}. Would you like to book this time?`
+      result: `I have a ${duration}-hour slot available on ${dayName}, ${monthDay} at ${time12Hour}. Does that work for you?`
     });
 
   } catch (error) {

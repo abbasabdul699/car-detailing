@@ -92,7 +92,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       available: true,
-      message: 'Time slot is available'
+      message: 'Time slot is available',
+      businessHours: detailer.businessHours
     });
 
   } catch (error) {
