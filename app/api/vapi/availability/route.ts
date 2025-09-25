@@ -54,10 +54,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Check local bookings first
+    const scheduledDate = new Date(date);
+    console.log('Checking bookings for date:', scheduledDate);
+    
     const existingBooking = await prisma.booking.findFirst({
       where: {
         detailerId,
-        scheduledDate: date,
+        scheduledDate: scheduledDate,
         scheduledTime: time,
         status: {
           in: ['confirmed', 'pending']
