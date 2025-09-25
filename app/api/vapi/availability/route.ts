@@ -97,7 +97,10 @@ export async function POST(request: NextRequest) {
 
 function checkBusinessHours(businessHours: any, date: string, time: string): boolean {
   try {
+    console.log('Checking business hours:', { businessHours, date, time });
+    
     if (!businessHours) {
+      console.log('No business hours set, assuming available');
       return true; // If no business hours set, assume always available
     }
 
@@ -106,23 +109,34 @@ function checkBusinessHours(businessHours: any, date: string, time: string): boo
     const dayOfWeek = appointmentDate.getDay();
     const dayNames = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
     const dayName = dayNames[dayOfWeek];
+    
+    console.log('Day of week:', dayOfWeek, 'Day name:', dayName);
 
     // Get business hours for this day
     const dayHours = businessHours[dayName];
+    console.log('Day hours for', dayName, ':', dayHours);
+    
     if (!dayHours || !Array.isArray(dayHours) || dayHours.length === 0) {
+      console.log('No hours set for this day, returning false');
       return false; // No hours set for this day
     }
 
     // Parse the requested time
     const [hours, minutes] = time.split(':').map(Number);
     const requestedTime = hours * 60 + minutes; // Convert to minutes since midnight
+    console.log('Requested time in minutes:', requestedTime);
 
     // Check if the requested time falls within any of the business hour ranges
     for (let i = 0; i < dayHours.length - 1; i += 2) {
       const startTime = dayHours[i];
       const endTime = dayHours[i + 1];
       
-      if (!startTime || !endTime) continue;
+      console.log(`Checking range ${i/2 + 1}: ${startTime} - ${endTime}`);
+      
+      if (!startTime || !endTime) {
+        console.log('Skipping range due to missing start/end time');
+        continue;
+      }
 
       // Parse business hours (format: "21:00" -> 21*60 + 0 = 1260 minutes)
       const [startHour, startMin] = startTime.split(':').map(Number);
@@ -130,13 +144,17 @@ function checkBusinessHours(businessHours: any, date: string, time: string): boo
       
       const businessStart = startHour * 60 + startMin;
       const businessEnd = endHour * 60 + endMin;
+      
+      console.log(`Business range: ${businessStart} - ${businessEnd} minutes`);
 
       // Check if requested time is within this range
       if (requestedTime >= businessStart && requestedTime <= businessEnd) {
+        console.log('Time is within business hours');
         return true;
       }
     }
 
+    console.log('Time is not within any business hour range');
     return false; // Not within any business hour range
 
   } catch (error) {
