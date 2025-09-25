@@ -113,7 +113,7 @@ async function handleAssistantRequest(body: any) {
 
 Available services: ${detailer.services?.map(s => s.service.name).join(', ') || 'Various car detailing services'}
 
-${businessHoursInfo}
+` + businessHoursInfo + `
 
 You're having a natural phone conversation with a customer. Be friendly, helpful, and conversational.
 
