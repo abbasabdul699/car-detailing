@@ -558,11 +558,11 @@ async function handleCalendarSlots(functionName: string, parameters: any, call: 
     // Return the first available slot with proper formatting
     const firstSlot = availableSlots[0];
     const time12Hour = convertTo12Hour(firstSlot.time);
-    const dayName = new Date(date).toLocaleDateString('en-US', { weekday: 'long' });
+    const dayNameFormatted = new Date(date).toLocaleDateString('en-US', { weekday: 'long' });
     const monthDay = new Date(date).toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
     
     return NextResponse.json({
-      result: `I have a ${duration}-hour slot available on ${dayName}, ${monthDay} at ${time12Hour}. Does that work for you?`
+      result: `I have a ${duration}-hour slot available on ${dayNameFormatted}, ${monthDay} at ${time12Hour}. Does that work for you?`
     });
 
   } catch (error) {
