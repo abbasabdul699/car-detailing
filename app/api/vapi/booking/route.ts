@@ -47,16 +47,13 @@ export async function POST(request: NextRequest) {
         detailerId: detailer.id,
         customerName,
         customerPhone,
-        vehicleMake: vehicleMake || 'Not specified',
-        vehicleModel: vehicleModel || 'Not specified',
-        vehicleYear: vehicleYear ? parseInt(vehicleYear) : null,
-        services: Array.isArray(services) ? services.join(', ') : services || 'General service',
+        vehicleType: `${vehicleYear || ''} ${vehicleMake || ''} ${vehicleModel || ''}`.trim() || 'Not specified',
+        vehicleLocation: address || 'Not provided',
+        services: Array.isArray(services) ? services : [services || 'General service'],
         scheduledDate,
         scheduledTime,
-        address: address || 'Not provided',
         notes: notes || '',
-        status: 'confirmed',
-        source: 'voice_ai'
+        status: 'confirmed'
       }
     });
 
@@ -116,13 +113,13 @@ async function createGoogleCalendarEvent(detailer: any, booking: any): Promise<s
     const endDateTime = new Date(startDateTime.getTime() + 2 * 60 * 60 * 1000); // 2 hours
 
     const event = {
-      summary: `${booking.customerName} - ${booking.services}`,
+      summary: `${booking.customerName} - ${Array.isArray(booking.services) ? booking.services.join(', ') : booking.services}`,
       description: `
 Customer: ${booking.customerName}
 Phone: ${booking.customerPhone}
-Vehicle: ${booking.vehicleYear} ${booking.vehicleMake} ${booking.vehicleModel}
-Services: ${booking.services}
-Address: ${booking.address}
+Vehicle: ${booking.vehicleType}
+Services: ${Array.isArray(booking.services) ? booking.services.join(', ') : booking.services}
+Location: ${booking.vehicleLocation}
 ${booking.notes ? `Notes: ${booking.notes}` : ''}
       `.trim(),
       start: {
@@ -133,7 +130,7 @@ ${booking.notes ? `Notes: ${booking.notes}` : ''}
         dateTime: endDateTime.toISOString(),
         timeZone: 'America/New_York'
       },
-      location: booking.address !== 'Not provided' ? booking.address : undefined
+      location: booking.vehicleLocation !== 'Not provided' ? booking.vehicleLocation : undefined
     };
 
     // Create Google Calendar event
