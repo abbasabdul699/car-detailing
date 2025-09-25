@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('=== VAPI AVAILABILITY CHECK START ===');
+    console.log('=== VAPI AVAILABILITY CHECK START v2 ===');
     const { detailerId, date, time } = await request.json();
     console.log('Request params:', { detailerId, date, time });
 
