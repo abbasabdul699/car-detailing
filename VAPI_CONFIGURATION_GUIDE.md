@@ -58,6 +58,12 @@ When booking appointments, collect:
 Use the available functions to check calendar availability and create bookings.
 
 Be conversational and natural - not robotic. Show enthusiasm and be helpful.
+
+IMPORTANT: You're using ElevenLabs voice synthesis, so speak naturally with:
+- Natural pauses and breathing
+- Appropriate tone changes
+- Conversational flow
+- Professional but friendly demeanor
 ```
 
 ### **1.5 Configure Functions**
@@ -139,11 +145,30 @@ Click on the **"Tools"** tab and add these two functions:
 }
 ```
 
-### **1.6 Configure Voice Settings**
+### **1.6 Configure Voice Settings (ElevenLabs)**
 
 **Voice Provider**: `ElevenLabs`  
-**Voice**: Choose a natural voice (e.g., `Adam`, `Sarah`)  
+**Voice**: Choose your preferred ElevenLabs voice (e.g., `Adam`, `Sarah`, `Rachel`)  
 **Speech Rate**: `1.0` (normal speed)  
+**Voice Settings**: 
+- **Stability**: `0.5` (balanced between consistent and expressive)
+- **Clarity**: `0.75` (clear speech)
+- **Style**: `0.3` (slightly expressive but professional)
+
+**Note**: ElevenLabs provides much better voice quality than Twilio's default voices, giving your AI a more natural and professional sound.
+
+#### **ElevenLabs Voice Selection Tips:**
+
+**For Car Detailing Business:**
+- **Male voices**: `Adam`, `Antoni`, `Arnold` (professional, friendly)
+- **Female voices**: `Sarah`, `Rachel`, `Bella` (warm, approachable)
+- **Professional voices**: `Josh`, `Daniel` (authoritative, trustworthy)
+
+**Voice Characteristics:**
+- **Adam**: Warm, professional, good for customer service
+- **Sarah**: Clear, friendly, great for phone calls
+- **Rachel**: Natural, conversational, very human-like
+- **Antoni**: Deep, confident, good for business calls
 
 ### **1.7 Set Phone Number**
 
@@ -169,6 +194,19 @@ Make sure your detailer record in the database has:
 ### **2.3 Environment Variables**
 
 You don't need a separate `VAPI_PHONE_NUMBER` variable. The system will use your existing `TWILIO_PHONE_NUMBER` environment variable.
+
+### **2.4 ElevenLabs Configuration**
+
+**In Vapi Dashboard:**
+1. **Go to Voice settings**
+2. **Select ElevenLabs as provider**
+3. **Choose your preferred voice** (Adam, Sarah, Rachel, etc.)
+4. **Set voice parameters**:
+   - **Stability**: `0.5` (balanced)
+   - **Clarity**: `0.75` (clear speech)
+   - **Style**: `0.3` (slightly expressive)
+
+**ElevenLabs API Key**: Make sure you have a valid ElevenLabs API key configured in Vapi for voice synthesis.
 
 ## 📋 **Step 3: Test the Integration**
 
