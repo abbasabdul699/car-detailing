@@ -3,19 +3,15 @@ import { prisma } from '@/lib/prisma';
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('=== VAPI AVAILABILITY CHECK START v2 ===');
     const { detailerId, date, time } = await request.json();
-    console.log('Request params:', { detailerId, date, time });
 
     if (!detailerId || !date || !time) {
-      console.log('Missing required parameters');
       return NextResponse.json({ 
         error: 'Missing required parameters: detailerId, date, time' 
       }, { status: 400 });
     }
 
     // Get detailer info
-    console.log('Fetching detailer info...');
     const detailer = await prisma.detailer.findUnique({
       where: { id: detailerId },
       select: {
@@ -27,25 +23,15 @@ export async function POST(request: NextRequest) {
     });
 
     if (!detailer) {
-      console.log('Detailer not found');
       return NextResponse.json({ 
         error: 'Detailer not found' 
       }, { status: 404 });
     }
 
-    console.log('Detailer found:', {
-      googleCalendarConnected: detailer.googleCalendarConnected,
-      hasTokens: !!detailer.googleCalendarTokens,
-      businessHours: detailer.businessHours
-    });
-
     // Check business hours first
-    console.log('Checking business hours...');
     const isWithinBusinessHours = checkBusinessHours(detailer.businessHours, date, time);
-    console.log('Business hours check result:', isWithinBusinessHours);
     
     if (!isWithinBusinessHours) {
-      console.log('Time is outside business hours');
       return NextResponse.json({
         available: false,
         reason: 'Requested time is outside business hours',
@@ -57,7 +43,6 @@ export async function POST(request: NextRequest) {
     // Create a DateTime object for the start and end of the day to check for any bookings
     const startOfDay = new Date(date + 'T00:00:00.000Z');
     const endOfDay = new Date(date + 'T23:59:59.999Z');
-    console.log('Checking bookings between:', startOfDay, 'and', endOfDay);
     
     const existingBooking = await prisma.booking.findFirst({
       where: {
@@ -111,25 +96,18 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('=== VAPI AVAILABILITY CHECK ERROR v2 ===');
-    console.error('Error details:', error);
-    console.error('Error message:', error instanceof Error ? error.message : 'Unknown error');
-    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    console.error('Availability check error:', error);
     return NextResponse.json({ 
-      error: 'Failed to check availability v2',
-      details: error instanceof Error ? error.message : 'Unknown error',
-      timestamp: new Date().toISOString()
+      error: 'Failed to check availability',
+      details: error instanceof Error ? error.message : 'Unknown error'
     }, { status: 500 });
   }
 }
 
 function checkBusinessHours(businessHours: any, date: string, time: string): boolean {
   try {
-    console.log('Checking business hours:', { businessHours, date, time });
-    
     if (!businessHours) {
-      console.log('No business hours set, assuming available');
-      return true; // If no business hours set, assume always available
+      return false; // If no business hours set, treat as closed
     }
 
     // Get day of week (0 = Sunday, 1 = Monday, etc.)
@@ -137,34 +115,24 @@ function checkBusinessHours(businessHours: any, date: string, time: string): boo
     const dayOfWeek = appointmentDate.getDay();
     const dayNames = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
     const dayName = dayNames[dayOfWeek];
-    
-    console.log('Day of week:', dayOfWeek, 'Day name:', dayName);
 
     // Get business hours for this day
     const dayHours = businessHours[dayName];
-    console.log('Day hours for', dayName, ':', dayHours);
     
     if (!dayHours || !Array.isArray(dayHours) || dayHours.length === 0) {
-      console.log('No hours set for this day, returning false');
       return false; // No hours set for this day
     }
 
     // Parse the requested time
     const [hours, minutes] = time.split(':').map(Number);
     const requestedTime = hours * 60 + minutes; // Convert to minutes since midnight
-    console.log('Requested time in minutes:', requestedTime);
 
     // Check if the requested time falls within any of the business hour ranges
     for (let i = 0; i < dayHours.length - 1; i += 2) {
       const startTime = dayHours[i];
       const endTime = dayHours[i + 1];
       
-      console.log(`Checking range ${i/2 + 1}: ${startTime} - ${endTime}`);
-      
-      if (!startTime || !endTime) {
-        console.log('Skipping range due to missing start/end time');
-        continue;
-      }
+      if (!startTime || !endTime) continue;
 
       // Parse business hours (format: "21:00" -> 21*60 + 0 = 1260 minutes)
       const [startHour, startMin] = startTime.split(':').map(Number);
@@ -172,22 +140,18 @@ function checkBusinessHours(businessHours: any, date: string, time: string): boo
       
       const businessStart = startHour * 60 + startMin;
       const businessEnd = endHour * 60 + endMin;
-      
-      console.log(`Business range: ${businessStart} - ${businessEnd} minutes`);
 
       // Check if requested time is within this range
       if (requestedTime >= businessStart && requestedTime <= businessEnd) {
-        console.log('Time is within business hours');
         return true;
       }
     }
 
-    console.log('Time is not within any business hour range');
     return false; // Not within any business hour range
 
   } catch (error) {
     console.error('Business hours check error:', error);
-    return true; // If error, assume available
+    return false; // On error, be conservative and treat as closed
   }
 }
 
