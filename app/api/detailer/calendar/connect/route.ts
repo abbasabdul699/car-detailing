@@ -1,12 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     
+    console.log('API Route - Session check:', { 
+      hasSession: !!session, 
+      hasUser: !!session?.user, 
+      hasId: !!session?.user?.id,
+      userId: session?.user?.id 
+    });
+    
     if (!session?.user?.id) {
+      console.error('API Route - No valid session found');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
