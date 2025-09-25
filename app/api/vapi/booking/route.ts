@@ -17,6 +17,19 @@ export async function POST(request: NextRequest) {
       notes
     } = await request.json();
 
+    console.log('Vapi booking request:', {
+      detailerId,
+      customerName,
+      customerPhone,
+      vehicleMake,
+      vehicleModel,
+      vehicleYear,
+      services,
+      scheduledDate,
+      scheduledTime,
+      address
+    });
+
     if (!detailerId || !customerName || !customerPhone || !scheduledDate || !scheduledTime) {
       return NextResponse.json({ 
         error: 'Missing required parameters' 
@@ -42,6 +55,19 @@ export async function POST(request: NextRequest) {
     }
 
     // Create the booking
+    console.log('Creating booking with data:', {
+      detailerId: detailer.id,
+      customerName,
+      customerPhone,
+      vehicleType: `${vehicleYear || ''} ${vehicleMake || ''} ${vehicleModel || ''}`.trim() || 'Not specified',
+      vehicleLocation: address || 'Not provided',
+      services: Array.isArray(services) ? services : [services || 'General service'],
+      scheduledDate,
+      scheduledTime,
+      notes: notes || '',
+      status: 'confirmed'
+    });
+
     const booking = await prisma.booking.create({
       data: {
         detailerId: detailer.id,
@@ -50,12 +76,14 @@ export async function POST(request: NextRequest) {
         vehicleType: `${vehicleYear || ''} ${vehicleMake || ''} ${vehicleModel || ''}`.trim() || 'Not specified',
         vehicleLocation: address || 'Not provided',
         services: Array.isArray(services) ? services : [services || 'General service'],
-        scheduledDate,
+        scheduledDate: new Date(scheduledDate),
         scheduledTime,
         notes: notes || '',
         status: 'confirmed'
       }
     });
+
+    console.log('Booking created successfully:', booking.id);
 
     // Sync to Google Calendar if connected
     let googleEventId = null;

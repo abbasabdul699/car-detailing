@@ -160,6 +160,104 @@ Be conversational and natural - not robotic. Show enthusiasm and be helpful.`,
             },
             required: ['customerName', 'customerPhone', 'vehicleMake', 'vehicleModel', 'vehicleYear', 'services', 'scheduledDate', 'scheduledTime']
           }
+        },
+        {
+          name: 'calendar_slots_1',
+          description: 'Get available time slots for 1-hour jobs on a specific date',
+          parameters: {
+            type: 'object',
+            properties: {
+              date: {
+                type: 'string',
+                description: 'Date in YYYY-MM-DD format'
+              }
+            },
+            required: ['date']
+          }
+        },
+        {
+          name: 'calendar_slots_1_5',
+          description: 'Get available time slots for 1.5-hour jobs on a specific date',
+          parameters: {
+            type: 'object',
+            properties: {
+              date: {
+                type: 'string',
+                description: 'Date in YYYY-MM-DD format'
+              }
+            },
+            required: ['date']
+          }
+        },
+        {
+          name: 'calendar_slots_2',
+          description: 'Get available time slots for 2-hour jobs on a specific date',
+          parameters: {
+            type: 'object',
+            properties: {
+              date: {
+                type: 'string',
+                description: 'Date in YYYY-MM-DD format'
+              }
+            },
+            required: ['date']
+          }
+        },
+        {
+          name: 'calendar_slots_2_5',
+          description: 'Get available time slots for 2.5-hour jobs on a specific date',
+          parameters: {
+            type: 'object',
+            properties: {
+              date: {
+                type: 'string',
+                description: 'Date in YYYY-MM-DD format'
+              }
+            },
+            required: ['date']
+          }
+        },
+        {
+          name: 'calendar_slots_3',
+          description: 'Get available time slots for 3-hour jobs on a specific date',
+          parameters: {
+            type: 'object',
+            properties: {
+              date: {
+                type: 'string',
+                description: 'Date in YYYY-MM-DD format'
+              }
+            },
+            required: ['date']
+          }
+        },
+        {
+          name: 'calendar_slots_3_5',
+          description: 'Get available time slots for 3.5-hour jobs on a specific date',
+          parameters: {
+            type: 'object',
+            properties: {
+              date: {
+                type: 'string',
+                description: 'Date in YYYY-MM-DD format'
+              }
+            },
+            required: ['date']
+          }
+        },
+        {
+          name: 'calendar_slots_4',
+          description: 'Get available time slots for 4-hour jobs on a specific date',
+          parameters: {
+            type: 'object',
+            properties: {
+              date: {
+                type: 'string',
+                description: 'Date in YYYY-MM-DD format'
+              }
+            },
+            required: ['date']
+          }
         }
       ]
     }
@@ -173,6 +271,8 @@ async function handleFunctionCall(body: any) {
   console.log('Vapi function call:', { name, parameters });
 
   try {
+    console.log('Function call received:', { name, parameters });
+    
     if (name === 'check_availability') {
       return await checkAvailability(parameters, call);
     }
@@ -181,6 +281,21 @@ async function handleFunctionCall(body: any) {
       return await createBooking(parameters, call);
     }
 
+    // Handle calendar slot functions
+    if (name.startsWith('calendar_slots_')) {
+      console.log('Handling calendar slot function:', name);
+      return await handleCalendarSlots(name, parameters, call);
+    }
+
+    // Handle specific calendar slot functions
+    if (name === 'calendar_slots_1' || name === 'calendar_slots_1_5' || name === 'calendar_slots_2' || 
+        name === 'calendar_slots_2_5' || name === 'calendar_slots_3' || name === 'calendar_slots_3_5' || 
+        name === 'calendar_slots_4') {
+      console.log('Handling specific calendar slot function:', name);
+      return await handleCalendarSlots(name, parameters, call);
+    }
+
+    console.log('Function not found:', name);
     return NextResponse.json({
       result: 'Function not implemented'
     });
@@ -332,4 +447,83 @@ async function handleStatusUpdate(body: any) {
 async function handleEndOfCallReport(body: any) {
   console.log('Vapi end of call report:', body);
   return NextResponse.json({ success: true });
+}
+
+async function handleCalendarSlots(functionName: string, parameters: any, call: any) {
+  const { date } = parameters;
+  
+  try {
+    // Find detailer by the Twilio phone number that Vapi is using for THIS call
+    const assistantNumber = call?.assistant?.phoneNumber || call?.assistant?.number || '';
+    const lookupNumber = assistantNumber || process.env.TWILIO_PHONE_NUMBER || '';
+    
+    console.log('Calendar slots request:', { 
+      functionName, 
+      assistantNumber, 
+      lookupNumber, 
+      date 
+    });
+
+    const detailer = await prisma.detailer.findFirst({
+      where: {
+        twilioPhoneNumber: lookupNumber
+      }
+    });
+    
+    if (!detailer) {
+      return NextResponse.json({
+        result: 'Sorry, I could not find the business information. Please try again.'
+      });
+    }
+
+    // Extract duration from function name (e.g., "calendar_slots_2" -> 2 hours)
+    const durationMatch = functionName.match(/calendar_slots_(\d+(?:\.\d+)?)/);
+    const duration = durationMatch ? parseFloat(durationMatch[1]) : 2; // Default to 2 hours
+
+    // Get business hours for the requested date
+    const appointmentDate = new Date(date);
+    const dayOfWeek = appointmentDate.getDay();
+    const dayNames = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+    const dayName = dayNames[dayOfWeek];
+    const businessHours = detailer.businessHours?.[dayName];
+
+    if (!businessHours || !Array.isArray(businessHours) || businessHours.length === 0) {
+      return NextResponse.json({
+        result: `Sorry, I'm not available on ${dayName}s. Please choose a different day.`
+      });
+    }
+
+    // Generate available slots within business hours
+    const availableSlots = [];
+    const startHour = parseInt(businessHours[0].split(':')[0]);
+    const endHour = parseInt(businessHours[1].split(':')[0]);
+
+    // Generate slots every 30 minutes within business hours
+    for (let hour = startHour; hour < endHour - duration; hour += 0.5) {
+      const timeString = `${Math.floor(hour).toString().padStart(2, '0')}:${hour % 1 === 0 ? '00' : '30'}`;
+      availableSlots.push({
+        time: timeString,
+        duration: duration,
+        available: true
+      });
+    }
+
+    if (availableSlots.length === 0) {
+      return NextResponse.json({
+        result: `Sorry, I don't have any ${duration}-hour slots available on ${date}. Please choose a different day.`
+      });
+    }
+
+    // Return the first available slot
+    const firstSlot = availableSlots[0];
+    return NextResponse.json({
+      result: `I have a ${duration}-hour slot available on ${date} at ${firstSlot.time}. Would you like to book this time?`
+    });
+
+  } catch (error) {
+    console.error('Calendar slots error:', error);
+    return NextResponse.json({
+      result: 'Sorry, I had trouble checking my calendar. Please try again.'
+    });
+  }
 }
