@@ -10,13 +10,13 @@ export async function GET(request: NextRequest) {
 
     if (error) {
       return NextResponse.redirect(
-        `${process.env.NEXTAUTH_URL}/detailer-dashboard/calendar-settings?error=${encodeURIComponent(error)}`
+        `${process.env.NEXTAUTH_URL}/detailer-dashboard/profile?error=${encodeURIComponent(error)}`
       );
     }
 
     if (!code || !state) {
       return NextResponse.redirect(
-        `${process.env.NEXTAUTH_URL}/detailer-dashboard/calendar-settings?error=missing_parameters`
+        `${process.env.NEXTAUTH_URL}/detailer-dashboard/profile?error=missing_parameters`
       );
     }
 
@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
       const errorData = await tokenResponse.json();
       console.error('Token exchange failed:', errorData);
       return NextResponse.redirect(
-        `${process.env.NEXTAUTH_URL}/detailer-dashboard/calendar-settings?error=token_exchange_failed`
+        `${process.env.NEXTAUTH_URL}/detailer-dashboard/profile?error=token_exchange_failed`
       );
     }
 
@@ -58,13 +58,13 @@ export async function GET(request: NextRequest) {
     });
 
     return NextResponse.redirect(
-      `${process.env.NEXTAUTH_URL}/detailer-dashboard/calendar-settings?success=calendar_connected`
+      `${process.env.NEXTAUTH_URL}/detailer-dashboard/profile?success=calendar_connected`
     );
 
   } catch (error) {
     console.error('Error in calendar callback:', error);
     return NextResponse.redirect(
-      `${process.env.NEXTAUTH_URL}/detailer-dashboard/calendar-settings?error=callback_failed`
+      `${process.env.NEXTAUTH_URL}/detailer-dashboard/profile?error=callback_failed`
     );
   }
 }
