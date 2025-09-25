@@ -21,23 +21,40 @@ export async function GET(request: NextRequest) {
     }
 
     // Exchange code for tokens
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+    const redirectUri = `${process.env.NEXTAUTH_URL}/api/detailer/calendar/callback`;
+    
+    console.log('Token exchange debug:', {
+      hasClientId: !!clientId,
+      hasClientSecret: !!clientSecret,
+      redirectUri,
+      codeLength: code?.length
+    });
+    
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
       body: new URLSearchParams({
-        client_id: process.env.GOOGLE_CLIENT_ID!,
-        client_secret: process.env.GOOGLE_CLIENT_SECRET!,
+        client_id: clientId!,
+        client_secret: clientSecret!,
         code,
         grant_type: 'authorization_code',
-        redirect_uri: `${process.env.NEXTAUTH_URL}/api/detailer/calendar/callback`,
+        redirect_uri: redirectUri,
       }),
     });
 
     if (!tokenResponse.ok) {
       const errorData = await tokenResponse.json();
       console.error('Token exchange failed:', errorData);
+      console.error('Request details:', {
+        clientId: clientId ? `${clientId.substring(0, 20)}...` : 'MISSING',
+        hasClientSecret: !!clientSecret,
+        redirectUri,
+        status: tokenResponse.status
+      });
       return NextResponse.redirect(
         `${process.env.NEXTAUTH_URL}/detailer-dashboard/profile?error=token_exchange_failed`
       );
