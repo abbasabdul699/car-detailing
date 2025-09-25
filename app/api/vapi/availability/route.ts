@@ -1,36 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
-// Helper function to check if a time is within business hours
-function isWithinBusinessHours(date: Date, businessHours: any): boolean {
-  const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'short' }).toLowerCase(); // mon, tue, etc.
-  const dayHours = businessHours[dayOfWeek];
-  
-  if (!dayHours || dayHours.length === 0) {
-    return false; // Closed on this day
-  }
-  
-  const timeStr = date.toTimeString().slice(0, 5); // HH:MM format
-  const [hours, minutes] = timeStr.split(':').map(Number);
-  const timeInMinutes = hours * 60 + minutes;
-  
-  // Check if time falls within any of the business hour ranges
-  for (const range of dayHours) {
-    const [startTime, endTime] = range;
-    const [startHours, startMinutes] = startTime.split(':').map(Number);
-    const [endHours, endMinutes] = endTime.split(':').map(Number);
-    
-    const startTimeInMinutes = startHours * 60 + startMinutes;
-    const endTimeInMinutes = endHours * 60 + endMinutes;
-    
-    if (timeInMinutes >= startTimeInMinutes && timeInMinutes <= endTimeInMinutes) {
-      return true;
-    }
-  }
-  
-  return false;
-}
-
 export async function POST(request: NextRequest) {
   try {
     const { detailerId, date, time } = await request.json();
@@ -45,11 +15,10 @@ export async function POST(request: NextRequest) {
     const detailer = await prisma.detailer.findUnique({
       where: { id: detailerId },
       select: {
-        businessName: true,
-        businessHours: true,
         googleCalendarConnected: true,
         googleCalendarTokens: true,
-        googleCalendarRefreshToken: true
+        googleCalendarRefreshToken: true,
+        businessHours: true
       }
     });
 
@@ -59,14 +28,12 @@ export async function POST(request: NextRequest) {
       }, { status: 404 });
     }
 
-    // Check if the requested time is within business hours
-    const requestedDateTime = new Date(`${date}T${time}:00`);
-    const isWithinHours = isWithinBusinessHours(requestedDateTime, detailer.businessHours);
-    
-    if (!isWithinHours) {
+    // Check business hours first
+    const isWithinBusinessHours = checkBusinessHours(detailer.businessHours, date, time);
+    if (!isWithinBusinessHours) {
       return NextResponse.json({
         available: false,
-        reason: `Sorry, ${detailer.businessName} is not available at ${time} on ${date}. Please check our business hours.`,
+        reason: 'Requested time is outside business hours',
         businessHours: detailer.businessHours
       });
     }
@@ -125,6 +92,56 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ 
       error: 'Failed to check availability' 
     }, { status: 500 });
+  }
+}
+
+function checkBusinessHours(businessHours: any, date: string, time: string): boolean {
+  try {
+    if (!businessHours) {
+      return true; // If no business hours set, assume always available
+    }
+
+    // Get day of week (0 = Sunday, 1 = Monday, etc.)
+    const appointmentDate = new Date(date);
+    const dayOfWeek = appointmentDate.getDay();
+    const dayNames = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+    const dayName = dayNames[dayOfWeek];
+
+    // Get business hours for this day
+    const dayHours = businessHours[dayName];
+    if (!dayHours || !Array.isArray(dayHours) || dayHours.length === 0) {
+      return false; // No hours set for this day
+    }
+
+    // Parse the requested time
+    const [hours, minutes] = time.split(':').map(Number);
+    const requestedTime = hours * 60 + minutes; // Convert to minutes since midnight
+
+    // Check if the requested time falls within any of the business hour ranges
+    for (let i = 0; i < dayHours.length; i += 2) {
+      const startTime = dayHours[i];
+      const endTime = dayHours[i + 1];
+      
+      if (!startTime || !endTime) continue;
+
+      // Parse business hours (format: "21:00" -> 21*60 + 0 = 1260 minutes)
+      const [startHour, startMin] = startTime.split(':').map(Number);
+      const [endHour, endMin] = endTime.split(':').map(Number);
+      
+      const businessStart = startHour * 60 + startMin;
+      const businessEnd = endHour * 60 + endMin;
+
+      // Check if requested time is within this range
+      if (requestedTime >= businessStart && requestedTime <= businessEnd) {
+        return true;
+      }
+    }
+
+    return false; // Not within any business hour range
+
+  } catch (error) {
+    console.error('Business hours check error:', error);
+    return true; // If error, assume available
   }
 }
 
