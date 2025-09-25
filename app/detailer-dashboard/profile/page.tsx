@@ -94,6 +94,19 @@ export default function DetailerProfilePage() {
   // Google Calendar Integration Handlers
   const handleConnectGoogleCalendar = async () => {
     try {
+      // Check if we're logged in first
+      const sessionResponse = await fetch('/api/auth/session');
+      const session = await sessionResponse.json();
+      
+      if (!session || !session.user || !session.user.id) {
+        console.error('No valid session found');
+        alert('Please log in again to connect Google Calendar.');
+        window.location.href = '/detailer-login';
+        return;
+      }
+      
+      console.log('Session found:', session.user);
+      
       // Redirect to Google OAuth
       const response = await fetch('/api/detailer/calendar/connect', {
         method: 'POST',
@@ -104,12 +117,16 @@ export default function DetailerProfilePage() {
       
       if (response.ok) {
         const { authUrl } = await response.json();
+        console.log('Redirecting to:', authUrl);
         window.location.href = authUrl;
       } else {
-        console.error('Failed to initiate Google Calendar connection');
+        const errorData = await response.json();
+        console.error('Failed to initiate Google Calendar connection:', errorData);
+        alert(`Failed to connect Google Calendar: ${errorData.error || 'Unknown error'}`);
       }
     } catch (error) {
       console.error('Error connecting to Google Calendar:', error);
+      alert('Failed to connect Google Calendar. Please try again.');
     }
   };
 
