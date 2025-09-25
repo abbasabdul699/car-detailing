@@ -3,15 +3,19 @@ import { prisma } from '@/lib/prisma';
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('=== VAPI AVAILABILITY CHECK START ===');
     const { detailerId, date, time } = await request.json();
+    console.log('Request params:', { detailerId, date, time });
 
     if (!detailerId || !date || !time) {
+      console.log('Missing required parameters');
       return NextResponse.json({ 
         error: 'Missing required parameters: detailerId, date, time' 
       }, { status: 400 });
     }
 
     // Get detailer info
+    console.log('Fetching detailer info...');
     const detailer = await prisma.detailer.findUnique({
       where: { id: detailerId },
       select: {
@@ -23,14 +27,25 @@ export async function POST(request: NextRequest) {
     });
 
     if (!detailer) {
+      console.log('Detailer not found');
       return NextResponse.json({ 
         error: 'Detailer not found' 
       }, { status: 404 });
     }
 
+    console.log('Detailer found:', {
+      googleCalendarConnected: detailer.googleCalendarConnected,
+      hasTokens: !!detailer.googleCalendarTokens,
+      businessHours: detailer.businessHours
+    });
+
     // Check business hours first
+    console.log('Checking business hours...');
     const isWithinBusinessHours = checkBusinessHours(detailer.businessHours, date, time);
+    console.log('Business hours check result:', isWithinBusinessHours);
+    
     if (!isWithinBusinessHours) {
+      console.log('Time is outside business hours');
       return NextResponse.json({
         available: false,
         reason: 'Requested time is outside business hours',
@@ -88,9 +103,13 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Availability check error:', error);
+    console.error('=== VAPI AVAILABILITY CHECK ERROR ===');
+    console.error('Error details:', error);
+    console.error('Error message:', error instanceof Error ? error.message : 'Unknown error');
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
     return NextResponse.json({ 
-      error: 'Failed to check availability' 
+      error: 'Failed to check availability',
+      details: error instanceof Error ? error.message : 'Unknown error'
     }, { status: 500 });
   }
 }
