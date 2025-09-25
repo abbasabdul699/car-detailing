@@ -200,12 +200,22 @@ async function checkAvailability(parameters: any, call: any) {
     // Find detailer by the Twilio phone number that Vapi is using for THIS call
     const assistantNumber = call?.assistant?.phoneNumber || call?.assistant?.number || '';
     const lookupNumber = assistantNumber || process.env.TWILIO_PHONE_NUMBER || '';
+    
+    console.log('Vapi availability check:', { 
+      assistantNumber, 
+      lookupNumber, 
+      date, 
+      time,
+      callAssistant: call?.assistant 
+    });
 
     const detailer = await prisma.detailer.findFirst({
       where: {
         twilioPhoneNumber: lookupNumber
       }
     });
+    
+    console.log('Found detailer:', detailer ? { id: detailer.id, businessName: detailer.businessName, twilioPhoneNumber: detailer.twilioPhoneNumber } : 'Not found');
 
     if (!detailer) {
       return NextResponse.json({
@@ -225,6 +235,8 @@ async function checkAvailability(parameters: any, call: any) {
     });
 
     const availabilityData = await availabilityResponse.json();
+    
+    console.log('Availability API response:', availabilityData);
 
     if (availabilityData.available) {
       return NextResponse.json({
