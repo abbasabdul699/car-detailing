@@ -95,7 +95,7 @@ export default function DetailerProfilePage() {
   const handleConnectGoogleCalendar = async () => {
     try {
       // Redirect to Google OAuth
-      const response = await fetch('/api/auth/google-calendar/connect', {
+      const response = await fetch('/api/detailer/calendar/connect', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
