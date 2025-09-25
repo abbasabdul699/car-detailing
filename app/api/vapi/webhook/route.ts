@@ -91,9 +91,9 @@ async function handleAssistantRequest(body: any) {
   }
 
   // Generate business hours information for the system prompt
-  console.log('Detailer business hours:', detailer.businessHours);
+  console.log('Detailer business hours v2:', detailer.businessHours);
   const businessHoursInfo = generateBusinessHoursInfo(detailer.businessHours);
-  console.log('Generated business hours info:', businessHoursInfo);
+  console.log('Generated business hours info v2:', businessHoursInfo);
 
   // Return assistant configuration
   return NextResponse.json({
