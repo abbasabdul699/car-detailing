@@ -54,13 +54,18 @@ export async function POST(request: NextRequest) {
     }
 
     // Check local bookings first
-    const scheduledDate = new Date(date);
-    console.log('Checking bookings for date:', scheduledDate);
+    // Create a DateTime object for the start and end of the day to check for any bookings
+    const startOfDay = new Date(date + 'T00:00:00.000Z');
+    const endOfDay = new Date(date + 'T23:59:59.999Z');
+    console.log('Checking bookings between:', startOfDay, 'and', endOfDay);
     
     const existingBooking = await prisma.booking.findFirst({
       where: {
         detailerId,
-        scheduledDate: scheduledDate,
+        scheduledDate: {
+          gte: startOfDay,
+          lte: endOfDay
+        },
         scheduledTime: time,
         status: {
           in: ['confirmed', 'pending']
