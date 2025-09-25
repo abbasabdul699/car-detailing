@@ -92,6 +92,12 @@ When booking appointments, collect:
 - Services needed
 - Location/address
 
+IMPORTANT: When checking availability:
+1. If a customer asks for a specific time, use check_availability first
+2. If check_availability fails or returns no results, use the calendar_slots_[duration] functions to find available times
+3. NEVER default to suggesting 12 PM or any specific time without checking availability first
+4. Always use the calendar_slots functions to find actual available slots
+
 Use the available functions to check calendar availability and create bookings.
 
 Be conversational and natural - not robotic. Show enthusiasm and be helpful.`,
@@ -354,6 +360,13 @@ async function checkAvailability(parameters: any, call: any) {
     console.log('Availability API response:', availabilityData);
     console.log('Business hours from API:', availabilityData.businessHours);
 
+    // Check if the API returned an error or no data
+    if (!availabilityData || availabilityData.error) {
+      return NextResponse.json({
+        result: 'I had trouble checking that specific time. Let me check my calendar for available slots instead.'
+      });
+    }
+
     if (availabilityData.available) {
       return NextResponse.json({
         result: `Great! ${date} at ${time} is available. Would you like to book this time slot?`
@@ -382,7 +395,7 @@ async function checkAvailability(parameters: any, call: any) {
   } catch (error) {
     console.error('Availability check error:', error);
     return NextResponse.json({
-      result: 'Sorry, I had trouble checking availability. Please try again.'
+      result: 'Sorry, I had trouble checking availability. Let me check my calendar for available slots instead.'
     });
   }
 }
