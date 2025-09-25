@@ -1,6 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+// Helper function to check if a time is within business hours
+function isWithinBusinessHours(date: Date, businessHours: any): boolean {
+  const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'short' }).toLowerCase(); // mon, tue, etc.
+  const dayHours = businessHours[dayOfWeek];
+  
+  if (!dayHours || dayHours.length === 0) {
+    return false; // Closed on this day
+  }
+  
+  const timeStr = date.toTimeString().slice(0, 5); // HH:MM format
+  const [hours, minutes] = timeStr.split(':').map(Number);
+  const timeInMinutes = hours * 60 + minutes;
+  
+  // Check if time falls within any of the business hour ranges
+  for (const range of dayHours) {
+    const [startTime, endTime] = range;
+    const [startHours, startMinutes] = startTime.split(':').map(Number);
+    const [endHours, endMinutes] = endTime.split(':').map(Number);
+    
+    const startTimeInMinutes = startHours * 60 + startMinutes;
+    const endTimeInMinutes = endHours * 60 + endMinutes;
+    
+    if (timeInMinutes >= startTimeInMinutes && timeInMinutes <= endTimeInMinutes) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { detailerId, date, time } = await request.json();
@@ -15,6 +45,8 @@ export async function POST(request: NextRequest) {
     const detailer = await prisma.detailer.findUnique({
       where: { id: detailerId },
       select: {
+        businessName: true,
+        businessHours: true,
         googleCalendarConnected: true,
         googleCalendarTokens: true,
         googleCalendarRefreshToken: true
@@ -25,6 +57,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ 
         error: 'Detailer not found' 
       }, { status: 404 });
+    }
+
+    // Check if the requested time is within business hours
+    const requestedDateTime = new Date(`${date}T${time}:00`);
+    const isWithinHours = isWithinBusinessHours(requestedDateTime, detailer.businessHours);
+    
+    if (!isWithinHours) {
+      return NextResponse.json({
+        available: false,
+        reason: `Sorry, ${detailer.businessName} is not available at ${time} on ${date}. Please check our business hours.`,
+        businessHours: detailer.businessHours
+      });
     }
 
     // Check local bookings first
