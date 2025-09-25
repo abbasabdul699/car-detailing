@@ -111,13 +111,14 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('=== VAPI AVAILABILITY CHECK ERROR ===');
+    console.error('=== VAPI AVAILABILITY CHECK ERROR v2 ===');
     console.error('Error details:', error);
     console.error('Error message:', error instanceof Error ? error.message : 'Unknown error');
     console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
     return NextResponse.json({ 
-      error: 'Failed to check availability',
-      details: error instanceof Error ? error.message : 'Unknown error'
+      error: 'Failed to check availability v2',
+      details: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString()
     }, { status: 500 });
   }
 }
