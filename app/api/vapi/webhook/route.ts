@@ -1,6 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+function generateBusinessHoursInfo(businessHours: any): string {
+  if (!businessHours) {
+    return "Business hours: Not specified";
+  }
+
+  const dayNames = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+  const dayLabels = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  
+  let hoursInfo = "Business hours:\n";
+  
+  for (let i = 0; i < dayNames.length; i++) {
+    const day = dayNames[i];
+    const dayLabel = dayLabels[i];
+    
+    if (businessHours[day] && businessHours[day].length === 2) {
+      const [open, close] = businessHours[day];
+      hoursInfo += `- ${dayLabel}: ${open} - ${close}\n`;
+    } else {
+      hoursInfo += `- ${dayLabel}: Closed\n`;
+    }
+  }
+  
+  return hoursInfo;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -65,6 +90,11 @@ async function handleAssistantRequest(body: any) {
     }, { status: 404 });
   }
 
+  // Generate business hours information for the system prompt
+  console.log('Detailer business hours:', detailer.businessHours);
+  const businessHoursInfo = generateBusinessHoursInfo(detailer.businessHours);
+  console.log('Generated business hours info:', businessHoursInfo);
+
   // Return assistant configuration
   return NextResponse.json({
     assistant: {
@@ -83,6 +113,8 @@ async function handleAssistantRequest(body: any) {
 
 Available services: ${detailer.services?.map(s => s.service.name).join(', ') || 'Various car detailing services'}
 
+${businessHoursInfo}
+
 You're having a natural phone conversation with a customer. Be friendly, helpful, and conversational.
 
 When booking appointments, collect:
@@ -97,6 +129,7 @@ IMPORTANT: When checking availability:
 2. If check_availability fails or returns no results, use the calendar_slots_[duration] functions to find available times
 3. NEVER default to suggesting 12 PM or any specific time without checking availability first
 4. Always use the calendar_slots functions to find actual available slots
+5. ONLY suggest times that fall within the business hours listed above
 
 Use the available functions to check calendar availability and create bookings.
 
