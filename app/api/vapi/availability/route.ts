@@ -118,7 +118,7 @@ function checkBusinessHours(businessHours: any, date: string, time: string): boo
     const requestedTime = hours * 60 + minutes; // Convert to minutes since midnight
 
     // Check if the requested time falls within any of the business hour ranges
-    for (let i = 0; i < dayHours.length; i += 2) {
+    for (let i = 0; i < dayHours.length - 1; i += 2) {
       const startTime = dayHours[i];
       const endTime = dayHours[i + 1];
       
