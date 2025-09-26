@@ -230,9 +230,8 @@ function chunkForSms(text: string) {
     remaining = remaining.slice(cut).trim()
   }
 
-  // add (1/3) style counters
-  const total = parts.length
-  return parts.map((p, i) => `${p} (${i + 1}/${total})`)
+  // return chunks without numbering for client-facing messages
+  return parts
 }
 
 // Safe Twilio send with error handling
