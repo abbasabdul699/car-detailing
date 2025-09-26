@@ -830,7 +830,8 @@ Be conversational and natural.`;
 
         const parsed = parseTimeFromText(body)
 
-        await prisma.booking.create({
+        // Create the booking
+        const booking = await prisma.booking.create({
           data: {
             detailerId: detailer.id,
             conversationId: conversation.id,
@@ -845,6 +846,150 @@ Be conversational and natural.`;
             notes: parsed.note ? `Auto-captured from SMS conversation (fast webhook) | ${parsed.note}` : 'Auto-captured from SMS conversation (fast webhook)'
           }
         })
+
+        // Sync to Google Calendar if detailer has it connected
+        if (detailer.googleCalendarConnected && detailer.syncAppointments && detailer.googleCalendarTokens && detailer.googleCalendarRefreshToken) {
+          try {
+            const tokens = JSON.parse(detailer.googleCalendarTokens)
+            let accessToken = tokens.access_token
+
+            // Create Google Calendar event
+            const startDateTime = new Date(when)
+            if (parsed.time) {
+              const [hours, minutes] = parsed.time.split(':')
+              const isPM = parsed.time.includes('PM')
+              let hour24 = parseInt(hours)
+              if (isPM && hour24 !== 12) hour24 += 12
+              if (!isPM && hour24 === 12) hour24 = 0
+              startDateTime.setHours(hour24, parseInt(minutes), 0, 0)
+            }
+            
+            const endDateTime = new Date(startDateTime)
+            endDateTime.setMinutes(endDateTime.getMinutes() + 120) // Default 2 hours
+
+            const event = {
+              summary: `Car Detailing - ${snapForBooking?.customerName || 'Customer'}`,
+              description: `
+Services: ${services.length ? services.join(', ') : 'Detailing'}
+Customer: ${snapForBooking?.customerName || 'N/A'}
+Phone: ${from}
+Vehicle: ${snapForBooking?.vehicle || 'N/A'}
+Location: ${snapForBooking?.address || 'N/A'}
+Notes: ${parsed.note || 'Auto-captured from SMS conversation'}
+              `.trim(),
+              start: {
+                dateTime: startDateTime.toISOString(),
+                timeZone: 'America/New_York',
+              },
+              end: {
+                dateTime: endDateTime.toISOString(),
+                timeZone: 'America/New_York',
+              },
+              location: snapForBooking?.address || undefined,
+              reminders: {
+                useDefault: false,
+                overrides: [
+                  { method: 'email', minutes: 24 * 60 }, // 24 hours before
+                  { method: 'popup', minutes: 60 }, // 1 hour before
+                ],
+              },
+            }
+
+            // Try to create Google Calendar event
+            try {
+              const response = await fetch(
+                'https://www.googleapis.com/calendar/v3/calendars/primary/events',
+                {
+                  method: 'POST',
+                  headers: {
+                    Authorization: `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify(event),
+                }
+              )
+
+              if (response.ok) {
+                const createdEvent = await response.json()
+                const googleEventId = createdEvent.id
+                
+                // Update booking with Google Calendar event ID
+                await prisma.booking.update({
+                  where: { id: booking.id },
+                  data: { googleEventId }
+                })
+
+                console.log('Google Calendar event created for SMS booking:', googleEventId)
+              } else {
+                console.error('Google Calendar event creation failed:', response.status, response.statusText)
+              }
+            } catch (error) {
+              // If access token is expired, try to refresh it
+              console.log('Access token expired, refreshing...')
+              try {
+                const refreshResponse = await fetch('https://oauth2.googleapis.com/token', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                  body: new URLSearchParams({
+                    client_id: process.env.GOOGLE_CLIENT_ID!,
+                    client_secret: process.env.GOOGLE_CLIENT_SECRET!,
+                    refresh_token: detailer.googleCalendarRefreshToken,
+                    grant_type: 'refresh_token',
+                  }),
+                })
+
+                if (refreshResponse.ok) {
+                  const newTokens = await refreshResponse.json()
+                  const newAccessToken = newTokens.access_token
+                  
+                  // Update the stored tokens
+                  const updatedTokens = {
+                    ...tokens,
+                    access_token: newAccessToken,
+                  }
+                  
+                  await prisma.detailer.update({
+                    where: { id: detailer.id },
+                    data: {
+                      googleCalendarTokens: JSON.stringify(updatedTokens),
+                    },
+                  })
+
+                  // Retry creating Google Calendar event
+                  const retryResponse = await fetch(
+                    'https://www.googleapis.com/calendar/v3/calendars/primary/events',
+                    {
+                      method: 'POST',
+                      headers: {
+                        Authorization: `Bearer ${newAccessToken}`,
+                        'Content-Type': 'application/json',
+                      },
+                      body: JSON.stringify(event),
+                    }
+                  )
+
+                  if (retryResponse.ok) {
+                    const createdEvent = await retryResponse.json()
+                    const googleEventId = createdEvent.id
+                    
+                    // Update booking with Google Calendar event ID
+                    await prisma.booking.update({
+                      where: { id: booking.id },
+                      data: { googleEventId }
+                    })
+
+                    console.log('Google Calendar event created for SMS booking (after refresh):', googleEventId)
+                  }
+                }
+              } catch (refreshError) {
+                console.error('Failed to refresh Google Calendar token:', refreshError)
+              }
+            }
+          } catch (error) {
+            console.error('Failed to create Google Calendar event for SMS booking:', error)
+            // Don't fail the booking creation if Google Calendar fails
+          }
+        }
       }
     } catch (e) {
       console.error('Non-fatal error creating lightweight booking:', e)
