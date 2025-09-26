@@ -477,6 +477,7 @@ export default function CalendarPage() {
 
       // Transform local bookings to calendar format
       const transformedLocalBookings = localBookings.map((booking: any) => {
+        // Ensure scheduledDate is a proper Date object
         const bookingDate = new Date(booking.scheduledDate);
         
         // Handle time parsing for bookings
@@ -504,7 +505,8 @@ export default function CalendarPage() {
             timeStr = `${timeStr}:00`;
           }
           
-          const dateStr = booking.scheduledDate.toISOString().split('T')[0];
+          // Use the Date object's toISOString method
+          const dateStr = bookingDate.toISOString().split('T')[0];
           startDateTime = new Date(`${dateStr}T${timeStr}`);
           
           // If time parsing fails, fall back to booking date
@@ -523,7 +525,7 @@ export default function CalendarPage() {
           title: `${booking.customerName || 'Customer'} - ${Array.isArray(booking.services) ? booking.services.join(', ') : booking.services || 'Detailing'}`,
           start: startDateTime.toISOString(),
           end: endDateTime.toISOString(),
-          date: booking.scheduledDate.toISOString().split('T')[0],
+          date: bookingDate.toISOString().split('T')[0],
           time: booking.scheduledTime,
           allDay: false, // Bookings are never all-day
           color: booking.status === 'confirmed' ? 'green' : booking.status === 'pending' ? 'yellow' : 'red',
@@ -563,6 +565,9 @@ export default function CalendarPage() {
       
       console.log('Setting bookings state with:', allEvents.length, 'events');
       console.log('Event sources:', allEvents.map(e => ({ title: e.title, source: e.source, color: e.color })));
+      console.log('Local bookings count:', localBookings.length);
+      console.log('Google events count:', googleEvents.length);
+      console.log('Current month being fetched:', monthStr);
       setBookings(allEvents);
     } catch (error) {
       console.error('Error fetching calendar events:', error);
