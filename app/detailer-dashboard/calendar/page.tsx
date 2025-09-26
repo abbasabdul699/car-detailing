@@ -475,8 +475,68 @@ export default function CalendarPage() {
           })
       ]);
 
-      // Transform and combine events (googleEvents already contains both Google and local events)
-      const allEvents = googleEvents.map((event: any) => {
+      // Transform local bookings to calendar format
+      const transformedLocalBookings = localBookings.map((booking: any) => {
+        const bookingDate = new Date(booking.scheduledDate);
+        
+        // Handle time parsing for bookings
+        let startDateTime, endDateTime;
+        
+        if (booking.scheduledTime) {
+          // Parse time more carefully - convert 12-hour to 24-hour format
+          let timeStr = booking.scheduledTime;
+          
+          // Convert 12-hour format to 24-hour format
+          if (timeStr.includes('PM') || timeStr.includes('AM')) {
+            const isPM = timeStr.includes('PM');
+            const timeOnly = timeStr.replace(/\s*(AM|PM)/i, '').trim();
+            const [hours, minutes] = timeOnly.split(':').map(Number);
+            
+            let hour24 = hours;
+            if (isPM && hours !== 12) {
+              hour24 = hours + 12;
+            } else if (!isPM && hours === 12) {
+              hour24 = 0;
+            }
+            
+            timeStr = `${hour24.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
+          } else if (!timeStr.includes(':')) {
+            timeStr = `${timeStr}:00`;
+          }
+          
+          const dateStr = booking.scheduledDate.toISOString().split('T')[0];
+          startDateTime = new Date(`${dateStr}T${timeStr}`);
+          
+          // If time parsing fails, fall back to booking date
+          if (isNaN(startDateTime.getTime())) {
+            startDateTime = bookingDate;
+          }
+        } else {
+          startDateTime = bookingDate;
+        }
+        
+        // Calculate end time (default 2 hours for bookings)
+        endDateTime = new Date(startDateTime.getTime() + 2 * 60 * 60 * 1000);
+
+        return {
+          id: booking.id,
+          title: `${booking.customerName || 'Customer'} - ${Array.isArray(booking.services) ? booking.services.join(', ') : booking.services || 'Detailing'}`,
+          start: startDateTime.toISOString(),
+          end: endDateTime.toISOString(),
+          date: booking.scheduledDate.toISOString().split('T')[0],
+          time: booking.scheduledTime,
+          allDay: false, // Bookings are never all-day
+          color: booking.status === 'confirmed' ? 'green' : booking.status === 'pending' ? 'yellow' : 'red',
+          description: `Customer: ${booking.customerName || 'N/A'}\nPhone: ${booking.customerPhone}\nVehicle: ${booking.vehicleType || 'N/A'}\nLocation: ${booking.vehicleLocation || 'N/A'}\nServices: ${Array.isArray(booking.services) ? booking.services.join(', ') : booking.services || 'Detailing'}\nStatus: ${booking.status}\n${booking.notes ? `Notes: ${booking.notes}` : ''}`,
+          location: booking.vehicleLocation || '',
+          source: 'local-booking',
+          bookingId: booking.id,
+          status: booking.status
+        };
+      });
+
+      // Transform Google Calendar events
+      const transformedGoogleEvents = googleEvents.map((event: any) => {
         // Preserve the original source field from the API
         const eventSource = event.source;
         let eventColor = 'blue'; // Default for Google events
@@ -497,6 +557,9 @@ export default function CalendarPage() {
           isMultiDay: event.isMultiDay
         };
       });
+
+      // Combine all events
+      const allEvents = [...transformedLocalBookings, ...transformedGoogleEvents];
       
       console.log('Setting bookings state with:', allEvents.length, 'events');
       console.log('Event sources:', allEvents.map(e => ({ title: e.title, source: e.source, color: e.color })));
