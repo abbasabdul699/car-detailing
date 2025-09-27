@@ -126,14 +126,14 @@ DESCRIPTION:Car detailing appointment reminder
 END:VALARM
 END:VEVENT
 END:VCALENDAR`;
-    
-    const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = 'car-detailing-appointment.ics';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+            
+            const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'car-detailing-appointment.ics';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
   };
 
   return (

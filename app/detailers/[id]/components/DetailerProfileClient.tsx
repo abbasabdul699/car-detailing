@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { FaInstagram, FaTiktok, FaGlobe, FaShare, FaPhone, FaTimes, FaWhatsapp } from 'react-icons/fa';
 import Navbar from '@/app/components/Navbar';
 import ImageModal from './ImageModal';
-import ContactForm from './ContactForm';
+import ContactModal from '@/app/components/ContactModal';
 import { useRouter } from 'next/navigation';
 import Slider from 'react-slick';
 import 'slick-carousel/slick/slick.css';
@@ -871,14 +871,13 @@ export default function DetailerProfileClient({ detailer: initialDetailer, categ
           </div>
         )}
 
-        {/* Contact Form */}
-        {showContactForm && (
-          <ContactForm
-            detailerName={detailer.businessName}
-            detailerId={detailer.id}
-            onClose={() => setShowContactForm(false)}
-          />
-        )}
+        {/* Contact Modal */}
+        <ContactModal
+          isOpen={showContactForm}
+          onClose={() => setShowContactForm(false)}
+          detailerId={detailer.id}
+          detailerName={detailer.businessName}
+        />
       </main>
     </>
   );
