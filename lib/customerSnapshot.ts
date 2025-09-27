@@ -2,7 +2,9 @@ import { prisma } from '@/lib/prisma'
 
 export type SnapshotUpdate = {
   customerName?: string | null
+  customerEmail?: string | null
   address?: string | null
+  locationType?: string | null
   vehicle?: string | null
   vehicleYear?: number | null
   vehicleMake?: string | null
@@ -25,7 +27,9 @@ export async function upsertCustomerSnapshot(
 ) {
   const cleaned: Record<string, unknown> = {}
   if (update.customerName !== undefined) cleaned.customerName = update.customerName
+  if (update.customerEmail !== undefined) cleaned.customerEmail = update.customerEmail
   if (update.address !== undefined) cleaned.address = update.address
+  if (update.locationType !== undefined) cleaned.locationType = update.locationType
   if (update.vehicle !== undefined) cleaned.vehicle = update.vehicle
   if (update.vehicleYear !== undefined) cleaned.vehicleYear = update.vehicleYear
   if (update.vehicleMake !== undefined) cleaned.vehicleMake = update.vehicleMake

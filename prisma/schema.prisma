@@ -65,6 +65,7 @@ model Detailer {
   // Relations
   conversations     Conversation[]
   bookings          Booking[]
+  customers         Customer[]
   customerSnapshots CustomerSnapshot[]
   events            Event[]
 }
@@ -174,6 +175,8 @@ model Conversation {
   // Relations
   messages     Message[]
   bookings     Booking[]
+  customer     Customer? @relation(fields: [customerId], references: [id])
+  customerId   String?   @db.ObjectId
   
   // Index for quick lookups
   @@unique([detailerId, customerPhone])
@@ -197,8 +200,11 @@ model CustomerSnapshot {
   detailerId     String    @db.ObjectId
   customerPhone  String
   customerName   String?
+  customerEmail  String?
   // Latest known address for service location
   address        String?
+  // Type of location (home, work, other)
+  locationType   String?
   // Simple vehicle description string (e.g., "Toyota RAV4 2023")
   vehicle        String?
   // Structured vehicle fields for better filtering
@@ -210,16 +216,48 @@ model CustomerSnapshot {
   // Additional structured data as JSON for flexibility
   data           Json?
   vcardSent      Boolean? @default(false)
+  customer       Customer? @relation(fields: [customerId], references: [id])
+  customerId     String?   @db.ObjectId
   createdAt      DateTime? @default(now())
   updatedAt      DateTime? @updatedAt
 
   @@unique([detailerId, customerPhone])
 }
 
+/// Persistent customer records with contact information and preferences
+model Customer {
+  id                String    @id @default(auto()) @map("_id") @db.ObjectId
+  detailer          Detailer  @relation(fields: [detailerId], references: [id])
+  detailerId        String    @db.ObjectId
+  name              String    // Customer's full name
+  phone             String    // Primary phone number
+  email             String?   // Email address (optional)
+  address           String?   // Primary address
+  locationType      String?   // "home", "office", or "other"
+  vehicleInfo       Json?     // Array of vehicle objects with year, make, model, luxury flag, notes
+  lastDetailId      String?   @db.ObjectId // Reference to last appointment
+  preferredTime     String?   // "morning", "afternoon", or "evening"
+  flexibility       String?   // "urgent", "this_week", or "whenever"
+  avgResponseTime   String?   // Mean reply speed (e.g., "00:04:00")
+  avgGapBetweenMessages String? // Avg time between texts
+  tags              String[]  // Tags like "VIP", "no show risk"
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  // Relations
+  bookings          Booking[]
+  conversations     Conversation[]
+  customerSnapshots CustomerSnapshot[]
+
+  @@unique([detailerId, phone])
+}
+
 model Booking {
   id             String       @id @default(auto()) @map("_id") @db.ObjectId
   detailer       Detailer     @relation(fields: [detailerId], references: [id])
   detailerId     String       @db.ObjectId
+  customer       Customer?    @relation(fields: [customerId], references: [id])
+  customerId     String?      @db.ObjectId
   conversation   Conversation? @relation(fields: [conversationId], references: [id])
   conversationId String?      @db.ObjectId
   customerPhone  String       // Customer's phone number

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getCustomerSnapshot, upsertCustomerSnapshot } from '@/lib/customerSnapshot';
 import { normalizeToE164 } from '@/lib/phone';
+import { getOrCreateCustomer, extractCustomerDataFromSnapshot } from '@/lib/customer';
 import twilio from 'twilio';
 
 // --- BEGIN STRONG SNAPSHOT EXTRACTOR + SAFE UPSERT ---
@@ -129,14 +130,23 @@ export function extractSnapshotHintsSafe(message: string, availableServices: str
   const addr = pickAddress(text)
   if (addr) out.address = addr
 
+  // Extract location type (home, work, other)
+  const lower = text.toLowerCase()
+  if (/\bhome\b/.test(lower)) out.locationType = 'home'
+  else if (/\bwork\b/.test(lower) || /\boffice\b/.test(lower)) out.locationType = 'work'
+  else if (/\bother\b/.test(lower)) out.locationType = 'other'
+
   const veh = pickVehicle(text)
   if (veh) Object.assign(out, veh)
 
   const services = pickServices(text, availableServices)
   if (services.length) out.services = services
 
+  // Extract email address
+  const emailMatch = text.match(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/)
+  if (emailMatch) out.customerEmail = emailMatch[0]
+
   // preferred date/time to keep availability words out of name/address
-  const lower = text.toLowerCase()
   // date words or explicit formats
   const wd = /(this|next)?\s*(monday|tuesday|wednesday|thursday|friday|saturday|sunday)/i.exec(lower)
   if (/\btoday\b/.test(lower)) out.preferredDate = 'today'
@@ -183,13 +193,27 @@ export async function safeUpsertSnapshot(detailerId: string, phone: string, inco
     return false
   }
 
-  for (const k of ['customerName','address','vehicle','vehicleYear','vehicleMake','vehicleModel','services','preferredDate','preferredTime']) {
+  for (const k of ['customerName','customerEmail','address','locationType','vehicle','vehicleYear','vehicleMake','vehicleModel','services','preferredDate','preferredTime']) {
     if (canSet(k, incoming[k])) out[k] = incoming[k]
   }
   if (Object.keys(out).length) {
     await upsertCustomerSnapshot(detailerId, phone, out)
   }
-  return { ...snap, ...out }
+  
+  const updatedSnap = { ...snap, ...out }
+  
+  // If we now have a customer name, create/update customer record
+  if (updatedSnap.customerName) {
+    try {
+      const customerData = extractCustomerDataFromSnapshot(updatedSnap)
+      await getOrCreateCustomer(detailerId, phone, customerData)
+    } catch (error) {
+      console.error('Error creating customer from snapshot:', error)
+      // Don't fail the snapshot update if customer creation fails
+    }
+  }
+  
+  return updatedSnap
 }
 // --- END STRONG SNAPSHOT EXTRACTOR + SAFE UPSERT ---
 
@@ -210,24 +234,74 @@ function chunkForSms(text: string) {
 
   const parts: string[] = []
   let remaining = cleaned.trim()
+  
   while (remaining.length) {
-    const limit = parts.length === 0 ? limitConcat : limitConcat
+    const limit = parts.length === 0 ? limitSingle : limitConcat
+    
     if (remaining.length <= limit) {
       parts.push(remaining)
       break
     }
-    // prefer break at end of sentence, else at last comma, else at space
-    let cut = Math.max(
-      remaining.lastIndexOf('. ', limit),
-      remaining.lastIndexOf('! ', limit),
-      remaining.lastIndexOf('? ', limit),
-      remaining.lastIndexOf('\n', limit),
-      remaining.lastIndexOf(', ', limit),
-      remaining.lastIndexOf(' ', limit)
-    )
-    if (cut <= 0) cut = limit
-    parts.push(remaining.slice(0, cut).trim())
-    remaining = remaining.slice(cut).trim()
+
+    // Find the best break point within the limit
+    let bestCut = 0
+    
+    // First, try to break at sentence endings (with or without space after)
+    const sentenceEndings = ['.', '!', '?']
+    for (const ending of sentenceEndings) {
+      // Look for sentence ending with space after
+      const cutWithSpace = remaining.lastIndexOf(ending + ' ', limit)
+      if (cutWithSpace > bestCut) {
+        bestCut = cutWithSpace + 1 // Include the punctuation
+      }
+      
+      // Look for sentence ending at the exact limit (no space after)
+      const cutExact = remaining.lastIndexOf(ending, limit)
+      if (cutExact > bestCut && cutExact === limit - 1) {
+        bestCut = cutExact + 1 // Include the punctuation
+      }
+    }
+    
+    // If no good sentence break, try line breaks
+    if (bestCut === 0) {
+      const lineBreak = remaining.lastIndexOf('\n', limit)
+      if (lineBreak > bestCut) {
+        bestCut = lineBreak
+      }
+    }
+    
+    // If still no good break, try comma breaks
+    if (bestCut === 0) {
+      const commaBreak = remaining.lastIndexOf(', ', limit)
+      if (commaBreak > bestCut) {
+        bestCut = commaBreak + 1 // Include the comma
+      }
+    }
+    
+    // If still no good break, try colon or semicolon
+    if (bestCut === 0) {
+      const colonBreak = remaining.lastIndexOf(': ', limit)
+      if (colonBreak > bestCut) {
+        bestCut = colonBreak + 1 // Include the colon
+      }
+      const semicolonBreak = remaining.lastIndexOf('; ', limit)
+      if (semicolonBreak > bestCut) {
+        bestCut = semicolonBreak + 1 // Include the semicolon
+      }
+    }
+    
+    // Last resort: break at word boundary
+    if (bestCut === 0) {
+      bestCut = remaining.lastIndexOf(' ', limit)
+    }
+    
+    // If we still can't find a good break point, force break at limit
+    if (bestCut <= 0) {
+      bestCut = limit
+    }
+    
+    parts.push(remaining.slice(0, bestCut).trim())
+    remaining = remaining.slice(bestCut).trim()
   }
 
   // return chunks without numbering for client-facing messages
@@ -540,8 +614,16 @@ When booking, follow this order but ONLY ask for information you don't already k
 2. If you don't know their vehicle, ask about their car (make, model, year)
 3. If you don't know what services they want, ask what services they're interested in
 4. If you don't know their FULL address, ask for their COMPLETE address where they want the mobile service
-5. If you don't know their preferred date, ask "What date would work for you?"
-6. If you don't know their preferred time, ask about their preferred time
+5. After getting the address, ALWAYS ask "Is this your home, work, or other location?" to categorize the address
+6. If you don't know their preferred date, ask "What date would work for you?"
+7. If you don't know their preferred time, ask about their preferred time
+8. If you don't have their email, ask "What's your email address? (Optional - for invoices and reminders)"
+
+EMAIL REQUIREMENTS:
+- Email is completely optional - don't pressure customers to provide it
+- If they say "no" or "skip" or "not needed", move on without asking again
+- Only ask once, and accept their decision
+- Mention it's for invoices and appointment reminders to explain the value
 
 SERVICES REQUIREMENTS:
 - If you already know their services (like "interior detail"), don't ask for services again
@@ -606,8 +688,10 @@ Be conversational and natural.`;
       if (!snap?.vehicle && !(snap?.vehicleMake || snap?.vehicleModel || snap?.vehicleYear)) return "What vehicle do you have? (make, model, year)"
       if (!snap?.services || snap?.services.length === 0) return "What services are you interested in? (e.g., interior detail, exterior wash)"
       if (!snap?.address) return "What's the complete address where you'd like the service?"
+      if (snap?.address && !snap?.locationType) return "Is this your home, work, or other location?"
       if (!snap?.preferredDate) return "What date works for you?"
       if (!snap?.preferredTime) return "What time works for you?"
+      if (!snap?.customerEmail) return "What's your email address? (Optional - for invoices and reminders)"
       return "Great! Anything else you'd like to add?"
     }
 
@@ -872,6 +956,7 @@ Be conversational and natural.`;
             conversationId: conversation.id,
             customerPhone: from,
             customerName: snapForBooking?.customerName || undefined,
+            customerEmail: snapForBooking?.customerEmail || undefined,
             vehicleType: snapForBooking?.vehicle || [snapForBooking?.vehicleYear, snapForBooking?.vehicleMake, snapForBooking?.vehicleModel].filter(Boolean).join(' ') || undefined,
             vehicleLocation: snapForBooking?.address || undefined,
             services: services.length ? services : ['Detailing'],
@@ -881,6 +966,29 @@ Be conversational and natural.`;
             notes: parsed.note ? `Auto-captured from SMS conversation (fast webhook) | ${parsed.note}` : 'Auto-captured from SMS conversation (fast webhook)'
           }
         })
+
+        // Create or update customer record
+        if (snapForBooking?.customerName) {
+          try {
+            const customerData = extractCustomerDataFromSnapshot(snapForBooking)
+            const customer = await getOrCreateCustomer(detailer.id, from, customerData)
+            
+            if (customer) {
+              // Update customer with latest booking reference
+              await prisma.customer.update({
+                where: { id: customer.id },
+                data: { 
+                  lastDetailId: booking.id,
+                  updatedAt: new Date()
+                }
+              })
+              console.log('Customer record created/updated:', customer.id)
+            }
+          } catch (error) {
+            console.error('Error creating/updating customer:', error)
+            // Don't fail the booking creation if customer creation fails
+          }
+        }
 
         // Generate detailed confirmation response
         const formattedDate = when.toLocaleDateString('en-US', { 
