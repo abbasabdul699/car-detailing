@@ -925,7 +925,7 @@ Be conversational and natural.`;
             
             if (isBookingRelated) {
               const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://www.reevacar.com';
-              const calendarUrl = `${baseUrl}/api/calendar/add/demo`;
+              const calendarUrl = `${baseUrl}/calendar/add`;
               aiResponse += `\n\n📅 Add to calendar: ${calendarUrl}`;
               console.log('Calendar link added to AI response');
             }
