@@ -624,6 +624,7 @@ EMAIL REQUIREMENTS:
 - If they say "no" or "skip" or "not needed", move on without asking again
 - Only ask once, and accept their decision
 - Mention it's for invoices and appointment reminders to explain the value
+- IMPORTANT: Always ask for email before finalizing any booking confirmation
 
 SERVICES REQUIREMENTS:
 - If you already know their services (like "interior detail"), don't ask for services again
@@ -944,7 +945,16 @@ Be conversational and natural.`;
       }
 
       // Check if we have enough details to create a booking and replace AI response with detailed confirmation
-      if (hasDate && hasTime && hasMinimumDetails && !asksForServices) {
+      // Only create booking if we have email OR customer explicitly declined to provide it
+      const hasEmail = snapForBooking?.customerEmail
+      const emailDeclined = /\b(no|skip|not needed|don't need|not required|optional)\b/i.test(body)
+      
+      // If we have all details except email, ask for email first
+      if (hasDate && hasTime && hasMinimumDetails && !asksForServices && !hasEmail && !emailDeclined) {
+        aiResponse = "What's your email address? (Optional - for invoices and reminders)"
+      }
+      // Only create booking if we have email OR customer explicitly declined to provide it
+      else if (hasDate && hasTime && hasMinimumDetails && !asksForServices && (hasEmail || emailDeclined)) {
         const when = parseDateFromText(body) || new Date()
         const services = Array.isArray(snapForBooking?.services) ? snapForBooking?.services as string[] : []
         const parsed = parseTimeFromText(body)
