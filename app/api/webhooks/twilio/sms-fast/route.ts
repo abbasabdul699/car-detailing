@@ -471,6 +471,103 @@ function chunkForSms(text: string) {
   return parts
 }
 
+// Check for appointment conflicts
+async function checkAppointmentConflict(detailerId: string, scheduledDate: Date, scheduledTime: string): Promise<{ hasConflict: boolean, conflictingAppointment?: any }> {
+  try {
+    // Parse the scheduled time to get start and end times
+    const [timeStr, period] = scheduledTime.split(' ');
+    const [hours, minutes] = timeStr.split(':');
+    let startHour = parseInt(hours);
+    if (period === 'PM' && startHour !== 12) startHour += 12;
+    if (period === 'AM' && startHour === 12) startHour = 0;
+    
+    const startDateTime = new Date(scheduledDate);
+    startDateTime.setHours(startHour, parseInt(minutes), 0, 0);
+    
+    // Default duration is 2 hours
+    const endDateTime = new Date(startDateTime);
+    endDateTime.setHours(endDateTime.getHours() + 2);
+    
+    console.log('Checking for conflicts:', {
+      detailerId,
+      scheduledDate: scheduledDate.toISOString(),
+      scheduledTime,
+      startDateTime: startDateTime.toISOString(),
+      endDateTime: endDateTime.toISOString()
+    });
+    
+    // Find existing bookings for the same detailer on the same day
+    const existingBookings = await prisma.booking.findMany({
+      where: {
+        detailerId: detailerId,
+        scheduledDate: {
+          gte: new Date(scheduledDate.getFullYear(), scheduledDate.getMonth(), scheduledDate.getDate()),
+          lt: new Date(scheduledDate.getFullYear(), scheduledDate.getMonth(), scheduledDate.getDate() + 1)
+        },
+        status: {
+          not: 'cancelled'
+        }
+      }
+    });
+    
+    console.log('Found existing bookings for the day:', existingBookings.length);
+    
+    // Check for conflicts with existing bookings
+    for (const booking of existingBookings) {
+      if (!booking.scheduledTime) continue;
+      
+      const [existingTimeStr, existingPeriod] = booking.scheduledTime.split(' ');
+      const [existingHours, existingMinutes] = existingTimeStr.split(':');
+      let existingStartHour = parseInt(existingHours);
+      if (existingPeriod === 'PM' && existingStartHour !== 12) existingStartHour += 12;
+      if (existingPeriod === 'AM' && existingStartHour === 12) existingStartHour = 0;
+      
+      const existingStartDateTime = new Date(booking.scheduledDate);
+      existingStartDateTime.setHours(existingStartHour, parseInt(existingMinutes), 0, 0);
+      
+      // Default duration is 2 hours for existing bookings too
+      const existingEndDateTime = new Date(existingStartDateTime);
+      existingEndDateTime.setHours(existingEndDateTime.getHours() + 2);
+      
+      console.log('Checking against existing booking:', {
+        bookingId: booking.id,
+        existingStart: existingStartDateTime.toISOString(),
+        existingEnd: existingEndDateTime.toISOString(),
+        newStart: startDateTime.toISOString(),
+        newEnd: endDateTime.toISOString()
+      });
+      
+      // Check if there's any overlap
+      const hasOverlap = (startDateTime < existingEndDateTime && endDateTime > existingStartDateTime);
+      
+      if (hasOverlap) {
+        console.log('CONFLICT DETECTED:', {
+          existingBooking: booking.id,
+          existingTime: booking.scheduledTime,
+          newTime: scheduledTime
+        });
+        
+        return {
+          hasConflict: true,
+          conflictingAppointment: {
+            id: booking.id,
+            time: booking.scheduledTime,
+            customer: booking.customerName
+          }
+        };
+      }
+    }
+    
+    console.log('No conflicts found');
+    return { hasConflict: false };
+    
+  } catch (error) {
+    console.error('Error checking appointment conflict:', error);
+    // If there's an error, allow the booking to proceed
+    return { hasConflict: false };
+  }
+}
+
 // Safe Twilio send with error handling
 async function safeSend(client: any, to: string, from: string, body: string): Promise<string | undefined> {
   try {
@@ -764,6 +861,8 @@ Business Hours:
 ${formatBusinessHours(detailer.businessHours)}
 
 IMPORTANT: You MUST follow the business hours exactly as specified above. Do not make up or assume different hours.
+
+APPOINTMENT CONFLICTS: If a customer requests a time that conflicts with an existing appointment, politely explain that the time is already booked and suggest alternative times within business hours. Always be helpful in finding alternative slots.
 
 Available Services: ${availableServices || 'Various car detailing services'}
 
@@ -1217,6 +1316,31 @@ Be conversational and natural.`;
         const when = parseDateFromText(body) || new Date()
         const services = Array.isArray(snapForBooking?.services) ? snapForBooking?.services as string[] : []
         const parsed = parseTimeFromText(body)
+
+        // Check for appointment conflicts before creating booking
+        if (parsed.time) {
+          const conflictCheck = await checkAppointmentConflict(detailer.id, when, parsed.time);
+          
+          if (conflictCheck.hasConflict) {
+            const conflictingTime = conflictCheck.conflictingAppointment?.time || 'another appointment';
+            const conflictingCustomer = conflictCheck.conflictingAppointment?.customer || 'another customer';
+            
+            aiResponse = `I'm sorry, but that time slot is already booked. ${conflictingCustomer} has an appointment at ${conflictingTime}. 
+
+Please choose a different time. I'm available during our business hours:
+${formatBusinessHours(detailer.businessHours)}
+
+What time would work better for you?`;
+            
+            console.log('Appointment conflict detected, booking blocked:', {
+              requestedTime: parsed.time,
+              conflictingAppointment: conflictCheck.conflictingAppointment
+            });
+            
+            // Don't create the booking, send conflict message instead
+            return new Response(aiResponse, { status: 200 });
+          }
+        }
 
         // Create the booking
         const booking = await prisma.booking.create({
