@@ -925,9 +925,28 @@ Be conversational and natural.`;
             
             if (isBookingRelated) {
               const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://www.reevacar.com';
-              const calendarUrl = `${baseUrl}/calendar/add`;
+              
+              // Try to extract booking details from the AI response or snapshot
+              const name = snapshot?.customerName || 'Customer';
+              const date = snapshot?.date || 'Your scheduled date';
+              const time = snapshot?.time || 'Your scheduled time';
+              const car = snapshot?.vehicle || [snapshot?.vehicleYear, snapshot?.vehicleMake, snapshot?.vehicleModel].filter(Boolean).join(' ') || 'Your vehicle';
+              const service = Array.isArray(snapshot?.services) ? snapshot.services.join(', ') : (snapshot?.services || 'Car Detailing');
+              const address = snapshot?.address || 'Your address';
+              
+              // Create URL with appointment details
+              const params = new URLSearchParams({
+                name: name,
+                date: date,
+                time: time,
+                car: car,
+                service: service,
+                address: address
+              });
+              
+              const calendarUrl = `${baseUrl}/calendar/add?${params.toString()}`;
               aiResponse += `\n\n📅 Add to calendar: ${calendarUrl}`;
-              console.log('Calendar link added to AI response');
+              console.log('Calendar link added to AI response with details:', { name, date, time, car, service, address });
             }
           } else {
             console.warn('Empty AI response, using fallback. Data:', data);
