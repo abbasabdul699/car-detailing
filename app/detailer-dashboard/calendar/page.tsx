@@ -53,6 +53,20 @@ const MonthView = ({ date, events, selectedEvent, onEventClick }: { date: Date, 
                 const dayEvents = events.filter(e => {
                   const currentDateStr = format(currentDate, 'yyyy-MM-dd');
                   
+                  // For bookings, use the date field which we fixed to be timezone-safe
+                  if (e.source === 'local-booking' && e.date) {
+                    const matches = e.date === currentDateStr;
+                    if (matches) {
+                      console.log('Local booking match for day', day, ':', {
+                        eventTitle: e.title,
+                        eventDate: e.date,
+                        currentDateStr,
+                        event: e
+                      });
+                    }
+                    return matches;
+                  }
+                  
                   // Check if this is a multi-day event by comparing start and end dates
                   if (e.start && e.end) {
                     const eventStart = new Date(e.start);
