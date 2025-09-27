@@ -756,7 +756,7 @@ Be conversational and natural.`;
             if (hasNext) {
               // "next Wednesday" means the Wednesday of next week
               if (diff <= 0) diff += 7  // Next week
-              diff += 7  // Add another 7 days to get "next week"
+              // Don't add another 7 days - "next" already means next week
             } else {
               // Regular weekday means this week or next week
               if (diff <= 0) diff += 7  // Next week
