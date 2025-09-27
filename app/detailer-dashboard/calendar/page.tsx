@@ -456,135 +456,24 @@ export default function CalendarPage() {
       const monthStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
     
     try {
-      // Fetch both local bookings and Google Calendar events
-      const [localBookings, googleEvents] = await Promise.all([
-        // Fetch local bookings
-      fetch(`/api/bookings/detailer/${detailerId}?month=${monthStr}`)
-          .then(res => {
-            if (!res.ok) {
-              console.log('Local bookings API returned:', res.status, res.statusText);
-              return { bookings: [] };
-            }
-            return res.json();
-          })
-          .then(data => data.bookings || [])
-          .catch(error => {
-            console.log('Error fetching local bookings:', error);
-            return [];
-          }),
-        
-        // Fetch Google Calendar events
-        fetch(`/api/detailer/calendar-events?month=${monthStr}`)
-          .then(res => {
-            console.log('Google Calendar API response status:', res.status);
-            return res.json();
-          })
-          .then(data => {
-            console.log('Google Calendar API response data:', data);
-            return data.events || [];
-          })
-          .catch(error => {
-            console.error('Error fetching Google Calendar events:', error);
-            return [];
-          })
-      ]);
+      // Fetch all events from the calendar-events API (includes both local and Google events)
+      const allEvents = await fetch(`/api/detailer/calendar-events?month=${monthStr}`)
+        .then(res => {
+          console.log('Calendar events API response status:', res.status);
+          return res.json();
+        })
+        .then(data => {
+          console.log('Calendar events API response data:', data);
+          return data.events || [];
+        })
+        .catch(error => {
+          console.error('Error fetching calendar events:', error);
+          return [];
+        });
 
-      // Transform local bookings to calendar format
-      const transformedLocalBookings = localBookings.map((booking: any) => {
-        // Ensure scheduledDate is a proper Date object
-        const bookingDate = new Date(booking.scheduledDate);
-        
-        // Handle time parsing for bookings
-        let startDateTime, endDateTime;
-        
-        if (booking.scheduledTime) {
-          // Parse time more carefully - convert 12-hour to 24-hour format
-          let timeStr = booking.scheduledTime;
-          
-          // Convert 12-hour format to 24-hour format
-          if (timeStr.includes('PM') || timeStr.includes('AM')) {
-            const isPM = timeStr.includes('PM');
-            const timeOnly = timeStr.replace(/\s*(AM|PM)/i, '').trim();
-            const [hours, minutes] = timeOnly.split(':').map(Number);
-            
-            let hour24 = hours;
-            if (isPM && hours !== 12) {
-              hour24 = hours + 12;
-            } else if (!isPM && hours === 12) {
-              hour24 = 0;
-            }
-            
-            timeStr = `${hour24.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
-          } else if (!timeStr.includes(':')) {
-            timeStr = `${timeStr}:00`;
-          }
-          
-          // Use local date string to avoid timezone issues
-          const dateStr = bookingDate.getFullYear() + '-' + 
-            String(bookingDate.getMonth() + 1).padStart(2, '0') + '-' + 
-            String(bookingDate.getDate()).padStart(2, '0');
-          startDateTime = new Date(`${dateStr}T${timeStr}`);
-          
-          // If time parsing fails, fall back to booking date
-          if (isNaN(startDateTime.getTime())) {
-            startDateTime = bookingDate;
-          }
-        } else {
-          startDateTime = bookingDate;
-        }
-        
-        // Calculate end time (default 2 hours for bookings)
-        endDateTime = new Date(startDateTime.getTime() + 2 * 60 * 60 * 1000);
-
-        return {
-          id: booking.id,
-          title: `${booking.customerName || 'Customer'} - ${Array.isArray(booking.services) ? booking.services.join(', ') : booking.services || 'Detailing'}`,
-          start: startDateTime.toISOString(),
-          end: endDateTime.toISOString(),
-          date: bookingDate.getFullYear() + '-' + 
-            String(bookingDate.getMonth() + 1).padStart(2, '0') + '-' + 
-            String(bookingDate.getDate()).padStart(2, '0'),
-          time: booking.scheduledTime,
-          allDay: false, // Bookings are never all-day
-          color: booking.status === 'confirmed' ? 'green' : booking.status === 'pending' ? 'yellow' : 'red',
-          description: `Customer: ${booking.customerName || 'N/A'}\nPhone: ${booking.customerPhone}\nVehicle: ${booking.vehicleType || 'N/A'}\nLocation: ${booking.vehicleLocation || 'N/A'}\nServices: ${Array.isArray(booking.services) ? booking.services.join(', ') : booking.services || 'Detailing'}\nStatus: ${booking.status}\n${booking.notes ? `Notes: ${booking.notes}` : ''}`,
-          location: booking.vehicleLocation || '',
-          source: 'local-booking',
-          bookingId: booking.id,
-          status: booking.status
-        };
-      });
-
-      // Transform Google Calendar events
-      const transformedGoogleEvents = googleEvents.map((event: any) => {
-        // Preserve the original source field from the API
-        const eventSource = event.source;
-        let eventColor = 'blue'; // Default for Google events
-        
-        // Set color based on source
-        if (eventSource === 'local-google-synced' || eventSource === 'local') {
-          eventColor = event.color || 'green';
-        }
-        
-        return {
-          ...event,
-          source: eventSource, // Preserve original source
-          color: eventColor,
-          date: event.start ? (event.allDay ? parseISO(event.start) : parseISO(event.start.split('T')[0])) : new Date(),
-          start: event.start,
-          end: event.end,
-          allDay: event.allDay,
-          isMultiDay: event.isMultiDay
-        };
-      });
-
-      // Combine all events
-      const allEvents = [...transformedLocalBookings, ...transformedGoogleEvents];
-      
+      // All events are already properly formatted from the API
       console.log('Setting bookings state with:', allEvents.length, 'events');
       console.log('Event sources:', allEvents.map(e => ({ title: e.title, source: e.source, color: e.color })));
-      console.log('Local bookings count:', localBookings.length);
-      console.log('Google events count:', googleEvents.length);
       console.log('Current month being fetched:', monthStr);
       setBookings(allEvents);
     } catch (error) {
