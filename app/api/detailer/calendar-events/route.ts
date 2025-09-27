@@ -140,7 +140,10 @@ export async function GET(request: NextRequest) {
             timeStr = `${timeStr}:00`;
           }
           
-          const dateStr = event.date.toISOString().split('T')[0];
+          // Use local date string to avoid timezone issues
+          const dateStr = eventDate.getFullYear() + '-' + 
+            String(eventDate.getMonth() + 1).padStart(2, '0') + '-' + 
+            String(eventDate.getDate()).padStart(2, '0');
           startDateTime = new Date(`${dateStr}T${timeStr}`);
           
           // If time parsing fails, fall back to event date
@@ -203,7 +206,10 @@ export async function GET(request: NextRequest) {
             timeStr = `${timeStr}:00`;
           }
           
-          const dateStr = booking.scheduledDate.toISOString().split('T')[0];
+          // Use local date string to avoid timezone issues
+          const dateStr = bookingDate.getFullYear() + '-' + 
+            String(bookingDate.getMonth() + 1).padStart(2, '0') + '-' + 
+            String(bookingDate.getDate()).padStart(2, '0');
           startDateTime = new Date(`${dateStr}T${timeStr}`);
           
           // If time parsing fails, fall back to booking date
@@ -222,7 +228,9 @@ export async function GET(request: NextRequest) {
           title: `${booking.customerName || 'Customer'} - ${Array.isArray(booking.services) ? booking.services.join(', ') : booking.services || 'Detailing'}`,
           start: startDateTime.toISOString(),
           end: endDateTime.toISOString(),
-          date: booking.scheduledDate.toISOString().split('T')[0],
+          date: bookingDate.getFullYear() + '-' + 
+            String(bookingDate.getMonth() + 1).padStart(2, '0') + '-' + 
+            String(bookingDate.getDate()).padStart(2, '0'),
           time: booking.scheduledTime,
           allDay: false, // Bookings are never all-day
           color: booking.status === 'confirmed' ? 'green' : booking.status === 'pending' ? 'yellow' : 'red',
