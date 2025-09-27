@@ -52,12 +52,26 @@ function CalendarContent() {
     } else {
       // Try to parse from the formatted date/time strings
       try {
-        // Parse date like "10/02/2025 (Thursday)" or "09/27/2025 (Saturday)"
-        const dateMatch = date.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-        if (dateMatch) {
+        console.log('Parsing date/time from URL params:', { date, time });
+        
+        // Parse date like "10/02/2025 (Thursday)" or "09/27/2025 (Saturday)" or "10/02/20"
+        let dateMatch = date.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+        
+        // If no 4-digit year match, try 2-digit year and assume 20xx
+        if (!dateMatch) {
+          dateMatch = date.match(/(\d{1,2})\/(\d{1,2})\/(\d{2})/);
+          if (dateMatch) {
+            const [, month, day, year] = dateMatch;
+            const fullYear = parseInt(year) < 50 ? 2000 + parseInt(year) : 1900 + parseInt(year);
+            const dateObj = new Date(fullYear, parseInt(month) - 1, parseInt(day));
+            formattedDate = dateObj.toISOString().slice(0, 10).replace(/-/g, '');
+            console.log('Parsed 2-digit year date:', { month, day, fullYear, formattedDate });
+          }
+        } else {
           const [, month, day, year] = dateMatch;
           const dateObj = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
           formattedDate = dateObj.toISOString().slice(0, 10).replace(/-/g, '');
+          console.log('Parsed 4-digit year date:', { month, day, year, formattedDate });
         }
         
         // Parse time like "10 PM" or "9 PM"
@@ -70,6 +84,7 @@ function CalendarContent() {
           
           formattedTime = `${hour24.toString().padStart(2, '0')}0000`;
           endTime = `${(hour24 + 2).toString().padStart(2, '0')}0000`;
+          console.log('Parsed time:', { hours, period, hour24, formattedTime, endTime });
         }
       } catch (e) {
         console.error('Error parsing date/time from strings:', e);
