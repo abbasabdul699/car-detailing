@@ -908,9 +908,12 @@ Be conversational and natural.`;
         if (response.ok) {
           const data = await response.json();
           console.log('DEBUG: Full OpenAI response:', JSON.stringify(data, null, 2));
-          if (data.choices?.length && data.choices[0].message?.content?.trim()) {
+            if (data.choices?.length && data.choices[0].message?.content?.trim()) {
             aiResponse = data.choices[0].message.content.trim()
             console.log('DEBUG: OpenAI response:', aiResponse);
+            
+            // Remove any existing calendar links from AI response to avoid duplicates
+            aiResponse = aiResponse.replace(/\n*📅 Add to calendar:.*$/gm, '');
             
             // Check if this looks like a booking confirmation and add calendar link
             const lowerResponse = aiResponse.toLowerCase();
@@ -926,13 +929,20 @@ Be conversational and natural.`;
             if (isBookingRelated) {
               const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://www.reevacar.com';
               
-              // Try to extract booking details from the AI response or snapshot
-              const name = snapshot?.customerName || 'Customer';
-              const date = snapshot?.date || 'Your scheduled date';
-              const time = snapshot?.time || 'Your scheduled time';
-              const car = snapshot?.vehicle || [snapshot?.vehicleYear, snapshot?.vehicleMake, snapshot?.vehicleModel].filter(Boolean).join(' ') || 'Your vehicle';
-              const service = Array.isArray(snapshot?.services) ? snapshot.services.join(', ') : (snapshot?.services || 'Car Detailing');
-              const address = snapshot?.address || 'Your address';
+              // Extract booking details from the current AI response instead of old snapshot
+              const nameMatch = aiResponse.match(/Name:\s*([^\n]+)/);
+              const dateMatch = aiResponse.match(/Date:\s*([^\n]+)/);
+              const timeMatch = aiResponse.match(/Time:\s*([^\n]+)/);
+              const carMatch = aiResponse.match(/Car:\s*([^\n]+)/);
+              const serviceMatch = aiResponse.match(/Service:\s*([^\n]+)/);
+              const addressMatch = aiResponse.match(/Address:\s*([^\n]+)/);
+              
+              const name = nameMatch?.[1]?.trim() || 'Customer';
+              const date = dateMatch?.[1]?.trim() || 'Your scheduled date';
+              const time = timeMatch?.[1]?.trim() || 'Your scheduled time';
+              const car = carMatch?.[1]?.trim() || 'Your vehicle';
+              const service = serviceMatch?.[1]?.trim() || 'Car Detailing';
+              const address = addressMatch?.[1]?.trim() || 'Your address';
               
               // Create URL with appointment details
               const params = new URLSearchParams({
