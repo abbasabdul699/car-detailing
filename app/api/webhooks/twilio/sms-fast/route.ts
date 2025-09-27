@@ -3,7 +3,86 @@ import { prisma } from '@/lib/prisma';
 import { getCustomerSnapshot, upsertCustomerSnapshot } from '@/lib/customerSnapshot';
 import { normalizeToE164 } from '@/lib/phone';
 import { getOrCreateCustomer, extractCustomerDataFromSnapshot } from '@/lib/customer';
+import { validateVehicle, normalizeModel, generateVehicleClarification } from '@/lib/vehicleValidation';
+import { validateAndNormalizeState } from '@/lib/stateValidation';
 import twilio from 'twilio';
+
+// Helper function to generate .ics calendar file content
+function generateICSContent(booking: any, detailer: any): string {
+  const startDateTime = new Date(booking.scheduledDate);
+  
+  // Parse time if provided
+  if (booking.scheduledTime) {
+    const [time, period] = booking.scheduledTime.split(' ');
+    const [hours, minutes] = time.split(':');
+    let hour24 = parseInt(hours);
+    if (period === 'PM' && hour24 !== 12) hour24 += 12;
+    if (period === 'AM' && hour24 === 12) hour24 = 0;
+    startDateTime.setHours(hour24, parseInt(minutes), 0, 0);
+  } else {
+    startDateTime.setHours(14, 0, 0, 0); // Default to 2 PM
+  }
+  
+  // Calculate end time (default 2 hours)
+  const endDateTime = new Date(startDateTime);
+  endDateTime.setHours(endDateTime.getHours() + 2);
+  
+  // Format dates for ICS (YYYYMMDDTHHMMSSZ format)
+  const formatICSDate = (date: Date) => {
+    return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+  };
+  
+  const services = Array.isArray(booking.services) 
+    ? booking.services.join(', ') 
+    : booking.services || 'Car Detailing';
+  
+  const location = booking.vehicleLocation || booking.address || 'Your location';
+  const customerName = booking.customerName || 'Customer';
+  
+  // Generate unique ID for the event
+  const eventId = `${booking.id}@reevacar.com`;
+  
+  // Create ICS content
+  const icsContent = `BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Reeva Car//Mobile Detailing//EN
+BEGIN:VEVENT
+UID:${eventId}
+DTSTAMP:${formatICSDate(new Date())}
+DTSTART:${formatICSDate(startDateTime)}
+DTEND:${formatICSDate(endDateTime)}
+SUMMARY:Car Detailing - ${customerName}
+DESCRIPTION:Mobile car detailing appointment\\n\\nServices: ${services}\\nCustomer: ${customerName}\\nPhone: ${booking.customerPhone}\\nVehicle: ${booking.vehicleType || 'N/A'}\\nLocation: ${location}\\nDetailer: ${detailer.businessName}\\nPhone: ${detailer.phone}
+LOCATION:${location}
+STATUS:CONFIRMED
+TRANSP:OPAQUE
+BEGIN:VALARM
+TRIGGER:-PT1H
+ACTION:DISPLAY
+DESCRIPTION:Car detailing appointment reminder
+END:VALARM
+END:VEVENT
+END:VCALENDAR`;
+
+  return icsContent;
+}
+
+// Helper function to create a temporary .ics file URL
+async function createICSFileUrl(booking: any, detailer: any): Promise<string> {
+  const icsContent = generateICSContent(booking, detailer);
+  
+  // Create a unique filename
+  const filename = `detailing-appointment-${booking.id}.ics`;
+  
+  // For now, we'll create a simple API endpoint to serve the .ics file
+  // In production, you might want to use a file storage service like S3
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://www.reevacar.com';
+  const icsUrl = `${baseUrl}/api/calendar/download/${booking.id}`;
+  
+  // Store the ICS content temporarily (you might want to use Redis or database for this)
+  // For now, we'll pass it as a query parameter or store it in the booking record
+  return icsUrl;
+}
 
 // --- BEGIN STRONG SNAPSHOT EXTRACTOR + SAFE UPSERT ---
 // A lightweight list of common car makes. Extend as needed.
@@ -55,16 +134,54 @@ function pickName(text: string) {
 
 function pickAddress(text: string) {
   const t = text.replace(/\s+in\s+/gi, ' ')
-  // More flexible regex that handles common address formats
-  const rx = /\b(\d+)\s+([A-Za-z\s]+?)\s+(Ave|Avenue|St|Street|Rd|Road|Blvd|Boulevard|Ln|Lane|Dr|Drive|Ct|Court|Way|Terr|Terrace|Pl|Place|Cir|Circle|Hwy|Highway)\b[,\s]*([A-Za-z\s]+)[,\s]*([A-Z]{2})[,\s]*(\d{5}(?:-\d{4})?)?/i
-  const m = t.match(rx)
+  
+  // Try multiple regex patterns to handle different address formats
+  // Order matters - more specific patterns first
+  
+  // Pattern 1: Addresses with ZIP code (most reliable)
+  let rx = /\b(\d+)\s+([A-Za-z\s]+?)\s+(Ave|Avenue|St|Street|Rd|Road|Blvd|Boulevard|Ln|Lane|Dr|Drive|Ct|Court|Way|Terr|Terrace|Pl|Place|Cir|Circle|Hwy|Highway)\b[,\s]+(.+?)\s+([A-Z]{2})\s+(\d{5}(?:-\d{4})?)/i
+  let m = t.match(rx)
+  
+  if (!m) {
+    // Pattern 2: Standard format with 2-letter state abbreviation (no ZIP)
+    rx = /\b(\d+)\s+([A-Za-z\s]+?)\s+(Ave|Avenue|St|Street|Rd|Road|Blvd|Boulevard|Ln|Lane|Dr|Drive|Ct|Court|Way|Terr|Terrace|Pl|Place|Cir|Circle|Hwy|Highway)\b[,\s]+([A-Za-z\s]+?)[,\s]+([A-Z]{2})/i
+    m = t.match(rx)
+  }
+  
+  if (!m) {
+    // Pattern 3: Full state names - look for known state names at the end
+    const stateNames = ['Alabama', 'Alaska', 'Arizona', 'Arkansas', 'California', 'Colorado', 'Connecticut', 'Delaware', 'Florida', 'Georgia', 'Hawaii', 'Idaho', 'Illinois', 'Indiana', 'Iowa', 'Kansas', 'Kentucky', 'Louisiana', 'Maine', 'Maryland', 'Massachusetts', 'Michigan', 'Minnesota', 'Mississippi', 'Missouri', 'Montana', 'Nebraska', 'Nevada', 'New Hampshire', 'New Jersey', 'New Mexico', 'New York', 'North Carolina', 'North Dakota', 'Ohio', 'Oklahoma', 'Oregon', 'Pennsylvania', 'Rhode Island', 'South Carolina', 'South Dakota', 'Tennessee', 'Texas', 'Utah', 'Vermont', 'Virginia', 'Washington', 'West Virginia', 'Wisconsin', 'Wyoming', 'District of Columbia']
+    
+    for (const stateName of stateNames) {
+      const stateRegex = new RegExp(`\\b(\\d+)\\s+([A-Za-z\\s]+?)\\s+(Ave|Avenue|St|Street|Rd|Road|Blvd|Boulevard|Ln|Lane|Dr|Drive|Ct|Court|Way|Terr|Terrace|Pl|Place|Cir|Circle|Hwy|Highway)\\b[,\\s]+([A-Za-z\\s]+?)[,\\s]+(${stateName})(?:[,\\s]+(\\d{5}(?:-\\d{4})?))?`, 'i')
+      m = t.match(stateRegex)
+      if (m) break
+    }
+  }
+  
   if (!m) return undefined
+  
   const num = m[1]
   const streetName = `${m[2].trim()} ${m[3]}`
   const city = m[4]?.trim()
-  const state = m[5]
+  const stateInput = m[5]?.trim()
   const zip = m[6]
-  const line = [num, streetName.replace(/\b[a-z]/g, c => c.toUpperCase()), city?.replace(/\b[a-z]/g, c => c.toUpperCase()), state?.toUpperCase(), zip].filter(Boolean).join(', ')
+  
+  // Validate and normalize the state
+  const stateValidation = validateAndNormalizeState(stateInput)
+  
+  if (!stateValidation.valid) {
+    console.log('Invalid state detected:', stateInput, stateValidation.suggestion)
+    return undefined // Don't extract address with invalid state
+  }
+  
+  const state = stateValidation.normalized
+  
+  if (stateValidation.suggestion) {
+    console.log('State correction applied:', stateValidation.suggestion)
+  }
+  
+  const line = [num, streetName.replace(/\b[a-z]/g, c => c.toUpperCase()), city?.replace(/\b[a-z]/g, c => c.toUpperCase()), state, zip].filter(Boolean).join(', ')
   return line
 }
 
@@ -109,13 +226,24 @@ function pickVehicle(text: string) {
       model = tokens[makeIdx+1]
     }
     if (model) {
-      model = model.toUpperCase().length <= 10 ? model.toUpperCase() : model.slice(0, 10).toUpperCase()
+      // Normalize model using the new validation system
+      model = normalizeModel(make || '', model)
       if (!/^[a-z0-9\-]+$/i.test(model)) model = undefined
     }
   }
 
   if (make && (model || year)) {
-    return { vehicleYear: year, vehicleMake: make, vehicleModel: model, vehicle: [year, make, model].filter(Boolean).join(' ') }
+    const vehicleInfo = { vehicleYear: year, vehicleMake: make, vehicleModel: model, vehicle: [year, make, model].filter(Boolean).join(' ') }
+    
+    // Validate the vehicle combination
+    const validation = validateVehicle({ make, model, year })
+    if (!validation.valid) {
+      console.log('Invalid vehicle combination detected:', vehicleInfo)
+      // Return the info but flag it for AI clarification
+      return { ...vehicleInfo, needsClarification: true, clarificationReason: validation.suggestions?.[0] }
+    }
+    
+    return vehicleInfo
   }
   return undefined
 }
@@ -667,6 +795,17 @@ AVAILABILITY GUIDANCE:
 
 CRITICAL: Don't ask for information you already have. Use the known context above.
 
+VEHICLE VALIDATION:
+- If you detect a potential invalid vehicle combination (like "2020 Ferrari F150"), ask for clarification: "I want to make sure I have this right - did you mean a 2020 Ford F150?"
+- For unclear models, ask: "Which [Make] model specifically? (e.g., Model 3, Model S, etc.)"
+- Common model variations: "M3" = "Model 3", "MS" = "Model S", "MX" = "Model X", "MY" = "Model Y"
+
+STATE VALIDATION:
+- Accept both state abbreviations (MA, CA, NY) and full names (Massachusetts, California, New York)
+- Common corrections: "CALI" = "CA", "FLA" = "FL", "MASS" = "MA", "CALIF" = "CA"
+- If you detect an obviously invalid state, ask for clarification: "I didn't recognize that state - could you provide the full state name or abbreviation?"
+- Don't worry about minor typos - the system will handle corrections automatically
+
 CRITICAL: This is a MOBILE service - we come to the customer's location. Always ask for their specific address where they want the service performed. Never assume a location or mention a specific city unless the customer has already provided their address.
 
 IMPORTANT: This is a MOBILE service. We come to the customer's location. Never mention "our shop" or "our location" - always ask for their address where they want the service performed.
@@ -1019,6 +1158,10 @@ Be conversational and natural.`;
         })
         const dayOfWeek = when.toLocaleDateString('en-US', { weekday: 'long' })
         
+        // Create calendar file URL
+        const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://www.reevacar.com';
+        const calendarUrl = `${baseUrl}/api/calendar/download/${booking.id}`;
+        
         aiResponse = `Perfect! Here's your booking confirmation:
 
 Name: ${snapForBooking?.customerName || 'Customer'}
@@ -1027,6 +1170,8 @@ Time: ${parsed.time || 'TBD'}
 Car: ${snapForBooking?.vehicle || [snapForBooking?.vehicleYear, snapForBooking?.vehicleMake, snapForBooking?.vehicleModel].filter(Boolean).join(' ') || 'TBD'}
 Service: ${services.length ? services.join(', ') : 'Detailing'}
 Address: ${snapForBooking?.address || 'TBD'}
+
+📅 Add to Calendar: ${calendarUrl}
 
 You're all set! If you have any questions, just let me know.`
 
