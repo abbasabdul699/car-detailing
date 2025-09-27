@@ -519,6 +519,11 @@ Vehicle: ${snapshot?.vehicle || [snapshot?.vehicleYear, snapshot?.vehicleMake, s
 Service Address: ${snapshot?.address || 'unknown'}
 Services: ${snapshot?.services?.join(', ') || 'unknown'}
 
+DATE FORMATTING HELP:
+- Today is ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+- When confirming dates, use MM/DD/YYYY format (e.g., 10/06/2025)
+- Always include the day of the week in parentheses (e.g., "10/06/2025 (Monday)")
+
 REAL-TIME AVAILABILITY:
 ${availabilitySummary}
 
@@ -575,6 +580,23 @@ IMPORTANT: This is a MOBILE service. We come to the customer's location. Never m
 Be conversational and natural - ask one or two questions at a time, not everything at once. Make it feel like a real person having a conversation.
 
 NEVER mention specific cities like "Boston" unless the customer has already provided their address. Always ask for their address without assuming any location.
+
+BOOKING CONFIRMATION FORMAT:
+When you confirm a booking, ALWAYS end your message with a detailed confirmation that includes:
+- Customer's name
+- Date in MM/DD/YYYY format  
+- Day of the week
+- Car make and model
+- Complete service address
+
+Example format: "Perfect! Here's your booking confirmation:
+Name: [Customer Name]
+Date: [MM/DD/YYYY] ([Day of Week])
+Time: [Time]
+Car: [Make Model Year]
+Service: [Service Type]
+Address: [Complete Address]
+Looking forward to seeing you!"
 
 Be conversational and natural.`;
 
