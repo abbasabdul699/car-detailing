@@ -2,6 +2,9 @@ export function generateVerificationCode(): string {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
+// Re-export authOptions from the nextauth route for convenience
+export { authOptions } from '@/app/api/auth/[...nextauth]/route';
+
 export async function sendEmail(email: string, subject: string, message: string) {
   // Implement email sending using your preferred service (SendGrid, etc.)
   // For example with SendGrid:
