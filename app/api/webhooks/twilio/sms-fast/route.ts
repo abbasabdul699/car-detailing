@@ -911,6 +911,24 @@ Be conversational and natural.`;
           if (data.choices?.length && data.choices[0].message?.content?.trim()) {
             aiResponse = data.choices[0].message.content.trim()
             console.log('DEBUG: OpenAI response:', aiResponse);
+            
+            // Check if this looks like a booking confirmation and add calendar link
+            const lowerResponse = aiResponse.toLowerCase();
+            const isBookingRelated = lowerResponse.includes('booking') || 
+                                    lowerResponse.includes('appointment') || 
+                                    lowerResponse.includes('confirmed') ||
+                                    lowerResponse.includes('scheduled') ||
+                                    lowerResponse.includes('booked') ||
+                                    (lowerResponse.includes('perfect') && lowerResponse.includes('here\'s')) ||
+                                    (lowerResponse.includes('great') && lowerResponse.includes('appointment')) ||
+                                    (lowerResponse.includes('looking forward') && lowerResponse.includes('tonight'));
+            
+            if (isBookingRelated) {
+              const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://www.reevacar.com';
+              const calendarUrl = `${baseUrl}/api/calendar/add/demo`;
+              aiResponse += `\n\n📅 Add to calendar: ${calendarUrl}`;
+              console.log('Calendar link added to AI response');
+            }
           } else {
             console.warn('Empty AI response, using fallback. Data:', data);
             aiResponse = buildNextSlotPrompt(snapshot)
