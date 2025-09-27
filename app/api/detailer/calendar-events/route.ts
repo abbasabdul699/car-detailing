@@ -309,8 +309,27 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Combine local and Google Calendar events
-    const allEvents = [...localEvents, ...events];
+    // Deduplicate events - if a local booking has a googleEventId, don't show the Google Calendar version
+    const deduplicatedEvents = [];
+    const googleEventIds = new Set();
+    
+    // First, add all local events
+    for (const localEvent of localEvents) {
+      deduplicatedEvents.push(localEvent);
+      // Track Google Calendar IDs from local events
+      if (localEvent.googleEventId) {
+        googleEventIds.add(localEvent.googleEventId);
+      }
+    }
+    
+    // Then add Google Calendar events that aren't already represented by local events
+    for (const googleEvent of events) {
+      if (!googleEventIds.has(googleEvent.id)) {
+        deduplicatedEvents.push(googleEvent);
+      }
+    }
+    
+    const allEvents = deduplicatedEvents;
 
     return NextResponse.json({ 
       events: allEvents,
