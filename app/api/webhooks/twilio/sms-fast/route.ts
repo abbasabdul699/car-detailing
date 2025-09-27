@@ -968,10 +968,10 @@ Be conversational and natural.`;
               const service = serviceMatch?.[1]?.trim() || 'Car Detailing';
               const address = addressMatch?.[1]?.trim() || 'Your address';
               
-              // Create URL with appointment details
+              // Create shorter URL with essential details only
               const params = new URLSearchParams({
                 name: name,
-                date: date,
+                date: date.replace(/\s*\([^)]+\)/, ''), // Remove day of week for shorter URL
                 time: time,
                 car: car,
                 service: service,
@@ -979,7 +979,9 @@ Be conversational and natural.`;
               });
               
               const calendarUrl = `${baseUrl}/calendar/add?${params.toString()}`;
-              aiResponse += `\n\n📅 Add to calendar: ${calendarUrl}`;
+              
+              // Add calendar link in a separate message to avoid chunking issues
+              aiResponse += `\n\n📅 Calendar: ${calendarUrl}`;
               console.log('Calendar link added to AI response with details:', { name, date, time, car, service, address });
             }
           } else {
@@ -1023,20 +1025,31 @@ Be conversational and natural.`;
         await safeSend(client, from, to, optIn)
       }
 
-      // Use SMS chunking for long messages instead of MMS
-      const chunks = chunkForSms(aiResponse)
-      if (chunks.length === 1) {
-        // Single SMS
-        twilioSid = await safeSend(client, from, to, aiResponse)
+      // Check if message contains calendar link and is too long
+      const calendarLinkMatch = aiResponse.match(/📅 Calendar: (https:\/\/[^\s]+)/);
+      const messageWithoutCalendar = aiResponse.replace(/\n\n📅 Calendar: https:\/\/[^\s]+/, '');
+      
+      if (calendarLinkMatch && messageWithoutCalendar.length > 100) {
+        // Send main message first, then calendar link separately
+        console.log('Sending main message and calendar link separately to avoid chunking issues');
+        twilioSid = await safeSend(client, from, to, messageWithoutCalendar);
+        await safeSend(client, from, to, `📅 Add to calendar: ${calendarLinkMatch[1]}`);
       } else {
-        // Multiple SMS chunks
-        console.log(`Sending ${chunks.length} SMS chunks for long message`)
-        let firstSid: string | undefined
-        for (const [i, chunk] of chunks.entries()) {
-          const sid = await safeSend(client, from, to, chunk)
-          if (i === 0) firstSid = sid
+        // Use SMS chunking for long messages instead of MMS
+        const chunks = chunkForSms(aiResponse)
+        if (chunks.length === 1) {
+          // Single SMS
+          twilioSid = await safeSend(client, from, to, aiResponse)
+        } else {
+          // Multiple SMS chunks
+          console.log(`Sending ${chunks.length} SMS chunks for long message`)
+          let firstSid: string | undefined
+          for (const [i, chunk] of chunks.entries()) {
+            const sid = await safeSend(client, from, to, chunk)
+            if (i === 0) firstSid = sid
+          }
+          twilioSid = firstSid
         }
-        twilioSid = firstSid
       }
       
       // After sending the first AI message in a conversation, send vCard once if not sent (atomic flip)
