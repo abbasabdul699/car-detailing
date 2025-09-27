@@ -385,19 +385,43 @@ function chunkForSms(text: string) {
     // Find the best break point within the limit
     let bestCut = 0
     
-    // First, try to break at sentence endings (with or without space after)
-    const sentenceEndings = ['.', '!', '?']
-    for (const ending of sentenceEndings) {
-      // Look for sentence ending with space after
-      const cutWithSpace = remaining.lastIndexOf(ending + ' ', limit)
-      if (cutWithSpace > bestCut) {
-        bestCut = cutWithSpace + 1 // Include the punctuation
+    // Check if we're about to break a URL - if so, move the break point before the URL
+    const urlMatch = remaining.slice(limit - 10, limit + 50).match(/https?:\/\/[^\s]+/)
+    if (urlMatch) {
+      const urlStart = remaining.indexOf(urlMatch[0], limit - 10)
+      if (urlStart >= 0 && urlStart < limit) {
+        // Find a break point before the URL
+        const beforeUrl = remaining.slice(0, urlStart).trim()
+        if (beforeUrl.length > 0) {
+          // Try to break at a good point before the URL
+          const lastNewline = beforeUrl.lastIndexOf('\n')
+          const lastSentence = beforeUrl.lastIndexOf('. ')
+          const lastComma = beforeUrl.lastIndexOf(', ')
+          
+          if (lastNewline > 0) bestCut = lastNewline
+          else if (lastSentence > 0) bestCut = lastSentence + 1
+          else if (lastComma > 0) bestCut = lastComma + 1
+          else bestCut = beforeUrl.lastIndexOf(' ') || beforeUrl.length
+        }
       }
-      
-      // Look for sentence ending at the exact limit (no space after)
-      const cutExact = remaining.lastIndexOf(ending, limit)
-      if (cutExact > bestCut && cutExact === limit - 1) {
-        bestCut = cutExact + 1 // Include the punctuation
+    }
+    
+    // If we haven't found a good break point yet, continue with normal logic
+    if (bestCut === 0) {
+      // First, try to break at sentence endings (with or without space after)
+      const sentenceEndings = ['.', '!', '?']
+      for (const ending of sentenceEndings) {
+        // Look for sentence ending with space after
+        const cutWithSpace = remaining.lastIndexOf(ending + ' ', limit)
+        if (cutWithSpace > bestCut) {
+          bestCut = cutWithSpace + 1 // Include the punctuation
+        }
+        
+        // Look for sentence ending at the exact limit (no space after)
+        const cutExact = remaining.lastIndexOf(ending, limit)
+        if (cutExact > bestCut && cutExact === limit - 1) {
+          bestCut = cutExact + 1 // Include the punctuation
+        }
       }
     }
     
