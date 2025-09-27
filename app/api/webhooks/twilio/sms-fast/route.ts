@@ -1158,9 +1158,9 @@ Be conversational and natural.`;
         })
         const dayOfWeek = when.toLocaleDateString('en-US', { weekday: 'long' })
         
-        // Create calendar file URL
+        // Create calendar page URL with multiple calendar options
         const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://www.reevacar.com';
-        const calendarUrl = `${baseUrl}/api/calendar/download/${booking.id}`;
+        const calendarUrl = `${baseUrl}/api/calendar/add/${booking.id}`;
         
         aiResponse = `Perfect! Here's your booking confirmation:
 
@@ -1171,7 +1171,7 @@ Car: ${snapForBooking?.vehicle || [snapForBooking?.vehicleYear, snapForBooking?.
 Service: ${services.length ? services.join(', ') : 'Detailing'}
 Address: ${snapForBooking?.address || 'TBD'}
 
-📅 Add to Calendar: ${calendarUrl}
+📅 Add to calendar: ${calendarUrl}
 
 You're all set! If you have any questions, just let me know.`
 
