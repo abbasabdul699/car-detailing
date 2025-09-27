@@ -84,6 +84,27 @@ export async function POST(request: NextRequest) {
 
     console.log('Message stored for conversation:', conversation.id);
 
+    // Format business hours for the AI
+    const formatBusinessHours = (businessHours: any) => {
+      if (!businessHours) return 'Business hours not specified';
+      
+      const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+      const dayKeys = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+      
+      let hoursText = '';
+      for (let i = 0; i < dayKeys.length; i++) {
+        const day = dayKeys[i];
+        const dayName = dayNames[i];
+        if (businessHours[day] && businessHours[day].length >= 2) {
+          const open = businessHours[day][0];
+          const close = businessHours[day][1];
+          hoursText += `${dayName}: ${open} - ${close}\n`;
+        }
+      }
+      
+      return hoursText || 'Business hours not specified';
+    };
+
     // Generate AI response
     const systemPrompt = `You are an AI assistant for ${detailer.businessName}, a car detailing service. Your role is to help customers book appointments and answer questions about services.
 
@@ -91,6 +112,10 @@ Business Information:
 - Business Name: ${detailer.businessName}
 - Location: ${detailer.city}, ${detailer.state}
 - Services: ${detailer.services?.map((s: any) => s.service?.name).join(', ') || 'Various car detailing services'}
+- Business Hours:
+${formatBusinessHours(detailer.businessHours)}
+
+IMPORTANT: You MUST follow the business hours exactly as specified above. Do not make up or assume different hours.
 
 Your capabilities:
 1. Help customers book appointments
@@ -138,10 +163,20 @@ Be friendly, professional, and helpful. Keep responses concise but informative.`
     let aiResponse = data.choices[0]?.message?.content || 'I apologize, but I had trouble processing your request. Please try again.';
 
     // Check if this looks like a booking confirmation and add calendar link
-    if (aiResponse.toLowerCase().includes('booking') || aiResponse.toLowerCase().includes('appointment') || aiResponse.toLowerCase().includes('confirmed')) {
+    const lowerResponse = aiResponse.toLowerCase();
+    const isBookingRelated = lowerResponse.includes('booking') || 
+                            lowerResponse.includes('appointment') || 
+                            lowerResponse.includes('confirmed') ||
+                            lowerResponse.includes('scheduled') ||
+                            lowerResponse.includes('booked') ||
+                            (lowerResponse.includes('perfect') && lowerResponse.includes('here\'s')) ||
+                            (lowerResponse.includes('great') && lowerResponse.includes('appointment'));
+    
+    if (isBookingRelated) {
       const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://www.reevacar.com';
       const calendarUrl = `${baseUrl}/api/calendar/add/demo`;
       aiResponse += `\n\n📅 Add to calendar: ${calendarUrl}`;
+      console.log('Calendar link added to booking response');
     }
 
     console.log('AI Response generated:', aiResponse);
