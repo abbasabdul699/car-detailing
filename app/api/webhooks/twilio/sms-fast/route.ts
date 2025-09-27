@@ -748,8 +748,20 @@ Be conversational and natural.`;
             const d = new Date(today)
             const current = d.getDay()
             const target = i
+            
+            // Check if user said "next" to get the following week's day
+            const hasNext = /\bnext\b/i.test(lower)
             let diff = target - current
-            if (diff <= 0) diff += 7
+            
+            if (hasNext) {
+              // "next Wednesday" means the Wednesday of next week
+              if (diff <= 0) diff += 7  // Next week
+              diff += 7  // Add another 7 days to get "next week"
+            } else {
+              // Regular weekday means this week or next week
+              if (diff <= 0) diff += 7  // Next week
+            }
+            
             d.setDate(d.getDate() + diff)
             return d
           }
