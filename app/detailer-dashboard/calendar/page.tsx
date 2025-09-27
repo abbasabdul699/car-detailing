@@ -54,7 +54,7 @@ const MonthView = ({ date, events, selectedEvent, onEventClick }: { date: Date, 
                   const currentDateStr = format(currentDate, 'yyyy-MM-dd');
                   
                   // For bookings, use the date field which we fixed to be timezone-safe
-                  if (e.source === 'local-booking' && e.date) {
+                  if ((e.source === 'local-booking' || e.source === 'local-google-synced') && e.date) {
                     const matches = e.date === currentDateStr;
                     if (matches) {
                       console.log('Local booking match for day', day, ':', {
@@ -89,7 +89,13 @@ const MonthView = ({ date, events, selectedEvent, onEventClick }: { date: Date, 
                   }
                   
                   // For single-day events, use the existing logic
-                  const eventDate = format(e.date, 'yyyy-MM-dd');
+                  // Handle both Date objects and date strings
+                  let eventDate;
+                  if (typeof e.date === 'string') {
+                    eventDate = e.date; // Already in YYYY-MM-DD format
+                  } else {
+                    eventDate = format(e.date, 'yyyy-MM-dd');
+                  }
                   const matches = eventDate === currentDateStr;
                   if (e.source === 'google' && matches) {
                     console.log('Single-day Google event match for day', day, ':', {
