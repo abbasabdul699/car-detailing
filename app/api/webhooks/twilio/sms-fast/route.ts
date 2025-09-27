@@ -845,6 +845,52 @@ export async function POST(request: NextRequest) {
 
     console.log('DEBUG: Generating system prompt with isFirstTimeCustomer:', isFirstTimeCustomer)
     
+    // Check for existing bookings to provide real-time availability info to the AI
+    let availabilityInfo = '';
+    try {
+      const existingBookings = await prisma.booking.findMany({
+        where: {
+          detailerId: detailer.id,
+          scheduledDate: {
+            gte: new Date(),
+            lt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // Next 30 days
+          },
+          status: {
+            not: 'cancelled'
+          }
+        },
+        select: {
+          scheduledDate: true,
+          scheduledTime: true,
+          customerName: true,
+          status: true
+        },
+        orderBy: {
+          scheduledDate: 'asc'
+        }
+      });
+
+      if (existingBookings.length > 0) {
+        availabilityInfo = `\n\nEXISTING APPOINTMENTS (next 30 days):\n`;
+        existingBookings.forEach(booking => {
+          const date = new Date(booking.scheduledDate);
+          const dateStr = date.toLocaleDateString('en-US', { 
+            weekday: 'long', 
+            month: 'short', 
+            day: 'numeric',
+            year: 'numeric'
+          });
+          availabilityInfo += `- ${dateStr} at ${booking.scheduledTime}: ${booking.customerName || 'Customer'}\n`;
+        });
+        availabilityInfo += `\nWhen customers request dates/times, check this list to avoid conflicts.`;
+      } else {
+        availabilityInfo = `\n\nCURRENT AVAILABILITY: No existing appointments in the next 30 days. All time slots are available.`;
+      }
+    } catch (error) {
+      console.error('Error fetching existing bookings for AI context:', error);
+      availabilityInfo = `\n\nCURRENT AVAILABILITY: Unable to check existing appointments. Proceed with normal booking flow.`;
+    }
+    
     const systemPrompt = `You are Arian from ${detailer.businessName}, a mobile car detailing service.
 
 IMPORTANT: Be conversational, engaging, and natural. Don't give generic responses. Respond like a real person would. Your name is Arian. Never mention being an AI assistant - you're just Arian from the business.
@@ -860,9 +906,7 @@ ${detailer.city && detailer.state ? `Location: ${detailer.city}, ${detailer.stat
 Business Hours:
 ${formatBusinessHours(detailer.businessHours)}
 
-IMPORTANT: You MUST follow the business hours exactly as specified above. Do not make up or assume different hours.
-
-APPOINTMENT CONFLICTS: If a customer requests a time that conflicts with an existing appointment, politely explain that the time is already booked and suggest alternative times within business hours. Always be helpful in finding alternative slots.
+IMPORTANT: You MUST follow the business hours exactly as specified above. Do not make up or assume different hours.${availabilityInfo}
 
 Available Services: ${availableServices || 'Various car detailing services'}
 
