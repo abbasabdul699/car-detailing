@@ -670,6 +670,7 @@ Be conversational and natural.`;
 
     console.log('AI Response:', aiResponse);
 
+
     // Check if this is a first-time customer who just agreed to SMS consent
     if (isFirstTimeCustomer && body && (body.toLowerCase().includes('yes') || body.toLowerCase().includes('okay') || body.toLowerCase().includes('sure') || body.toLowerCase().includes('ok'))) {
       console.log('First-time customer agreed to SMS consent - will send opt-in confirmation');
@@ -858,10 +859,10 @@ Be conversational and natural.`;
         return {}
       }
 
-      if (hasDate && hasTime && hasMinimumDetails) {
+      // Check if we have enough details to create a booking and replace AI response with detailed confirmation
+      if (hasDate && hasTime && hasMinimumDetails && !asksForServices) {
         const when = parseDateFromText(body) || new Date()
         const services = Array.isArray(snapForBooking?.services) ? snapForBooking?.services as string[] : []
-
         const parsed = parseTimeFromText(body)
 
         // Create the booking
@@ -880,6 +881,25 @@ Be conversational and natural.`;
             notes: parsed.note ? `Auto-captured from SMS conversation (fast webhook) | ${parsed.note}` : 'Auto-captured from SMS conversation (fast webhook)'
           }
         })
+
+        // Generate detailed confirmation response
+        const formattedDate = when.toLocaleDateString('en-US', { 
+          year: 'numeric', 
+          month: '2-digit', 
+          day: '2-digit' 
+        })
+        const dayOfWeek = when.toLocaleDateString('en-US', { weekday: 'long' })
+        
+        aiResponse = `Perfect! Here's your booking confirmation:
+
+Name: ${snapForBooking?.customerName || 'Customer'}
+Date: ${formattedDate} (${dayOfWeek})
+Time: ${parsed.time || 'TBD'}
+Car: ${snapForBooking?.vehicle || [snapForBooking?.vehicleYear, snapForBooking?.vehicleMake, snapForBooking?.vehicleModel].filter(Boolean).join(' ') || 'TBD'}
+Service: ${services.length ? services.join(', ') : 'Detailing'}
+Address: ${snapForBooking?.address || 'TBD'}
+
+You're all set! If you have any questions, just let me know.`
 
         // Sync to Google Calendar if detailer has it connected
         if (detailer.googleCalendarConnected && detailer.syncAppointments && detailer.googleCalendarTokens && detailer.googleCalendarRefreshToken) {
@@ -1006,22 +1026,24 @@ Notes: ${parsed.note || 'Auto-captured from SMS conversation'}
                     const createdEvent = await retryResponse.json()
                     const googleEventId = createdEvent.id
                     
-                    // Update booking with Google Calendar event ID
                     await prisma.booking.update({
                       where: { id: booking.id },
                       data: { googleEventId }
                     })
 
-                    console.log('Google Calendar event created for SMS booking (after refresh):', googleEventId)
+                    console.log('Google Calendar event created after token refresh:', googleEventId)
+                  } else {
+                    console.error('Google Calendar event creation failed after token refresh:', retryResponse.status, retryResponse.statusText)
                   }
+                } else {
+                  console.error('Token refresh failed:', refreshResponse.status, refreshResponse.statusText)
                 }
               } catch (refreshError) {
-                console.error('Failed to refresh Google Calendar token:', refreshError)
+                console.error('Error refreshing Google Calendar token:', refreshError)
               }
             }
           } catch (error) {
             console.error('Failed to create Google Calendar event for SMS booking:', error)
-            // Don't fail the booking creation if Google Calendar fails
           }
         }
       }
