@@ -290,17 +290,30 @@ export async function GET(request: NextRequest) {
         }
 
         // Transform Google Calendar events to match our calendar format
-        events = events.map((event: any) => ({
-          id: event.id,
-          title: event.summary || 'No Title',
-          start: event.start?.dateTime || event.start?.date,
-          end: event.end?.dateTime || event.end?.date,
-          allDay: !event.start?.dateTime, // If no time, it's an all-day event
-          color: 'blue', // Default color for Google Calendar events
-          source: 'google',
-          description: event.description || '',
-          location: event.location || '',
-        }));
+        // Filter to only show car detailing related events
+        events = events
+          .filter((event: any) => {
+            const title = (event.summary || '').toLowerCase();
+            const description = (event.description || '').toLowerCase();
+            
+            // Only show events that are car detailing related
+            return title.includes('car') || 
+                   title.includes('detailing') || 
+                   title.includes('customer') ||
+                   description.includes('car') ||
+                   description.includes('detailing');
+          })
+          .map((event: any) => ({
+            id: event.id,
+            title: event.summary || 'No Title',
+            start: event.start?.dateTime || event.start?.date,
+            end: event.end?.dateTime || event.end?.date,
+            allDay: !event.start?.dateTime, // If no time, it's an all-day event
+            color: 'blue', // Default color for Google Calendar events
+            source: 'google',
+            description: event.description || '',
+            location: event.location || '',
+          }));
 
       } catch (error) {
         console.error('Error fetching Google Calendar events:', error);
@@ -309,27 +322,8 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Deduplicate events - if a local booking has a googleEventId, don't show the Google Calendar version
-    const deduplicatedEvents = [];
-    const googleEventIds = new Set();
-    
-    // First, add all local events
-    for (const localEvent of localEvents) {
-      deduplicatedEvents.push(localEvent);
-      // Track Google Calendar IDs from local events
-      if (localEvent.googleEventId) {
-        googleEventIds.add(localEvent.googleEventId);
-      }
-    }
-    
-    // Then add Google Calendar events that aren't already represented by local events
-    for (const googleEvent of events) {
-      if (!googleEventIds.has(googleEvent.id)) {
-        deduplicatedEvents.push(googleEvent);
-      }
-    }
-    
-    const allEvents = deduplicatedEvents;
+    // Combine local and Google Calendar events
+    const allEvents = [...localEvents, ...events];
 
     return NextResponse.json({ 
       events: allEvents,
