@@ -26,13 +26,23 @@ function clean(s?: string | null) {
 
 function pickName(text: string) {
   const t = text.toLowerCase()
+  
+  // Don't extract names from common responses
+  if (['yes', 'no', 'ok', 'okay', 'sure', 'thanks', 'thank you'].includes(t.trim())) {
+    return undefined
+  }
+  
+  // Try explicit name patterns first
   let m = t.match(/\bmy name is\s+([a-z][a-z .'’-]{1,50})\b/i)
   if (!m) m = t.match(/\b(?:i am|i'm)\s+([a-z][a-z .'’-]{1,50})\b/i)
+  if (!m) m = t.match(/\bit's\s+([a-z][a-z .'’-]{1,50})\b/i)
   if (m) {
     const candidate = clean(m[1])
     const tokens = candidate.toLowerCase().split(/\s+/)
     if (tokens.length <= 4 && !tokens.some(w => STOPWORDS.has(w))) return candidate.replace(/\b[a-z]/g, c => c.toUpperCase())
   }
+  
+  // For simple responses, check if it looks like a name
   const trimmed = clean(text)
   if (/^[a-z .'-]{2,50}$/i.test(trimmed)) {
     const tokens = trimmed.split(/\s+/)
@@ -45,12 +55,13 @@ function pickName(text: string) {
 
 function pickAddress(text: string) {
   const t = text.replace(/\s+in\s+/gi, ' ')
-  const rx = /\b(\d{3,6})\s+([A-Za-z0-9.'’-]+(?:\s+[A-Za-z0-9.'’-]+)*?)\s+(Ave|Avenue|St|Street|Rd|Road|Blvd|Boulevard|Ln|Lane|Dr|Drive|Ct|Court|Way|Terr|Terrace|Pl|Place|Cir|Circle|Hwy|Highway)\b\.?\s*,?\s*([A-Za-z .'-]{2,30})\s*,?\s*([A-Z]{2})\s*,?\s*(\d{5}(?:-\d{4})?)?/i
+  // More flexible regex that handles common address formats
+  const rx = /\b(\d+)\s+([A-Za-z\s]+?)\s+(Ave|Avenue|St|Street|Rd|Road|Blvd|Boulevard|Ln|Lane|Dr|Drive|Ct|Court|Way|Terr|Terrace|Pl|Place|Cir|Circle|Hwy|Highway)\b[,\s]*([A-Za-z\s]+)[,\s]*([A-Z]{2})[,\s]*(\d{5}(?:-\d{4})?)?/i
   const m = t.match(rx)
   if (!m) return undefined
   const num = m[1]
-  const streetName = `${m[2]} ${m[3]}`
-  const city = m[4]
+  const streetName = `${m[2].trim()} ${m[3]}`
+  const city = m[4]?.trim()
   const state = m[5]
   const zip = m[6]
   const line = [num, streetName.replace(/\b[a-z]/g, c => c.toUpperCase()), city?.replace(/\b[a-z]/g, c => c.toUpperCase()), state?.toUpperCase(), zip].filter(Boolean).join(', ')
