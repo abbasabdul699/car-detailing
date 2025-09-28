@@ -855,7 +855,18 @@ Vehicle: ${existingSnapshot.vehicle || 'Not provided'}
 Address: ${existingSnapshot.address || 'Not provided'}
 Location Type: ${existingSnapshot.locationType || 'Not specified'}
 
-IMPORTANT: This is a returning customer. Use their existing information and don't ask for details you already have. Only ask for new information if they're booking a different service or want to update something.`;
+CRITICAL: This is a returning customer. You MUST use their existing information above. Do NOT ask for:
+- Name (use: ${existingSnapshot.customerName || 'Customer'})
+- Email (use: ${existingSnapshot.customerEmail || 'ask only if needed'})  
+- Vehicle (use: ${existingSnapshot.vehicle || 'ask only if different'})
+- Address (use: ${existingSnapshot.address || 'ask only if different'})
+
+Only ask for NEW information like service preferences or different dates/times.
+
+WHEN CUSTOMER SAYS "I want to book another appointment":
+- Use their existing information (name, vehicle, address, email)
+- Only ask what service they want and when
+- Say something like: "Great! What service would you like this time? And what date works for you?"`;
     }
     
     // Check for existing bookings to provide real-time availability info to the AI
@@ -914,7 +925,7 @@ ${isFirstTimeCustomer ? `COMPLIANCE REQUIREMENT: This is a first-time customer. 
 
 BOOKING SEQUENCE: 
 - For NEW customers: Ask "What's your name?" first, then follow the order: car details, services, address, date/time.
-- For RETURNING customers: Use their existing information and only ask for new details (like different service or date/time). Don't ask for information you already have.
+- For RETURNING customers: Use their existing information from the RETURNING CUSTOMER INFORMATION section above. Only ask for new details (like different service or date/time). NEVER ask for information you already have.
 
 Business: ${detailer.businessName}
 ${detailer.city && detailer.state ? `Location: ${detailer.city}, ${detailer.state}` : ''}
