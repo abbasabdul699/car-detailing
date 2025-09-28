@@ -104,29 +104,39 @@ function clean(s?: string | null) {
 }
 
 function pickName(text: string) {
-  const t = text.toLowerCase()
+  const t = text.toLowerCase().trim()
   
-  // Don't extract names from common responses
-  if (['yes', 'no', 'ok', 'okay', 'sure', 'thanks', 'thank you'].includes(t.trim())) {
+  // Don't extract names from very short common responses
+  if (['yes', 'no', 'ok', 'okay', 'sure', 'thanks', 'thank you', 'yep', 'nope'].includes(t)) {
     return undefined
   }
   
-  // Try explicit name patterns first
-  let m = t.match(/\bmy name is\s+([a-z][a-z .'’-]{1,50})\b/i)
-  if (!m) m = t.match(/\b(?:i am|i'm)\s+([a-z][a-z .'’-]{1,50})\b/i)
-  if (!m) m = t.match(/\bit's\s+([a-z][a-z .'’-]{1,50})\b/i)
+  // Try explicit name patterns first (more flexible)
+  let m = t.match(/\bmy name is\s+([a-z][a-z .''-]{1,50})\b/i)
+  if (!m) m = t.match(/\b(?:i am|i'm)\s+([a-z][a-z .''-]{1,50})\b/i)
+  if (!m) m = t.match(/\bit's\s+([a-z][a-z .''-]{1,50})\b/i)
+  if (!m) m = t.match(/\bthis is\s+([a-z][a-z .''-]{1,50})\b/i)
+  if (!m) m = t.match(/\bname is\s+([a-z][a-z .''-]{1,50})\b/i)
+  if (!m) m = t.match(/\bhi,?\s+([a-z][a-z .''-]{1,50})\b/i)
+  if (!m) m = t.match(/\bhello,?\s+([a-z][a-z .''-]{1,50})\b/i)
+  if (!m) m = t.match(/\bhey,?\s+([a-z][a-z .''-]{1,50})\b/i)
+  
   if (m) {
     const candidate = clean(m[1])
     const tokens = candidate.toLowerCase().split(/\s+/)
-    if (tokens.length <= 4 && !tokens.some(w => STOPWORDS.has(w))) return candidate.replace(/\b[a-z]/g, c => c.toUpperCase())
+    // More lenient - allow up to 4 tokens and only exclude obvious non-names
+    if (tokens.length <= 4 && !tokens.some(w => ['the', 'and', 'or', 'but', 'for', 'with', 'at', 'by', 'from', 'to', 'in', 'on', 'of'].includes(w))) {
+      return candidate.replace(/\b[a-z]/g, c => c.toUpperCase())
+  }
   }
   
-  // For simple responses, check if it looks like a name
+  // For simple responses that look like names, be more lenient
   const trimmed = clean(text)
   if (/^[a-z .'-]{2,50}$/i.test(trimmed)) {
     const tokens = trimmed.split(/\s+/)
     const okLen = tokens.length >= 1 && tokens.length <= 3
-    const noStop = !tokens.some(w => STOPWORDS.has(w.toLowerCase()))
+    // Only exclude obvious non-names, not common words
+    const noStop = !tokens.some(w => ['the', 'and', 'or', 'but', 'for', 'with', 'at', 'by', 'from', 'to', 'in', 'on', 'of', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should'].includes(w.toLowerCase()))
     if (okLen && noStop) return trimmed.replace(/\b[a-z]/g, c => c.toUpperCase())
   }
   return undefined
@@ -877,7 +887,10 @@ CRITICAL RULES FOR RETURNING CUSTOMERS:
 WHEN CUSTOMER SAYS "I want to book another appointment" or similar:
 - Greet them by name: "${hasName ? existingSnapshot.customerName : 'there'}"
 - Use their existing information
-- Only ask: "What service would you like this time? And what date works for you?"`;
+- Only ask: "What service would you like this time? And what date works for you?"
+
+WHEN CUSTOMER ASKS "what is my name?" or "what's my name?":
+- ${hasName ? `Tell them: "Your name is ${existingSnapshot.customerName}!"` : `Say: "I don't have your name on file yet. What's your name?"`}`;
     }
     
     // Check for existing bookings to provide real-time availability info to the AI
