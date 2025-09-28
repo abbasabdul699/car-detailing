@@ -845,6 +845,19 @@ export async function POST(request: NextRequest) {
 
     console.log('DEBUG: Generating system prompt with isFirstTimeCustomer:', isFirstTimeCustomer)
     
+    // Build customer context for returning customers
+    let customerContext = '';
+    if (!isFirstTimeCustomer && existingSnapshot) {
+      customerContext = `\n\nRETURNING CUSTOMER INFORMATION:
+Name: ${existingSnapshot.customerName || 'Not provided'}
+Email: ${existingSnapshot.customerEmail || 'Not provided'}
+Vehicle: ${existingSnapshot.vehicle || 'Not provided'}
+Address: ${existingSnapshot.address || 'Not provided'}
+Location Type: ${existingSnapshot.locationType || 'Not specified'}
+
+IMPORTANT: This is a returning customer. Use their existing information and don't ask for details you already have. Only ask for new information if they're booking a different service or want to update something.`;
+    }
+    
     // Check for existing bookings to provide real-time availability info to the AI
     let availabilityInfo = '';
     try {
@@ -899,14 +912,16 @@ SMS LENGTH: Keep responses concise for SMS. If you need to list services, mentio
 
 ${isFirstTimeCustomer ? `COMPLIANCE REQUIREMENT: This is a first-time customer. You MUST start your response by asking for SMS consent before any business conversation. Say: "Hi! I'm Arian from ${detailer.businessName}. To help you book your mobile car detailing service, I'll need to send you appointment confirmations and updates via SMS. Is that okay with you?" Only proceed with booking after they agree. If they say yes, immediately send: "${detailer.businessName}: You are now opted-in to receive appointment confirmations and updates. For help, reply HELP. To opt-out, reply STOP."` : ''}
 
-BOOKING SEQUENCE: When someone wants to book, ALWAYS start by asking "What's your name?" first, then follow the order: car details, services, address, date/time.
+BOOKING SEQUENCE: 
+- For NEW customers: Ask "What's your name?" first, then follow the order: car details, services, address, date/time.
+- For RETURNING customers: Use their existing information and only ask for new details (like different service or date/time). Don't ask for information you already have.
 
 Business: ${detailer.businessName}
 ${detailer.city && detailer.state ? `Location: ${detailer.city}, ${detailer.state}` : ''}
 Business Hours:
 ${formatBusinessHours(detailer.businessHours)}
 
-IMPORTANT: You MUST follow the business hours exactly as specified above. Do not make up or assume different hours.${availabilityInfo}
+IMPORTANT: You MUST follow the business hours exactly as specified above. Do not make up or assume different hours.${availabilityInfo}${customerContext}
 
 Available Services: ${availableServices || 'Various car detailing services'}
 
@@ -1075,25 +1090,20 @@ Be conversational and natural.`;
         if (response.ok) {
           const data = await response.json();
           console.log('DEBUG: Full OpenAI response:', JSON.stringify(data, null, 2));
-            if (data.choices?.length && data.choices[0].message?.content?.trim()) {
+          if (data.choices?.length && data.choices[0].message?.content?.trim()) {
             aiResponse = data.choices[0].message.content.trim()
             console.log('DEBUG: OpenAI response:', aiResponse);
             
             // Remove any existing calendar links from AI response to avoid duplicates
             aiResponse = aiResponse.replace(/\n*📅 Add to calendar:.*$/gm, '');
             
-            // Check if this looks like a booking confirmation and add calendar link
+            // Check if this is an actual booking confirmation (not just conversation about bookings)
             const lowerResponse = aiResponse.toLowerCase();
-            const isBookingRelated = lowerResponse.includes('booking') || 
-                                    lowerResponse.includes('appointment') || 
-                                    lowerResponse.includes('confirmed') ||
-                                    lowerResponse.includes('scheduled') ||
-                                    lowerResponse.includes('booked') ||
-                                    (lowerResponse.includes('perfect') && lowerResponse.includes('here\'s')) ||
-                                    (lowerResponse.includes('great') && lowerResponse.includes('appointment')) ||
-                                    (lowerResponse.includes('looking forward') && lowerResponse.includes('tonight'));
+            const isBookingConfirmation = (lowerResponse.includes('perfect') && lowerResponse.includes('here\'s') && lowerResponse.includes('confirmation')) ||
+                                         (lowerResponse.includes('booking confirmation') && lowerResponse.includes('name:') && lowerResponse.includes('date:')) ||
+                                         (lowerResponse.includes('confirmed') && lowerResponse.includes('name:') && lowerResponse.includes('date:'));
             
-            if (isBookingRelated) {
+            if (isBookingConfirmation) {
               const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://www.reevacar.com';
               
               // Extract booking details from the current AI response instead of old snapshot
