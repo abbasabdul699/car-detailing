@@ -622,6 +622,7 @@ async function sendAsMmsIfLong(client: any, to: string, from: string, body: stri
 }
 
 export async function POST(request: NextRequest) {
+  const startTime = Date.now();
   try {
     console.log('=== FAST SMS WEBHOOK START (v2) ===');
     
@@ -693,6 +694,7 @@ export async function POST(request: NextRequest) {
         }
       });
     } else {
+      // Update conversation and get messages in one operation
       await prisma.conversation.update({
         where: { id: conversation.id },
         data: {
@@ -700,13 +702,7 @@ export async function POST(request: NextRequest) {
           lastMessageAt: new Date(),
         },
       });
-      // Ensure we have latest messages relation
-      conversation = await prisma.conversation.findUnique({
-        where: { id: conversation.id },
-        include: {
-          messages: { orderBy: { createdAt: 'desc' }, take: 5 }
-        }
-      });
+      // No need to re-fetch - we already have the messages from the initial query
     }
 
     if (!conversation) {
@@ -768,21 +764,32 @@ export async function POST(request: NextRequest) {
     // If the user explicitly asks for services, answer deterministically
     const asksForServices = /\b(what\s+services|services\s*\?|do\s+you\s+(offer|provide)\s+.*services?)\b/i.test((body || '').toLowerCase())
 
-    // Check if this is a first-time customer BEFORE updating snapshot
+    // Check if this is a first-time customer - look at both snapshot and conversation history
     const existingSnapshot = await getCustomerSnapshot(detailer.id, from)
-    const isFirstTimeCustomer = !existingSnapshot
+    const hasPreviousMessages = conversation && conversation.messages && conversation.messages.length > 1
+    const isFirstTimeCustomer = !existingSnapshot && !hasPreviousMessages
     
     console.log('DEBUG: isFirstTimeCustomer:', isFirstTimeCustomer)
     console.log('DEBUG: existingSnapshot:', existingSnapshot)
     console.log('DEBUG: detailer.id:', detailer.id)
     console.log('DEBUG: from phone:', from)
 
-    // Update snapshot with any hints from this message
+    // Update snapshot with any hints from this message and get updated snapshot
     const inferred = extractSnapshotHintsSafe(body || '', detailerServices.map(ds => ds.service.name))
-    await safeUpsertSnapshot(detailer.id, from, inferred)
-
-    // Load snapshot for context
-    const snapshot = await getCustomerSnapshot(detailer.id, from)
+    
+    // If no name was extracted from current message, try to extract from conversation history
+    if (!inferred.customerName && conversation?.messages) {
+      const conversationText = conversation.messages
+        .filter(m => m.direction === 'inbound')
+        .map(m => m.content)
+        .join(' ')
+      const nameFromHistory = pickName(conversationText)
+      if (nameFromHistory) {
+        inferred.customerName = nameFromHistory
+      }
+    }
+    
+    const snapshot = await safeUpsertSnapshot(detailer.id, from, inferred)
 
     // Check availability for today and next few days
     const today = new Date();
@@ -848,25 +855,29 @@ export async function POST(request: NextRequest) {
     // Build customer context for returning customers
     let customerContext = '';
     if (!isFirstTimeCustomer && existingSnapshot) {
-      customerContext = `\n\nRETURNING CUSTOMER INFORMATION:
-Name: ${existingSnapshot.customerName || 'Not provided'}
-Email: ${existingSnapshot.customerEmail || 'Not provided'}
-Vehicle: ${existingSnapshot.vehicle || 'Not provided'}
-Address: ${existingSnapshot.address || 'Not provided'}
+      const hasName = existingSnapshot.customerName && existingSnapshot.customerName.trim() !== ''
+      const hasAddress = existingSnapshot.address && existingSnapshot.address.trim() !== ''
+      const hasVehicle = existingSnapshot.vehicle && existingSnapshot.vehicle.trim() !== ''
+      const hasEmail = existingSnapshot.customerEmail && existingSnapshot.customerEmail.trim() !== ''
+      
+      customerContext = `\n\nRETURNING CUSTOMER - USE EXISTING INFORMATION:
+${hasName ? `Name: ${existingSnapshot.customerName}` : 'Name: Not provided'}
+${hasEmail ? `Email: ${existingSnapshot.customerEmail}` : 'Email: Not provided'}  
+${hasVehicle ? `Vehicle: ${existingSnapshot.vehicle}` : 'Vehicle: Not provided'}
+${hasAddress ? `Address: ${existingSnapshot.address}` : 'Address: Not provided'}
 Location Type: ${existingSnapshot.locationType || 'Not specified'}
 
-CRITICAL: This is a returning customer. You MUST use their existing information above. Do NOT ask for:
-- Name (use: ${existingSnapshot.customerName || 'Customer'})
-- Email (use: ${existingSnapshot.customerEmail || 'ask only if needed'})  
-- Vehicle (use: ${existingSnapshot.vehicle || 'ask only if different'})
-- Address (use: ${existingSnapshot.address || 'ask only if different'})
+CRITICAL RULES FOR RETURNING CUSTOMERS:
+1. DO NOT ask for information you already have above
+2. ${hasName ? `Always use "${existingSnapshot.customerName}" as their name` : 'Ask for name if not provided'}
+3. ${hasAddress ? `Use "${existingSnapshot.address}" as their address - DO NOT ask again` : 'Ask for address if not provided'}
+4. ${hasVehicle ? `Use "${existingSnapshot.vehicle}" as their vehicle - DO NOT ask again` : 'Ask for vehicle if not provided'}
+5. ${hasEmail ? `Use "${existingSnapshot.customerEmail}" for confirmations` : 'Ask for email only if needed for confirmations'}
 
-Only ask for NEW information like service preferences or different dates/times.
-
-WHEN CUSTOMER SAYS "I want to book another appointment":
-- Use their existing information (name, vehicle, address, email)
-- Only ask what service they want and when
-- Say something like: "Great! What service would you like this time? And what date works for you?"`;
+WHEN CUSTOMER SAYS "I want to book another appointment" or similar:
+- Greet them by name: "${hasName ? existingSnapshot.customerName : 'there'}"
+- Use their existing information
+- Only ask: "What service would you like this time? And what date works for you?"`;
     }
     
     // Check for existing bookings to provide real-time availability info to the AI
@@ -925,7 +936,9 @@ ${isFirstTimeCustomer ? `COMPLIANCE REQUIREMENT: This is a first-time customer. 
 
 BOOKING SEQUENCE: 
 - For NEW customers: Ask "What's your name?" first, then follow the order: car details, services, address, date/time.
-- For RETURNING customers: Use their existing information from the RETURNING CUSTOMER INFORMATION section above. Only ask for new details (like different service or date/time). NEVER ask for information you already have.
+- For RETURNING customers: Use their existing information from the RETURNING CUSTOMER INFORMATION section above. Only ask for NEW details (like different service or date/time). NEVER ask for information you already have.
+
+CRITICAL: If you see "RETURNING CUSTOMER" information above, you MUST use that information. Do NOT ask for name, address, vehicle, or email if they're already provided in that section.
 
 Business: ${detailer.businessName}
 ${detailer.city && detailer.state ? `Location: ${detailer.city}, ${detailer.state}` : ''}
@@ -1091,10 +1104,10 @@ Be conversational and natural.`;
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: 'gpt-4o',
+            model: 'gpt-4o-mini-2024-07-18', // Faster model for better performance
             messages,
-            max_tokens: 150,
-            temperature: 0.9,
+            max_tokens: 200,
+            temperature: 0.7,
           }),
         });
         clearTimeout(timeout)
@@ -1460,9 +1473,22 @@ What time would work better for you?`;
         const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://www.reevacar.com';
         const calendarUrl = `${baseUrl}/api/calendar/add/${booking.id}`;
         
+        // Use customer name from snapshot, or try to extract from conversation if not available
+        let customerName = snapForBooking?.customerName || 'Customer'
+        if (customerName === 'Customer' && conversation?.messages) {
+          const conversationText = conversation.messages
+            .filter(m => m.direction === 'inbound')
+            .map(m => m.content)
+            .join(' ')
+          const nameFromHistory = pickName(conversationText)
+          if (nameFromHistory) {
+            customerName = nameFromHistory
+          }
+        }
+        
         aiResponse = `Perfect! Here's your booking confirmation:
 
-Name: ${snapForBooking?.customerName || 'Customer'}
+Name: ${customerName}
 Date: ${formattedDate} (${dayOfWeek})
 Time: ${parsed.time || 'TBD'}
 Car: ${snapForBooking?.vehicle || [snapForBooking?.vehicleYear, snapForBooking?.vehicleMake, snapForBooking?.vehicleModel].filter(Boolean).join(' ') || 'TBD'}
@@ -1494,10 +1520,10 @@ You're all set! If you have any questions, just let me know.`
             endDateTime.setMinutes(endDateTime.getMinutes() + 120) // Default 2 hours
 
             const event = {
-              summary: `Car Detailing - ${snapForBooking?.customerName || 'Customer'}`,
+              summary: `Car Detailing - ${customerName}`,
               description: `
 Services: ${services.length ? services.join(', ') : 'Detailing'}
-Customer: ${snapForBooking?.customerName || 'N/A'}
+Customer: ${customerName}
 Phone: ${from}
 Vehicle: ${snapForBooking?.vehicle || 'N/A'}
 Location: ${snapForBooking?.address || 'N/A'}
@@ -1625,11 +1651,16 @@ Notes: ${parsed.note || 'Auto-captured from SMS conversation'}
 
     console.log('=== FAST SMS WEBHOOK SUCCESS ===');
     if (twilioSid) console.log('Response sent:', twilioSid);
+    
+    // Log performance metrics
+    const endTime = Date.now();
+    console.log(`Webhook processing time: ${endTime - startTime}ms`);
 
     return NextResponse.json({ 
       success: true,
       aiResponse,
-      twilioSid: twilioSid
+      twilioSid: twilioSid,
+      processingTimeMs: endTime - startTime
     });
 
   } catch (error) {
