@@ -108,20 +108,20 @@ function pickName(text: string) {
   console.log('DEBUG: pickName called with text:', text)
   
   // Don't extract names from very short common responses
-  if (['yes', 'no', 'ok', 'okay', 'sure', 'thanks', 'thank you', 'yep', 'nope'].includes(t)) {
+  if (['yes', 'no', 'ok', 'okay', 'sure', 'thanks', 'thank you', 'yep', 'nope', 'please', 'yeah', 'yeah please'].includes(t)) {
     console.log('DEBUG: pickName rejected - common response')
     return undefined
   }
   
   // Try explicit name patterns first (more flexible)
-  let m = t.match(/\bmy name is\s+([a-z][a-z .''-]{1,50})\b/i)
-  if (!m) m = t.match(/\b(?:i am|i'm)\s+([a-z][a-z .''-]{1,50})\b/i)
-  if (!m) m = t.match(/\bit's\s+([a-z][a-z .''-]{1,50})\b/i)
-  if (!m) m = t.match(/\bthis is\s+([a-z][a-z .''-]{1,50})\b/i)
-  if (!m) m = t.match(/\bname is\s+([a-z][a-z .''-]{1,50})\b/i)
-  if (!m) m = t.match(/\bhi,?\s+([a-z][a-z .''-]{1,50})\b/i)
-  if (!m) m = t.match(/\bhello,?\s+([a-z][a-z .''-]{1,50})\b/i)
-  if (!m) m = t.match(/\bhey,?\s+([a-z][a-z .''-]{1,50})\b/i)
+  let m = t.match(/\bmy name is\s+([a-zA-Z][a-zA-Z .''-]{1,50})\b/i)
+  if (!m) m = t.match(/\b(?:i am|i'm)\s+([a-zA-Z][a-zA-Z .''-]{1,50})\b/i)
+  if (!m) m = t.match(/\bit's\s+([a-zA-Z][a-zA-Z .''-]{1,50})\b/i)
+  if (!m) m = t.match(/\bthis is\s+([a-zA-Z][a-zA-Z .''-]{1,50})\b/i)
+  if (!m) m = t.match(/\bname is\s+([a-zA-Z][a-zA-Z .''-]{1,50})\b/i)
+  if (!m) m = t.match(/\bhi,?\s+([a-zA-Z][a-zA-Z .''-]{1,50})\b/i)
+  if (!m) m = t.match(/\bhello,?\s+([a-zA-Z][a-zA-Z .''-]{1,50})\b/i)
+  if (!m) m = t.match(/\bhey,?\s+([a-zA-Z][a-zA-Z .''-]{1,50})\b/i)
   
   if (m) {
     const candidate = clean(m[1])
@@ -137,14 +137,26 @@ function pickName(text: string) {
     }
   }
   
-  // For simple responses that look like names, be more lenient
+  // For simple responses that look like names, be more restrictive
   const trimmed = clean(text)
   if (/^[a-z .'-]{2,50}$/i.test(trimmed)) {
     const tokens = trimmed.split(/\s+/)
     const okLen = tokens.length >= 1 && tokens.length <= 3
-    // Only exclude obvious non-names, not common words
-    const noStop = !tokens.some(w => ['the', 'and', 'or', 'but', 'for', 'with', 'at', 'by', 'from', 'to', 'in', 'on', 'of', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should'].includes(w.toLowerCase()))
-    if (okLen && noStop) return trimmed.replace(/\b[a-z]/g, c => c.toUpperCase())
+    
+    // More restrictive stopword list to avoid false positives like "Yeah Please"
+    const noStop = !tokens.some(w => [
+      'the', 'and', 'or', 'but', 'for', 'with', 'at', 'by', 'from', 'to', 'in', 'on', 'of', 
+      'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 
+      'will', 'would', 'could', 'should', 'yeah', 'yes', 'no', 'ok', 'okay', 'sure', 'please', 
+      'thanks', 'thank', 'you', 'yep', 'nope', 'maybe', 'probably', 'definitely', 'absolutely'
+    ].includes(w.toLowerCase()))
+    
+    if (okLen && noStop) {
+      console.log('DEBUG: pickName returning simple name:', trimmed.replace(/\b[a-z]/g, c => c.toUpperCase()))
+      return trimmed.replace(/\b[a-z]/g, c => c.toUpperCase())
+    } else {
+      console.log('DEBUG: pickName rejected simple name - stopwords or invalid length')
+    }
   }
   console.log('DEBUG: pickName returning undefined - no match found')
   return undefined
