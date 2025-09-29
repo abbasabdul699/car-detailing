@@ -829,18 +829,19 @@ export async function POST(request: NextRequest) {
       if (!acc[category]) acc[category] = []
       
       // Format service with pricing and duration if available
+      const serviceAny = ds.service as any
       let serviceInfo = ds.service.name
       const details: string[] = []
-      if (ds.service.priceRange) {
-        details.push(ds.service.priceRange)
-      } else if (typeof ds.service.basePrice === 'number') {
-        const formattedBase = Number.isInteger(ds.service.basePrice)
-          ? ds.service.basePrice.toString()
-          : ds.service.basePrice.toFixed(2)
+      if (serviceAny?.priceRange) {
+        details.push(serviceAny.priceRange)
+      } else if (typeof serviceAny?.basePrice === 'number') {
+        const formattedBase = Number.isInteger(serviceAny.basePrice)
+          ? serviceAny.basePrice.toString()
+          : serviceAny.basePrice.toFixed(2)
         details.push(`$${formattedBase}`)
       }
-      if (typeof ds.service.duration === 'number' && ds.service.duration > 0) {
-        details.push(`${ds.service.duration} min`)
+      if (typeof serviceAny?.duration === 'number' && serviceAny.duration > 0) {
+        details.push(`${serviceAny.duration} min`)
       }
       if (details.length) {
         serviceInfo += ` (${details.join(', ')})`
@@ -1095,18 +1096,19 @@ IMPORTANT: You MUST follow the business hours exactly as specified above. Do not
 
 Available Services: ${availableServices || 'Various car detailing services'}
 
-PRICING INFORMATION:
-- Services include pricing in parentheses (e.g., "Interior Detail ($100-150)")
+PRICING AND DURATION INFORMATION:
+- Services include pricing and typical duration in parentheses (e.g., "Interior Detail ($100-150, 120 min)")
+- When recommending or confirming services, include both the price range and time estimate
 - When customers ask about pricing, provide the price ranges from the service list above
-- For multiple services, explain that pricing is additive (e.g., Interior + Exterior = total cost)
+- For multiple services, explain that pricing and duration are additive (e.g., Interior + Exterior = total cost and time)
 - Always mention that final pricing depends on vehicle size and condition
-- If customers ask for quotes, provide estimated ranges based on the services they want
+- If customers ask for quotes, provide estimated ranges and time based on the services they want
 
 PRICING RESPONSE EXAMPLES:
-- "How much for interior cleaning?" → "Interior Cleaning is $60-100 depending on your vehicle size and condition"
-- "What does a full detail cost?" → "Full Detail is $200-300, which includes both interior and exterior services"
-- "How much for ceramic coating?" → "Ceramic Coating is $400-700, which provides long-lasting protection"
-- "Can I get a quote?" → "Sure! What services are you interested in? I can give you an estimated range based on your vehicle"
+- "How much for interior cleaning?" → "Interior Cleaning is $60-100 (about 90 min) depending on your vehicle size and condition"
+- "What does a full detail cost?" → "Full Detail is $200-300 (about 240 min), which includes both interior and exterior services"
+- "How much for ceramic coating?" → "Ceramic Coating is $400-700 (about 300 min) and provides long-lasting protection"
+- "Can I get a quote?" → "Sure! What services are you interested in? I can give you an estimated range and time based on your vehicle"
 
 SERVICE CATEGORIZATION:
 Use the categorized services to help customers find what they need:
