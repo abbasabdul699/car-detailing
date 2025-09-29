@@ -123,6 +123,17 @@ function pickName(text: string) {
   if (!m) m = t.match(/\bhello,?\s+([a-zA-Z][a-zA-Z .''-]{1,50})\b/i)
   if (!m) m = t.match(/\bhey,?\s+([a-zA-Z][a-zA-Z .''-]{1,50})\b/i)
   
+  // Try to extract names from address patterns like "123 Main St, John" or "John, 123 Main St"
+  if (!m) {
+    const addressName = t.match(/\b(\d+\s+[a-z\s]+(?:street|st|avenue|ave|road|rd|boulevard|blvd|lane|ln|drive|dr|court|ct|way|place|pl|circle|cir|terrace|terr))\s*[,.]?\s*([a-z][a-z\s]{1,30})\b/i)
+    if (addressName && addressName[2]) {
+      const potentialName = addressName[2].trim()
+      if (potentialName.length > 2 && potentialName.length < 30) {
+        m = [null, potentialName] // Create a match-like structure
+      }
+    }
+  }
+  
   if (m) {
     const candidate = clean(m[1])
     const tokens = candidate.toLowerCase().split(/\s+/)
@@ -148,14 +159,18 @@ function pickName(text: string) {
       'the', 'and', 'or', 'but', 'for', 'with', 'at', 'by', 'from', 'to', 'in', 'on', 'of', 
       'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 
       'will', 'would', 'could', 'should', 'yeah', 'yes', 'no', 'ok', 'okay', 'sure', 'please', 
-      'thanks', 'thank', 'you', 'yep', 'nope', 'maybe', 'probably', 'definitely', 'absolutely'
+      'thanks', 'thank', 'you', 'yep', 'nope', 'maybe', 'probably', 'definitely', 'absolutely',
+      'detail', 'full', 'interior', 'exterior', 'wash', 'cleaning', 'coating', 'ceramic', 'wax', 'polish'
     ].includes(w.toLowerCase()))
     
-    if (okLen && noStop) {
+    // Don't allow service-related terms as names
+    const noServiceTerms = !/\b(detail|wash|clean|coating|wax|polish|ceramic|full|interior|exterior)\b/i.test(trimmed)
+    
+    if (okLen && noStop && noServiceTerms) {
       console.log('DEBUG: pickName returning simple name:', trimmed.replace(/\b[a-z]/g, c => c.toUpperCase()))
       return trimmed.replace(/\b[a-z]/g, c => c.toUpperCase())
     } else {
-      console.log('DEBUG: pickName rejected simple name - stopwords or invalid length')
+      console.log('DEBUG: pickName rejected simple name - stopwords, service terms, or invalid length')
     }
   }
   console.log('DEBUG: pickName returning undefined - no match found')
@@ -363,9 +378,15 @@ export async function safeUpsertSnapshot(detailerId: string, phone: string, inco
     // or if the existing name looks like a placeholder (like "Customer")
     if (key === 'customerName') {
       if (typeof existing === 'string' && typeof val === 'string') {
-        // Don't override real names with short greetings or common words
+        // Don't override real names with short greetings, common words, or service names
         const commonWords = ['hey', 'hi', 'hello', 'yes', 'no', 'ok', 'okay', 'sure', 'thanks', 'please']
+        const serviceNames = ['full detail', 'interior detail', 'exterior detail', 'detail', 'wash', 'cleaning', 'ceramic coating', 'coating', 'wax', 'polish']
+        
         if (commonWords.includes(val.toLowerCase())) return false
+        if (serviceNames.includes(val.toLowerCase())) return false
+        
+        // Don't allow service-related phrases as names
+        if (/\b(detail|wash|clean|coating|wax|polish)\b/i.test(val)) return false
         
         // Only allow updates if existing name is a placeholder or new name is much longer
         if (existing.toLowerCase() === 'customer' || val.length > existing.length + 3) return true

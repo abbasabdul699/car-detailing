@@ -11,6 +11,7 @@ import SessionProviderWrapper from '@/app/components/SessionProviderWrapper';
 import { MapLoaderProvider } from '@/app/components/MapLoaderProvider';
 import ConditionalNavbar from '@/app/components/ConditionalNavbar';
 import ConditionalFooter from '@/app/components/ConditionalFooter';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -141,6 +142,7 @@ export default function RootLayout({
           </MapLoaderProvider>
         </SessionProviderWrapper>
         <ConditionalFooter />
+        <SpeedInsights />
       </body>
     </html>
   );
