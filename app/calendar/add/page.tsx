@@ -202,15 +202,6 @@ END:VCALENDAR`;
             <span>Add to Outlook</span>
           </a>
           
-          <a 
-            href={`https://calendar.apple.com/event?title=Car%20Detailing%20-%20${encodeURIComponent(appointmentDetails.name)}&startDate=${appointmentDetails.formattedDate.slice(0,4)}-${appointmentDetails.formattedDate.slice(4,6)}-${appointmentDetails.formattedDate.slice(6,8)}T${appointmentDetails.formattedTime.slice(0,2)}:${appointmentDetails.formattedTime.slice(2,4)}:00&endDate=${appointmentDetails.formattedDate.slice(0,4)}-${appointmentDetails.formattedDate.slice(4,6)}-${appointmentDetails.formattedDate.slice(6,8)}T${appointmentDetails.endTime.slice(0,2)}:${appointmentDetails.endTime.slice(2,4)}:00&notes=Mobile%20car%20detailing%20service%0A%0AService:%20${encodeURIComponent(appointmentDetails.service)}%0ACustomer:%20${encodeURIComponent(appointmentDetails.name)}%0AVehicle:%20${encodeURIComponent(appointmentDetails.car)}%0ALocation:%20${encodeURIComponent(appointmentDetails.address)}`}
-            className="flex items-center justify-center w-full p-4 border-2 border-blue-500 rounded-lg text-blue-500 font-semibold hover:bg-blue-500 hover:text-white transition-all duration-300 hover:-translate-y-1 hover:shadow-lg"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <span className="mr-3 text-xl">📅</span>
-            <span>Add to Apple Calendar</span>
-          </a>
         </div>
         
         <button 
@@ -222,7 +213,7 @@ END:VCALENDAR`;
         
         <div className="text-center mt-8">
           <p className="text-gray-600 text-sm">
-            Choose your preferred calendar app above, or download the .ics file to import into any calendar application.
+            Choose your preferred calendar app above, or download the .ics file to import into any calendar application (including Apple Calendar).
           </p>
         </div>
       </div>
