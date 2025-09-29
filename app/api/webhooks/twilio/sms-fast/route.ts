@@ -690,7 +690,7 @@ export async function POST(request: NextRequest) {
       include: {
         messages: {
           orderBy: { createdAt: 'desc' },
-          take: 5 // Only get last 5 messages for faster processing
+          take: 20 // Get more messages to capture name from earlier in conversation
         }
       }
     });
@@ -842,7 +842,7 @@ export async function POST(request: NextRequest) {
     // Generate conversational AI response
     const recentMessages = conversation.messages || [];
     console.log('DEBUG: Recent messages count:', recentMessages.length);
-    console.log('DEBUG: Recent messages:', recentMessages.map(m => ({ direction: m.direction, content: m.content })));
+    console.log('DEBUG: Recent messages:', recentMessages.slice(0, 10).map(m => ({ direction: m.direction, content: m.content }))); // Show first 10 for debugging
     
     const conversationHistory = recentMessages.reverse().map(msg => ({
       role: msg.direction === 'inbound' ? 'user' : 'assistant',
