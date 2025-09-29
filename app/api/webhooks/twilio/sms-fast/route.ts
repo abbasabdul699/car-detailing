@@ -105,9 +105,11 @@ function clean(s?: string | null) {
 
 function pickName(text: string) {
   const t = text.toLowerCase().trim()
+  console.log('DEBUG: pickName called with text:', text)
   
   // Don't extract names from very short common responses
   if (['yes', 'no', 'ok', 'okay', 'sure', 'thanks', 'thank you', 'yep', 'nope'].includes(t)) {
+    console.log('DEBUG: pickName rejected - common response')
     return undefined
   }
   
@@ -124,10 +126,15 @@ function pickName(text: string) {
   if (m) {
     const candidate = clean(m[1])
     const tokens = candidate.toLowerCase().split(/\s+/)
+    console.log('DEBUG: Found potential name:', candidate, 'tokens:', tokens)
     // More lenient - allow up to 4 tokens and only exclude obvious non-names
     if (tokens.length <= 4 && !tokens.some(w => ['the', 'and', 'or', 'but', 'for', 'with', 'at', 'by', 'from', 'to', 'in', 'on', 'of'].includes(w))) {
-      return candidate.replace(/\b[a-z]/g, c => c.toUpperCase())
-  }
+      const result = candidate.replace(/\b[a-z]/g, c => c.toUpperCase())
+      console.log('DEBUG: pickName returning:', result)
+      return result
+    } else {
+      console.log('DEBUG: pickName rejected - invalid tokens or length')
+    }
   }
   
   // For simple responses that look like names, be more lenient
@@ -139,6 +146,7 @@ function pickName(text: string) {
     const noStop = !tokens.some(w => ['the', 'and', 'or', 'but', 'for', 'with', 'at', 'by', 'from', 'to', 'in', 'on', 'of', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should'].includes(w.toLowerCase()))
     if (okLen && noStop) return trimmed.replace(/\b[a-z]/g, c => c.toUpperCase())
   }
+  console.log('DEBUG: pickName returning undefined - no match found')
   return undefined
 }
 
@@ -793,11 +801,18 @@ export async function POST(request: NextRequest) {
         .filter(m => m.direction === 'inbound')
         .map(m => m.content)
         .join(' ')
+      console.log('DEBUG: Trying to extract name from conversation history:', conversationText)
       const nameFromHistory = pickName(conversationText)
       if (nameFromHistory) {
+        console.log('DEBUG: Extracted name from history:', nameFromHistory)
         inferred.customerName = nameFromHistory
+      } else {
+        console.log('DEBUG: No name found in conversation history')
       }
     }
+    
+    console.log('DEBUG: Final inferred customer name:', inferred.customerName)
+    console.log('DEBUG: All inferred data:', inferred)
     
     const snapshot = await safeUpsertSnapshot(detailer.id, from, inferred)
 
