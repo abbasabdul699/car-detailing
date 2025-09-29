@@ -165,7 +165,7 @@ function pickName(text: string): NameHit | undefined {
     if (/\bmy name is\s+not\b/i.test(s)) continue
     for (const rx of explicitRx) {
       const m = s.match(rx)
-      if (m) {
+  if (m) {
         const cand = m[1].split(/[,!.?]/)[0]
         const hit = vet(cand, 'explicit', 0.95)
         if (hit) return hit
@@ -823,11 +823,20 @@ export async function POST(request: NextRequest) {
       }
     })
     
-    // Group services by category for better organization
+    // Group services by category for better organization with pricing
     const servicesByCategory = detailerServices.reduce((acc, ds) => {
       const category = ds.service.category?.name || 'Other'
       if (!acc[category]) acc[category] = []
-      acc[category].push(ds.service.name)
+      
+      // Format service with pricing if available
+      let serviceInfo = ds.service.name
+      if (ds.service.priceRange) {
+        serviceInfo += ` (${ds.service.priceRange})`
+      } else if (ds.service.basePrice) {
+        serviceInfo += ` ($${ds.service.basePrice})`
+      }
+      
+      acc[category].push(serviceInfo)
       return acc
     }, {} as Record<string, string[]>)
     
@@ -1076,12 +1085,25 @@ IMPORTANT: You MUST follow the business hours exactly as specified above. Do not
 
 Available Services: ${availableServices || 'Various car detailing services'}
 
+PRICING INFORMATION:
+- Services include pricing in parentheses (e.g., "Interior Detail ($100-150)")
+- When customers ask about pricing, provide the price ranges from the service list above
+- For multiple services, explain that pricing is additive (e.g., Interior + Exterior = total cost)
+- Always mention that final pricing depends on vehicle size and condition
+- If customers ask for quotes, provide estimated ranges based on the services they want
+
+PRICING RESPONSE EXAMPLES:
+- "How much for interior cleaning?" → "Interior Cleaning is $60-100 depending on your vehicle size and condition"
+- "What does a full detail cost?" → "Full Detail is $200-300, which includes both interior and exterior services"
+- "How much for ceramic coating?" → "Ceramic Coating is $400-700, which provides long-lasting protection"
+- "Can I get a quote?" → "Sure! What services are you interested in? I can give you an estimated range based on your vehicle"
+
 SERVICE CATEGORIZATION:
 Use the categorized services to help customers find what they need:
-- If they ask about "interior services" → list only Interior category services
-- If they ask about "exterior services" → list only Exterior category services  
-- If they ask about "bundles" → list only Bundle category services
-- If they ask about "additional services" → list only Additional category services
+- If they ask about "interior services" → list only Interior category services with pricing
+- If they ask about "exterior services" → list only Exterior category services with pricing
+- If they ask about "bundles" → list only Bundle category services with pricing
+- If they ask about "additional services" → list only Additional category services with pricing
 - Don't mention categories to customers - just use them to filter and organize your responses
 
 Known customer context (if any):

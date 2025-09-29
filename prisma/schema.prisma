@@ -105,6 +105,12 @@ model Service {
   icon        String?
   categoryId  String?    @db.ObjectId
   category    Category?  @relation(fields: [categoryId], references: [id])
+  
+  // Pricing fields
+  basePrice    Float?     // Base price for the service
+  priceRange   String?    // Price range (e.g., "$50-75", "Starting at $40")
+  duration     Int?       // Estimated duration in minutes
+  
   detailers   DetailerService[]
   bundles     BundleService[]
 }
