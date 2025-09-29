@@ -107,9 +107,9 @@ function pickName(text: string) {
   const t = text.toLowerCase().trim()
   console.log('DEBUG: pickName called with text:', text)
   
-  // Don't extract names from very short common responses
-  if (['yes', 'no', 'ok', 'okay', 'sure', 'thanks', 'thank you', 'yep', 'nope', 'please', 'yeah', 'yeah please'].includes(t)) {
-    console.log('DEBUG: pickName rejected - common response')
+  // Don't extract names from very short common responses or greetings
+  if (['yes', 'no', 'ok', 'okay', 'sure', 'thanks', 'thank you', 'yep', 'nope', 'please', 'yeah', 'yeah please', 'hey', 'hi', 'hello'].includes(t)) {
+    console.log('DEBUG: pickName rejected - common response or greeting')
     return undefined
   }
   
@@ -358,6 +358,21 @@ export async function safeUpsertSnapshot(detailerId: string, phone: string, inco
     const existing = (snap as any)?.[key]
     if (existing === undefined || existing === null) return true
     if (typeof existing === 'string' && existing.trim() === '') return true
+    
+    // For customer names, be more protective - only allow updates if the new name is significantly longer
+    // or if the existing name looks like a placeholder (like "Customer")
+    if (key === 'customerName') {
+      if (typeof existing === 'string' && typeof val === 'string') {
+        // Don't override real names with short greetings or common words
+        const commonWords = ['hey', 'hi', 'hello', 'yes', 'no', 'ok', 'okay', 'sure', 'thanks', 'please']
+        if (commonWords.includes(val.toLowerCase())) return false
+        
+        // Only allow updates if existing name is a placeholder or new name is much longer
+        if (existing.toLowerCase() === 'customer' || val.length > existing.length + 3) return true
+        return false
+      }
+    }
+    
     if (typeof existing === 'string' && typeof val === 'string' && val.length > existing.length + 2) return true
     return false
   }
