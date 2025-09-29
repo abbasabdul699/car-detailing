@@ -1428,12 +1428,29 @@ Be conversational and natural.`;
       const hasEmail = snapForBooking?.customerEmail
       const emailDeclined = /\b(no|skip|not needed|don't need|not required|optional)\b/i.test(body)
       
+      console.log('DEBUG: Booking creation conditions:', {
+        hasDate,
+        hasTime,
+        hasMinimumDetails,
+        asksForServices,
+        hasEmail: !!hasEmail,
+        emailDeclined,
+        snapForBooking: snapForBooking ? {
+          customerName: snapForBooking.customerName,
+          vehicle: snapForBooking.vehicle,
+          address: snapForBooking.address,
+          customerEmail: snapForBooking.customerEmail
+        } : null
+      })
+      
       // If we have all details except email, ask for email first
       if (hasDate && hasTime && hasMinimumDetails && !asksForServices && !hasEmail && !emailDeclined) {
+        console.log('DEBUG: Asking for email - missing email but have all other details')
         aiResponse = "What's your email address? (Optional - for invoices and reminders)"
       }
       // Only create booking if we have email OR customer explicitly declined to provide it
       else if (hasDate && hasTime && hasMinimumDetails && !asksForServices && (hasEmail || emailDeclined)) {
+        console.log('DEBUG: Creating booking - all conditions met')
         const when = parseDateFromText(body) || new Date()
         const services = Array.isArray(snapForBooking?.services) ? snapForBooking?.services as string[] : []
         const parsed = parseTimeFromText(body)
@@ -1687,6 +1704,21 @@ Notes: ${parsed.note || 'Auto-captured from SMS conversation'}
             console.error('Failed to create Google Calendar event for SMS booking:', error)
           }
         }
+      } else {
+        console.log('DEBUG: Booking creation skipped - conditions not met:', {
+          hasDate,
+          hasTime,
+          hasMinimumDetails,
+          asksForServices,
+          hasEmail: !!hasEmail,
+          emailDeclined,
+          reason: !hasDate ? 'no date detected' :
+                  !hasTime ? 'no time detected' :
+                  !hasMinimumDetails ? 'missing minimum details (name/vehicle/address)' :
+                  asksForServices ? 'asking for services' :
+                  !hasEmail && !emailDeclined ? 'missing email and not declined' :
+                  'unknown'
+        })
       }
     } catch (e) {
       console.error('Non-fatal error creating lightweight booking:', e)
