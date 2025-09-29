@@ -103,78 +103,98 @@ function clean(s?: string | null) {
   return (s ?? '').trim().replace(/\s+/g, ' ')
 }
 
-function pickName(text: string) {
-  const t = text.toLowerCase().trim()
+function normalizeCaps(s: string) {
+  return s.trim().replace(/\b[a-z]/g, c => c.toUpperCase())
+}
+
+type NameHit = { name: string; confidence: number; reason: string }
+
+const NON_NAMES = new Set([
+  'home','work','office','shop','store','house','garage','driveway',
+  'detail','detailing','wash','clean','cleaning','ceramic','coating','wax','polish',
+  'today','tomorrow','morning','afternoon','evening','tonight','am','pm',
+  'yes','no','ok','okay','sure','thanks','please','help'
+])
+
+
+function looksLikeVehiclePhrase(s: string) {
+  const low = s.trim().toLowerCase()
+  if (/^\d{2,4}\b/.test(low)) return true // starts with year
+  if (/\d/.test(low)) return true         // contains any digit
+  // block "a/an + make" or "a/an + model-ish"
+  if (/^(a|an)\s+/.test(low)) {
+    const after = low.replace(/^(a|an)\s+/, '')
+    const first = after.split(/\s+/)[0]
+    if (KNOWN_MAKES.has(first) || first.length >= 3) return true
+  }
+  // block if any token is a known make
+  for (const tok of low.split(/\s+/)) if (KNOWN_MAKES.has(tok)) return true
+  return false
+}
+
+function pickName(text: string): NameHit | undefined {
+  if (!text) return
   console.log('DEBUG: pickName called with text:', text)
   
-  // Don't extract names from very short common responses or greetings
-  if (['yes', 'no', 'ok', 'okay', 'sure', 'thanks', 'thank you', 'yep', 'nope', 'please', 'yeah', 'yeah please', 'hey', 'hi', 'hello'].includes(t)) {
-    console.log('DEBUG: pickName rejected - common response or greeting')
-    return undefined
+  const raw = text.replace(/\s+/g, ' ').trim()
+  const sentences = raw.split(/(?<=[\.\!\?])\s+/)
+
+  const explicitRx = [
+    /\bmy name is\s+([a-z][a-z .'-]{1,50})(?=[\s,!.?]|$)/i,
+    /\bthis is\s+([a-z][a-z .'-]{1,50})(?=[\s,!.?]|$)/i,
+    /\b(?:i am|i'm)\s+([a-z][a-z .'-]{1,50})(?=[\s,!.?]|$)/i,
+    /\bit['']s\s+([a-z][a-z .'-]{1,50})(?=[\s,!.?]|$)/i
+  ]
+
+  const vet = (cand: string, reason: string, conf: number): NameHit | undefined => {
+    const cleaned = cand.replace(/[^a-z .'-]/gi, ' ').replace(/\s+/g, ' ').trim()
+    if (!cleaned) return
+    if (/\bnot\b/i.test(cleaned)) return // "not my name"
+    const tokens = cleaned.split(/\s+/)
+    if (tokens.length < 1 || tokens.length > 2) return
+    if (tokens.some(t => NON_NAMES.has(t.toLowerCase()))) return
+    if (looksLikeVehiclePhrase(cleaned)) return
+    // require letters and reasonable capitalization
+    if (!/[A-Za-z]/.test(cleaned)) return
+    console.log('DEBUG: pickName returning:', normalizeCaps(cleaned), 'confidence:', conf, 'reason:', reason)
+    return { name: normalizeCaps(cleaned), confidence: conf, reason }
   }
-  
-  // Try explicit name patterns first (more flexible)
-  let m = t.match(/\bmy name is\s+([a-zA-Z][a-zA-Z .''-]{1,50})\b/i)
-  if (!m) m = t.match(/\b(?:i am|i'm)\s+([a-zA-Z][a-zA-Z .''-]{1,50})\b/i)
-  if (!m) m = t.match(/\bit's\s+([a-zA-Z][a-zA-Z .''-]{1,50})\b/i)
-  if (!m) m = t.match(/\bthis is\s+([a-zA-Z][a-zA-Z .''-]{1,50})\b/i)
-  if (!m) m = t.match(/\bname is\s+([a-zA-Z][a-zA-Z .''-]{1,50})\b/i)
-  if (!m) m = t.match(/\bhi,?\s+([a-zA-Z][a-zA-Z .''-]{1,50})\b/i)
-  if (!m) m = t.match(/\bhello,?\s+([a-zA-Z][a-zA-Z .''-]{1,50})\b/i)
-  if (!m) m = t.match(/\bhey,?\s+([a-zA-Z][a-zA-Z .''-]{1,50})\b/i)
-  
-  // Try to extract names from address patterns like "123 Main St, John" or "John, 123 Main St"
-  if (!m) {
-    const addressName = t.match(/\b(\d+\s+[a-z\s]+(?:street|st|avenue|ave|road|rd|boulevard|blvd|lane|ln|drive|dr|court|ct|way|place|pl|circle|cir|terrace|terr))\s*[,.]?\s*([a-z][a-z\s]{1,30})\b/i)
-    if (addressName && addressName[2]) {
-      const potentialName = addressName[2].trim()
-      if (potentialName.length > 2 && potentialName.length < 30) {
-        m = [null, potentialName] // Create a match-like structure
+
+  // 1) explicit patterns, sentence by sentence
+  for (const s of sentences) {
+    if (/\bmy name is\s+not\b/i.test(s)) continue
+    for (const rx of explicitRx) {
+      const m = s.match(rx)
+      if (m) {
+        const cand = m[1].split(/[,!.?]/)[0]
+        const hit = vet(cand, 'explicit', 0.95)
+        if (hit) return hit
       }
     }
   }
-  
-  if (m) {
-    const candidate = clean(m[1])
-    const tokens = candidate.toLowerCase().split(/\s+/)
-    console.log('DEBUG: Found potential name:', candidate, 'tokens:', tokens)
-    // More lenient - allow up to 4 tokens and only exclude obvious non-names
-    if (tokens.length <= 4 && !tokens.some(w => ['the', 'and', 'or', 'but', 'for', 'with', 'at', 'by', 'from', 'to', 'in', 'on', 'of'].includes(w))) {
-      const result = candidate.replace(/\b[a-z]/g, c => c.toUpperCase())
-      console.log('DEBUG: pickName returning:', result)
-      return result
-    } else {
-      console.log('DEBUG: pickName rejected - invalid tokens or length')
-    }
+
+  // 2) bare-name whole-message (e.g., "Juan Smith")
+  if (/^[a-z .'-]{2,50}$/i.test(raw)) {
+    const hit = vet(raw, 'bare', 0.65)
+    if (hit) return hit
   }
-  
-  // For simple responses that look like names, be more restrictive
-  const trimmed = clean(text)
-  if (/^[a-z .'-]{2,50}$/i.test(trimmed)) {
-    const tokens = trimmed.split(/\s+/)
-    const okLen = tokens.length >= 1 && tokens.length <= 3
-    
-    // More restrictive stopword list to avoid false positives like "Yeah Please"
-    const noStop = !tokens.some(w => [
-      'the', 'and', 'or', 'but', 'for', 'with', 'at', 'by', 'from', 'to', 'in', 'on', 'of', 
-      'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 
-      'will', 'would', 'could', 'should', 'yeah', 'yes', 'no', 'ok', 'okay', 'sure', 'please', 
-      'thanks', 'thank', 'you', 'yep', 'nope', 'maybe', 'probably', 'definitely', 'absolutely',
-      'detail', 'full', 'interior', 'exterior', 'wash', 'cleaning', 'coating', 'ceramic', 'wax', 'polish'
-    ].includes(w.toLowerCase()))
-    
-    // Don't allow service-related terms as names
-    const noServiceTerms = !/\b(detail|wash|clean|coating|wax|polish|ceramic|full|interior|exterior)\b/i.test(trimmed)
-    
-    if (okLen && noStop && noServiceTerms) {
-      console.log('DEBUG: pickName returning simple name:', trimmed.replace(/\b[a-z]/g, c => c.toUpperCase()))
-      return trimmed.replace(/\b[a-z]/g, c => c.toUpperCase())
-    } else {
-      console.log('DEBUG: pickName rejected simple name - stopwords, service terms, or invalid length')
-    }
-  }
+
   console.log('DEBUG: pickName returning undefined - no match found')
-  return undefined
+  return
+}
+
+function findNameFromHistory(msgs: {direction: string; content: string}[]) {
+  const inbound = msgs.filter(m => m.direction === 'inbound')
+  // explicit only
+  for (const m of inbound) {
+    const hit = pickName(m.content || '')
+    if (hit && hit.reason === 'explicit' && hit.confidence >= 0.9) return hit
+  }
+  // then allow bare-name fallback
+  for (const m of inbound) {
+    const hit = pickName(m.content || '')
+    if (hit && hit.confidence >= 0.65) return hit
+  }
 }
 
 function pickAddress(text: string) {
@@ -308,8 +328,11 @@ export function extractSnapshotHintsSafe(message: string, availableServices: str
   const text = clean(message)
   const out: any = {}
 
-  const name = pickName(text)
-  if (name) out.customerName = name
+  const nameHit = pickName(text)
+  if (nameHit) {
+    (out as any)._nameConfidence = nameHit.confidence
+    if (nameHit.confidence >= 0.9) out.customerName = nameHit.name
+  }
 
   const addr = pickAddress(text)
   if (addr) out.address = addr
@@ -374,24 +397,26 @@ export async function safeUpsertSnapshot(detailerId: string, phone: string, inco
     if (existing === undefined || existing === null) return true
     if (typeof existing === 'string' && existing.trim() === '') return true
     
-    // For customer names, be more protective - only allow updates if the new name is significantly longer
-    // or if the existing name looks like a placeholder (like "Customer")
+    // For customer names, use confidence-based logic
     if (key === 'customerName') {
-      if (typeof existing === 'string' && typeof val === 'string') {
-        // Don't override real names with short greetings, common words, or service names
-        const commonWords = ['hey', 'hi', 'hello', 'yes', 'no', 'ok', 'okay', 'sure', 'thanks', 'please']
-        const serviceNames = ['full detail', 'interior detail', 'exterior detail', 'detail', 'wash', 'cleaning', 'ceramic coating', 'coating', 'wax', 'polish']
-        
-        if (commonWords.includes(val.toLowerCase())) return false
-        if (serviceNames.includes(val.toLowerCase())) return false
-        
-        // Don't allow service-related phrases as names
-        if (/\b(detail|wash|clean|coating|wax|polish)\b/i.test(val)) return false
-        
-        // Only allow updates if existing name is a placeholder or new name is much longer
-        if (existing.toLowerCase() === 'customer' || val.length > existing.length + 3) return true
-        return false
-      }
+      const conf = incoming._nameConfidence ?? 0
+      const existingStr = typeof existing === 'string' ? existing.trim() : ''
+      const looksVehicley = !!existingStr && (
+        /\d/.test(existingStr) ||                                   // contains year/digits
+        existingStr.toLowerCase().split(/\s+/).some(t => KNOWN_MAKES.has(t.toLowerCase())) ||
+        /^(a|an)\s/i.test(existingStr)                              // "A Nissan …"
+      )
+
+      // Always allow if we clearly had a bad/vehicle-ish name before
+      if (looksVehicley && typeof val === 'string' && conf >= 0.9) return true
+
+      const isPlaceholder = existingStr.toLowerCase() === 'customer' || existingStr === ''
+      if (isPlaceholder && conf >= 0.6) return true
+
+      // Strong new signal may replace shorter old values
+      if (conf >= 0.9) return true
+
+      return false
     }
     
     if (typeof existing === 'string' && typeof val === 'string' && val.length > existing.length + 2) return true
@@ -845,18 +870,11 @@ export async function POST(request: NextRequest) {
     
     // If no name was extracted from current message, try to extract from conversation history
     if (!inferred.customerName && conversation?.messages) {
-      const conversationText = conversation.messages
-        .filter(m => m.direction === 'inbound')
-        .map(m => m.content)
-        .join(' ')
-      console.log('DEBUG: Trying to extract name from conversation history:', conversationText)
-      console.log('DEBUG: Individual inbound messages:', conversation.messages
-        .filter(m => m.direction === 'inbound')
-        .map(m => ({ content: m.content, createdAt: m.createdAt })))
-      const nameFromHistory = pickName(conversationText)
-      if (nameFromHistory) {
-        console.log('DEBUG: Extracted name from history:', nameFromHistory)
-        inferred.customerName = nameFromHistory
+      const hit = findNameFromHistory(conversation.messages)
+      if (hit) {
+        console.log('DEBUG: Extracted name from history:', hit.name, 'confidence:', hit.confidence)
+        inferred.customerName = hit.name
+        ;(inferred as any)._nameConfidence = hit.confidence
       } else {
         console.log('DEBUG: No name found in conversation history')
       }
@@ -1602,13 +1620,9 @@ What time would work better for you?`;
         // Use customer name from snapshot, or try to extract from conversation if not available
         let customerName = snapForBooking?.customerName || 'Customer'
         if (customerName === 'Customer' && conversation?.messages) {
-          const conversationText = conversation.messages
-            .filter(m => m.direction === 'inbound')
-            .map(m => m.content)
-            .join(' ')
-          const nameFromHistory = pickName(conversationText)
-          if (nameFromHistory) {
-            customerName = nameFromHistory
+          const hit = findNameFromHistory(conversation.messages)
+          if (hit) {
+            customerName = hit.name
           }
         }
         
