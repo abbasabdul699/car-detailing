@@ -814,6 +814,9 @@ export async function POST(request: NextRequest) {
         .map(m => m.content)
         .join(' ')
       console.log('DEBUG: Trying to extract name from conversation history:', conversationText)
+      console.log('DEBUG: Individual inbound messages:', conversation.messages
+        .filter(m => m.direction === 'inbound')
+        .map(m => ({ content: m.content, createdAt: m.createdAt })))
       const nameFromHistory = pickName(conversationText)
       if (nameFromHistory) {
         console.log('DEBUG: Extracted name from history:', nameFromHistory)
