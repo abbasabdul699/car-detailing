@@ -53,6 +53,7 @@ function CalendarContent() {
       // Try to parse from the formatted date/time strings
       try {
         console.log('Parsing date/time from URL params:', { date, time });
+        console.log('Original time string:', time);
         
         // Parse date like "10/02/2025 (Thursday)" or "09/27/2025 (Saturday)" or "10/02/20"
         let dateMatch = date.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
@@ -74,8 +75,8 @@ function CalendarContent() {
           console.log('Parsed 4-digit year date:', { month, day, year, formattedDate });
         }
         
-        // Parse time like "10 PM" or "9 PM"
-        const timeMatch = time.match(/(\d{1,2})\s*(AM|PM)/i);
+        // Parse time like "10 PM" or "9 PM" or "9:00 PM"
+        const timeMatch = time.match(/(\d{1,2})(?::\d{2})?\s*(AM|PM)/i);
         if (timeMatch) {
           const [, hours, period] = timeMatch;
           let hour24 = parseInt(hours);
@@ -85,11 +86,15 @@ function CalendarContent() {
           formattedTime = `${hour24.toString().padStart(2, '0')}0000`;
           endTime = `${(hour24 + 2).toString().padStart(2, '0')}0000`;
           console.log('Parsed time:', { hours, period, hour24, formattedTime, endTime });
+        } else {
+          console.log('No time match found for:', time);
         }
       } catch (e) {
         console.error('Error parsing date/time from strings:', e);
       }
     }
+    
+    console.log('Final formatted values:', { formattedDate, formattedTime, endTime });
 
     setAppointmentDetails({
       name,
@@ -181,6 +186,7 @@ END:VCALENDAR`;
             className="flex items-center justify-center w-full p-4 border-2 border-blue-500 rounded-lg text-blue-500 font-semibold hover:bg-blue-500 hover:text-white transition-all duration-300 hover:-translate-y-1 hover:shadow-lg"
             target="_blank"
             rel="noopener noreferrer"
+            onClick={() => console.log('Google Calendar URL:', `https://calendar.google.com/calendar/render?action=TEMPLATE&text=Car%20Detailing%20-%20${encodeURIComponent(appointmentDetails.name)}&dates=${appointmentDetails.formattedDate}T${appointmentDetails.formattedTime}Z/${appointmentDetails.formattedDate}T${appointmentDetails.endTime}Z&details=Mobile%20car%20detailing%20service%0A%0AService:%20${encodeURIComponent(appointmentDetails.service)}%0ACustomer:%20${encodeURIComponent(appointmentDetails.name)}%0AVehicle:%20${encodeURIComponent(appointmentDetails.car)}%0ALocation:%20${encodeURIComponent(appointmentDetails.address)}&location=${encodeURIComponent(appointmentDetails.address)}`)}
           >
             <span className="mr-3 text-xl">📅</span>
             <span>Add to Google Calendar</span>
