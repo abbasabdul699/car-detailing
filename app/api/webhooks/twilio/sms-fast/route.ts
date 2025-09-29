@@ -828,12 +828,22 @@ export async function POST(request: NextRequest) {
       const category = ds.service.category?.name || 'Other'
       if (!acc[category]) acc[category] = []
       
-      // Format service with pricing if available
+      // Format service with pricing and duration if available
       let serviceInfo = ds.service.name
+      const details: string[] = []
       if (ds.service.priceRange) {
-        serviceInfo += ` (${ds.service.priceRange})`
-      } else if (ds.service.basePrice) {
-        serviceInfo += ` ($${ds.service.basePrice})`
+        details.push(ds.service.priceRange)
+      } else if (typeof ds.service.basePrice === 'number') {
+        const formattedBase = Number.isInteger(ds.service.basePrice)
+          ? ds.service.basePrice.toString()
+          : ds.service.basePrice.toFixed(2)
+        details.push(`$${formattedBase}`)
+      }
+      if (typeof ds.service.duration === 'number' && ds.service.duration > 0) {
+        details.push(`${ds.service.duration} min`)
+      }
+      if (details.length) {
+        serviceInfo += ` (${details.join(', ')})`
       }
       
       acc[category].push(serviceInfo)

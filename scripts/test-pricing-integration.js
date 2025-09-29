@@ -45,12 +45,20 @@ async function testPricingIntegration() {
     detailerServices.forEach(ds => {
       const service = ds.service
       let pricing = 'No pricing'
+      const parts = []
       if (service.priceRange) {
-        pricing = service.priceRange
-      } else if (service.basePrice) {
-        pricing = `$${service.basePrice}`
+        parts.push(service.priceRange)
+      } else if (typeof service.basePrice === 'number') {
+        const formattedBase = Number.isInteger(service.basePrice)
+          ? service.basePrice.toString()
+          : service.basePrice.toFixed(2)
+        parts.push(`$${formattedBase}`)
       }
-      
+      if (typeof service.duration === 'number' && service.duration > 0) {
+        parts.push(`${service.duration} min`)
+      }
+      pricing = parts.join(', ') || pricing
+
       console.log(`  • ${service.name} (${service.category?.name || 'No category'}): ${pricing}`)
     })
     
@@ -62,10 +70,20 @@ async function testPricingIntegration() {
       
       // Format service with pricing if available
       let serviceInfo = ds.service.name
+      const infoParts = []
       if (ds.service.priceRange) {
-        serviceInfo += ` (${ds.service.priceRange})`
-      } else if (ds.service.basePrice) {
-        serviceInfo += ` ($${ds.service.basePrice})`
+        infoParts.push(ds.service.priceRange)
+      } else if (typeof ds.service.basePrice === 'number') {
+        const formattedBase = Number.isInteger(ds.service.basePrice)
+          ? ds.service.basePrice.toString()
+          : ds.service.basePrice.toFixed(2)
+        infoParts.push(`$${formattedBase}`)
+      }
+      if (typeof ds.service.duration === 'number' && ds.service.duration > 0) {
+        infoParts.push(`${ds.service.duration} min`)
+      }
+      if (infoParts.length) {
+        serviceInfo += ` (${infoParts.join(', ')})`
       }
       
       acc[category].push(serviceInfo)
