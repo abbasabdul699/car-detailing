@@ -30,22 +30,43 @@ export default function AdminCustomersPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDetailer, setSelectedDetailer] = useState('all');
+  const [detailers, setDetailers] = useState<any[]>([]);
 
   useEffect(() => {
     fetchCustomers();
+    fetchDetailers();
   }, [selectedDetailer]);
 
   const fetchCustomers = async () => {
     try {
       setLoading(true);
       const params = selectedDetailer !== 'all' ? `?detailerId=${selectedDetailer}` : '';
+      console.log('Fetching customers with params:', params);
       const response = await fetch(`/api/customers${params}`);
+      console.log('Customers API response status:', response.status);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
       const data = await response.json();
+      console.log('Customers data received:', data);
       setCustomers(data.customers || []);
     } catch (error) {
       console.error('Error fetching customers:', error);
+      setCustomers([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchDetailers = async () => {
+    try {
+      const response = await fetch('/api/admin/detailers');
+      const data = await response.json();
+      setDetailers(data.detailers || []);
+    } catch (error) {
+      console.error('Error fetching detailers:', error);
     }
   };
 
@@ -96,7 +117,11 @@ export default function AdminCustomersPage() {
               className="px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="all">All Detailers</option>
-              {/* You can add detailer options here */}
+              {detailers.map((detailer) => (
+                <option key={detailer.id} value={detailer.id}>
+                  {detailer.businessName}
+                </option>
+              ))}
             </select>
           </div>
 

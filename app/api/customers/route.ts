@@ -6,16 +6,22 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const detailerId = searchParams.get('detailerId')
     
-    if (!detailerId) {
-      return NextResponse.json({ error: 'detailerId is required' }, { status: 400 })
-    }
+    // Build where clause - if detailerId provided, filter by it, otherwise get all
+    const whereClause = detailerId && detailerId !== 'all' 
+      ? { detailerId } 
+      : {}
 
     const customers = await prisma.customer.findMany({
-      where: { detailerId },
+      where: whereClause,
       include: {
         bookings: {
           orderBy: { scheduledDate: 'desc' },
           take: 1
+        },
+        detailer: {
+          select: {
+            businessName: true
+          }
         }
       },
       orderBy: { updatedAt: 'desc' }
