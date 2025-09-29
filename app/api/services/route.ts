@@ -12,6 +12,9 @@ export async function GET() {
         description: true,
         icon: true,
         categoryId: true,
+        basePrice: true,
+        priceRange: true,
+        duration: true,
       },
       orderBy: { name: 'asc' },
     });
@@ -23,7 +26,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const { name, description, icon, categoryId } = await request.json();
+    const { name, description, icon, categoryId, basePrice, priceRange, duration } = await request.json();
     if (!name || typeof name !== 'string' || !name.trim()) {
       return NextResponse.json({ error: 'Service name is required' }, { status: 400 });
     }
@@ -38,6 +41,9 @@ export async function POST(request: Request) {
         description: description || '',
         icon: icon || '',
         categoryId: categoryId || null,
+        basePrice: basePrice ? parseFloat(basePrice) : null,
+        priceRange: priceRange || null,
+        duration: duration ? parseInt(duration) : null,
       },
     });
     return NextResponse.json(newService, { status: 201 });

@@ -16,6 +16,9 @@ interface Service {
   description: string;
   icon: string; // S3 URL
   categoryId?: string;
+  basePrice?: number;
+  priceRange?: string;
+  duration?: number;
 }
 
 export default function AdminServicesPage() {
@@ -24,7 +27,15 @@ export default function AdminServicesPage() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingService, setEditingService] = useState<Service | null>(null);
-  const [form, setForm] = useState({ name: '', description: '', icon: '', categoryId: '' });
+  const [form, setForm] = useState({ 
+    name: '', 
+    description: '', 
+    icon: '', 
+    categoryId: '',
+    basePrice: '',
+    priceRange: '',
+    duration: ''
+  });
   const [error, setError] = useState('');
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
 
@@ -53,7 +64,15 @@ export default function AdminServicesPage() {
 
   const openAddModal = () => {
     setEditingService(null);
-    setForm({ name: '', description: '', icon: '', categoryId: categories[0]?.id || '' });
+    setForm({ 
+      name: '', 
+      description: '', 
+      icon: '', 
+      categoryId: categories[0]?.id || '',
+      basePrice: '',
+      priceRange: '',
+      duration: ''
+    });
     setShowModal(true);
     setError('');
   };
@@ -65,6 +84,9 @@ export default function AdminServicesPage() {
       description: service.description,
       icon: service.icon,
       categoryId: service.categoryId || categories[0]?.id || '',
+      basePrice: service.basePrice?.toString() || '',
+      priceRange: service.priceRange || '',
+      duration: service.duration?.toString() || ''
     });
     setShowModal(true);
     setError('');
@@ -159,8 +181,23 @@ export default function AdminServicesPage() {
                         <div key={service.id} className="bg-white p-6 rounded-xl shadow flex flex-col items-center text-center">
                           <img src={service.icon} alt={service.name} className="w-16 h-16 mb-2 object-contain" />
                           <h3 className="font-bold text-lg mb-1">{service.name}</h3>
-                          <p className="text-gray-600 mb-2">{service.description}</p>
-                          <div className="flex gap-2 mt-2">
+                          <p className="text-gray-600 mb-2 text-sm">{service.description}</p>
+                          
+                          {/* Pricing Information */}
+                          <div className="mb-3 text-sm">
+                            {service.priceRange ? (
+                              <div className="text-green-600 font-semibold">{service.priceRange}</div>
+                            ) : service.basePrice ? (
+                              <div className="text-green-600 font-semibold">${service.basePrice}</div>
+                            ) : (
+                              <div className="text-gray-400">No pricing set</div>
+                            )}
+                            {service.duration && (
+                              <div className="text-gray-500">{service.duration} min</div>
+                            )}
+                          </div>
+                          
+                          <div className="flex gap-2 mt-auto">
                             <button className="px-3 py-1 bg-blue-600 text-white rounded" onClick={() => openEditModal(service)}>Edit</button>
                             <button className="px-3 py-1 bg-red-600 text-white rounded" onClick={() => handleDelete(service.id)}>Delete</button>
                           </div>
@@ -213,6 +250,36 @@ export default function AdminServicesPage() {
                       <option key={cat.id} value={cat.id}>{cat.name}</option>
                     ))}
                   </select>
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1 text-gray-700">Base Price ($)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    className="w-full rounded-lg px-4 py-2 border border-gray-300 bg-gray-50 focus:border-green-500 focus:ring-2 focus:ring-green-200 transition placeholder-gray-400"
+                    value={form.basePrice}
+                    onChange={e => setForm(f => ({ ...f, basePrice: e.target.value }))}
+                    placeholder="e.g. 75.00"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1 text-gray-700">Price Range</label>
+                  <input
+                    className="w-full rounded-lg px-4 py-2 border border-gray-300 bg-gray-50 focus:border-green-500 focus:ring-2 focus:ring-green-200 transition placeholder-gray-400"
+                    value={form.priceRange}
+                    onChange={e => setForm(f => ({ ...f, priceRange: e.target.value }))}
+                    placeholder="e.g. $50-100"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1 text-gray-700">Duration (minutes)</label>
+                  <input
+                    type="number"
+                    className="w-full rounded-lg px-4 py-2 border border-gray-300 bg-gray-50 focus:border-green-500 focus:ring-2 focus:ring-green-200 transition placeholder-gray-400"
+                    value={form.duration}
+                    onChange={e => setForm(f => ({ ...f, duration: e.target.value }))}
+                    placeholder="e.g. 90"
+                  />
                 </div>
                 <div>
                   <label className="block font-semibold mb-1 text-gray-700">Icon (SVG)</label>
