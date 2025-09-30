@@ -1,6 +1,6 @@
 // app/api/upload/route.ts
 import { NextResponse } from 'next/server';
-import { uploadImage, ImageCategory } from '@/lib/s3-utils';
+import { uploadImage, type ImageCategory } from '@/lib/s3-utils';
 import { prisma } from '@/lib/prisma';
 import { ObjectId } from 'mongodb';
 import { getServerSession } from "next-auth/next";
@@ -21,16 +21,12 @@ export async function POST(request: Request) {
     const type = formData.get('type') as 'profile' | 'portfolio' | 'bundle';
     
     // Validate required fields
-    if (!file || !businessName || !detailerId || !type) {
+    if (!file || !businessName || !type) {
       return NextResponse.json({ error: 'Missing required fields.' }, { status: 400 });
     }
 
-    if (!detailerId) {
-      return NextResponse.json(
-        { error: 'Detailer ID is required' },
-        { status: 400 }
-      );
-    }
+    // Use session user ID if detailerId not provided
+    const finalDetailerId = detailerId || session.user.id;
 
     // Validate file type
     if (!file.type.startsWith('image/')) {
@@ -51,7 +47,7 @@ export async function POST(request: Request) {
     // Convert detailerId to ObjectId
     let objectId;
     try {
-      objectId = new ObjectId(detailerId);
+      objectId = new ObjectId(finalDetailerId);
     } catch (e) {
       return NextResponse.json({ error: 'Invalid detailerId format' }, { status: 400 });
     }
@@ -67,7 +63,8 @@ export async function POST(request: Request) {
 
     // Upload to S3
     const buffer = Buffer.from(await file.arrayBuffer());
-    const imageUrl = await uploadImage(buffer, businessName, ImageCategory.DETAILER);
+    const fileName = `${businessName}-${Date.now()}-${Math.random().toString(36).substring(2)}.jpg`;
+    const imageUrl = await uploadImage(buffer, 'detailers', fileName);
 
     // Save to database
     const image = await prisma.image.create({

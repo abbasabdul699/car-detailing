@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import ImageUploader from "../../components/ImageUploader";
 
 interface PortfolioImage {
@@ -9,6 +10,7 @@ interface PortfolioImage {
 }
 
 export default function ManageImagesPage() {
+  const { data: session } = useSession();
   const [images, setImages] = useState<PortfolioImage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -73,6 +75,7 @@ export default function ManageImagesPage() {
       <div className="mb-6">
         <ImageUploader
           businessName="Demo Detailer"
+          detailerId={session?.user?.id}
           onUpload={handleUpload}
           type="portfolio"
         />
