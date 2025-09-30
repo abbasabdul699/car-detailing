@@ -1,35 +1,160 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import twilio from 'twilio';
 
-const prisma = new PrismaClient();
+type BusinessHours = Record<string, unknown> | null;
+
+const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
+const DAY_LABELS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as const;
+
+function coerceHourRanges(dayHours: unknown): string[] {
+  if (!Array.isArray(dayHours) || dayHours.length === 0) {
+    return [];
+  }
+
+  const looksNested = Array.isArray(dayHours[0]);
+  const ranges = looksNested ? (dayHours as unknown[][]) : [dayHours as unknown[]];
+
+  return ranges
+    .map(range => Array.isArray(range) ? range.filter(v => typeof v === 'string') as string[] : [])
+    .filter(range => range.length >= 2)
+    .map(range => `${range[0]}-${range[1]}`);
+}
+
+function getDayHours(businessHours: BusinessHours, dayKey: string): unknown {
+  if (!businessHours || typeof businessHours !== 'object') {
+    return null;
+  }
+
+  return (businessHours as Record<string, unknown>)[dayKey];
+}
+
+function formatBusinessHoursSummary(businessHours: BusinessHours): string {
+  if (!businessHours || typeof businessHours !== 'object') {
+    return 'Business hours not provided.';
+  }
+
+  const lines = DAY_KEYS.map((dayKey, idx) => {
+    const ranges = coerceHourRanges(getDayHours(businessHours, dayKey));
+    if (!ranges.length) {
+      return `${DAY_LABELS[idx]}: Closed`;
+    }
+    return `${DAY_LABELS[idx]}: ${ranges.join(', ')}`;
+  });
+
+  return lines.join('\n');
+}
+
+interface BookingSummary {
+  scheduledDate: Date;
+  scheduledTime: string | null;
+  services: string[];
+}
+
+function formatUpcomingBookings(bookings: BookingSummary[]): string {
+  if (!bookings.length) {
+    return 'No upcoming bookings on the calendar.';
+  }
+
+  return bookings
+    .slice(0, 5)
+    .map(booking => {
+      const dateLabel = booking.scheduledDate.toLocaleDateString('en-US', {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+      });
+      const timeLabel = booking.scheduledTime
+        ? booking.scheduledTime
+        : booking.scheduledDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+      const serviceLabel = booking.services?.length
+        ? booking.services.join(', ')
+        : 'Service not specified';
+      return `${dateLabel} at ${timeLabel} — ${serviceLabel}`;
+    })
+    .join('\n');
+}
+
+function formatAvailabilitySummary(businessHours: BusinessHours, bookings: BookingSummary[]): string {
+  if (!businessHours || typeof businessHours !== 'object') {
+    return 'Ask for a preferred date and time, then confirm manually.';
+  }
+
+  const now = new Date();
+  const summaries: string[] = [];
+
+  for (let offset = 0; offset < 5; offset += 1) {
+    const day = new Date(now);
+    day.setHours(0, 0, 0, 0);
+    day.setDate(now.getDate() + offset);
+
+    const dayKey = DAY_KEYS[day.getDay() === 0 ? 6 : day.getDay() - 1];
+    const dayLabel = day.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+
+    const ranges = coerceHourRanges(getDayHours(businessHours, dayKey));
+    if (!ranges.length) {
+      summaries.push(`${dayLabel}: Closed`);
+      continue;
+    }
+
+    const dayBookings = bookings.filter(booking => {
+      const bookingDate = booking.scheduledDate;
+      return (
+        bookingDate.getFullYear() === day.getFullYear() &&
+        bookingDate.getMonth() === day.getMonth() &&
+        bookingDate.getDate() === day.getDate()
+      );
+    });
+    const bookingTimes = dayBookings.map(booking => (
+      booking.scheduledTime
+        ? booking.scheduledTime
+        : booking.scheduledDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+    ));
+
+    const bookingLabel = bookingTimes.length ? `Booked: ${bookingTimes.join(', ')}` : 'No bookings yet';
+    summaries.push(`${dayLabel}: ${ranges.join(', ')} (${bookingLabel})`);
+  }
+
+  return summaries.slice(0, 3).join('\n');
+}
+
+function buildSystemPrompt(detailerInfo: any, context: {
+  businessHours: string;
+  availability: string;
+  bookings: string;
+}): string {
+  const servicesList = detailerInfo.services?.map((s: any) => s.service?.name).filter(Boolean) || [];
+  const serviceText = servicesList.length ? servicesList.join(', ') : 'Various car detailing services';
+
+  return `You are an AI assistant for ${detailerInfo.businessName}, a car detailing service operating in ${detailerInfo.city}, ${detailerInfo.state}.
+
+Business Hours:
+${context.businessHours}
+
+Current Availability:
+${context.availability}
+
+Upcoming Bookings:
+${context.bookings}
+
+Services you can offer: ${serviceText}
+
+Capabilities:
+1. Help customers book appointments without double-booking existing slots.
+2. Answer questions about services, pricing, and preparation.
+3. Collect all required booking details (date, time, vehicle type/model/year, services requested, service location, contact information).
+
+When working on a booking:
+- Only propose times within business hours that are not already booked.
+- Confirm the customer’s preferred date and time and verify availability.
+- Ask follow-up questions one at a time and keep responses concise, friendly, and professional.
+- Summarize the booking details back to the customer before finalizing.`;
+}
 const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
 
 // Helper function to call OpenAI API
-async function getAIResponse(messages: any[], detailerInfo: any, conversationHistory: any[] = []) {
+async function getAIResponse(messages: any[], systemPrompt: string, conversationHistory: any[] = []) {
   try {
-    const systemPrompt = `You are an AI assistant for ${detailerInfo.businessName}, a car detailing service. Your role is to help customers book appointments and answer questions about services.
-
-Business Information:
-- Business Name: ${detailerInfo.businessName}
-- Location: ${detailerInfo.city}, ${detailerInfo.state}
-- Services: ${detailerInfo.services?.map((s: any) => s.service?.name).join(', ') || 'Various car detailing services'}
-
-Your capabilities:
-1. Help customers book appointments
-2. Answer questions about services and pricing
-3. Provide information about availability
-4. Collect necessary details for booking (date, time, vehicle type, services needed)
-
-When booking appointments:
-- Ask for preferred date and time
-- Ask about the vehicle (type, model, year)
-- Ask what services they need
-- Ask where the vehicle is located
-- Confirm all details before finalizing
-
-Be friendly, professional, and helpful. Keep responses concise but informative.`;
-
     const conversationContext = conversationHistory.map(msg => ({
       role: msg.direction === 'inbound' ? 'user' : 'assistant',
       content: msg.content
@@ -175,6 +300,28 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
     }
 
+    const upcomingBookingsRaw = await prisma.booking.findMany({
+      where: {
+        detailerId: conversation.detailerId,
+        scheduledDate: { gte: new Date() },
+        status: { in: ['pending', 'confirmed'] },
+      },
+      orderBy: { scheduledDate: 'asc' },
+      take: 5,
+    });
+
+    const normalizedBookings: BookingSummary[] = upcomingBookingsRaw.map(booking => ({
+      scheduledDate: booking.scheduledDate instanceof Date ? booking.scheduledDate : new Date(booking.scheduledDate),
+      scheduledTime: booking.scheduledTime ?? null,
+      services: booking.services ?? [],
+    }));
+
+    const systemPrompt = buildSystemPrompt(conversation.detailer, {
+      businessHours: formatBusinessHoursSummary(conversation.detailer.businessHours as BusinessHours),
+      availability: formatAvailabilitySummary(conversation.detailer.businessHours as BusinessHours, normalizedBookings),
+      bookings: formatUpcomingBookings(normalizedBookings),
+    });
+
     // Store the incoming message
     const newMessage = await prisma.message.create({
       data: {
@@ -189,7 +336,7 @@ export async function POST(request: NextRequest) {
     const updatedMessages = [...conversation.messages, newMessage];
 
     // Get AI response
-    const aiResponse = await getAIResponse(updatedMessages, conversation.detailer, conversation.messages);
+    const aiResponse = await getAIResponse(updatedMessages, systemPrompt, conversation.messages);
 
     // Store the AI response
     const aiMessage = await prisma.message.create({
