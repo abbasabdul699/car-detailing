@@ -35,6 +35,16 @@ export default function BusinessHoursPicker({ value = {}, onChange }: BusinessHo
     onChange(updated);
   };
 
+  // Helper function to format time for display (ensures 24-hour format)
+  const formatTimeForInput = (time: string) => {
+    if (!time) return "";
+    // Ensure the time is in HH:MM format
+    if (time.includes(":")) {
+      return time;
+    }
+    return time;
+  };
+
   const copyHoursToAllDays = () => {
     const sourceHours = value[sourceDay];
     if (!sourceHours) return;
@@ -114,19 +124,27 @@ export default function BusinessHoursPicker({ value = {}, onChange }: BusinessHo
               <input
                 type="time"
                 step="600"
-                value={value[key]?.[0] || ""}
+                value={formatTimeForInput(value[key]?.[0] || "")}
                 onChange={e => handleTimeChange(key, 0, e.target.value)}
-                className="input input-bordered w-28"
+                className="input input-bordered w-28 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 disabled={isClosed}
+                style={{ 
+                  WebkitAppearance: 'none',
+                  MozAppearance: 'textfield'
+                }}
               />
               <span>-</span>
               <input
                 type="time"
                 step="600"
-                value={value[key]?.[1] || ""}
+                value={formatTimeForInput(value[key]?.[1] || "")}
                 onChange={e => handleTimeChange(key, 1, e.target.value)}
-                className="input input-bordered w-28"
+                className="input input-bordered w-28 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 disabled={isClosed}
+                style={{ 
+                  WebkitAppearance: 'none',
+                  MozAppearance: 'textfield'
+                }}
               />
             </div>
           );

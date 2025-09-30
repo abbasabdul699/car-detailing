@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import BusinessHoursPicker from '@/app/components/BusinessHoursPicker';
 
 interface Profile {
   id: string;
@@ -241,6 +242,16 @@ export default function ProfileEditForm({ profile, onClose, onSave, section }: P
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
+          </div>
+        );
+
+      case 'businessHours':
+        return (
+          <div className="space-y-4">
+            <BusinessHoursPicker
+              value={formData.businessHours || {}}
+              onChange={(hours) => setFormData(prev => ({ ...prev, businessHours: hours }))}
+            />
           </div>
         );
 
