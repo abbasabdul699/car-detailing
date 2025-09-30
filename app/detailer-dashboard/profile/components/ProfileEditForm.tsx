@@ -50,6 +50,9 @@ export default function ProfileEditForm({ profile, onClose, onSave, section }: P
     setIsSubmitting(true);
 
     try {
+      console.log('Submitting profile data:', formData);
+      console.log('Business hours data:', formData.businessHours);
+      
       const response = await fetch('/api/detailer/profile', {
         method: 'PATCH',
         headers: {
@@ -58,14 +61,21 @@ export default function ProfileEditForm({ profile, onClose, onSave, section }: P
         body: JSON.stringify(formData),
       });
 
+      console.log('Response status:', response.status);
+      console.log('Response ok:', response.ok);
+
       if (!response.ok) {
-        throw new Error('Failed to update profile');
+        const errorData = await response.json();
+        console.error('API Error:', errorData);
+        throw new Error(`Failed to update profile: ${errorData.error || 'Unknown error'}`);
       }
 
-      onSave(formData);
+      const updatedData = await response.json();
+      console.log('Updated profile data:', updatedData);
+      onSave(updatedData);
     } catch (error) {
       console.error('Error updating profile:', error);
-      alert('Failed to update profile. Please try again.');
+      alert(`Failed to update profile: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsSubmitting(false);
     }

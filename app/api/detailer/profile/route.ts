@@ -92,6 +92,9 @@ export async function PATCH(request: Request) {
   }
 
   try {
+    console.log('Updating profile with data:', updateData);
+    console.log('User ID:', session.user.id);
+    
     const updated = await prisma.detailer.update({
       where: { id: session.user.id },
       data: updateData,
@@ -121,9 +124,16 @@ export async function PATCH(request: Request) {
       },
     });
 
+    console.log('Profile updated successfully:', updated);
     return NextResponse.json(updated);
   } catch (error) {
     console.error('Error updating profile:', error);
+    console.error('Error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      updateData,
+      userId: session.user.id
+    });
     return NextResponse.json({ error: "Failed to update profile" }, { status: 500 });
   }
 }
