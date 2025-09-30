@@ -13,7 +13,9 @@ export interface ProfileCompletionFields {
 
 export type DetailerWithRelations = PrismaDetailer & {
     services: DetailerService[];
-    portfolioImages: PortfolioImage[];
+    portfolioImages?: PortfolioImage[];
+    images?: any[];
+    detailerImages?: any[];
 };
 
 export function checkProfileCompletion(detailer: PrismaDetailer): ProfileCompletionFields {
@@ -61,7 +63,13 @@ const PROFILE_CRITERIA = {
     }
   },
   services: (d: DetailerWithRelations) => d.services && d.services.length > 0,
-  portfolio: (d: DetailerWithRelations) => d.portfolioImages && d.portfolioImages.length > 0,
+  portfolio: (d: DetailerWithRelations) => {
+    // Check all possible image sources
+    const hasPortfolioImages = d.portfolioImages && d.portfolioImages.length > 0;
+    const hasImages = d.images && d.images.length > 0;
+    const hasDetailerImages = d.detailerImages && d.detailerImages.length > 0;
+    return hasPortfolioImages || hasImages || hasDetailerImages;
+  },
 };
 
 type CriteriaKeys = keyof typeof PROFILE_CRITERIA;
