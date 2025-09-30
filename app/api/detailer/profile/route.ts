@@ -82,7 +82,7 @@ export async function PATCH(request: Request) {
 
   // Only allow updating these fields
   const allowedFields = [
-    'firstName', 'lastName', 'photo', 'businessName', 'phone', 'address', 'city', 'state', 'zipCode',
+    'firstName', 'lastName', 'businessName', 'phone', 'address', 'city', 'state', 'zipCode',
     'description', 'latitude', 'longitude', 'priceRange', 'website', 'imageUrl', 'businessHours', 'verified',
     'facebook', 'instagram', 'tiktok'
   ];
@@ -101,7 +101,6 @@ export async function PATCH(request: Request) {
       select: {
         id: true,
         email: true,
-        photo: true,
         businessName: true,
         phone: true,
         address: true,
