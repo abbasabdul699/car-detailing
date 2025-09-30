@@ -114,7 +114,7 @@ export default function DetailerDashboardLayout({
           <div className="flex flex-shrink-0 border-t border-green-700 dark:border-green-800 p-4 mt-auto flex-col gap-2">
             <Link
               href="/help-page"
-              className={`mt-2 flex items-center justify-center px-2 py-2 text-sm font-semibold rounded-md transition-all ${sidebarOpen ? "bg-green-600 text-white hover:bg-green-700" : "bg-green-600 text-white w-10 h-10 p-0 justify-center"}`}
+              className={`mt-2 flex items-center justify-center px-2 py-2 text-sm font-semibold rounded-xl transition-all ${sidebarOpen ? "bg-green-600 text-white hover:bg-green-700" : "bg-green-600 text-white w-10 h-10 p-0 justify-center"}`}
             >
               <QuestionMarkCircleIcon className="h-6 w-6 mr-2" aria-hidden="true" />
               {sidebarOpen && "Help"}
