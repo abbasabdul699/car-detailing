@@ -397,11 +397,13 @@ export default function DetailerProfileClient({ detailer: initialDetailer, categ
   useEffect(() => {
     const trackVisit = async () => {
       try {
-        await fetch('/api/visitors', {
+        console.log('Tracking visit for detailer:', detailer.id);
+        const response = await fetch('/api/visitors', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ detailerId: detailer.id }),
         });
+        console.log('Visit tracking response:', response.status);
       } catch (error) {
         console.error('Failed to track visit:', error);
       }
