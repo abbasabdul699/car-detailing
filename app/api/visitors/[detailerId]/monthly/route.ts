@@ -15,10 +15,10 @@ export async function POST(req: Request) {
 }
 
 // GET: Return monthly visitor stats
-export async function GET(req: Request, { params }: { params: { detailerId: string } }) {
+export async function GET(req: Request, { params }: { params: Promise<{ detailerId: string }> }) {
   await dbConnect();
   
-  const { detailerId } = params;
+  const { detailerId } = await params;
 
   if (!detailerId) {
     return NextResponse.json({ error: "Detailer ID is required" }, { status: 400 });

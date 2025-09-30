@@ -393,6 +393,22 @@ export default function DetailerProfileClient({ detailer: initialDetailer, categ
   const [showContactForm, setShowContactForm] = useState(false);
   const router = useRouter();
 
+  // Track visitor view on component mount
+  useEffect(() => {
+    const trackVisit = async () => {
+      try {
+        await fetch('/api/visitors', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ detailerId: detailer.id }),
+        });
+      } catch (error) {
+        console.error('Failed to track visit:', error);
+      }
+    };
+    trackVisit();
+  }, [detailer.id]);
+
   const toggleBundleExpansion = (bundleId: string) => {
     setExpandedBundles(prev => ({ ...prev, [bundleId]: !prev[bundleId] }));
   };
