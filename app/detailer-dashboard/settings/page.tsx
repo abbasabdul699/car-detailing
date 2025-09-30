@@ -110,7 +110,7 @@ export default function DetailerSettingsPage() {
             </div>
             {emailError && <div className="text-red-600 font-semibold">{emailError}</div>}
             {emailSuccess && <div className="text-green-600 font-semibold">{emailSuccess}</div>}
-            <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-700 transition" disabled={emailLoading}>
+            <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-green-700 transition" disabled={emailLoading}>
               {emailLoading ? 'Saving...' : 'Save Changes'}
             </button>
           </form>
@@ -209,7 +209,7 @@ export default function DetailerSettingsPage() {
             </div>
             {error && <div className="text-red-600 font-semibold">{error}</div>}
             {success && <div className="text-green-600 font-semibold">{success}</div>}
-            <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-700 transition" disabled={loading}>
+            <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-green-700 transition" disabled={loading}>
               {loading ? 'Saving...' : 'Save Changes'}
             </button>
           </form>
