@@ -82,7 +82,6 @@ export default function DetailerDashboardPage() {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 p-6">
       {/* Header Info */}
       <div className="mb-6 p-4 bg-white dark:bg-gray-900 rounded-xl shadow">
-        <div className="text-gray-700 dark:text-gray-300">Logged in as: <b>{user.email}</b></div>
         <div className="text-gray-700 dark:text-gray-300">Detailer ID: <b>{user.id}</b></div>
       </div>
 
