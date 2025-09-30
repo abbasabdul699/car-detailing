@@ -35,19 +35,17 @@ export default function ManageImagesPage() {
     fetchImages();
   }, []);
 
-  // Add image after upload
+  // Refresh images after upload
   const handleUpload = async (url: string) => {
+    // The /api/upload endpoint already saved the image to the database
+    // So we just need to refresh the images list
     try {
-      const res = await fetch("/api/detailer/portfolio-images", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url }),
-      });
-      if (!res.ok) throw new Error("Failed to add image");
-      const newImage = await res.json();
-      setImages((prev) => [newImage, ...prev]);
+      const res = await fetch("/api/detailer/portfolio-images");
+      if (!res.ok) throw new Error("Failed to fetch images");
+      const data = await res.json();
+      setImages(data);
     } catch (err: any) {
-      setError(err.message || "Failed to add image");
+      setError(err.message || "Failed to refresh images");
     }
   };
 
