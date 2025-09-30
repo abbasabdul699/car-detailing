@@ -12,6 +12,7 @@ export default function ManageImagesPage() {
   const [images, setImages] = useState<PortfolioImage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   // Fetch images on mount
   useEffect(() => {
@@ -86,7 +87,13 @@ export default function ManageImagesPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
           {images.map((img, idx) => (
             <div key={img.id} className="relative group rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden bg-white flex flex-col aspect-[4/3]">
-              <img src={img.url} alt={`Portfolio ${idx + 1}`} className="object-cover w-full h-full" style={{ aspectRatio: '4/3' }} />
+              <img 
+                src={img.url} 
+                alt={`Portfolio ${idx + 1}`} 
+                className="object-cover w-full h-full cursor-pointer hover:opacity-90 transition-opacity" 
+                style={{ aspectRatio: '4/3' }} 
+                onClick={() => setSelectedImage(img.url)}
+              />
             <button
               onClick={() => handleDelete(img.url)}
               className="absolute top-2 right-2 bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
@@ -103,6 +110,32 @@ export default function ManageImagesPage() {
           </div>
         ))}
       </div>
+      )}
+      
+      {/* Fullscreen Image Modal */}
+      {selectedImage && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50"
+          onClick={() => setSelectedImage(null)}
+        >
+          <div className="relative max-w-4xl max-h-[90vh] w-full h-full flex items-center justify-center p-4">
+            <img 
+              src={selectedImage} 
+              alt="Portfolio image" 
+              className="max-w-full max-h-full object-contain"
+              onClick={(e) => e.stopPropagation()}
+            />
+            <button
+              onClick={() => setSelectedImage(null)}
+              className="absolute top-4 right-4 bg-white bg-opacity-20 hover:bg-opacity-30 text-white rounded-full p-2 transition-all"
+              title="Close"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
