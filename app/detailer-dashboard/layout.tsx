@@ -67,7 +67,7 @@ export default function DetailerDashboardLayout({
           {/* Burger button always at top */}
           <div className="flex items-center h-16 px-4 border-b border-green-700 dark:border-green-800">
             <button
-              className={`flex items-center justify-center w-10 h-10 rounded-lg hover:bg-green-700 dark:hover:bg-green-800 transition-all ${sidebarOpen ? "mr-2" : "mx-auto"}`}
+              className={`flex items-center justify-center w-10 h-10 rounded-lg hover:bg-green-700 dark:hover:bg-green-800 transition-all ${sidebarOpen ? "mr-3" : "mx-auto"}`}
               onClick={() => setSidebarOpen((open) => !open)}
               aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
             >
@@ -76,8 +76,12 @@ export default function DetailerDashboardLayout({
               </svg>
             </button>
             {sidebarOpen && (
-              <Link href="/detailer-dashboard" className="text-xl font-bold text-white ml-2">
-                Reeva Detailer
+              <Link href="/detailer-dashboard" className="flex items-center">
+                <img
+                  src="https://reevacar.s3.us-east-2.amazonaws.com/reeva-logo/Pasted+Graphic+1.png"
+                  alt="Reeva Logo"
+                  className="h-8 w-auto"
+                />
               </Link>
             )}
           </div>
