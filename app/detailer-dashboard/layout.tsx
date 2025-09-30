@@ -125,10 +125,13 @@ export default function DetailerDashboardLayout({
         <div className={`flex-1 flex flex-col transition-[padding-left] duration-200 ${sidebarOpen ? "md:pl-64" : "md:pl-20"}`}>
           {/* Dashboard Navbar */}
           <DashboardNavbar onLogout={handleLogout} />
-          <main className="flex-1">
-            <div className="py-6">
-              <div className="mx-auto max-w-7xl px-4 sm:px-6 md:px-8">
-                {children}
+          <main className="flex-1 p-6 bg-gradient-to-br from-green-50 via-gray-50 to-green-50 dark:from-gray-900 dark:via-gray-950 dark:to-gray-900">
+            <div className="h-full">
+              <div className="mx-auto max-w-7xl h-full">
+                {/* Green wrapper with rounded corners */}
+                <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-xl border-4 border-green-600/20 dark:border-green-500/30 p-8 min-h-full">
+                  {children}
+                </div>
               </div>
             </div>
           </main>

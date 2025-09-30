@@ -79,9 +79,9 @@ export default function DetailerDashboardPage() {
   const maxVisitors = visitorsByMonth.length > 0 ? Math.max(...visitorsByMonth.map(v => v.visitors)) : 1;
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 p-6">
+    <div>
       {/* Header Info */}
-      <div className="mb-6 p-4 bg-white dark:bg-gray-900 rounded-xl shadow">
+      <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-900 rounded-xl">
         <div className="text-gray-700 dark:text-gray-300">Detailer ID: <b>{user.id}</b></div>
       </div>
 
