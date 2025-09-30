@@ -34,21 +34,26 @@ export async function GET() {
         select: {
           id: true,
           url: true,
-          createdAt: true,
+          alt: true,
         }
       })
     ]);
 
-    // Combine and deduplicate images
-    const allImages = [...detailerImages, ...regularImages];
+    // Combine and deduplicate images, adding createdAt to Image records
+    const allImages = [
+      ...detailerImages,
+      ...regularImages.map(img => ({ ...img, createdAt: null })) // Image model doesn't have createdAt
+    ];
     const uniqueImages = allImages.filter((img, index, self) => 
       index === self.findIndex(i => i.url === img.url)
     );
 
-    // Sort by creation date
-    const images = uniqueImages.sort((a, b) => 
-      new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
-    );
+    // Sort by creation date (DetailerImage has createdAt, Image doesn't)
+    const images = uniqueImages.sort((a, b) => {
+      const aDate = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const bDate = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return bDate - aDate;
+    });
 
     return NextResponse.json(images);
   } catch (error) {
@@ -82,11 +87,14 @@ export async function POST(request: NextRequest) {
       select: {
         id: true,
         url: true,
-        createdAt: true,
+        alt: true,
       }
     });
 
-    return NextResponse.json(image);
+    // Add createdAt field for consistency with frontend
+    const imageWithCreatedAt = { ...image, createdAt: null };
+
+    return NextResponse.json(imageWithCreatedAt);
   } catch (error) {
     console.error('Error creating portfolio image:', error);
     return NextResponse.json({ error: 'Failed to add image' }, { status: 500 });
