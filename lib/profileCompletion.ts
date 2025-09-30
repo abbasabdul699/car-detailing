@@ -51,7 +51,11 @@ const PROFILE_CRITERIA = {
   businessHours: (d: DetailerWithRelations) => {
     try {
       const hours = d.businessHours as any;
-      return Object.keys(hours).length > 0 && Object.values(hours).some((day: any) => day.isOpen);
+      if (!hours || typeof hours !== 'object') return false;
+      // Check if at least one day has both open and close times set
+      return Object.values(hours).some((times: any) => {
+        return Array.isArray(times) && times.length === 2 && times[0] && times[1];
+      });
     } catch {
       return false;
     }
