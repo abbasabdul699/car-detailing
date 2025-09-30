@@ -159,22 +159,24 @@ export default function DetailerDashboardPage() {
         </div>
       </div>
 
-      {/* Profile Completion Progress */}
-      <div className="mb-8">
-        <div className="bg-white dark:bg-gray-900 rounded-xl shadow-lg p-6">
-          <h2 className="text-lg font-semibold mb-2 text-gray-900 dark:text-gray-100">Profile Completion</h2>
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-gray-600 dark:text-gray-400">{profileCompletion.message}</span>
-            <span className="text-sm font-bold text-gray-900 dark:text-gray-100">{profileCompletion.percentage}%</span>
-          </div>
-          <div className="w-full bg-gray-200 rounded-full h-3 dark:bg-gray-700">
-            <div 
-              className="bg-gradient-to-r from-green-500 to-green-600 h-3 rounded-full transition-all duration-500" 
-              style={{ width: `${profileCompletion.percentage}%` }}
-            ></div>
+      {/* Profile Completion Progress - Only show if not 100% */}
+      {profileCompletion.percentage < 100 && (
+        <div className="mb-8">
+          <div className="bg-white dark:bg-gray-900 rounded-xl shadow-lg p-6">
+            <h2 className="text-lg font-semibold mb-2 text-gray-900 dark:text-gray-100">Profile Completion</h2>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm text-gray-600 dark:text-gray-400">{profileCompletion.message}</span>
+              <span className="text-sm font-bold text-gray-900 dark:text-gray-100">{profileCompletion.percentage}%</span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-3 dark:bg-gray-700">
+              <div 
+                className="bg-gradient-to-r from-green-500 to-green-600 h-3 rounded-full transition-all duration-500" 
+                style={{ width: `${profileCompletion.percentage}%` }}
+              ></div>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Client Contact Information Card */}
       <div className="mb-8">
