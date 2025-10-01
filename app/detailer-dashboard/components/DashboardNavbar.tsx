@@ -144,11 +144,13 @@ export default function DashboardNavbar({ onLogout }: { onLogout: () => void }) 
 
         <div className="relative" ref={dropdownRef}>
           <button onClick={() => setDropdownOpen(!dropdownOpen)} className="flex items-center space-x-2 focus:outline-none">
-            <img
-              className="h-8 w-8 rounded-full"
-              src={session?.user?.image || '/images/default-avatar.png'}
-              alt="User avatar"
-            />
+            <div className="h-8 w-8 rounded-full overflow-hidden flex-shrink-0">
+              <img
+                className="w-full h-full object-cover"
+                src={session?.user?.image || '/images/default-avatar.png'}
+                alt="User avatar"
+              />
+            </div>
             <span className="text-sm font-medium text-gray-700 dark:text-gray-300 hidden md:block">
               {session?.user?.businessName || session?.user?.name}
             </span>
@@ -161,7 +163,9 @@ export default function DashboardNavbar({ onLogout }: { onLogout: () => void }) 
             <div className="absolute right-0 mt-2 w-56 origin-top-right rounded-md bg-white dark:bg-gray-800 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
               <div className="py-1">
                 <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center space-x-3">
-                  <img className="h-10 w-10 rounded-full" src={session?.user?.image || '/images/default-avatar.png'} alt="User avatar" />
+                  <div className="h-10 w-10 rounded-full overflow-hidden flex-shrink-0">
+                    <img className="w-full h-full object-cover" src={session?.user?.image || '/images/default-avatar.png'} alt="User avatar" />
+                  </div>
                   <div>
                     <p className="text-sm font-semibold text-gray-900 dark:text-white">{session?.user?.businessName || session?.user?.name}</p>
                     <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{session?.user?.name}</p>
