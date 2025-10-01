@@ -146,9 +146,20 @@ export default function MessagesPage() {
               >
                 <div className="flex items-center justify-between">
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-medium text-gray-900 truncate">
-                      {conversation.customerName || formatPhoneNumber(conversation.customerPhone)}
-                    </h3>
+                    {conversation.customerName ? (
+                      <>
+                        <h3 className="font-medium text-gray-900 truncate">
+                          {conversation.customerName}
+                        </h3>
+                        <p className="text-xs text-gray-400 truncate">
+                          {formatPhoneNumber(conversation.customerPhone)}
+                        </p>
+                      </>
+                    ) : (
+                      <h3 className="font-medium text-gray-900 truncate">
+                        {formatPhoneNumber(conversation.customerPhone)}
+                      </h3>
+                    )}
                     <p className="text-sm text-gray-500 truncate mt-1">
                       {getLastMessagePreview(conversation.messages)}
                     </p>
@@ -180,12 +191,25 @@ export default function MessagesPage() {
             <div className="p-4 border-b border-gray-200 bg-gray-50">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-900">
-                    {selectedConversation.customerName || formatPhoneNumber(selectedConversation.customerPhone)}
-                  </h2>
-                  <p className="text-sm text-gray-500">
-                    {formatPhoneNumber(selectedConversation.customerPhone)}
-                  </p>
+                  {selectedConversation.customerName ? (
+                    <>
+                      <h2 className="text-lg font-semibold text-gray-900">
+                        {selectedConversation.customerName}
+                      </h2>
+                      <p className="text-sm text-gray-500">
+                        {formatPhoneNumber(selectedConversation.customerPhone)}
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <h2 className="text-lg font-semibold text-gray-900">
+                        {formatPhoneNumber(selectedConversation.customerPhone)}
+                      </h2>
+                      <p className="text-sm text-gray-500">
+                        Customer name not provided yet
+                      </p>
+                    </>
+                  )}
                 </div>
                 <div className="text-sm text-gray-500">
                   Last active: {formatMessageTime(selectedConversation.lastMessageAt)}
