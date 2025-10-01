@@ -134,18 +134,18 @@ export default function MessagesPage() {
   return (
     <div className="h-full flex">
       {/* Conversations List */}
-      <div className={`${showConversationList ? 'flex' : 'hidden'} md:flex w-full md:w-1/3 border-r border-gray-200 flex-col`}>
-        <div className="p-4 border-b border-gray-200">
+      <div className={`${showConversationList ? 'flex' : 'hidden'} md:flex w-full md:w-1/3 border-r border-gray-200 dark:border-gray-700 flex-col`}>
+        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-xl font-semibold text-gray-900">Messages</h1>
-              <p className="text-sm text-gray-500 mt-1">
+              <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Messages</h1>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                 {conversations.length} conversation{conversations.length !== 1 ? 's' : ''}
               </p>
             </div>
             <button
               onClick={refreshConversations}
-              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              className="p-2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
               title="Refresh conversations"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -157,7 +157,7 @@ export default function MessagesPage() {
         
         <div className="flex-1 overflow-y-auto">
           {conversations.length === 0 ? (
-            <div className="p-4 text-center text-gray-500">
+            <div className="p-4 text-center text-gray-500 dark:text-gray-400">
               <p>No conversations yet</p>
               <p className="text-sm mt-1">Customer messages will appear here</p>
             </div>
@@ -166,44 +166,44 @@ export default function MessagesPage() {
               <div
                 key={conversation.id}
                 onClick={() => fetchConversationMessages(conversation.id)}
-                className={`p-4 border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors ${
-                  selectedConversation?.id === conversation.id ? 'bg-green-50 border-green-200' : ''
+                className={`p-4 border-b border-gray-100 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
+                  selectedConversation?.id === conversation.id ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' : ''
                 }`}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex-1 min-w-0">
                     {conversation.customerName ? (
                       <>
-                        <h3 className="font-semibold text-gray-900 truncate text-base">
+                        <h3 className="font-semibold text-gray-900 dark:text-gray-100 truncate text-base">
                           {conversation.customerName}
                         </h3>
-                        <p className="text-xs text-gray-500 truncate mt-0.5">
+                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">
                           {formatPhoneNumber(conversation.customerPhone)}
                         </p>
                       </>
                     ) : (
                       <>
-                        <h3 className="font-semibold text-gray-900 truncate text-base">
+                        <h3 className="font-semibold text-gray-900 dark:text-gray-100 truncate text-base">
                           {formatPhoneNumber(conversation.customerPhone)}
                         </h3>
-                        <p className="text-xs text-gray-500 truncate mt-0.5">
+                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">
                           No name provided
                         </p>
                       </>
                     )}
-                    <p className="text-sm text-gray-500 truncate mt-1">
+                    <p className="text-sm text-gray-500 dark:text-gray-400 truncate mt-1">
                       {getLastMessagePreview(conversation.messages)}
                     </p>
                   </div>
-                  <div className="ml-2 text-xs text-gray-400">
+                  <div className="ml-2 text-xs text-gray-400 dark:text-gray-500">
                     {formatMessageTime(conversation.lastMessageAt)}
                   </div>
                 </div>
                 <div className="mt-2">
                   <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
                     conversation.status === 'active' 
-                      ? 'bg-green-100 text-green-800' 
-                      : 'bg-gray-100 text-gray-800'
+                      ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300' 
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
                   }`}>
                     {conversation.status}
                   </span>
@@ -219,13 +219,13 @@ export default function MessagesPage() {
         {selectedConversation ? (
           <>
             {/* Conversation Header */}
-            <div className="p-4 border-b border-gray-200 bg-gray-50">
+            <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   {/* Back button for mobile */}
                   <button
                     onClick={handleBackToList}
-                    className="md:hidden p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
+                    className="md:hidden p-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
                     title="Back to conversations"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -235,26 +235,26 @@ export default function MessagesPage() {
                   <div>
                     {selectedConversation.customerName ? (
                       <>
-                        <h2 className="text-lg font-semibold text-gray-900">
+                        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                           {selectedConversation.customerName}
                         </h2>
-                        <p className="text-sm text-gray-500">
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
                           {formatPhoneNumber(selectedConversation.customerPhone)}
                         </p>
                       </>
                     ) : (
                       <>
-                        <h2 className="text-lg font-semibold text-gray-900">
+                        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                           {formatPhoneNumber(selectedConversation.customerPhone)}
                         </h2>
-                        <p className="text-sm text-gray-500">
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
                           Customer name not provided yet
                         </p>
                       </>
                     )}
                   </div>
                 </div>
-                <div className="text-sm text-gray-500">
+                <div className="text-sm text-gray-500 dark:text-gray-400">
                   Last active: {formatMessageTime(selectedConversation.lastMessageAt)}
                 </div>
               </div>
@@ -271,12 +271,12 @@ export default function MessagesPage() {
                     className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
                       message.direction === 'outbound'
                         ? 'bg-green-600 text-white'
-                        : 'bg-gray-200 text-gray-900'
+                        : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100'
                     }`}
                   >
                     <p className="text-sm">{message.content}</p>
                     <div className={`text-xs mt-1 ${
-                      message.direction === 'outbound' ? 'text-green-100' : 'text-gray-500'
+                      message.direction === 'outbound' ? 'text-green-100' : 'text-gray-500 dark:text-gray-400'
                     }`}>
                       {formatMessageTime(message.createdAt)}
                       {message.direction === 'outbound' && (
@@ -293,11 +293,11 @@ export default function MessagesPage() {
             </div>
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center text-gray-500">
+          <div className="flex-1 flex items-center justify-center text-gray-500 dark:text-gray-400">
             <div className="text-center">
               <div className="text-4xl mb-4">💬</div>
-              <h3 className="text-lg font-medium mb-2">Select a conversation</h3>
-              <p>Choose a conversation from the list to view messages</p>
+              <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">Select a conversation</h3>
+              <p className="text-gray-500 dark:text-gray-400">Choose a conversation from the list to view messages</p>
             </div>
           </div>
         )}
