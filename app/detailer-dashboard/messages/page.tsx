@@ -42,6 +42,11 @@ export default function MessagesPage() {
     }
   }, [session?.user?.id]);
 
+  // Add a refresh button or auto-refresh
+  const refreshConversations = () => {
+    fetchConversations();
+  };
+
   const fetchConversations = async () => {
     try {
       setLoading(true);
@@ -123,10 +128,23 @@ export default function MessagesPage() {
       {/* Conversations List */}
       <div className="w-1/3 border-r border-gray-200 flex flex-col">
         <div className="p-4 border-b border-gray-200">
-          <h1 className="text-xl font-semibold text-gray-900">Messages</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            {conversations.length} conversation{conversations.length !== 1 ? 's' : ''}
-          </p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-xl font-semibold text-gray-900">Messages</h1>
+              <p className="text-sm text-gray-500 mt-1">
+                {conversations.length} conversation{conversations.length !== 1 ? 's' : ''}
+              </p>
+            </div>
+            <button
+              onClick={refreshConversations}
+              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              title="Refresh conversations"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            </button>
+          </div>
         </div>
         
         <div className="flex-1 overflow-y-auto">
@@ -148,17 +166,22 @@ export default function MessagesPage() {
                   <div className="flex-1 min-w-0">
                     {conversation.customerName ? (
                       <>
-                        <h3 className="font-medium text-gray-900 truncate">
+                        <h3 className="font-semibold text-gray-900 truncate text-base">
                           {conversation.customerName}
                         </h3>
-                        <p className="text-xs text-gray-400 truncate">
+                        <p className="text-xs text-gray-500 truncate mt-0.5">
                           {formatPhoneNumber(conversation.customerPhone)}
                         </p>
                       </>
                     ) : (
-                      <h3 className="font-medium text-gray-900 truncate">
-                        {formatPhoneNumber(conversation.customerPhone)}
-                      </h3>
+                      <>
+                        <h3 className="font-semibold text-gray-900 truncate text-base">
+                          {formatPhoneNumber(conversation.customerPhone)}
+                        </h3>
+                        <p className="text-xs text-gray-500 truncate mt-0.5">
+                          No name provided
+                        </p>
+                      </>
                     )}
                     <p className="text-sm text-gray-500 truncate mt-1">
                       {getLastMessagePreview(conversation.messages)}
