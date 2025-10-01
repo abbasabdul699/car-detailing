@@ -278,6 +278,30 @@ export default function EditDetailerClient({ detailer: initialDetailer }: { deta
             onChange={setServices}
           />
         </div>
+        {/* Bundles */}
+        <div className="bg-gray-50 p-4 rounded-lg shadow">
+          <h2 className="text-lg font-semibold mb-4">Bundles</h2>
+          <p className="text-sm text-gray-600 mb-4">
+            Bundles are managed through the detailer's dashboard. Current bundles for this detailer:
+          </p>
+          <div className="space-y-2">
+            {initialDetailer.bundles && initialDetailer.bundles.length > 0 ? (
+              initialDetailer.bundles.map((bundle: any) => (
+                <div key={bundle.id} className="flex items-center justify-between p-3 bg-white rounded-lg border">
+                  <div>
+                    <h4 className="font-medium">{bundle.name}</h4>
+                    <p className="text-sm text-gray-500">${bundle.price}</p>
+                  </div>
+                  <span className="text-xs text-gray-400">
+                    {bundle.services?.length || 0} services
+                  </span>
+                </div>
+              ))
+            ) : (
+              <p className="text-gray-500 text-sm">No bundles created yet</p>
+            )}
+          </div>
+        </div>
         {/* Image Uploaders */}
         <div className="bg-gray-50 p-4 rounded-lg shadow">
           <h2 className="text-lg font-semibold mb-4">Images</h2>

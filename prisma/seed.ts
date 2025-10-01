@@ -7,27 +7,52 @@ async function main() {
 
   const detailers = [
       {
-        businessName: "Wellesley Car Detailing",
-        email: "wellesleycardetailing@gmail.com",
-        phone: "(617) 564-4340",
-        address: "275 Grove St #2400",
-        city: "Auburndale",
+        id: "681bcef6a71960c3048e0db2", // Keep the same ID for Brooks Car Care
+        businessName: "Brooks Car Care",
+        email: "brooks.carcare@gmail.com",
+        phone: "(617) 882-7958",
+        address: "123 Main Street",
+        city: "Boston",
         state: "MA",
-        zipCode: "02466",
-        description: "Welcome to Wellesley Car Detailing, your top choice for all things car care in Wellesley, MA. As a trusted mobile detailing service, we’re proud to be locally owned and operated, bringing high-quality detailing straight to your door.",
-        latitude: 42.3389,
-        longitude: -71.2530,
-        priceRange: "$$",
-        website: "https://wellesleycardetailing.com/",
-        services: ["Vacuuming", "Carpet & Upholstery Shampooing & Steaming", "Leather Cleaning & Conditioning","Dashboard, Console & Door Panel Cleaning","Window & Mirror Cleaning","Odor Elimination","Hand Wash & Dry", "Waxing & Polishing", "Clay Bar Treatment","Tire Cleaning & Dressing", "Wheel & Rim Detailing", "Door Jamb Cleaning", "Trim Restoration", "Paint Correction", "Overspray Removal", "Headlight Restoration", "Limescale Removal", "Car Seat Cleaning", "Pet Hair Removal", "Vomit Clean Up", "Paint Correction", "Ceramic Coating "],
-
-        images: {
-          create: [
-            {
-              url: "/images/detailers/wellesley-detailing.jpg",
-              alt: "Wellesley Car Detailing"
-            }
-          ]
+        zipCode: "02101",
+        description: "Welcome to Brooks Car Care, your premier mobile car detailing service in the Greater Boston area. We bring professional-grade detailing services directly to your location, whether at home, office, or anywhere convenient for you. Our experienced team uses top-quality products and equipment to restore your vehicle's shine and protect its value.",
+        latitude: 42.3601,
+        longitude: -71.0589,
+        priceRange: "$$$",
+        website: "https://brookscarcare.com",
+        twilioPhoneNumber: "+16178827958",
+        smsEnabled: true,
+        businessHours: {
+          monday: ["08:00", "18:00"],
+          tuesday: ["08:00", "18:00"],
+          wednesday: ["08:00", "18:00"],
+          thursday: ["08:00", "18:00"],
+          friday: ["08:00", "18:00"],
+          saturday: ["09:00", "16:00"],
+          sunday: ["10:00", "15:00"]
+        }
+      },
+      {
+        businessName: "Spade Detailing",
+        email: "info@spadedetailing.com",
+        phone: "(555) 123-4567",
+        address: "456 Oak Avenue",
+        city: "Cambridge",
+        state: "MA",
+        zipCode: "02139",
+        description: "Spade Detailing specializes in premium automotive care and protection services. We offer comprehensive detailing packages including paint correction, ceramic coatings, and interior restoration. Our team of certified professionals ensures every vehicle receives the attention and care it deserves, using the latest techniques and premium products.",
+        latitude: 42.3736,
+        longitude: -71.1097,
+        priceRange: "$$$$",
+        website: "https://spadedetailing.com",
+        businessHours: {
+          monday: ["09:00", "17:00"],
+          tuesday: ["09:00", "17:00"],
+          wednesday: ["09:00", "17:00"],
+          thursday: ["09:00", "17:00"],
+          friday: ["09:00", "17:00"],
+          saturday: ["10:00", "15:00"],
+          sunday: null
         }
       }
   ]

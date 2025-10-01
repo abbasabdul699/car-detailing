@@ -1,7 +1,7 @@
 "use client";
 import React, { useEffect, useState } from "react";
 
-const CATEGORIES = ["Bundle", "Exterior", "Interior", "Additional"] as const;
+const CATEGORIES = ["Exterior", "Interior", "Additional"] as const;
 type Category = typeof CATEGORIES[number];
 
 interface Service {
@@ -32,7 +32,6 @@ export default function ServicesSelector({ value = [], onChange, error }: Servic
 
   // Group services by category
   const grouped: Record<Category, Service[]> = {
-    Bundle: [],
     Interior: [],
     Exterior: [],
     Additional: [],

@@ -468,7 +468,7 @@ export default function DetailerProfileClient({ detailer: initialDetailer, categ
   return (
     <>
       <Navbar />
-      <main className="max-w-7xl mx-auto px-4 py-8">
+      <main className="max-w-7xl mx-auto px-4 pt-24 pb-8">
         {/* Header Section */}
         <div className="flex flex-col items-start gap-4 mb-8">
           {/* Profile Section */}
@@ -584,17 +584,40 @@ export default function DetailerProfileClient({ detailer: initialDetailer, categ
             if (cat.id !== activeTab) return null;
 
             // Render custom or placeholder bundles for the "Bundle" tab
-            if (cat.name === 'Bundle') {
+            if (cat.name === 'Bundle' || cat.name === 'Bundles') {
               // If detailer has created custom bundles, show them
               if (detailer.bundles && detailer.bundles.length > 0) {
                 return (
                   <div key="bundles-section" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {detailer.bundles.map((bundle: Bundle) => {
+                    {detailer.bundles
+                      .sort((a, b) => {
+                        // Sort bundles to put "Full Detailing" first
+                        const aIsFullDetailing = a.name.toLowerCase().includes('full detail');
+                        const bIsFullDetailing = b.name.toLowerCase().includes('full detail');
+                        
+                        if (aIsFullDetailing && !bIsFullDetailing) return -1;
+                        if (!aIsFullDetailing && bIsFullDetailing) return 1;
+                        return 0; // Keep original order for non-full detailing bundles
+                      })
+                      .map((bundle: Bundle) => {
                       const isExpanded = expandedBundles[bundle.id];
                       const servicesToShow = isExpanded ? bundle.services : bundle.services.slice(0, 3);
+                      const isFullDetailing = bundle.name.toLowerCase().includes('full detail');
 
                       return (
-                        <div key={bundle.id} className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden flex flex-col bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-shadow duration-200">
+                        <div key={bundle.id} className={`relative border rounded-xl overflow-hidden flex flex-col shadow-sm hover:shadow-md transition-shadow duration-200 ${
+                          isFullDetailing 
+                            ? 'border-green-300 bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 dark:border-green-600' 
+                            : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800'
+                        }`}>
+                          {/* Recommended Badge */}
+                          {isFullDetailing && (
+                            <div className="absolute top-3 right-3 z-10">
+                              <div className="bg-green-600 text-white text-xs font-semibold px-3 py-1 rounded-full shadow-lg">
+                                Recommended
+                              </div>
+                            </div>
+                          )}
                           {bundle.imageUrl && (
                             <div className="relative w-full h-40">
                               <Image 
@@ -607,9 +630,17 @@ export default function DetailerProfileClient({ detailer: initialDetailer, categ
                           )}
                           <div className="p-4 flex-grow flex flex-col">
                             <div className="flex-grow">
-                              <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200">{bundle.name}</h3>
+                              <h3 className={`text-lg font-semibold ${
+                                isFullDetailing 
+                                  ? 'text-green-800 dark:text-green-200' 
+                                  : 'text-gray-800 dark:text-gray-200'
+                              }`}>{bundle.name}</h3>
                               {bundle.description && (
-                                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 mb-3">{bundle.description}</p>
+                                <p className={`text-sm mt-1 mb-3 ${
+                                  isFullDetailing 
+                                    ? 'text-green-700 dark:text-green-300' 
+                                    : 'text-gray-500 dark:text-gray-400'
+                                }`}>{bundle.description}</p>
                               )}
                               <ul className="space-y-1.5 mt-3">
                                 {servicesToShow.map(({ service }) => (
@@ -622,15 +653,27 @@ export default function DetailerProfileClient({ detailer: initialDetailer, categ
                               {bundle.services.length > 3 && (
                                 <button
                                   onClick={() => toggleBundleExpansion(bundle.id)}
-                                  className="text-sm text-blue-600 hover:underline mt-3"
+                                  className={`text-sm hover:underline mt-3 ${
+                                    isFullDetailing 
+                                      ? 'text-green-600 hover:text-green-700' 
+                                      : 'text-blue-600 hover:text-blue-700'
+                                  }`}
                                 >
                                   {isExpanded ? 'Show less' : `+ ${bundle.services.length - 3} more`}
                                 </button>
                               )}
                             </div>
                             <div className="mt-4 text-right">
-                              <span className="text-sm text-gray-500 dark:text-gray-400">Starting at </span>
-                              <span className="text-xl font-bold text-teal-600">${bundle.price.toFixed(2)}</span>
+                              <span className={`text-sm ${
+                                isFullDetailing 
+                                  ? 'text-green-600 dark:text-green-400' 
+                                  : 'text-gray-500 dark:text-gray-400'
+                              }`}>Starting at </span>
+                              <span className={`text-xl font-bold ${
+                                isFullDetailing 
+                                  ? 'text-green-700 dark:text-green-300' 
+                                  : 'text-teal-600'
+                              }`}>${bundle.price.toFixed(2)}</span>
                             </div>
                           </div>
                         </div>

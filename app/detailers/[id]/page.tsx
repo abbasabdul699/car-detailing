@@ -69,7 +69,7 @@ async function getDetailer(id: string) {
   const categories = await categoriesRes.json();
 
   // Sort categories in the desired order
-  const desiredOrder = ['Bundle', 'Exterior', 'Interior', 'Additional'];
+  const desiredOrder = ['Bundle', 'Bundles', 'Exterior', 'Interior', 'Additional'];
   categories.sort((a: { name: string }, b: { name: string }) => {
     const aIdx = desiredOrder.indexOf(a.name);
     const bIdx = desiredOrder.indexOf(b.name);

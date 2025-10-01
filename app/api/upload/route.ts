@@ -53,7 +53,7 @@ export async function POST(request: Request) {
     }
 
     const detailer = await prisma.detailer.findUnique({
-      where: { id: session.user.id },
+      where: { id: objectId.toString() },
       select: { id: true }
     });
 
@@ -71,7 +71,7 @@ export async function POST(request: Request) {
       data: {
         url: imageUrl,
         alt: `${businessName} ${type} image`,
-        detailerId: detailer.id,
+        detailerId: objectId.toString(),
         type: type
       }
     });
@@ -79,7 +79,7 @@ export async function POST(request: Request) {
     // If it's a profile image, update the detailer's imageUrl
     if (type === 'profile') {
       await prisma.detailer.update({
-        where: { id: detailer.id },
+        where: { id: objectId.toString() },
         data: { imageUrl: imageUrl }
       });
     }

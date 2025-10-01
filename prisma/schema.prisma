@@ -62,6 +62,10 @@ model Detailer {
   instagramPageId          String? // Connected Facebook Page ID
   instagramDmEnabled       Boolean @default(false) // Enable AI to respond to DMs
   
+  // Password Reset
+  resetToken        String?
+  resetTokenExpiry  DateTime?
+  
   // Relations
   conversations     Conversation[]
   bookings          Booking[]

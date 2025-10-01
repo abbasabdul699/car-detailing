@@ -1,6 +1,6 @@
 'use client';
 
-import { GoogleMap, Marker } from '@react-google-maps/api';
+import { GoogleMap, Marker, Circle } from '@react-google-maps/api';
 import { useMemo, useEffect, useState } from 'react';
 import { useMapLoader } from '@/app/components/MapLoaderProvider';
 
@@ -99,6 +99,18 @@ export default function LocationMap({ address, city, state, zipCode, businessNam
               scaledSize: typeof window !== "undefined" && window.google && window.google.maps
                 ? new window.google.maps.Size(40, 40)
                 : undefined,
+            }}
+          />
+          {/* Serviceable Area Radius Circle */}
+          <Circle
+            center={coords}
+            radius={48280} // 30 miles in meters (30 * 1609.34)
+            options={{
+              fillColor: '#22c55e',
+              fillOpacity: 0.1,
+              strokeColor: '#22c55e',
+              strokeOpacity: 0.8,
+              strokeWeight: 2,
             }}
           />
         </GoogleMap>

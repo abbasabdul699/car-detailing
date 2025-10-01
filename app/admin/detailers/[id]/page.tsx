@@ -44,6 +44,20 @@ export default async function EditDetailerPage({ params }: { params: Promise<{ i
           }
         }
       },
+      bundles: {
+        include: {
+          services: {
+            include: {
+              service: {
+                select: {
+                  id: true,
+                  name: true
+                }
+              }
+            }
+          }
+        }
+      },
       verified: true,
       hidden: true
     },
