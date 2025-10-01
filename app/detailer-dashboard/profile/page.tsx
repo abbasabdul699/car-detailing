@@ -296,7 +296,7 @@ export default function DetailerProfilePage() {
         <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-6 mb-4">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">My Profile</h2>
-            <button className="border border-gray-300 rounded-full px-4 py-1 text-sm flex items-center gap-2 hover:bg-gray-100" onClick={() => setEditingSection('profile')}>✏️ Edit</button>
+            <button className="border border-gray-300 dark:border-gray-600 rounded-full px-4 py-1 text-sm flex items-center gap-2 text-gray-700 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800" onClick={() => setEditingSection('profile')}>✏️ Edit</button>
           </div>
           <div className="flex items-center gap-6">
             <img
@@ -319,7 +319,7 @@ export default function DetailerProfilePage() {
         <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-6 mb-4">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Personal Information</h2>
-            <button className="border border-gray-300 rounded-full px-4 py-1 text-sm flex items-center gap-2 hover:bg-gray-100" onClick={() => setEditingSection('personal')}>✏️ Edit</button>
+            <button className="border border-gray-300 dark:border-gray-600 rounded-full px-4 py-1 text-sm flex items-center gap-2 text-gray-700 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800" onClick={() => setEditingSection('personal')}>✏️ Edit</button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -348,7 +348,7 @@ export default function DetailerProfilePage() {
         <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-6 mb-4">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Address</h2>
-            <button className="border border-gray-300 rounded-full px-4 py-1 text-sm flex items-center gap-2 hover:bg-gray-100" onClick={() => setEditingSection('address')}>✏️ Edit</button>
+            <button className="border border-gray-300 dark:border-gray-600 rounded-full px-4 py-1 text-sm flex items-center gap-2 text-gray-700 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800" onClick={() => setEditingSection('address')}>✏️ Edit</button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -373,7 +373,7 @@ export default function DetailerProfilePage() {
         <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-6 mb-4">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Social Media</h2>
-            <button className="border border-gray-300 rounded-full px-4 py-1 text-sm flex items-center gap-2 hover:bg-gray-100" onClick={() => setEditingSection('social')}>✏️ Edit</button>
+            <button className="border border-gray-300 dark:border-gray-600 rounded-full px-4 py-1 text-sm flex items-center gap-2 text-gray-700 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800" onClick={() => setEditingSection('social')}>✏️ Edit</button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -578,7 +578,7 @@ export default function DetailerProfilePage() {
         <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-6 mb-4">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Business Hours</h2>
-            <button className="border border-gray-300 rounded-full px-4 py-1 text-sm flex items-center gap-2 hover:bg-gray-100" onClick={() => setEditingSection('businessHours')}>✏️ Edit</button>
+            <button className="border border-gray-300 dark:border-gray-600 rounded-full px-4 py-1 text-sm flex items-center gap-2 text-gray-700 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800" onClick={() => setEditingSection('businessHours')}>✏️ Edit</button>
           </div>
           <BusinessHoursPicker value={profile.businessHours} onChange={() => {}} />
         </div>

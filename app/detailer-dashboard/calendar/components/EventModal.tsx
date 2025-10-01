@@ -102,14 +102,14 @@ export default function EventModal({ isOpen, onClose, onAddEvent }: EventModalPr
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-8 w-full max-w-2xl">
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-3">
+            <div className="bg-white dark:bg-gray-800 w-full max-w-lg sm:max-w-xl md:max-w-2xl rounded-t-2xl sm:rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 p-4 sm:p-6 md:p-8 max-h-[85vh] overflow-y-auto">
                 <div className="flex justify-between items-start">
                     <div>
                         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Add / Edit Event</h2>
                         <p className="text-gray-500 dark:text-gray-400 mt-1">Plan your next big moment: schedule or edit an event to stay on track</p>
                     </div>
-                    <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 sticky top-0">
                         <XMarkIcon className="w-6 h-6 text-gray-500" />
                     </button>
                 </div>

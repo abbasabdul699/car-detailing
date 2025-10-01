@@ -64,7 +64,7 @@ export default function BusinessHoursPicker({ value = {}, onChange }: BusinessHo
         <select
           value={sourceDay}
           onChange={(e) => setSourceDay(e.target.value)}
-          className="select select-bordered w-32"
+          className="select select-bordered w-32 bg-white dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600"
         >
           {days.map(({ key, label }) => (
             <option key={key} value={key}>{label}</option>
@@ -84,7 +84,7 @@ export default function BusinessHoursPicker({ value = {}, onChange }: BusinessHo
           const isClosed = !value[key]?.[0] && !value[key]?.[1];
           return (
             <div key={key} className="flex items-center gap-2">
-              <span className="w-10">{label}</span>
+              <span className="w-10 text-gray-800 dark:text-gray-100">{label}</span>
               <label className="flex items-center cursor-pointer select-none">
                 <div className="relative">
                   <input
@@ -104,20 +104,21 @@ export default function BusinessHoursPicker({ value = {}, onChange }: BusinessHo
                     }}
                     className="sr-only peer"
                   />
+                <div className={classNames(
+                  "w-11 h-6 rounded-full peer peer-focus:ring-4 peer-focus:ring-green-300 dark:peer-focus:ring-green-800 transition-all duration-200",
+                  {
+                    "bg-green-600": !isClosed,
+                    "bg-gray-200 dark:bg-gray-700": isClosed,
+                  }
+                )}></div>
                   <div className={classNames(
-                    "w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-green-300 dark:peer-focus:ring-green-800 transition-all duration-200",
-                    {
-                      "bg-green-600": !isClosed,
-                    }
-                  )}></div>
-                  <div className={classNames(
-                    "absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-all duration-200",
+                    "absolute left-1 top-1 bg-white dark:bg-gray-100 w-4 h-4 rounded-full transition-all duration-200",
                     {
                       "translate-x-5": !isClosed,
                     }
                   )}></div>
                 </div>
-                <span className="ml-2 text-sm font-medium">
+                <span className="ml-2 text-sm font-medium text-gray-800 dark:text-gray-100">
                   {isClosed ? "Closed" : "Open"}
                 </span>
               </label>
@@ -126,7 +127,7 @@ export default function BusinessHoursPicker({ value = {}, onChange }: BusinessHo
                 step="600"
                 value={formatTimeForInput(value[key]?.[0] || "")}
                 onChange={e => handleTimeChange(key, 0, e.target.value)}
-                className="input input-bordered w-28 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="input input-bordered w-28 bg-white dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 disabled={isClosed}
                 style={{ 
                   WebkitAppearance: 'none',
@@ -139,7 +140,7 @@ export default function BusinessHoursPicker({ value = {}, onChange }: BusinessHo
                 step="600"
                 value={formatTimeForInput(value[key]?.[1] || "")}
                 onChange={e => handleTimeChange(key, 1, e.target.value)}
-                className="input input-bordered w-28 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="input input-bordered w-28 bg-white dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 disabled={isClosed}
                 style={{ 
                   WebkitAppearance: 'none',
