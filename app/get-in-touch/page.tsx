@@ -216,7 +216,7 @@ export default function GetInTouch() {
               </form>
 
               <div className="mt-6 text-center text-gray-600 text-sm">
-                <p>Or email us directly at: <a href="mailto:reevacar@gmail.com" className="text-[#389167]">reevacar@gmail.com</a></p>
+                <p>Or email us directly at: <a href="mailto:admin@reevacar.com" className="text-[#389167]">admin@reevacar.com</a></p>
               </div>
 
               <div className="mt-6 text-center">

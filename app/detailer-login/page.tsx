@@ -64,7 +64,8 @@ export default function DetailerLogin() {
           <p className="text-sm text-gray-500">Enter your email and password to sign in!</p>
         </div>
         <div className="w-full flex flex-col gap-5">
-          <div className="flex gap-5 w-full">
+          {/* Social Login Buttons - Currently Disabled */}
+          {/* <div className="flex gap-5 w-full">
             <button
               onClick={handleGoogleLogin}
               className="flex-1 h-11 px-6 bg-gray-100 rounded-lg flex items-center justify-center gap-3 hover:bg-gray-200 transition border border-gray-100"
@@ -84,7 +85,7 @@ export default function DetailerLogin() {
             <div className="flex-1 border-t border-gray-200"></div>
             <span className="text-xs text-gray-400">Or</span>
             <div className="flex-1 border-t border-gray-200"></div>
-          </div>
+          </div> */}
           <form className="w-full flex flex-col gap-5" onSubmit={handleSubmit}>
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded">

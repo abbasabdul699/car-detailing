@@ -34,10 +34,10 @@ export default function PricingSection() {
                 
                 <div className="mb-8">
                   <div className="flex items-baseline">
-                    <span className="text-4xl font-bold">$0</span>
+                    <span className="text-4xl font-bold">$3</span>
                     <div className="ml-2 text-gray-600">
-                      <div>per month</div>
-                      <div>billed yearly</div>
+                      <div>per booking</div>
+                      <div>no monthly fees</div>
                     </div>
                   </div>
                 </div>
@@ -78,6 +78,14 @@ export default function PricingSection() {
                   <div className="flex gap-3">
                     <span className="text-[#389167] text-xl">✓</span>
                     <div>
+                      <span className="font-medium text-gray-700">AI-Powered Customer Service</span>
+                      <span className="text-gray-500"> Automated responses and booking assistance</span>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3">
+                    <span className="text-[#389167] text-xl">✓</span>
+                    <div>
                       <span className="font-medium text-gray-700">Basic Support</span>
                       <span className="text-gray-500"> Cancel anytime if you're not seeing results</span>
                     </div>
@@ -106,10 +114,10 @@ export default function PricingSection() {
                 
                 <div className="mb-8">
                   <div className="flex items-baseline">
-                    <span className="text-4xl font-bold">$20</span>
+                    <span className="text-4xl font-bold">$200</span>
                     <div className="ml-2 text-gray-600">
                       <div>per month</div>
-                      <div>billed yearly</div>
+                      <div>billed monthly</div>
                     </div>
                   </div>
                 </div>
@@ -134,7 +142,7 @@ export default function PricingSection() {
                     <span className="text-[#389167] text-xl">✓</span>
                     <div>
                       <span className="font-medium text-gray-700">Professional Profile.</span>
-                      <span className="text-gray-500"> We build your page with unlimitedservices, photos, and pricing</span>
+                      <span className="text-gray-500"> We build your page with unlimited services, photos, and pricing</span>
                     </div>
                   </div>
 
@@ -157,10 +165,20 @@ export default function PricingSection() {
                   <div className="flex gap-3">
                     <span className="text-[#389167] text-xl">✓</span>
                     <div>
-                      <span className="font-medium text-gray-700">No Risk, No Contract.</span>
-                      <span className="text-gray-500"> Cancel anytime if you're not seeing results</span>
+                      <span className="font-medium text-gray-700">Advanced AI Features</span>
+                      <span className="text-gray-500"> Smart scheduling, pricing optimization, and customer insights</span>
                     </div>
                   </div>
+
+                  <div className="flex gap-3">
+                    <span className="text-[#389167] text-xl">✓</span>
+                    <div>
+                      <span className="font-medium text-gray-700">AI-Powered Analytics</span>
+                      <span className="text-gray-500"> Data-driven insights to grow your business</span>
+                    </div>
+                  </div>
+
+                  
                 </div>
 
                 <div className="text-center mt-8 text-gray-500 text-sm">

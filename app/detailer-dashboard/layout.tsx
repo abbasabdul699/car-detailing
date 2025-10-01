@@ -14,7 +14,8 @@ import {
   QuestionMarkCircleIcon,
   StarIcon,
   DocumentTextIcon,
-  CubeIcon
+  CubeIcon,
+  ChatBubbleLeftRightIcon
 } from "@heroicons/react/24/outline";
 import DashboardNavbar from "./components/DashboardNavbar";
 import { useSession } from "next-auth/react";
@@ -32,12 +33,12 @@ export default function DetailerDashboardLayout({
   
   const navigation = [
     { name: "Dashboard", href: "/detailer-dashboard", icon: HomeIcon },
+    { name: "Messages", href: "/detailer-dashboard/messages", icon: ChatBubbleLeftRightIcon },
     { name: "Calendar", href: "/detailer-dashboard/calendar", icon: CalendarDaysIcon },
     { name: "Profile", href: "/detailer-dashboard/profile", icon: UserIcon },
     { name: "Services", href: "/detailer-dashboard/services", icon: CalendarIcon },
     { name: "Bundles", href: "/detailer-dashboard/bundles", icon: CubeIcon },
     { name: "Images", href: "/detailer-dashboard/images", icon: PhotoIcon },
-    { name: "Reviews", href: "/detailer-dashboard/reviews", icon: StarIcon },
     { name: "Invoices", href: "/detailer-dashboard/invoices", icon: DocumentTextIcon },
     { name: "Settings", href: "/detailer-dashboard/settings", icon: CogIcon },
     { name: "Bookings", href: "/detailer-dashboard/bookings", icon: ChartBarIcon },

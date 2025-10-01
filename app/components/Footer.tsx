@@ -13,7 +13,6 @@ const Footer = forwardRef<HTMLDivElement, React.HTMLProps<HTMLDivElement>>((prop
       { name: 'FAQ', href: '/faq' },
     ],
     Resources: [
-      { name: 'Reviews', href: '/reviews' },
       { name: 'Detailer Login', href: '/detailer-login' },
       { name: 'For Employee', href: '/admin' }
     ],

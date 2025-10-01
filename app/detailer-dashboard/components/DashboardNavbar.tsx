@@ -137,11 +137,6 @@ export default function DashboardNavbar({ onLogout }: { onLogout: () => void }) 
                     <p className="text-sm text-gray-500 text-center py-4">No new notifications</p>
                   )}
                 </div>
-                <div className="px-4 py-2 border-t border-gray-200 dark:border-gray-700">
-                  <Link href="/detailer-dashboard/reviews" className="block text-center text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline">
-                    View all reviews
-                  </Link>
-                </div>
               </div>
             </div>
           )}
