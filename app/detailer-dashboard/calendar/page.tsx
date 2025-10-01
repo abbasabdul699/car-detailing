@@ -40,12 +40,13 @@ const MonthView = ({ date, events, selectedEvent, onEventClick }: { date: Date, 
     return (
         <div className="grid grid-cols-7 border-t border-l border-gray-200 dark:border-gray-700">
             {daysOfWeek.map((day) => (
-                <div key={day} className="py-2 text-center font-semibold text-xs text-gray-600 dark:text-gray-300 uppercase tracking-wider border-r border-b border-gray-200 dark:border-gray-700">
-                    {day}
+                <div key={day} className="py-2 text-center font-semibold text-[10px] md:text-xs text-gray-600 dark:text-gray-300 uppercase tracking-wider border-r border-b border-gray-200 dark:border-gray-700">
+                    <span className="md:hidden">{day.slice(0,3)}</span>
+                    <span className="hidden md:inline">{day}</span>
                 </div>
             ))}
             {Array(firstDay).fill(null).map((_, index) => (
-                <div key={`empty-${index}`} className="h-32 border-r border-b border-gray-200 dark:border-gray-700"></div>
+                <div key={`empty-${index}`} className="h-24 md:h-32 border-r border-b border-gray-200 dark:border-gray-700"></div>
             ))}
             {Array(daysInMonth).fill(null).map((_, index) => {
                 const day = index + 1;
@@ -108,8 +109,8 @@ const MonthView = ({ date, events, selectedEvent, onEventClick }: { date: Date, 
                   return matches;
                 });
                 return (
-                    <div key={day} className="h-32 p-2 border-r border-b border-gray-200 dark:border-gray-700 flex flex-col">
-                        <div className="text-sm font-medium text-gray-800 dark:text-gray-200">{day}</div>
+                    <div key={day} className="h-24 md:h-32 p-1.5 md:p-2 border-r border-b border-gray-200 dark:border-gray-700 flex flex-col">
+                        <div className="text-xs md:text-sm font-medium text-gray-800 dark:text-gray-200">{day}</div>
                         <div className="mt-1 space-y-1 overflow-y-auto">
                             {dayEvents.map((event, eventIndex) => {
                                 const isSelected = selectedEvent === event.id;
@@ -153,7 +154,7 @@ const MonthView = ({ date, events, selectedEvent, onEventClick }: { date: Date, 
                                                 <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
                                             </svg>
                                         )}
-                                        <span className="truncate">{event.title || event.eventName}</span>
+                                        <span className="truncate text-[11px] md:text-xs">{event.title || event.eventName}</span>
                                 </div>
                                 );
                             })}
