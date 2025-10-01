@@ -35,6 +35,7 @@ export default function MessagesPage() {
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [showConversationList, setShowConversationList] = useState(true); // For mobile view
 
   useEffect(() => {
     if (session?.user?.id) {
@@ -71,9 +72,16 @@ export default function MessagesPage() {
       }
       const conversation = await response.json();
       setSelectedConversation(conversation);
+      // Hide conversation list on mobile when a conversation is selected
+      setShowConversationList(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch messages');
     }
+  };
+
+  const handleBackToList = () => {
+    setShowConversationList(true);
+    setSelectedConversation(null);
   };
 
   const formatPhoneNumber = (phone: string) => {
@@ -126,7 +134,7 @@ export default function MessagesPage() {
   return (
     <div className="h-full flex">
       {/* Conversations List */}
-      <div className="w-1/3 border-r border-gray-200 flex flex-col">
+      <div className={`${showConversationList ? 'flex' : 'hidden'} md:flex w-full md:w-1/3 border-r border-gray-200 flex-col`}>
         <div className="p-4 border-b border-gray-200">
           <div className="flex items-center justify-between">
             <div>
@@ -207,32 +215,44 @@ export default function MessagesPage() {
       </div>
 
       {/* Messages View */}
-      <div className="flex-1 flex flex-col">
+      <div className={`${!showConversationList ? 'flex' : 'hidden'} md:flex flex-1 flex flex-col`}>
         {selectedConversation ? (
           <>
             {/* Conversation Header */}
             <div className="p-4 border-b border-gray-200 bg-gray-50">
               <div className="flex items-center justify-between">
-                <div>
-                  {selectedConversation.customerName ? (
-                    <>
-                      <h2 className="text-lg font-semibold text-gray-900">
-                        {selectedConversation.customerName}
-                      </h2>
-                      <p className="text-sm text-gray-500">
-                        {formatPhoneNumber(selectedConversation.customerPhone)}
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      <h2 className="text-lg font-semibold text-gray-900">
-                        {formatPhoneNumber(selectedConversation.customerPhone)}
-                      </h2>
-                      <p className="text-sm text-gray-500">
-                        Customer name not provided yet
-                      </p>
-                    </>
-                  )}
+                <div className="flex items-center gap-3">
+                  {/* Back button for mobile */}
+                  <button
+                    onClick={handleBackToList}
+                    className="md:hidden p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
+                    title="Back to conversations"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                  </button>
+                  <div>
+                    {selectedConversation.customerName ? (
+                      <>
+                        <h2 className="text-lg font-semibold text-gray-900">
+                          {selectedConversation.customerName}
+                        </h2>
+                        <p className="text-sm text-gray-500">
+                          {formatPhoneNumber(selectedConversation.customerPhone)}
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <h2 className="text-lg font-semibold text-gray-900">
+                          {formatPhoneNumber(selectedConversation.customerPhone)}
+                        </h2>
+                        <p className="text-sm text-gray-500">
+                          Customer name not provided yet
+                        </p>
+                      </>
+                    )}
+                  </div>
                 </div>
                 <div className="text-sm text-gray-500">
                   Last active: {formatMessageTime(selectedConversation.lastMessageAt)}

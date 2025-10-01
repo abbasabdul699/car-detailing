@@ -58,9 +58,16 @@ export default function DetailerDashboardLayout({
   return (
     <ThemeProvider>
       <div className="min-h-screen bg-gray-100 dark:bg-gray-950 flex">
+        {/* Mobile overlay */}
+        {sidebarOpen && (
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 z-20 md:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
         {/* Sidebar */}
         <div
-          className={`transition-all duration-200 bg-custom-green-900 dark:bg-green-900 border-r border-green-900 dark:border-green-950 flex flex-col h-screen fixed z-30 top-0 left-0 ${
+          className={`transition-all duration-200 bg-custom-green-900 dark:bg-green-900 border-r border-green-900 dark:border-green-950 flex flex-col h-screen fixed z-30 top-0 left-0 md:relative md:z-auto ${
             sidebarOpen ? "w-64" : "w-20"
           }`}
           style={{ minWidth: sidebarOpen ? 256 : 80 }}
@@ -123,14 +130,14 @@ export default function DetailerDashboardLayout({
           </div>
         </div>
         {/* Main content area, with left padding for sidebar */}
-        <div className={`flex-1 flex flex-col transition-[padding-left] duration-200 ${sidebarOpen ? "md:pl-64" : "md:pl-20"}`}>
+        <div className={`flex-1 flex flex-col transition-[padding-left] duration-200 ml-20 md:ml-0 ${sidebarOpen ? "md:pl-64" : "md:pl-20"}`}>
           {/* Dashboard Navbar */}
           <DashboardNavbar onLogout={handleLogout} />
-          <main className="flex-1 p-6 bg-gradient-to-br from-green-50 via-gray-50 to-green-50 dark:from-gray-900 dark:via-gray-950 dark:to-gray-900">
+          <main className="flex-1 p-3 md:p-6 bg-gradient-to-br from-green-50 via-gray-50 to-green-50 dark:from-gray-900 dark:via-gray-950 dark:to-gray-900">
             <div className="h-full">
               <div className="mx-auto max-w-7xl h-full">
                 {/* Green wrapper with rounded corners */}
-                <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-xl border-4 border-green-600/20 dark:border-green-500/30 p-8 min-h-full">
+                <div className="bg-white dark:bg-gray-800 rounded-xl md:rounded-3xl shadow-xl border-2 md:border-4 border-green-600/20 dark:border-green-500/30 p-4 md:p-8 min-h-full">
                   {children}
                 </div>
               </div>
