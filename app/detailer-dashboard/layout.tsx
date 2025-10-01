@@ -130,7 +130,7 @@ export default function DetailerDashboardLayout({
           </div>
         </div>
         {/* Main content area, with left padding for sidebar */}
-        <div className={`flex-1 flex flex-col transition-[padding-left] duration-200 ml-20 md:ml-0 ${sidebarOpen ? "md:pl-64" : "md:pl-20"}`}>
+        <div className={`flex-1 flex flex-col transition-[padding-left] duration-200 ${sidebarOpen ? "md:pl-64" : "md:pl-20"}`}>
           {/* Dashboard Navbar */}
           <DashboardNavbar onLogout={handleLogout} />
           <main className="flex-1 p-3 md:p-6 bg-gradient-to-br from-green-50 via-gray-50 to-green-50 dark:from-gray-900 dark:via-gray-950 dark:to-gray-900">
