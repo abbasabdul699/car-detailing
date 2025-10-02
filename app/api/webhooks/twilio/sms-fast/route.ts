@@ -1578,15 +1578,15 @@ Be conversational and natural.`;
                   await getOrCreateCustomer(detailer.id, from, customerData);
                 }
 
-           // Create notification
-           await prisma.notification.create({
-             data: {
-               detailerId: detailer.id,
-               message: `📱 SMS BOOKING CONFIRMED: ${name} - ${car}`,
-               type: 'sms_booking',
-               link: '/detailer-dashboard/bookings'
-             }
-           });
+                // Create notification
+                await prisma.notification.create({
+                  data: {
+                    detailerId: detailer.id,
+                    message: `📱 SMS BOOKING: ${name} - ${car}`,
+                    type: 'sms_booking',
+                    link: '/detailer-dashboard/bookings'
+                  }
+                });
 
                 console.log('✅ BOOKING CREATED SUCCESSFULLY:', booking.id);
               } catch (bookingError) {

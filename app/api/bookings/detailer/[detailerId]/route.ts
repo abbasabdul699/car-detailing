@@ -24,6 +24,23 @@ export async function GET(
       whereClause.status = status;
     }
 
+    // First, auto-complete any confirmed bookings where the date has passed
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Start of today
+    
+    await prisma.booking.updateMany({
+      where: {
+        detailerId: detailerId,
+        status: 'confirmed',
+        scheduledDate: {
+          lt: today
+        }
+      },
+      data: {
+        status: 'completed'
+      }
+    });
+
     const bookings = await prisma.booking.findMany({
       where: whereClause,
       orderBy: {
