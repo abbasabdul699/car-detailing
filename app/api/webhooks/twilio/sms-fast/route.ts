@@ -1592,6 +1592,29 @@ Be conversational and natural.`;
              }
            });
 
+           // Send personal assistant notification
+           try {
+             await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'https://www.reevacar.com'}/api/notifications/personal-assistant`, {
+               method: 'POST',
+               headers: { 'Content-Type': 'application/json' },
+               body: JSON.stringify({
+                 detailerId: detailer.id,
+                 type: 'new_booking',
+                 data: {
+                   customerName: name,
+                   services: [service],
+                   scheduledDate: scheduledDate,
+                   scheduledTime: time !== 'Your scheduled time' ? time : undefined,
+                   vehicleType: car,
+                   vehicleLocation: address
+                 }
+               })
+             });
+             console.log('✅ Personal Assistant notification sent');
+           } catch (paError) {
+             console.error('❌ Error sending Personal Assistant notification:', paError);
+           }
+
                 console.log('✅ BOOKING CREATED SUCCESSFULLY:', booking.id);
               } catch (bookingError) {
                 console.error('❌ ERROR CREATING BOOKING:', bookingError);

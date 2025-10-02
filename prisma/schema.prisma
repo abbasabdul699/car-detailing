@@ -46,6 +46,7 @@ model Detailer {
   // SMS Integration
   twilioPhoneNumber String?  // Twilio phone number for SMS communication
   smsEnabled        Boolean  @default(false)
+  personalPhoneNumber String? // Detailer's personal phone number for AI assistant
   
   // Google Calendar Integration
   googleCalendarConnected   Boolean @default(false)

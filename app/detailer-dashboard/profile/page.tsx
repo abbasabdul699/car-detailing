@@ -36,6 +36,7 @@ interface Profile {
   syncAvailability?: boolean;
   instagramConnected?: boolean;
   instagramDmEnabled?: boolean;
+  personalPhoneNumber?: string;
 }
 
 async function getProfile() {
@@ -79,6 +80,12 @@ export default function DetailerProfilePage() {
   const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+
+  // Personal Assistant state
+  const [personalPhone, setPersonalPhone] = useState('');
+  const [phoneLoading, setPhoneLoading] = useState(false);
+  const [phoneSuccess, setPhoneSuccess] = useState('');
+  const [phoneError, setPhoneError] = useState('');
 
   React.useEffect(() => {
     getProfile()
@@ -326,6 +333,32 @@ export default function DetailerProfilePage() {
       setPasswordError(err.message || 'Failed to change password');
     } finally {
       setPasswordLoading(false);
+    }
+  };
+
+  const handlePersonalPhoneChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPhoneSuccess('');
+    setPhoneError('');
+    setPhoneLoading(true);
+    try {
+      const res = await fetch('/api/detailer/update-personal-phone', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ personalPhoneNumber: personalPhone }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update personal phone');
+      setPhoneSuccess('Personal phone number updated successfully!');
+      setPersonalPhone('');
+      // Update profile state
+      if (profile) {
+        setProfile({ ...profile, personalPhoneNumber: personalPhone });
+      }
+    } catch (err: any) {
+      setPhoneError(err.message || 'Failed to update personal phone');
+    } finally {
+      setPhoneLoading(false);
     }
   };
 
@@ -791,6 +824,91 @@ export default function DetailerProfilePage() {
             </form>
           </div>
         </div>
+
+        {/* Personal Assistant Section */}
+        <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-6 mb-4">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-6">Personal Assistant AI</h2>
+          
+          <div className="space-y-6">
+            {/* Current Personal Phone */}
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <svg className="h-6 w-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                  </svg>
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-blue-800 dark:text-blue-200">Personal Assistant Phone</h3>
+                  <p className="text-lg font-bold text-blue-900 dark:text-blue-100">
+                    {profile?.personalPhoneNumber || 'Not set'}
+                  </p>
+                  <p className="text-sm text-blue-700 dark:text-blue-300">
+                    Your personal phone number for AI assistant notifications and commands
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Update Personal Phone */}
+            <div>
+              <h3 className="text-md font-semibold text-gray-900 dark:text-gray-100 mb-4">Update Personal Phone Number</h3>
+              <form className="space-y-4" onSubmit={handlePersonalPhoneChange}>
+                <div>
+                  <label className="block text-gray-700 dark:text-gray-200 mb-1">Personal Phone Number</label>
+                  <input
+                    type="tel"
+                    className="input input-bordered w-full bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                    placeholder="Enter your personal phone number (e.g., +1234567890)"
+                    value={personalPhone}
+                    onChange={e => setPersonalPhone(e.target.value)}
+                    required
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    This number will receive AI assistant notifications and can send commands to manage your business
+                  </p>
+                </div>
+                {phoneError && <div className="text-red-600 font-semibold">{phoneError}</div>}
+                {phoneSuccess && <div className="text-green-600 font-semibold">{phoneSuccess}</div>}
+                <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-700 transition" disabled={phoneLoading}>
+                  {phoneLoading ? 'Saving...' : 'Save Phone Number'}
+                </button>
+              </form>
+            </div>
+
+            {/* AI Assistant Features */}
+            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-4">
+              <h4 className="font-medium text-green-800 dark:text-green-200 mb-3">AI Assistant Features</h4>
+              <div className="space-y-2 text-sm text-green-700 dark:text-green-300">
+                <div className="flex items-center">
+                  <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                  Get notified of new bookings and appointments
+                </div>
+                <div className="flex items-center">
+                  <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                  Send SMS commands to reschedule or cancel appointments
+                </div>
+                <div className="flex items-center">
+                  <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                  Initiate customer conversations by providing phone numbers
+                </div>
+                <div className="flex items-center">
+                  <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                  Receive business insights and appointment reminders
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Edit Modal */}
         {editingSection && (
           <ProfileEditForm profile={profile} onClose={() => setEditingSection(null)} onSave={(updated: Profile) => { setProfile(updated); setEditingSection(null); }} section={editingSection} />
