@@ -33,6 +33,12 @@ export default function NotificationBell({ detailerId }: NotificationBellProps) 
   }, [detailerId]);
 
   const fetchNotifications = async () => {
+    if (!detailerId) {
+      console.log('No detailerId provided, skipping notification fetch');
+      setLoading(false);
+      return;
+    }
+    
     try {
       const response = await fetch(`/api/notifications?detailerId=${detailerId}`);
       if (response.ok) {
@@ -63,6 +69,11 @@ export default function NotificationBell({ detailerId }: NotificationBellProps) 
   };
 
   const markAllAsRead = async () => {
+    if (!detailerId) {
+      console.log('No detailerId provided, skipping mark all as read');
+      return;
+    }
+    
     try {
       await fetch(`/api/notifications/mark-all-read`, {
         method: 'POST',
