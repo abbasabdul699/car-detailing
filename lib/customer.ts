@@ -10,9 +10,6 @@ export interface CustomerData {
   preferredTime?: 'morning' | 'afternoon' | 'evening'
   flexibility?: 'urgent' | 'this_week' | 'whenever'
   tags?: string[]
-  vehicle?: string
-  source?: string
-  notes?: string
 }
 
 export interface VehicleInfo {
@@ -48,9 +45,6 @@ export async function getOrCreateCustomer(detailerId: string, phone: string, cus
           ...(customerData.preferredTime && { preferredTime: customerData.preferredTime }),
           ...(customerData.flexibility && { flexibility: customerData.flexibility }),
           ...(customerData.tags && { tags: customerData.tags }),
-          ...(customerData.vehicle && { vehicle: customerData.vehicle }),
-          ...(customerData.source && { source: customerData.source }),
-          ...(customerData.notes && { notes: customerData.notes }),
           updatedAt: new Date()
         }
       })
@@ -69,10 +63,7 @@ export async function getOrCreateCustomer(detailerId: string, phone: string, cus
           vehicleInfo: customerData.vehicleInfo,
           preferredTime: customerData.preferredTime,
           flexibility: customerData.flexibility,
-          tags: customerData.tags || [],
-          vehicle: customerData.vehicle,
-          source: customerData.source,
-          notes: customerData.notes
+          tags: customerData.tags || []
         }
       })
     }

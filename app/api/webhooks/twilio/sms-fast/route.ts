@@ -1330,6 +1330,7 @@ Services: ${snapshot?.services?.join(', ') || 'unknown'}
 
 DATE FORMATTING HELP:
 - Today is ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+- Current time is ${new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
 - When confirming dates, use MM/DD/YYYY format (e.g., 10/06/2025)
 - Always include the day of the week in parentheses (e.g., "10/06/2025 (Monday)")
 
@@ -1388,6 +1389,9 @@ AVAILABILITY GUIDANCE:
 - If someone asks for a time outside business hours, politely explain the business hours
 - If they want a time that's not available, suggest the closest available alternative
 - Always confirm the exact date AND time slot before finalizing the booking
+- CRITICAL: NEVER suggest times that have already passed today. Check the current time before suggesting any time slots.
+- If it's already past business hours for today, only suggest times for future dates
+- When suggesting times, always consider the current time and only offer future time slots
 
 CRITICAL: Don't ask for information you already have. Use the known context above.
 
