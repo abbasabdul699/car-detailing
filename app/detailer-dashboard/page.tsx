@@ -42,7 +42,8 @@ export default function DetailerDashboardPage() {
   const user = session?.user as any;
   const detailerId = session?.user?.id;
   const [visitorsByMonth, setVisitorsByMonth] = useState<{ month: string, visitors: number }[]>([]);
-  const [monthlyVisitors, setMonthlyVisitors] = useState(0);
+  const [monthlyMessages, setMonthlyMessages] = useState(0);
+  const [messagesPercentageChange, setMessagesPercentageChange] = useState(0);
   const [detailer, setDetailer] = useState<DetailerWithRelations | null>(null);
   const [profileCompletion, setProfileCompletion] = useState({ percentage: 0, message: "" });
 
@@ -52,11 +53,13 @@ export default function DetailerDashboardPage() {
         .then(res => res.json())
         .then(data => {
           setVisitorsByMonth(data.visitors || []);
-          if (data.visitors && data.visitors.length > 0) {
-            setMonthlyVisitors(data.visitors[data.visitors.length - 1].visitors);
-          } else {
-            setMonthlyVisitors(0);
-          }
+        });
+
+      fetch(`/api/detailer/messages-count`)
+        .then(res => res.json())
+        .then(data => {
+          setMonthlyMessages(data.messagesThisMonth || 0);
+          setMessagesPercentageChange(data.percentageChange || 0);
         });
 
       fetch(`/api/detailer/profile`)
@@ -80,11 +83,11 @@ export default function DetailerDashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Blue Header Section */}
-      <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-b-3xl shadow-lg">
+      {/* Dark Green Header Section */}
+      <div className="bg-gradient-to-r from-green-800 to-green-900 text-white rounded-b-3xl shadow-lg">
         <div className="p-6">
           {/* Detailer ID */}
-          <div className="text-blue-100 text-sm mb-2">Detailer ID: {user.id}</div>
+          <div className="text-green-100 text-sm mb-2">Detailer ID: {user.id}</div>
           
           {/* Welcome Message */}
           <h1 className="text-2xl md:text-3xl font-bold mb-6">
@@ -93,18 +96,19 @@ export default function DetailerDashboardPage() {
 
           {/* Key Stats in Header */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Monthly Visitors */}
+            {/* Messages This Month */}
             <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-blue-100 text-sm">Monthly Visitors</p>
-                  <p className="text-2xl font-bold">{monthlyVisitors}</p>
-                  <p className="text-blue-100 text-xs">+10% from last month</p>
+                  <p className="text-green-100 text-sm">Messages this month</p>
+                  <p className="text-2xl font-bold">{monthlyMessages}</p>
+                  <p className="text-green-100 text-xs">
+                    {messagesPercentageChange > 0 ? '+' : ''}{messagesPercentageChange}% from last month
+                  </p>
                 </div>
                 <div className="p-2 bg-white/20 rounded-lg">
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                   </svg>
                 </div>
               </div>
@@ -114,9 +118,9 @@ export default function DetailerDashboardPage() {
             <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-blue-100 text-sm">Total Bookings</p>
+                  <p className="text-green-100 text-sm">Total Bookings</p>
                   <p className="text-2xl font-bold">0</p>
-                  <p className="text-blue-100 text-xs">Coming soon</p>
+                  <p className="text-green-100 text-xs">Coming soon</p>
                 </div>
                 <div className="p-2 bg-white/20 rounded-lg">
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -130,9 +134,9 @@ export default function DetailerDashboardPage() {
             <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-blue-100 text-sm">Profile Complete</p>
+                  <p className="text-green-100 text-sm">Profile Complete</p>
                   <p className="text-2xl font-bold">{profileCompletion.percentage}%</p>
-                  <Link href="/detailer-dashboard/profile" className="text-blue-100 text-xs hover:text-white">
+                  <Link href="/detailer-dashboard/profile" className="text-green-100 text-xs hover:text-white">
                     Edit Profile →
                   </Link>
                 </div>
