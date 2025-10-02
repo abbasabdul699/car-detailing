@@ -91,6 +91,21 @@ export default function DetailerBookingsPage() {
       if (response.ok) {
         // Update booking status to cancelled
         await updateBookingStatus(booking.id, 'cancelled');
+        
+        // Create notification for the detailer
+        await fetch('/api/notifications', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            detailerId: session?.user?.id,
+            message: `📱 Booking Cancelled: ${booking.customerName} - ${booking.vehicleType}`,
+            type: 'booking_cancelled',
+            link: '/detailer-dashboard/bookings'
+          })
+        });
+        
         alert('Booking cancelled and customer notified via SMS');
       } else {
         console.error('Failed to send cancellation SMS');
@@ -117,6 +132,23 @@ export default function DetailerBookingsPage() {
       });
 
       if (response.ok) {
+        // Update booking status to rescheduled
+        await updateBookingStatus(booking.id, 'rescheduled');
+        
+        // Create notification for the detailer
+        await fetch('/api/notifications', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            detailerId: session?.user?.id,
+            message: `📱 Booking Rescheduled: ${booking.customerName} - ${booking.vehicleType}`,
+            type: 'booking_rescheduled',
+            link: '/detailer-dashboard/bookings'
+          })
+        });
+        
         alert('Customer notified about rescheduling via SMS. They will respond with their preferred times.');
       } else {
         console.error('Failed to send reschedule SMS');
@@ -130,10 +162,9 @@ export default function DetailerBookingsPage() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'pending': return 'bg-yellow-100 text-yellow-800';
       case 'confirmed': return 'bg-green-100 text-green-800';
-      case 'completed': return 'bg-blue-100 text-blue-800';
       case 'cancelled': return 'bg-red-100 text-red-800';
+      case 'rescheduled': return 'bg-blue-100 text-blue-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
@@ -174,10 +205,9 @@ export default function DetailerBookingsPage() {
               className="px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="all">All Bookings</option>
-              <option value="pending">Pending</option>
               <option value="confirmed">Confirmed</option>
-              <option value="completed">Completed</option>
               <option value="cancelled">Cancelled</option>
+              <option value="rescheduled">Rescheduled</option>
             </select>
           </div>
 
@@ -224,7 +254,7 @@ export default function DetailerBookingsPage() {
                       </div>
                       
                       <div className="ml-4 flex space-x-2">
-                        {(booking.status === 'confirmed' || booking.status === 'pending') && (
+                        {booking.status === 'confirmed' && (
                           <>
                             <button
                               onClick={() => handleCancelBooking(booking)}
@@ -240,14 +270,14 @@ export default function DetailerBookingsPage() {
                             </button>
                           </>
                         )}
-                        {booking.status === 'completed' && (
-                          <span className="text-green-600 text-sm font-medium">
-                            ✓ Completed
-                          </span>
-                        )}
                         {booking.status === 'cancelled' && (
                           <span className="text-red-600 text-sm font-medium">
                             ✗ Cancelled
+                          </span>
+                        )}
+                        {booking.status === 'rescheduled' && (
+                          <span className="text-blue-600 text-sm font-medium">
+                            ↻ Rescheduled
                           </span>
                         )}
                       </div>
