@@ -73,9 +73,9 @@ export default function DetailerProfilePage() {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState('');
-  const [error, setError] = useState('');
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [passwordSuccess, setPasswordSuccess] = useState('');
+  const [passwordError, setPasswordError] = useState('');
   const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -303,13 +303,13 @@ export default function DetailerProfilePage() {
 
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSuccess('');
-    setError('');
+    setPasswordSuccess('');
+    setPasswordError('');
     if (newPassword !== confirmPassword) {
-      setError('New passwords do not match.');
+      setPasswordError('New passwords do not match.');
       return;
     }
-    setLoading(true);
+    setPasswordLoading(true);
     try {
       const res = await fetch('/api/detailer/change-password', {
         method: 'POST',
@@ -318,14 +318,14 @@ export default function DetailerProfilePage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to change password');
-      setSuccess('Password changed successfully!');
+      setPasswordSuccess('Password changed successfully!');
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
     } catch (err: any) {
-      setError(err.message || 'Failed to change password');
+      setPasswordError(err.message || 'Failed to change password');
     } finally {
-      setLoading(false);
+      setPasswordLoading(false);
     }
   };
 
@@ -783,10 +783,10 @@ export default function DetailerProfilePage() {
                   </button>
                 </div>
               </div>
-              {error && <div className="text-red-600 font-semibold">{error}</div>}
-              {success && <div className="text-green-600 font-semibold">{success}</div>}
-              <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-green-700 transition" disabled={loading}>
-                {loading ? 'Saving...' : 'Save Changes'}
+              {passwordError && <div className="text-red-600 font-semibold">{passwordError}</div>}
+              {passwordSuccess && <div className="text-green-600 font-semibold">{passwordSuccess}</div>}
+              <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-green-700 transition" disabled={passwordLoading}>
+                {passwordLoading ? 'Saving...' : 'Save Changes'}
               </button>
             </form>
           </div>
