@@ -72,7 +72,7 @@ export default function MobileNav() {
     }
     return [
       { label: "View Bookings", onClick: () => router.push("/detailer-dashboard/bookings?new=1"), icon: ClipboardDocumentListIcon },
-      { label: "Manage Bundles", onClick: () => router.push("/detailer-dashboard/bundles?add=1"), icon: CubeIcon },
+      { label: "Services & Bundles", onClick: () => router.push("/detailer-dashboard/services"), icon: CubeIcon },
       { label: "Manage Images", onClick: () => router.push("/detailer-dashboard/images?upload=1"), icon: PhotoIcon },
     ];
   }, [pathname, router]);
