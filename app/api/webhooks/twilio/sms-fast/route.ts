@@ -84,6 +84,86 @@ async function createICSFileUrl(booking: any, detailer: any): Promise<string> {
   return icsUrl;
 }
 
+// --- META LEAD PROCESSING ---
+function isMetaLead(message: string): boolean {
+  const text = message.toLowerCase();
+  return (
+    text.includes('name:') && 
+    text.includes('phone:') && 
+    text.includes('vehicle:') &&
+    (text.includes('double dial') || text.includes('asap') || text.includes('🔔'))
+  );
+}
+
+function parseMetaLead(message: string): { name?: string; phone?: string; vehicle?: string; source?: string } {
+  const result: { name?: string; phone?: string; vehicle?: string; source?: string } = {};
+  
+  // Extract name
+  const nameMatch = message.match(/name:\s*([^\n\r]+)/i);
+  if (nameMatch) {
+    result.name = nameMatch[1].trim();
+  }
+  
+  // Extract phone
+  const phoneMatch = message.match(/phone:\s*([^\n\r]+)/i);
+  if (phoneMatch) {
+    result.phone = phoneMatch[1].trim();
+  }
+  
+  // Extract vehicle
+  const vehicleMatch = message.match(/vehicle:\s*([^\n\r]+)/i);
+  if (vehicleMatch) {
+    result.vehicle = vehicleMatch[1].trim();
+  }
+  
+  // Detect source (Facebook/Meta)
+  if (message.toLowerCase().includes('fb') || message.toLowerCase().includes('facebook')) {
+    result.source = 'Facebook';
+  } else if (message.toLowerCase().includes('meta')) {
+    result.source = 'Meta';
+  } else {
+    result.source = 'Meta Lead';
+  }
+  
+  return result;
+}
+
+async function processMetaLead(detailerId: string, from: string, leadData: any, conversationId: string) {
+  try {
+    console.log('Processing Meta lead:', leadData);
+    
+    // Create customer record immediately
+    const customerData = {
+      name: leadData.name,
+      phone: leadData.phone || from,
+      email: undefined,
+      vehicle: leadData.vehicle,
+      source: leadData.source || 'Meta Lead',
+      notes: `Meta lead received via SMS - ${leadData.source || 'Unknown source'}`
+    };
+    
+    // Create customer using existing function
+    const customer = await getOrCreateCustomer(detailerId, from, customerData);
+    
+    // Create notification for new Meta lead
+    await prisma.notification.create({
+      data: {
+        detailerId: detailerId,
+        message: `🔥 NEW META LEAD: ${leadData.name} - ${leadData.vehicle}`,
+        type: 'meta_lead',
+        link: '/detailer-dashboard/customers'
+      }
+    });
+    
+    console.log('Meta lead processed successfully:', customer?.id);
+    return customer;
+    
+  } catch (error) {
+    console.error('Error processing Meta lead:', error);
+    return null;
+  }
+}
+
 // --- BEGIN STRONG SNAPSHOT EXTRACTOR + SAFE UPSERT ---
 // A lightweight list of common car makes. Extend as needed.
 const KNOWN_MAKES = new Set([
@@ -735,6 +815,110 @@ export async function POST(request: NextRequest) {
     }
     
     console.log('Fast - Incoming message:', { from, to, body, messageSid });
+    
+    // Check if this is a Meta lead first
+    if (isMetaLead(body)) {
+      console.log('🔥 META LEAD DETECTED:', body);
+      
+      // Find the detailer quickly (robust match: exact E.164 OR last 10 digits)
+      const last10 = to.replace(/\D/g, '').slice(-10)
+      const detailer = await prisma.detailer.findFirst({
+        where: {
+          smsEnabled: true,
+          OR: [
+            { twilioPhoneNumber: to },
+            { twilioPhoneNumber: { contains: last10 } },
+          ],
+        },
+      });
+
+      if (!detailer) {
+        return NextResponse.json({ error: 'Detailer not found' }, { status: 404 });
+      }
+
+      // Parse the Meta lead data
+      const leadData = parseMetaLead(body);
+      console.log('Parsed Meta lead data:', leadData);
+
+      // Find or create conversation
+      let conversation = await prisma.conversation.findUnique({
+        where: {
+          detailerId_customerPhone: {
+            detailerId: detailer.id,
+            customerPhone: from,
+          },
+        },
+      });
+
+      if (!conversation) {
+        conversation = await prisma.conversation.create({
+          data: {
+            detailerId: detailer.id,
+            customerPhone: from,
+            status: 'active',
+            lastMessageAt: new Date(),
+          },
+        });
+      }
+
+      // Store the Meta lead message
+      await prisma.message.create({
+        data: {
+          conversationId: conversation.id,
+          direction: 'inbound',
+          content: body,
+          twilioSid: messageSid,
+          status: 'received',
+        },
+      });
+
+      // Process the Meta lead immediately
+      const customer = await processMetaLead(detailer.id, from, leadData, conversation.id);
+
+      // Send immediate response to Meta lead
+      const responseMessage = `🔥 NEW META LEAD RECEIVED!
+
+Name: ${leadData.name || 'N/A'}
+Phone: ${leadData.phone || from}
+Vehicle: ${leadData.vehicle || 'N/A'}
+Source: ${leadData.source || 'Meta Lead'}
+
+✅ Customer record created
+✅ High priority notification sent
+✅ Ready for immediate follow-up
+
+This lead has been automatically processed and is ready for you to contact!`;
+
+      // Send response via Twilio
+      const sendDisabled = process.env.TWILIO_SEND_DISABLED === '1'
+      const hasTwilioCreds = !!process.env.TWILIO_ACCOUNT_SID && !!process.env.TWILIO_AUTH_TOKEN
+      let twilioSid: string | undefined
+
+      if (!sendDisabled && hasTwilioCreds) {
+        const client = twilio(process.env.TWILIO_ACCOUNT_SID!, process.env.TWILIO_AUTH_TOKEN!)
+        twilioSid = await safeSend(client, from, to, responseMessage)
+      }
+
+      // Store the response message
+      await prisma.message.create({
+        data: {
+          conversationId: conversation.id,
+          direction: 'outbound',
+          content: responseMessage,
+          twilioSid: twilioSid,
+          status: twilioSid ? 'sent' : 'simulated',
+        },
+      });
+
+      console.log('=== META LEAD PROCESSED SUCCESSFULLY ===');
+      return NextResponse.json({ 
+        success: true,
+        metaLead: true,
+        customerId: customer?.id,
+        twilioSid: twilioSid,
+        processingTimeMs: Date.now() - startTime
+      });
+    }
     
     // Find the detailer quickly (robust match: exact E.164 OR last 10 digits)
     const last10 = to.replace(/\D/g, '').slice(-10)
