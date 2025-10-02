@@ -220,8 +220,8 @@ export default function DetailerDashboardPage() {
                 <AreaChart data={visitorsByMonth}>
                   <defs>
                     <linearGradient id="colorVisitors" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
-                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.8}/>
+                      <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.1} />
@@ -238,7 +238,7 @@ export default function DetailerDashboardPage() {
                   <Area 
                     type="monotone" 
                     dataKey="visitors" 
-                    stroke="#3b82f6" 
+                    stroke="#10b981" 
                     fillOpacity={1} 
                     fill="url(#colorVisitors)" 
                     strokeWidth={2}
@@ -270,7 +270,7 @@ export default function DetailerDashboardPage() {
                   />
                   <Bar 
                     dataKey="visitors" 
-                    fill="#3b82f6" 
+                    fill="#10b981" 
                     radius={[8, 8, 0, 0]}
                     maxBarSize={50}
                   />
