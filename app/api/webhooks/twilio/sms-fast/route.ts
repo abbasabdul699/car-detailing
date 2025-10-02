@@ -777,6 +777,23 @@ export async function POST(request: NextRequest) {
           lastMessageAt: new Date(),
         },
       });
+
+      // Create notification for new customer SMS
+      try {
+        await prisma.notification.create({
+          data: {
+            detailerId: detailer.id,
+            message: `New SMS from ${from}`,
+            type: 'sms',
+            link: '/detailer-dashboard/messages',
+          },
+        });
+        console.log('SMS notification created for new customer:', from);
+      } catch (notificationError) {
+        // Don't fail the conversation creation if notification creation fails
+        console.error('Error creating SMS notification:', notificationError);
+      }
+
       // Re-fetch with messages included to satisfy typing downstream
       conversation = await prisma.conversation.findUnique({
         where: { id: created.id },
