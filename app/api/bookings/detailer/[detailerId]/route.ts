@@ -10,6 +10,9 @@ export async function GET(
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
 
+    console.log('🔍 DEBUG: Bookings API called with detailerId:', detailerId);
+    console.log('🔍 DEBUG: Status filter:', status);
+
     if (!detailerId) {
       return NextResponse.json({ error: 'Missing detailerId' }, { status: 400 });
     }
@@ -44,6 +47,9 @@ export async function GET(
         conversationId: true
       }
     });
+
+    console.log('🔍 DEBUG: Found bookings:', bookings.length);
+    console.log('🔍 DEBUG: Bookings data:', bookings);
 
     return NextResponse.json({ bookings });
   } catch (error) {

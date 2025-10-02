@@ -31,9 +31,22 @@ export default function DetailerBookingsPage() {
   const fetchBookings = async () => {
     try {
       setLoading(true);
+      console.log('🔍 DEBUG: Session data:', session);
+      console.log('🔍 DEBUG: User ID:', session?.user?.id);
+      
+      if (!session?.user?.id) {
+        console.error('❌ No session or user ID found');
+        setBookings([]);
+        return;
+      }
+      
       const params = selectedStatus !== 'all' ? `?status=${selectedStatus}` : '';
-      const response = await fetch(`/api/bookings/detailer/${session?.user?.id}${params}`);
+      const url = `/api/bookings/detailer/${session.user.id}${params}`;
+      console.log('🔍 DEBUG: Fetching from URL:', url);
+      
+      const response = await fetch(url);
       const data = await response.json();
+      console.log('🔍 DEBUG: API response:', data);
       setBookings(data.bookings || []);
     } catch (error) {
       console.error('Error fetching bookings:', error);
