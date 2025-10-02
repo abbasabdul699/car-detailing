@@ -224,7 +224,7 @@ export default function DetailerBookingsPage() {
                       </div>
                       
                       <div className="ml-4 flex space-x-2">
-                        {booking.status === 'pending' && (
+                        {booking.status === 'confirmed' && (
                           <>
                             <button
                               onClick={() => handleCancelBooking(booking)}
@@ -238,15 +238,13 @@ export default function DetailerBookingsPage() {
                             >
                               Reschedule
                             </button>
+                            <button
+                              onClick={() => updateBookingStatus(booking.id, 'completed')}
+                              className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700"
+                            >
+                              Mark Complete
+                            </button>
                           </>
-                        )}
-                        {booking.status === 'confirmed' && (
-                          <button
-                            onClick={() => updateBookingStatus(booking.id, 'completed')}
-                            className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700"
-                          >
-                            Mark Complete
-                          </button>
                         )}
                       </div>
                     </div>

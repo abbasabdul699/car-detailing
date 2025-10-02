@@ -1545,23 +1545,23 @@ Be conversational and natural.`;
                   }
                 }
                 
-                // Create the booking
-                const booking = await prisma.booking.create({
-                  data: {
-                    detailerId: detailer.id,
-                    conversationId: conversation.id,
-                    customerPhone: from,
-                    customerName: name,
-                    customerEmail: snapshot?.customerEmail || undefined,
-                    vehicleType: car,
-                    vehicleLocation: address,
-                    services: [service],
-                    scheduledDate: scheduledDate,
-                    scheduledTime: time !== 'Your scheduled time' ? time : undefined,
-                    status: 'pending',
-                    notes: 'Auto-captured from SMS conversation (AI confirmation)'
-                  }
-                });
+           // Create the booking
+           const booking = await prisma.booking.create({
+             data: {
+               detailerId: detailer.id,
+               conversationId: conversation.id,
+               customerPhone: from,
+               customerName: name,
+               customerEmail: snapshot?.customerEmail || undefined,
+               vehicleType: car,
+               vehicleLocation: address,
+               services: [service],
+               scheduledDate: scheduledDate,
+               scheduledTime: time !== 'Your scheduled time' ? time : undefined,
+               status: 'confirmed',
+               notes: 'Auto-captured from SMS conversation (AI confirmation)'
+             }
+           });
 
                 // Create customer record if needed
                 if (name && name !== 'Customer') {
@@ -1578,15 +1578,15 @@ Be conversational and natural.`;
                   await getOrCreateCustomer(detailer.id, from, customerData);
                 }
 
-                // Create notification
-                await prisma.notification.create({
-                  data: {
-                    detailerId: detailer.id,
-                    message: `📱 SMS BOOKING: ${name} - ${car}`,
-                    type: 'sms_booking',
-                    link: '/detailer-dashboard/bookings'
-                  }
-                });
+           // Create notification
+           await prisma.notification.create({
+             data: {
+               detailerId: detailer.id,
+               message: `📱 SMS BOOKING CONFIRMED: ${name} - ${car}`,
+               type: 'sms_booking',
+               link: '/detailer-dashboard/bookings'
+             }
+           });
 
                 console.log('✅ BOOKING CREATED SUCCESSFULLY:', booking.id);
               } catch (bookingError) {
