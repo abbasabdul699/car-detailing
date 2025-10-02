@@ -271,6 +271,21 @@ export async function POST(request: NextRequest) {
       // Don't fail the booking creation if SMS fails
     }
 
+    // Create a notification for the detailer about the new booking
+    try {
+      await prisma.notification.create({
+        data: {
+          detailerId: detailerId,
+          message: `New booking from ${customerName || 'Customer'} for ${new Date(scheduledDate).toLocaleDateString()}${scheduledTime ? ` at ${scheduledTime}` : ''}`,
+          type: 'booking',
+          link: '/detailer-dashboard/calendar',
+        },
+      });
+    } catch (notificationError) {
+      // Don't fail the booking creation if notification creation fails
+      console.error('Error creating booking notification:', notificationError);
+    }
+
     return NextResponse.json({ 
       success: true,
       booking: {

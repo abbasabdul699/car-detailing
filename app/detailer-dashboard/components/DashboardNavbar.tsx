@@ -3,78 +3,28 @@
 import { useState, useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
-import { BellIcon, MoonIcon, SunIcon, UserCircleIcon, Cog8ToothIcon, QuestionMarkCircleIcon, ArrowLeftStartOnRectangleIcon } from '@heroicons/react/24/outline';
+import { MoonIcon, SunIcon, UserCircleIcon, Cog8ToothIcon, QuestionMarkCircleIcon, ArrowLeftStartOnRectangleIcon } from '@heroicons/react/24/outline';
 import { CommandPalette } from "./CommandPalette";
 import { useTheme } from "@/app/components/ThemeContext";
-import { formatDistanceToNow } from 'date-fns';
-
-interface Notification {
-  id: string;
-  message: string;
-  createdAt: string;
-  read: boolean;
-  link?: string;
-}
+import NotificationBell from "./NotificationBell";
 
 export default function DashboardNavbar({ onLogout }: { onLogout: () => void }) {
   const { data: session } = useSession();
   const { theme, toggleTheme } = useTheme();
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const notificationsRef = useRef<HTMLDivElement>(null);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const unreadCount = notifications.filter(n => !n.read).length;
-  
-  const fetchNotifications = async () => {
-    try {
-      const response = await fetch('/api/notifications');
-      if (response.ok) {
-        const data = await response.json();
-        setNotifications(data);
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (session) {
-      fetchNotifications();
-    }
-  }, [session]);
-
-  const handleNotificationsToggle = async () => {
-    setNotificationsOpen(!notificationsOpen);
-    if (!notificationsOpen && unreadCount > 0) {
-      // Mark unread notifications as read
-      const unreadIds = notifications.filter(n => !n.read).map(n => n.id);
-      await fetch('/api/notifications', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ notificationIds: unreadIds }),
-      });
-      // Optimistically update the UI
-      setNotifications(notifications.map(n => ({ ...n, read: true })));
-    }
-  };
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setDropdownOpen(false);
       }
-      if (notificationsRef.current && !notificationsRef.current.contains(event.target as Node)) {
-        setNotificationsOpen(false);
-      }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [dropdownRef, notificationsRef]);
+  }, [dropdownRef]);
 
 
     return (
@@ -104,43 +54,7 @@ export default function DashboardNavbar({ onLogout }: { onLogout: () => void }) 
           )}
         </button>
 
-        <div className="relative" ref={notificationsRef}>
-          <button
-            onClick={handleNotificationsToggle}
-            type="button"
-            className="rounded-full p-2 text-gray-400 hover:text-gray-600 dark:text-gray-300 dark:hover:text-white focus:outline-none relative"
-          >
-            <BellIcon className="h-6 w-6" />
-            {unreadCount > 0 && (
-              <span className="absolute top-1 right-1 flex h-3 w-3">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-3 w-3 bg-orange-500"></span>
-              </span>
-            )}
-          </button>
-          {notificationsOpen && (
-            <div className="absolute right-0 mt-2 w-80 origin-top-right rounded-md bg-white dark:bg-gray-800 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
-              <div className="py-1">
-                <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-                  <p className="text-sm font-semibold text-gray-900 dark:text-white">Notifications</p>
-                  {loading && <p className="text-xs text-gray-500">Loading...</p>}
-                </div>
-                <div className="max-h-60 overflow-y-auto">
-                  {notifications.length > 0 ? (
-                    notifications.map(notification => (
-                      <Link key={notification.id} href={notification.link || '#'} className={`block px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700`}>
-                        <p className={`font-medium ${!notification.read ? 'text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400'}`}>{notification.message}</p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true })}</p>
-                      </Link>
-                    ))
-                  ) : (
-                    <p className="text-sm text-gray-500 text-center py-4">No new notifications</p>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
+        <NotificationBell detailerId={session?.user?.id || ''} />
 
         <div className="relative" ref={dropdownRef}>
           <button onClick={() => setDropdownOpen(!dropdownOpen)} className="flex items-center space-x-2 focus:outline-none">

@@ -1,53 +1,78 @@
-import { NextResponse } from 'next/server';
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 
-// GET all notifications for the logged-in detailer
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
+  try {
     const session = await getServerSession(authOptions);
-
+    
     if (!session || !session.user?.id) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    try {
-        const notifications = await prisma.notification.findMany({
-            where: { detailerId: session.user.id },
-            orderBy: { createdAt: 'desc' },
-        });
-        return NextResponse.json(notifications);
-    } catch (error) {
-        console.error('Error fetching notifications:', error);
-        return NextResponse.json({ error: 'Failed to fetch notifications' }, { status: 500 });
+    const { searchParams } = new URL(request.url);
+    const detailerId = searchParams.get('detailerId');
+
+    if (!detailerId) {
+      return NextResponse.json({ error: 'Detailer ID is required' }, { status: 400 });
     }
+
+    // Fetch notifications for the detailer
+    const notifications = await prisma.notification.findMany({
+      where: {
+        detailerId: detailerId,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      take: 50, // Limit to last 50 notifications
+    });
+
+    return NextResponse.json({ notifications });
+  } catch (error) {
+    console.error('Error fetching notifications:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch notifications' },
+      { status: 500 }
+    );
+  }
 }
 
-// PATCH to mark notifications as read
-export async function PATCH(request: Request) {
+export async function POST(request: NextRequest) {
+  try {
     const session = await getServerSession(authOptions);
-
-    if (!session || !session.user?.id) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
     
-    const { notificationIds } = await request.json();
-
-    if (!notificationIds || !Array.isArray(notificationIds)) {
-        return NextResponse.json({ error: 'Invalid request body, expected "notificationIds" array' }, { status: 400 });
+    if (!session || !session.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    try {
-        await prisma.notification.updateMany({
-            where: {
-                id: { in: notificationIds },
-                detailerId: session.user.id, // Ensure user can only update their own notifications
-            },
-            data: { read: true },
-        });
-        return NextResponse.json({ success: true });
-    } catch (error) {
-        console.error('Error updating notifications:', error);
-        return NextResponse.json({ error: 'Failed to update notifications' }, { status: 500 });
+    const body = await request.json();
+    const { detailerId, message, type, link } = body;
+
+    if (!detailerId || !message || !type) {
+      return NextResponse.json(
+        { error: 'Detailer ID, message, and type are required' },
+        { status: 400 }
+      );
     }
-} 
+
+    // Create notification
+    const notification = await prisma.notification.create({
+      data: {
+        detailerId,
+        message,
+        type,
+        link: link || null,
+      },
+    });
+
+    return NextResponse.json({ notification });
+  } catch (error) {
+    console.error('Error creating notification:', error);
+    return NextResponse.json(
+      { error: 'Failed to create notification' },
+      { status: 500 }
+    );
+  }
+}
