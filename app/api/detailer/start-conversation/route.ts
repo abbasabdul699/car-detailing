@@ -120,8 +120,7 @@ Just let me know what you need! 🚗✨`;
         create: {
           detailerId: detailer.id,
           name: customerName,
-          phone: e164Phone,
-          source: 'Manual Entry'
+          phone: e164Phone
         }
       });
     }
