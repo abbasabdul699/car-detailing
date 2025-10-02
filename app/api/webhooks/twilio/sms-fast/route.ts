@@ -1134,7 +1134,10 @@ This lead has been automatically processed and is ready for you to contact!`;
     console.log('DEBUG: Recent messages count:', recentMessages.length);
     console.log('DEBUG: Recent messages:', recentMessages.slice(0, 10).map(m => ({ direction: m.direction, content: m.content }))); // Show first 10 for debugging
     
-    const conversationHistory = recentMessages.reverse().map(msg => ({
+    // Keep the LLM context tight to avoid timeouts; use only the last 8 messages in chronological order
+    const chronological = [...recentMessages].reverse();
+    const convoForAI = chronological.slice(-8);
+    const conversationHistory = convoForAI.map(msg => ({
       role: msg.direction === 'inbound' ? 'user' : 'assistant',
       content: msg.content
     }));
@@ -1447,7 +1450,8 @@ Be conversational and natural.`;
     } else {
       try {
         const controller = new AbortController()
-        const timeout = setTimeout(() => controller.abort(), 15000)
+        // Abort a bit under Vercel's 10s function limit to leave time for post-processing
+        const timeout = setTimeout(() => controller.abort(), 7000)
         
         const messages = [
           { role: 'system', content: systemPrompt },
@@ -1468,7 +1472,7 @@ Be conversational and natural.`;
           body: JSON.stringify({
             model: 'gpt-4o-mini-2024-07-18', // Faster model for better performance
             messages,
-            max_tokens: 200,
+            max_tokens: 160,
             temperature: 0.7,
           }),
         });
