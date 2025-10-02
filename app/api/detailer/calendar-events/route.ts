@@ -192,7 +192,9 @@ export async function GET(request: NextRequest) {
           if (timeStr.includes('PM') || timeStr.includes('AM')) {
             const isPM = timeStr.includes('PM');
             const timeOnly = timeStr.replace(/\s*(AM|PM)/i, '').trim();
-            const [hours, minutes] = timeOnly.split(':').map(Number);
+            const timeParts = timeOnly.split(':');
+            const hours = parseInt(timeParts[0], 10);
+            const minutes = timeParts[1] ? parseInt(timeParts[1], 10) : 0;
             
             let hour24 = hours;
             if (isPM && hours !== 12) {
