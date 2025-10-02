@@ -35,6 +35,7 @@ export default function DetailerDashboardLayout({
   const navigation = [
     { name: "Dashboard", href: "/detailer-dashboard", icon: HomeIcon },
     { name: "Messages", href: "/detailer-dashboard/messages", icon: ChatBubbleLeftRightIcon },
+    { name: "Bookings", href: "/detailer-dashboard/bookings", icon: ChartBarIcon },
     { name: "Calendar", href: "/detailer-dashboard/calendar", icon: CalendarDaysIcon },
     { name: "Profile", href: "/detailer-dashboard/profile", icon: UserIcon },
     { name: "Services", href: "/detailer-dashboard/services", icon: CalendarIcon },
@@ -42,7 +43,6 @@ export default function DetailerDashboardLayout({
     { name: "Images", href: "/detailer-dashboard/images", icon: PhotoIcon },
     // { name: "Invoices", href: "/detailer-dashboard/invoices", icon: DocumentTextIcon },
     // { name: "Settings", href: "/detailer-dashboard/settings", icon: CogIcon },
-    { name: "Bookings", href: "/detailer-dashboard/bookings", icon: ChartBarIcon },
   ];
 
   const handleLogout = async () => {
