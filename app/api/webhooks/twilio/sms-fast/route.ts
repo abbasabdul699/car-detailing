@@ -1526,6 +1526,72 @@ Be conversational and natural.`;
               // Add calendar link in a separate message to avoid chunking issues
               aiResponse += `\n\n📅 Calendar: ${calendarUrl}`;
               console.log('Calendar link added to AI response with details:', { name, date, time, car, service, address });
+              
+              // CREATE THE BOOKING IMMEDIATELY when AI confirms
+              try {
+                console.log('🔥 CREATING BOOKING FROM AI CONFIRMATION');
+                
+                // Parse the date from the AI response
+                let scheduledDate = new Date();
+                if (date && date !== 'Your scheduled date') {
+                  // Try to parse the date from the AI response
+                  const dateMatch = date.match(/(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?/);
+                  if (dateMatch) {
+                    const month = parseInt(dateMatch[1], 10) - 1;
+                    const day = parseInt(dateMatch[2], 10);
+                    const yearNum = dateMatch[3] ? parseInt(dateMatch[3], 10) : new Date().getFullYear();
+                    const year = yearNum < 100 ? 2000 + yearNum : yearNum;
+                    scheduledDate = new Date(year, month, day);
+                  }
+                }
+                
+                // Create the booking
+                const booking = await prisma.booking.create({
+                  data: {
+                    detailerId: detailer.id,
+                    conversationId: conversation.id,
+                    customerPhone: from,
+                    customerName: name,
+                    customerEmail: snapshot?.customerEmail || undefined,
+                    vehicleType: car,
+                    vehicleLocation: address,
+                    services: [service],
+                    scheduledDate: scheduledDate,
+                    scheduledTime: time !== 'Your scheduled time' ? time : undefined,
+                    status: 'pending',
+                    notes: 'Auto-captured from SMS conversation (AI confirmation)'
+                  }
+                });
+
+                // Create customer record if needed
+                if (name && name !== 'Customer') {
+                  const customerData = {
+                    name: name,
+                    phone: from,
+                    email: snapshot?.customerEmail,
+                    address: address,
+                    vehicle: car,
+                    source: 'SMS Booking',
+                    notes: `SMS booking created - ${car}`
+                  };
+                  
+                  await getOrCreateCustomer(detailer.id, from, customerData);
+                }
+
+                // Create notification
+                await prisma.notification.create({
+                  data: {
+                    detailerId: detailer.id,
+                    message: `📱 SMS BOOKING: ${name} - ${car}`,
+                    type: 'sms_booking',
+                    link: '/detailer-dashboard/bookings'
+                  }
+                });
+
+                console.log('✅ BOOKING CREATED SUCCESSFULLY:', booking.id);
+              } catch (bookingError) {
+                console.error('❌ ERROR CREATING BOOKING:', bookingError);
+              }
             }
           } else {
             console.warn('Empty AI response, using fallback. Data:', data);
