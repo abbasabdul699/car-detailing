@@ -38,31 +38,86 @@ export default function MessagesPage() {
   const [showConversationList, setShowConversationList] = useState(true); // For mobile view
   const [newMessage, setNewMessage] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
+  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [previousMessageCounts, setPreviousMessageCounts] = useState<{[key: string]: number}>({});
+  const [hasNewMessages, setHasNewMessages] = useState(false);
 
   useEffect(() => {
     if (session?.user?.id) {
       fetchConversations();
+      
+      // Auto-refresh conversations every 5 seconds
+      const conversationsInterval = setInterval(() => {
+        fetchConversations(true);
+      }, 5000);
+      
+      return () => clearInterval(conversationsInterval);
     }
   }, [session?.user?.id]);
+
+  // Auto-refresh selected conversation messages
+  useEffect(() => {
+    if (selectedConversation) {
+      // Auto-refresh messages every 3 seconds when a conversation is selected
+      const messagesInterval = setInterval(() => {
+        fetchConversationMessages(selectedConversation.id);
+      }, 3000);
+      
+      return () => clearInterval(messagesInterval);
+    }
+  }, [selectedConversation]);
 
   // Add a refresh button or auto-refresh
   const refreshConversations = () => {
     fetchConversations();
   };
 
-  const fetchConversations = async () => {
+  const fetchConversations = async (showRefreshIndicator = false) => {
     try {
-      setLoading(true);
+      if (showRefreshIndicator) {
+        setIsRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+      
       const response = await fetch('/api/detailer/conversations');
       if (!response.ok) {
         throw new Error('Failed to fetch conversations');
       }
       const data = await response.json();
+      
+      // Check for new messages and update counts
+      const newCounts: {[key: string]: number} = {};
+      let hasNew = false;
+      
+      data.forEach((conv: Conversation) => {
+        newCounts[conv.id] = conv.messages.length;
+        
+        // Check if this conversation has new messages
+        if (previousMessageCounts[conv.id] && 
+            previousMessageCounts[conv.id] < conv.messages.length) {
+          hasNew = true;
+        }
+      });
+      
+      if (hasNew && Object.keys(previousMessageCounts).length > 0) {
+        setHasNewMessages(true);
+        // Clear the notification after 3 seconds
+        setTimeout(() => setHasNewMessages(false), 3000);
+      }
+      
       setConversations(data);
+      setPreviousMessageCounts(newCounts);
+      setLastRefresh(new Date());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch conversations');
     } finally {
-      setLoading(false);
+      if (showRefreshIndicator) {
+        setIsRefreshing(false);
+      } else {
+        setLoading(false);
+      }
     }
   };
 
@@ -178,7 +233,18 @@ export default function MessagesPage() {
   }
 
   return (
-    <div className="h-full flex">
+    <div className="h-full flex relative">
+      {/* New Messages Notification */}
+      {hasNewMessages && (
+        <div className="absolute top-4 right-4 z-50 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg animate-bounce">
+          <div className="flex items-center gap-2">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            </svg>
+            <span className="text-sm font-medium">New messages received!</span>
+          </div>
+        </div>
+      )}
       {/* Conversations List */}
       <div className={`${showConversationList ? 'flex' : 'hidden'} md:flex w-full md:w-1/3 border-r border-gray-200 dark:border-gray-700 flex-col`}>
         <div className="p-4 border-b border-gray-200 dark:border-gray-700">
@@ -187,6 +253,18 @@ export default function MessagesPage() {
               <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Messages</h1>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                 {conversations.length} conversation{conversations.length !== 1 ? 's' : ''}
+                {isRefreshing && (
+                  <span className="ml-2 text-green-600 dark:text-green-400">
+                    <svg className="inline w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Updating...
+                  </span>
+                )}
+              </p>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                Last updated: {lastRefresh.toLocaleTimeString()}
               </p>
             </div>
             <button
@@ -245,7 +323,7 @@ export default function MessagesPage() {
                     {formatMessageTime(conversation.lastMessageAt)}
                   </div>
                 </div>
-                <div className="mt-2">
+                <div className="mt-2 flex items-center justify-between">
                   <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
                     conversation.status === 'active' 
                       ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300' 
@@ -253,6 +331,12 @@ export default function MessagesPage() {
                   }`}>
                     {conversation.status}
                   </span>
+                  {previousMessageCounts[conversation.id] && 
+                   previousMessageCounts[conversation.id] < conversation.messages.length && (
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 animate-pulse">
+                      New
+                    </span>
+                  )}
                 </div>
               </div>
             ))
