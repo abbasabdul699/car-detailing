@@ -40,7 +40,7 @@ export default function DetailerDashboardLayout({
     { name: "Services", href: "/detailer-dashboard/services", icon: CalendarIcon },
     { name: "Bundles", href: "/detailer-dashboard/bundles", icon: CubeIcon },
     { name: "Images", href: "/detailer-dashboard/images", icon: PhotoIcon },
-    { name: "Invoices", href: "/detailer-dashboard/invoices", icon: DocumentTextIcon },
+    // { name: "Invoices", href: "/detailer-dashboard/invoices", icon: DocumentTextIcon },
     { name: "Settings", href: "/detailer-dashboard/settings", icon: CogIcon },
     { name: "Bookings", href: "/detailer-dashboard/bookings", icon: ChartBarIcon },
   ];
