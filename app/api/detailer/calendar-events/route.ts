@@ -140,10 +140,10 @@ export async function GET(request: NextRequest) {
             timeStr = `${timeStr}:00`;
           }
           
-          // Use local date string to avoid timezone issues
-          const dateStr = eventDate.getFullYear() + '-' + 
-            String(eventDate.getMonth() + 1).padStart(2, '0') + '-' + 
-            String(eventDate.getDate()).padStart(2, '0');
+          // Use UTC date string to avoid timezone issues
+          const dateStr = eventDate.getUTCFullYear() + '-' + 
+            String(eventDate.getUTCMonth() + 1).padStart(2, '0') + '-' + 
+            String(eventDate.getUTCDate()).padStart(2, '0');
           startDateTime = new Date(`${dateStr}T${timeStr}`);
           
           // If time parsing fails, fall back to event date
@@ -208,10 +208,10 @@ export async function GET(request: NextRequest) {
             timeStr = `${timeStr}:00`;
           }
           
-          // Use local date string to avoid timezone issues
-          const dateStr = bookingDate.getFullYear() + '-' + 
-            String(bookingDate.getMonth() + 1).padStart(2, '0') + '-' + 
-            String(bookingDate.getDate()).padStart(2, '0');
+          // Use UTC date string to avoid timezone issues
+          const dateStr = bookingDate.getUTCFullYear() + '-' + 
+            String(bookingDate.getUTCMonth() + 1).padStart(2, '0') + '-' + 
+            String(bookingDate.getUTCDate()).padStart(2, '0');
           startDateTime = new Date(`${dateStr}T${timeStr}`);
           
           // If time parsing fails, fall back to booking date
@@ -230,9 +230,9 @@ export async function GET(request: NextRequest) {
           title: `${booking.customerName || 'Customer'} - ${Array.isArray(booking.services) ? booking.services.join(', ') : booking.services || 'Detailing'}`,
           start: startDateTime.toISOString(),
           end: endDateTime.toISOString(),
-          date: bookingDate.getFullYear() + '-' + 
-            String(bookingDate.getMonth() + 1).padStart(2, '0') + '-' + 
-            String(bookingDate.getDate()).padStart(2, '0'),
+          date: bookingDate.getUTCFullYear() + '-' + 
+            String(bookingDate.getUTCMonth() + 1).padStart(2, '0') + '-' + 
+            String(bookingDate.getUTCDate()).padStart(2, '0'),
           time: booking.scheduledTime,
           allDay: false, // Bookings are never all-day
           color: booking.status === 'confirmed' ? 'green' : booking.status === 'pending' ? 'yellow' : 'red',
