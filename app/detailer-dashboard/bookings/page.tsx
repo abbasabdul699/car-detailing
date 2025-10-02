@@ -25,28 +25,24 @@ export default function DetailerBookingsPage() {
   const [selectedStatus, setSelectedStatus] = useState('all');
 
   useEffect(() => {
-    fetchBookings();
-  }, [selectedStatus]);
+    // Wait for session to be available before fetching bookings
+    if (session?.user?.id) {
+      fetchBookings();
+    }
+  }, [selectedStatus, session?.user?.id]);
 
   const fetchBookings = async () => {
     try {
       setLoading(true);
-      console.log('🔍 DEBUG: Session data:', session);
-      console.log('🔍 DEBUG: User ID:', session?.user?.id);
       
       if (!session?.user?.id) {
-        console.error('❌ No session or user ID found');
         setBookings([]);
         return;
       }
       
       const params = selectedStatus !== 'all' ? `?status=${selectedStatus}` : '';
-      const url = `/api/bookings/detailer/${session.user.id}${params}`;
-      console.log('🔍 DEBUG: Fetching from URL:', url);
-      
-      const response = await fetch(url);
+      const response = await fetch(`/api/bookings/detailer/${session.user.id}${params}`);
       const data = await response.json();
-      console.log('🔍 DEBUG: API response:', data);
       setBookings(data.bookings || []);
     } catch (error) {
       console.error('Error fetching bookings:', error);
@@ -78,6 +74,60 @@ export default function DetailerBookingsPage() {
     }
   };
 
+  const handleCancelBooking = async (booking: Booking) => {
+    try {
+      // Send SMS to customer about cancellation
+      const response = await fetch('/api/detailer/send-message', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          conversationId: booking.conversationId,
+          message: `Hi ${booking.customerName}, unfortunately I need to cancel our appointment for ${new Date(booking.scheduledDate).toLocaleDateString('en-US', { timeZone: 'UTC' })} at ${booking.scheduledTime}. I apologize for any inconvenience. Please let me know if you'd like to reschedule for another time.`
+        })
+      });
+
+      if (response.ok) {
+        // Update booking status to cancelled
+        await updateBookingStatus(booking.id, 'cancelled');
+        alert('Booking cancelled and customer notified via SMS');
+      } else {
+        console.error('Failed to send cancellation SMS');
+        alert('Failed to notify customer. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error cancelling booking:', error);
+      alert('Error cancelling booking. Please try again.');
+    }
+  };
+
+  const handleRescheduleBooking = async (booking: Booking) => {
+    try {
+      // Send SMS to customer about rescheduling
+      const response = await fetch('/api/detailer/send-message', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          conversationId: booking.conversationId,
+          message: `Hi ${booking.customerName}, I need to reschedule our appointment for ${new Date(booking.scheduledDate).toLocaleDateString('en-US', { timeZone: 'UTC' })} at ${booking.scheduledTime}. Please let me know what dates and times work better for you, and I'll get you scheduled right away!`
+        })
+      });
+
+      if (response.ok) {
+        alert('Customer notified about rescheduling via SMS. They will respond with their preferred times.');
+      } else {
+        console.error('Failed to send reschedule SMS');
+        alert('Failed to notify customer. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error sending reschedule message:', error);
+      alert('Error sending reschedule message. Please try again.');
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'pending': return 'bg-yellow-100 text-yellow-800';
@@ -97,7 +147,7 @@ export default function DetailerBookingsPage() {
     return phone;
   };
 
-  if (loading) {
+  if (loading || !session) {
     return (
       <div className="min-h-screen bg-gray-50">
         <div className="flex items-center justify-center h-64">
@@ -158,7 +208,7 @@ export default function DetailerBookingsPage() {
                         </div>
                         
                         <div className="mt-2 text-sm text-gray-600">
-                          <p><strong>Date:</strong> {new Date(booking.scheduledDate).toLocaleDateString()}</p>
+                          <p><strong>Date:</strong> {new Date(booking.scheduledDate).toLocaleDateString('en-US', { timeZone: 'UTC' })}</p>
                           {booking.scheduledTime && <p><strong>Time:</strong> {booking.scheduledTime}</p>}
                           {booking.vehicleType && <p><strong>Vehicle:</strong> {booking.vehicleType}</p>}
                           {booking.vehicleLocation && <p><strong>Location:</strong> {booking.vehicleLocation}</p>}
@@ -177,26 +227,27 @@ export default function DetailerBookingsPage() {
                         {booking.status === 'pending' && (
                           <>
                             <button
-                              onClick={() => updateBookingStatus(booking.id, 'confirmed')}
-                              className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700"
-                            >
-                              Confirm
-                            </button>
-                            <button
-                              onClick={() => updateBookingStatus(booking.id, 'cancelled')}
+                              onClick={() => handleCancelBooking(booking)}
                               className="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700"
                             >
                               Cancel
                             </button>
+                            <button
+                              onClick={() => handleRescheduleBooking(booking)}
+                              className="bg-yellow-600 text-white px-3 py-1 rounded text-sm hover:bg-yellow-700"
+                            >
+                              Reschedule
+                            </button>
                           </>
                         )}
-                        <button
-                          onClick={() => updateBookingStatus(booking.id, 'completed')}
-                          disabled={booking.status === 'cancelled'}
-                          className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 disabled:bg-gray-400"
-                        >
-                          Mark Complete
-                        </button>
+                        {booking.status === 'confirmed' && (
+                          <button
+                            onClick={() => updateBookingStatus(booking.id, 'completed')}
+                            className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700"
+                          >
+                            Mark Complete
+                          </button>
+                        )}
                       </div>
                     </div>
                   </li>
