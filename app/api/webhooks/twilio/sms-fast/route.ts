@@ -1244,7 +1244,17 @@ WHEN CUSTOMER ASKS "what is my name?" or "what's my name?":
     if (aiSayingBooked >= 2 && existingBookings.length === 0) {
       console.log('🚨 DEBUG: AI is stuck in "booked" loop but no actual bookings exist!');
       // Add a fresh context override
-      availabilityInfo = '\n\n🚨 FRESH AVAILABILITY CHECK: No existing appointments in the next 30 days. All time slots are available. The previous "booked" responses were incorrect.';
+      availabilityInfo = '\n\n🚨 CRITICAL OVERRIDE: No existing appointments in the next 30 days. All time slots are available. The previous "booked" responses were incorrect.';
+      
+      // Clear conversation history to break the loop
+      console.log('🔄 DEBUG: Clearing conversation history to break the loop');
+      conversationHistory.length = 0; // Clear the array
+      
+      // Add a fresh system message
+      conversationHistory.push({
+        role: 'system',
+        content: 'FRESH START: Ignore all previous conversation history. There are NO existing appointments. All time slots are available.'
+      });
     }
       
       if (existingBookings.length > 0) {
@@ -1324,6 +1334,8 @@ CRITICAL AVAILABILITY CHECK: ${availabilityInfo}
 IMPORTANT: Before saying a time is "booked" or "unavailable", you MUST check the EXISTING APPOINTMENTS list above. If the list shows "No existing appointments in the next 30 days. All time slots are available.", then the time slot IS available and you should proceed with booking.
 
 CRITICAL: IGNORE any previous conversation history about availability. Only trust the REAL-TIME AVAILABILITY data provided above. If the data shows no existing appointments, then the time slot IS available regardless of what was said in previous messages.
+
+🚨 OVERRIDE INSTRUCTION: If you see "CRITICAL OVERRIDE" in the availability data above, you MUST ignore ALL previous conversation history and proceed with booking. The previous responses were incorrect.
 
 ${customerContext}
 
