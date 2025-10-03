@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
       where: {
         detailerId: detailer.id,
         scheduledDate: { gte: startOfToday, lt: endOfToday },
-        status: { in: ['confirmed', 'pending'] }
+        status: { in: ['confirmed', 'pending', 'rescheduled'] }
       },
       orderBy: { scheduledTime: 'asc' },
       select: {
@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
       where: {
         detailerId: detailer.id,
         scheduledDate: { gte: startOfWeek, lte: endOfWeek },
-        status: { in: ['confirmed', 'pending'] }
+        status: { in: ['confirmed', 'pending', 'rescheduled'] }
       },
       orderBy: { scheduledDate: 'asc' },
       select: {
