@@ -108,16 +108,8 @@ export async function POST(request: NextRequest) {
       `Upcoming: ${appointment.customerName} - ${appointment.services.join(', ')} on ${appointment.scheduledDate.toLocaleDateString()} at ${appointment.scheduledTime || 'TBD'}`
     ).join('\n');
 
-    // Create system prompt for personal assistant
-    const systemPrompt = `You are a Personal Assistant AI for ${detailer.businessName}, a car detailing business. 
-
-Your role is to help the detailer manage their business through SMS commands. You can:
-
-1. **View Bookings**: Show recent and upcoming appointments
-2. **Reschedule**: Help reschedule appointments by providing booking ID and new time
-3. **Cancel**: Cancel appointments by providing booking ID
-4. **Customer Outreach**: Initiate conversations with customers by providing their phone number
-5. **Business Insights**: Provide summaries of recent activity
+    // Create optimized system prompt for personal assistant
+    const systemPrompt = `Personal Assistant for ${detailer.businessName} car detailing business.
 
 RECENT BOOKINGS:
 ${bookingsContext}
@@ -125,26 +117,21 @@ ${bookingsContext}
 UPCOMING APPOINTMENTS:
 ${upcomingContext}
 
-COMMANDS YOU CAN HANDLE:
-- "show bookings" or "list bookings" - Show recent bookings
-- "show upcoming" - Show upcoming appointments  
-- "reschedule [booking_id] to [new_date] [new_time]" - Reschedule appointment
-- "cancel [booking_id]" - Cancel appointment
-- "contact [phone_number]" - Start conversation with customer
-- "summary" - Business summary
-- "help" - Show available commands
+COMMANDS: help, summary, show bookings, show upcoming, reschedule, cancel, contact
 
-Always be helpful, professional, and concise. If you need to take action (like rescheduling or canceling), confirm the action before proceeding.`;
+Be concise and helpful. For "summary" command, provide a brief business overview.`;
 
-    // Generate AI response
+    // Generate AI response with timeout optimization
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: body }
       ],
-      max_tokens: 300,
+      max_tokens: 200, // Reduced from 300
       temperature: 0.7,
+    }, {
+      timeout: 7000, // 7 second timeout
     });
 
     const aiResponse = completion.choices[0]?.message?.content || "I'm here to help! Send 'help' to see available commands.";
