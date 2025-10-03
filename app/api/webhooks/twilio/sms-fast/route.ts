@@ -1296,7 +1296,13 @@ ${detailer.city && detailer.state ? `Location: ${detailer.city}, ${detailer.stat
 Business Hours:
 ${formatBusinessHours(detailer.businessHours)}
 
-IMPORTANT: You MUST follow the business hours exactly as specified above. Do not make up or assume different hours.${availabilityInfo}${customerContext}
+IMPORTANT: You MUST follow the business hours exactly as specified above. Do not make up or assume different hours.
+
+CRITICAL AVAILABILITY CHECK: ${availabilityInfo}
+
+IMPORTANT: Before saying a time is "booked" or "unavailable", you MUST check the EXISTING APPOINTMENTS list above. If the list shows "No existing appointments in the next 30 days. All time slots are available.", then the time slot IS available and you should proceed with booking.
+
+${customerContext}
 
 Available Services: ${availableServices || 'Various car detailing services'}
 
