@@ -146,6 +146,27 @@ export async function POST(request: NextRequest) {
       }
     });
 
+    // All future appointments (beyond next week) for comprehensive coverage
+    const allFutureAppointments = await prisma.booking.findMany({
+      where: {
+        detailerId: detailer.id,
+        scheduledDate: { gte: new Date() },
+        status: { in: ['confirmed', 'pending', 'rescheduled'] }
+      },
+      orderBy: { scheduledDate: 'asc' },
+      select: {
+        id: true,
+        customerName: true,
+        customerPhone: true,
+        services: true,
+        scheduledDate: true,
+        scheduledTime: true,
+        status: true,
+        vehicleType: true,
+        vehicleLocation: true
+      }
+    });
+
     // Recent bookings (last 5)
     const recentBookings = await prisma.booking.findMany({
       where: { detailerId: detailer.id },
@@ -192,7 +213,7 @@ export async function POST(request: NextRequest) {
       requestedDate = tomorrow;
       
       // Find appointments for tomorrow
-      specificDateAppointments = [...todaysAppointments, ...thisWeekAppointments, ...nextWeekAppointments].filter(appointment => {
+      specificDateAppointments = allFutureAppointments.filter(appointment => {
         const appointmentDate = new Date(appointment.scheduledDate);
         return appointmentDate.toDateString() === tomorrow.toDateString();
       });
@@ -200,24 +221,53 @@ export async function POST(request: NextRequest) {
     // Check for specific date mentions
     else if (userMessage.includes('october 4') || userMessage.includes('oct 4')) {
       requestedDate = new Date('2025-10-04');
-      specificDateAppointments = [...todaysAppointments, ...thisWeekAppointments, ...nextWeekAppointments].filter(appointment => {
+      specificDateAppointments = allFutureAppointments.filter(appointment => {
         const appointmentDate = new Date(appointment.scheduledDate);
         return appointmentDate.toDateString() === requestedDate.toDateString();
       });
     }
     else if (userMessage.includes('october 5') || userMessage.includes('oct 5')) {
       requestedDate = new Date('2025-10-05');
-      specificDateAppointments = [...todaysAppointments, ...thisWeekAppointments, ...nextWeekAppointments].filter(appointment => {
+      specificDateAppointments = allFutureAppointments.filter(appointment => {
         const appointmentDate = new Date(appointment.scheduledDate);
         return appointmentDate.toDateString() === requestedDate.toDateString();
       });
     }
     else if (userMessage.includes('october 6') || userMessage.includes('oct 6')) {
       requestedDate = new Date('2025-10-06');
-      specificDateAppointments = [...todaysAppointments, ...thisWeekAppointments, ...nextWeekAppointments].filter(appointment => {
+      specificDateAppointments = allFutureAppointments.filter(appointment => {
         const appointmentDate = new Date(appointment.scheduledDate);
         return appointmentDate.toDateString() === requestedDate.toDateString();
       });
+    }
+    else if (userMessage.includes('october 7') || userMessage.includes('oct 7')) {
+      requestedDate = new Date('2025-10-07');
+      specificDateAppointments = allFutureAppointments.filter(appointment => {
+        const appointmentDate = new Date(appointment.scheduledDate);
+        return appointmentDate.toDateString() === requestedDate.toDateString();
+      });
+    }
+    else if (userMessage.includes('october 13') || userMessage.includes('oct 13') || userMessage.includes('13th')) {
+      requestedDate = new Date('2025-10-13');
+      specificDateAppointments = allFutureAppointments.filter(appointment => {
+        const appointmentDate = new Date(appointment.scheduledDate);
+        return appointmentDate.toDateString() === requestedDate.toDateString();
+      });
+    }
+    // Generic October date parsing for any other dates
+    else if (userMessage.includes('october') || userMessage.includes('oct')) {
+      // Try to extract day number from the message
+      const dayMatch = userMessage.match(/(?:october|oct)\s+(\d{1,2})(?:st|nd|rd|th)?/);
+      if (dayMatch) {
+        const day = parseInt(dayMatch[1]);
+        if (day >= 1 && day <= 31) {
+          requestedDate = new Date(2025, 9, day); // October is month 9 (0-indexed)
+          specificDateAppointments = [...todaysAppointments, ...thisWeekAppointments, ...nextWeekAppointments].filter(appointment => {
+            const appointmentDate = new Date(appointment.scheduledDate);
+            return appointmentDate.toDateString() === requestedDate.toDateString();
+          });
+        }
+      }
     }
 
     // Build comprehensive context for AI
@@ -231,6 +281,10 @@ export async function POST(request: NextRequest) {
 
     const nextWeekContext = nextWeekAppointments.map(appointment => 
       `Next Week: ${appointment.customerName} - ${appointment.services.join(', ')} on ${appointment.scheduledDate.toLocaleDateString()} at ${appointment.scheduledTime || 'TBD'}`
+    ).join('\n');
+
+    const allFutureContext = allFutureAppointments.map(appointment => 
+      `Future: ${appointment.customerName} - ${appointment.services.join(', ')} on ${appointment.scheduledDate.toLocaleDateString()} at ${appointment.scheduledTime || 'TBD'} (${appointment.status})`
     ).join('\n');
 
     // Build specific date context if user asked about a specific date
@@ -286,11 +340,14 @@ ${todaysAppointmentsContext || 'No appointments today'}
 📋 THIS WEEK'S SCHEDULE:
 ${thisWeekContext || 'No appointments this week'}
 
-📅 NEXT WEEK'S SCHEDULE:
-${nextWeekContext || 'No appointments next week'}
-
-📝 RECENT BOOKINGS:
-${recentBookingsContext || 'No recent bookings'}
+    📅 NEXT WEEK'S SCHEDULE:
+    ${nextWeekContext || 'No appointments next week'}
+    
+    📅 ALL FUTURE APPOINTMENTS:
+    ${allFutureContext || 'No future appointments'}
+    
+    📝 RECENT BOOKINGS:
+    ${recentBookingsContext || 'No recent bookings'}
 
 🤖 AVAILABLE COMMANDS:
 - "help" - Show all commands
@@ -333,18 +390,17 @@ Be concise, helpful, and provide actionable insights. For "summary", include tod
         const customerName = commandParts[commandIndex + 1] + (commandParts[commandIndex + 2] && !commandParts[commandIndex + 2].match(/^\d/) ? ' ' + commandParts[commandIndex + 2] : '');
         
         // Find the appointment to modify
-        targetAppointment = [...todaysAppointments, ...thisWeekAppointments, ...nextWeekAppointments].find(appointment => 
+        targetAppointment = allFutureAppointments.find(appointment => 
           appointment.customerName.toLowerCase().includes(customerName.toLowerCase()) ||
           customerName.toLowerCase().includes(appointment.customerName.toLowerCase())
         );
       } else if (userMessage.includes('appointment') && (userMessage.includes('cancel') || userMessage.includes('reschedule'))) {
         // Handle general "cancel appointment" or "reschedule appointment" requests
         // Look for the most recent appointment mentioned in the conversation context
-        const allAppointments = [...todaysAppointments, ...thisWeekAppointments, ...nextWeekAppointments];
         
         // If there's only one appointment, use that
-        if (allAppointments.length === 1) {
-          targetAppointment = allAppointments[0];
+        if (allFutureAppointments.length === 1) {
+          targetAppointment = allFutureAppointments[0];
         } else {
           // If there are multiple appointments, look for the one most recently mentioned
           // For now, prioritize today's appointments, then this week's, then next week's
@@ -408,7 +464,7 @@ Be concise, helpful, and provide actionable insights. For "summary", include tod
             }
           }
       } else {
-        aiResponse = `❌ No appointment found. Please check the name and try again. Available appointments:\n${[...todaysAppointments, ...thisWeekAppointments, ...nextWeekAppointments].map(apt => `- ${apt.customerName} on ${apt.scheduledDate.toLocaleDateString()} at ${apt.scheduledTime}`).join('\n')}`;
+        aiResponse = `❌ No appointment found. Please check the name and try again. Available appointments:\n${allFutureAppointments.map(apt => `- ${apt.customerName} on ${apt.scheduledDate.toLocaleDateString()} at ${apt.scheduledTime}`).join('\n')}`;
       }
     } else {
       // Generate AI response with timeout optimization
