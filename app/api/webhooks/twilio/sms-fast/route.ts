@@ -676,7 +676,7 @@ async function checkAppointmentConflict(detailerId: string, scheduledDate: Date,
           lt: new Date(scheduledDate.getFullYear(), scheduledDate.getMonth(), scheduledDate.getDate() + 1)
         },
         status: {
-          not: 'cancelled'
+          in: ['confirmed', 'pending']
         }
       }
     });
