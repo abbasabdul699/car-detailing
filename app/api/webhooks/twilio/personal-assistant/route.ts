@@ -315,7 +315,6 @@ Be concise, helpful, and provide actionable insights. For "summary", include tod
 
     // Check for reschedule/cancel commands and handle them
     let aiResponse = '';
-    const userMessage = body.toLowerCase();
     
     if (userMessage.includes('reschedule') || userMessage.includes('cancel')) {
       // Parse the command
