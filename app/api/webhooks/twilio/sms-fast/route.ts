@@ -1647,23 +1647,65 @@ Be conversational and natural.`;
                   }
                 }
                 
-           // Create the booking
-           const booking = await prisma.booking.create({
-             data: {
-               detailerId: detailer.id,
-               conversationId: conversation.id,
-               customerPhone: from,
-               customerName: name,
-               customerEmail: snapshot?.customerEmail || undefined,
-               vehicleType: car,
-               vehicleLocation: address,
-               services: [service],
-               scheduledDate: scheduledDate,
-               scheduledTime: time !== 'Your scheduled time' ? time : undefined,
-               status: 'confirmed',
-               notes: 'Auto-captured from SMS conversation (AI confirmation)'
+           // Create the booking with error handling
+           let booking;
+           try {
+             booking = await prisma.booking.create({
+               data: {
+                 detailerId: detailer.id,
+                 conversationId: conversation.id,
+                 customerPhone: from,
+                 customerName: name,
+                 customerEmail: snapshot?.customerEmail || undefined,
+                 vehicleType: car,
+                 vehicleLocation: address,
+                 services: [service],
+                 scheduledDate: scheduledDate,
+                 scheduledTime: time !== 'Your scheduled time' ? time : undefined,
+                 status: 'confirmed',
+                 notes: 'Auto-captured from SMS conversation (AI confirmation)'
+               }
+             });
+             console.log('✅ AI confirmation booking created successfully:', booking.id);
+           } catch (bookingError: any) {
+             console.error('❌ ERROR CREATING AI CONFIRMATION BOOKING:', bookingError);
+             
+             // Handle unique constraint violation (customer already has appointment on this date)
+             if (bookingError.code === 'P2002' && bookingError.meta?.target?.includes('detailerId_scheduledDate_customerPhone')) {
+               console.log('🚨 DUPLICATE BOOKING DETECTED in AI confirmation: Customer already has appointment on this date');
+               
+               // Find the existing booking
+               const existingBooking = await prisma.booking.findFirst({
+                 where: {
+                   detailerId: detailer.id,
+                   customerPhone: from,
+                   scheduledDate: {
+                     gte: new Date(scheduledDate.getFullYear(), scheduledDate.getMonth(), scheduledDate.getDate()),
+                     lt: new Date(scheduledDate.getFullYear(), scheduledDate.getMonth(), scheduledDate.getDate() + 1)
+                   }
+                 }
+               });
+               
+               if (existingBooking) {
+                 aiResponse = `I see you already have an appointment on ${scheduledDate.toLocaleDateString()} at ${existingBooking.scheduledTime}. 
+
+Would you like to:
+1. Reschedule your existing appointment
+2. Cancel your existing appointment and book a new one
+3. Choose a different date
+
+Please let me know what you'd prefer!`;
+                 
+                 console.log('📝 Sending duplicate booking message to customer (AI confirmation)');
+                 return new Response(aiResponse, { status: 200 });
+               }
              }
-           });
+             
+             // For other errors, show a generic message
+             aiResponse = `I apologize, but I'm having trouble creating your appointment right now. Please try again in a moment, or contact us directly for assistance.`;
+             console.log('📝 Sending error message to customer due to AI confirmation booking creation failure');
+             return new Response(aiResponse, { status: 200 });
+           }
 
                 // Create customer record if needed
                 if (name && name !== 'Customer') {
@@ -1994,23 +2036,65 @@ What time would work better for you?`;
           }
         }
 
-        // Create the booking
-        const booking = await prisma.booking.create({
-          data: {
-            detailerId: detailer.id,
-            conversationId: conversation.id,
-            customerPhone: from,
-            customerName: snapForBooking?.customerName || undefined,
-            customerEmail: snapForBooking?.customerEmail || undefined,
-            vehicleType: snapForBooking?.vehicle || [snapForBooking?.vehicleYear, snapForBooking?.vehicleMake, snapForBooking?.vehicleModel].filter(Boolean).join(' ') || undefined,
-            vehicleLocation: snapForBooking?.address || undefined,
-            services: services.length ? services : ['Detailing'],
-            scheduledDate: when,
-            scheduledTime: parsed.time || undefined,
-            status: 'pending',
-            notes: parsed.note ? `Auto-captured from SMS conversation (fast webhook) | ${parsed.note}` : 'Auto-captured from SMS conversation (fast webhook)'
+        // Create the booking with error handling
+        let booking;
+        try {
+          booking = await prisma.booking.create({
+            data: {
+              detailerId: detailer.id,
+              conversationId: conversation.id,
+              customerPhone: from,
+              customerName: snapForBooking?.customerName || undefined,
+              customerEmail: snapForBooking?.customerEmail || undefined,
+              vehicleType: snapForBooking?.vehicle || [snapForBooking?.vehicleYear, snapForBooking?.vehicleMake, snapForBooking?.vehicleModel].filter(Boolean).join(' ') || undefined,
+              vehicleLocation: snapForBooking?.address || undefined,
+              services: services.length ? services : ['Detailing'],
+              scheduledDate: when,
+              scheduledTime: parsed.time || undefined,
+              status: 'pending',
+              notes: parsed.note ? `Auto-captured from SMS conversation (fast webhook) | ${parsed.note}` : 'Auto-captured from SMS conversation (fast webhook)'
+            }
+          })
+          console.log('✅ Booking created successfully:', booking.id);
+        } catch (bookingError: any) {
+          console.error('❌ ERROR CREATING BOOKING:', bookingError);
+          
+          // Handle unique constraint violation (customer already has appointment on this date)
+          if (bookingError.code === 'P2002' && bookingError.meta?.target?.includes('detailerId_scheduledDate_customerPhone')) {
+            console.log('🚨 DUPLICATE BOOKING DETECTED: Customer already has appointment on this date');
+            
+            // Find the existing booking
+            const existingBooking = await prisma.booking.findFirst({
+              where: {
+                detailerId: detailer.id,
+                customerPhone: from,
+                scheduledDate: {
+                  gte: new Date(when.getFullYear(), when.getMonth(), when.getDate()),
+                  lt: new Date(when.getFullYear(), when.getMonth(), when.getDate() + 1)
+                }
+              }
+            });
+            
+            if (existingBooking) {
+              aiResponse = `I see you already have an appointment on ${when.toLocaleDateString()} at ${existingBooking.scheduledTime}. 
+
+Would you like to:
+1. Reschedule your existing appointment
+2. Cancel your existing appointment and book a new one
+3. Choose a different date
+
+Please let me know what you'd prefer!`;
+              
+              console.log('📝 Sending duplicate booking message to customer');
+              return new Response(aiResponse, { status: 200 });
+            }
           }
-        })
+          
+          // For other errors, show a generic message
+          aiResponse = `I apologize, but I'm having trouble creating your appointment right now. Please try again in a moment, or contact us directly for assistance.`;
+          console.log('📝 Sending error message to customer due to booking creation failure');
+          return new Response(aiResponse, { status: 200 });
+        }
 
         // Create or update customer record
         if (snapForBooking?.customerName) {
