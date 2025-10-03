@@ -162,21 +162,25 @@ Always be helpful, professional, and concise. If you need to take action (like r
         const bookingId = bookingIdMatch[1];
         console.log('📅 Processing reschedule for booking:', bookingId);
         
-        // Update booking status to rescheduled
-        await prisma.booking.update({
-          where: { id: bookingId },
-          data: { status: 'rescheduled' }
-        });
+        try {
+          // Update booking status to rescheduled
+          await prisma.booking.update({
+            where: { id: bookingId },
+            data: { status: 'rescheduled' }
+          });
 
-        // Create notification
-        await prisma.notification.create({
-          data: {
-            detailerId: detailer.id,
-            message: `📅 Booking ${bookingId} has been rescheduled via Personal Assistant`,
-            type: 'booking_update',
-            link: '/detailer-dashboard/bookings'
-          }
-        });
+          // Create notification
+          await prisma.notification.create({
+            data: {
+              detailerId: detailer.id,
+              message: `📅 Booking ${bookingId} has been rescheduled via Personal Assistant`,
+              type: 'booking_update',
+              link: '/detailer-dashboard/bookings'
+            }
+          });
+        } catch (error) {
+          console.error('❌ Error updating booking:', error);
+        }
       }
     }
 
@@ -187,21 +191,25 @@ Always be helpful, professional, and concise. If you need to take action (like r
         const bookingId = bookingIdMatch[1];
         console.log('❌ Processing cancellation for booking:', bookingId);
         
-        // Update booking status to cancelled
-        await prisma.booking.update({
-          where: { id: bookingId },
-          data: { status: 'cancelled' }
-        });
+        try {
+          // Update booking status to cancelled
+          await prisma.booking.update({
+            where: { id: bookingId },
+            data: { status: 'cancelled' }
+          });
 
-        // Create notification
-        await prisma.notification.create({
-          data: {
-            detailerId: detailer.id,
-            message: `❌ Booking ${bookingId} has been cancelled via Personal Assistant`,
-            type: 'booking_update',
-            link: '/detailer-dashboard/bookings'
-          }
-        });
+          // Create notification
+          await prisma.notification.create({
+            data: {
+              detailerId: detailer.id,
+              message: `❌ Booking ${bookingId} has been cancelled via Personal Assistant`,
+              type: 'booking_update',
+              link: '/detailer-dashboard/bookings'
+            }
+          });
+        } catch (error) {
+          console.error('❌ Error updating booking:', error);
+        }
       }
     }
 
