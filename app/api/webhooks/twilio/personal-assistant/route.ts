@@ -300,8 +300,8 @@ ${recentBookingsContext || 'No recent bookings'}
 - "next week" - Next week's schedule
 - "bookings" - Recent bookings
 - "stats" - Business statistics
-- "reschedule [booking_id]" - Reschedule appointment
-- "cancel [booking_id]" - Cancel appointment
+- "reschedule [customer name] [date/time]" - Reschedule appointment (e.g., "reschedule Juan Dudley tomorrow at 2 PM")
+- "cancel [customer name] [date/time]" - Cancel appointment (e.g., "cancel Juan Dudley October 4th at 1 PM")
 - "contact [phone]" - Start customer conversation
 
 🚨 CRITICAL INSTRUCTIONS:
@@ -313,20 +313,78 @@ ${recentBookingsContext || 'No recent bookings'}
 
 Be concise, helpful, and provide actionable insights. For "summary", include today's performance and tomorrow's preparation.`;
 
-    // Generate AI response with timeout optimization
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: body }
-      ],
-      max_tokens: 200, // Reduced from 300
-      temperature: 0.7,
-    }, {
-      timeout: 7000, // 7 second timeout
-    });
-
-    const aiResponse = completion.choices[0]?.message?.content || "I'm here to help! Send 'help' to see available commands.";
+    // Check for reschedule/cancel commands and handle them
+    let aiResponse = '';
+    const userMessage = body.toLowerCase();
+    
+    if (userMessage.includes('reschedule') || userMessage.includes('cancel')) {
+      // Parse the command
+      const isReschedule = userMessage.includes('reschedule');
+      const isCancel = userMessage.includes('cancel');
+      
+      // Extract customer name and date/time from the message
+      const commandParts = body.split(' ');
+      const commandIndex = isReschedule ? commandParts.findIndex(part => part.toLowerCase() === 'reschedule') : 
+                                      commandParts.findIndex(part => part.toLowerCase() === 'cancel');
+      
+      if (commandIndex !== -1 && commandParts.length > commandIndex + 1) {
+        // Find customer name (usually the next 1-2 words after the command)
+        const customerName = commandParts[commandIndex + 1] + (commandParts[commandIndex + 2] && !commandParts[commandIndex + 2].match(/^\d/) ? ' ' + commandParts[commandIndex + 2] : '');
+        
+        // Find the appointment to modify
+        const targetAppointment = [...todaysAppointments, ...thisWeekAppointments, ...nextWeekAppointments].find(appointment => 
+          appointment.customerName.toLowerCase().includes(customerName.toLowerCase()) ||
+          customerName.toLowerCase().includes(appointment.customerName.toLowerCase())
+        );
+        
+        if (targetAppointment) {
+          if (isReschedule) {
+            // Handle reschedule
+            try {
+              await prisma.booking.update({
+                where: { id: targetAppointment.id },
+                data: { status: 'rescheduled' }
+              });
+              aiResponse = `✅ Appointment rescheduled for ${targetAppointment.customerName} on ${targetAppointment.scheduledDate.toLocaleDateString()} at ${targetAppointment.scheduledTime}. The appointment has been marked as rescheduled.`;
+            } catch (error) {
+              console.error('Error rescheduling appointment:', error);
+              aiResponse = `❌ Error rescheduling appointment for ${targetAppointment.customerName}. Please try again.`;
+            }
+          } else if (isCancel) {
+            // Handle cancel
+            try {
+              await prisma.booking.update({
+                where: { id: targetAppointment.id },
+                data: { status: 'cancelled' }
+              });
+              aiResponse = `✅ Appointment cancelled for ${targetAppointment.customerName} on ${targetAppointment.scheduledDate.toLocaleDateString()} at ${targetAppointment.scheduledTime}. The appointment has been marked as cancelled.`;
+            } catch (error) {
+              console.error('Error cancelling appointment:', error);
+              aiResponse = `❌ Error cancelling appointment for ${targetAppointment.customerName}. Please try again.`;
+            }
+          }
+        } else {
+          aiResponse = `❌ No appointment found for "${customerName}". Please check the name and try again. Available appointments:\n${[...todaysAppointments, ...thisWeekAppointments, ...nextWeekAppointments].map(apt => `- ${apt.customerName} on ${apt.scheduledDate.toLocaleDateString()} at ${apt.scheduledTime}`).join('\n')}`;
+        }
+      } else {
+        aiResponse = `❌ Please specify the customer name and date/time. Example: "${isReschedule ? 'reschedule' : 'cancel'} Juan Dudley tomorrow at 2 PM"`;
+      }
+    } else {
+      // Generate AI response with timeout optimization
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: body }
+        ],
+        max_tokens: 200, // Reduced from 300
+        temperature: 0.7,
+      }, {
+        timeout: 7000, // 7 second timeout
+      });
+      
+      aiResponse = completion.choices[0].message.content;
+    }
 
     console.log('🤖 AI Response:', aiResponse);
 
