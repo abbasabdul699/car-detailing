@@ -79,13 +79,21 @@ export async function GET(request: NextRequest) {
           }
         });
 
-        // Build comprehensive daily message (morning + evening content)
+        // Build comprehensive message (morning + evening + weekly content)
         const currentHour = new Date().getHours();
+        const currentDay = new Date().getDay(); // 0 = Sunday, 1 = Monday
         const isMorning = currentHour < 12;
+        const isMonday = currentDay === 1;
         
-        let message = isMorning 
-          ? `🌅 Good morning! Here's your daily business summary for ${detailer.businessName}:\n\n`
-          : `🌙 Evening summary for ${detailer.businessName}:\n\n`;
+        let message = '';
+        
+        if (isMonday && isMorning) {
+          message = `📊 Weekly Summary for ${detailer.businessName}:\n\n`;
+        } else if (isMorning) {
+          message = `🌅 Good morning! Here's your daily business summary for ${detailer.businessName}:\n\n`;
+        } else {
+          message = `🌙 Evening summary for ${detailer.businessName}:\n\n`;
+        }
         
         // Today's appointments
         if (todaysAppointments.length > 0) {
@@ -113,7 +121,9 @@ export async function GET(request: NextRequest) {
         }
 
         // Add time-appropriate closing message
-        if (isMorning) {
+        if (isMonday && isMorning) {
+          message += `💪 Great week! Keep up the excellent work. Reply "help" for more commands.`;
+        } else if (isMorning) {
           message += `💪 Have a great day! Reply "help" for more commands.`;
         } else {
           message += `💪 Great work today! Rest well and prepare for tomorrow. Reply "help" for more commands.`;

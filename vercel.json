@@ -5,10 +5,6 @@
     {
       "path": "/api/cron/daily-notifications",
       "schedule": "0 8,18 * * *"
-    },
-    {
-      "path": "/api/cron/weekly-summary",
-      "schedule": "0 9 * * 1"
     }
   ]
 } 
