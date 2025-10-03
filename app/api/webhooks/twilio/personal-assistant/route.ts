@@ -117,6 +117,35 @@ export async function POST(request: NextRequest) {
       }
     });
 
+    // Next week's appointments
+    const startOfNextWeek = new Date(endOfWeek);
+    startOfNextWeek.setDate(endOfWeek.getDate() + 1);
+    startOfNextWeek.setHours(0, 0, 0, 0);
+    
+    const endOfNextWeek = new Date(startOfNextWeek);
+    endOfNextWeek.setDate(startOfNextWeek.getDate() + 6);
+    endOfNextWeek.setHours(23, 59, 59, 999);
+
+    const nextWeekAppointments = await prisma.booking.findMany({
+      where: {
+        detailerId: detailer.id,
+        scheduledDate: { gte: startOfNextWeek, lte: endOfNextWeek },
+        status: { in: ['confirmed', 'pending', 'rescheduled'] }
+      },
+      orderBy: { scheduledDate: 'asc' },
+      select: {
+        id: true,
+        customerName: true,
+        customerPhone: true,
+        services: true,
+        scheduledDate: true,
+        scheduledTime: true,
+        status: true,
+        vehicleType: true,
+        vehicleLocation: true
+      }
+    });
+
     // Recent bookings (last 5)
     const recentBookings = await prisma.booking.findMany({
       where: { detailerId: detailer.id },
@@ -160,6 +189,10 @@ export async function POST(request: NextRequest) {
       `This Week: ${appointment.customerName} - ${appointment.services.join(', ')} on ${appointment.scheduledDate.toLocaleDateString()} at ${appointment.scheduledTime || 'TBD'}`
     ).join('\n');
 
+    const nextWeekContext = nextWeekAppointments.map(appointment => 
+      `Next Week: ${appointment.customerName} - ${appointment.services.join(', ')} on ${appointment.scheduledDate.toLocaleDateString()} at ${appointment.scheduledTime || 'TBD'}`
+    ).join('\n');
+
     const recentBookingsContext = recentBookings.map(booking => 
       `Recent: ${booking.customerName} - ${booking.services.join(', ')} on ${booking.scheduledDate.toLocaleDateString()} (${booking.status})`
     ).join('\n');
@@ -181,6 +214,9 @@ ${todaysAppointmentsContext || 'No appointments today'}
 📋 THIS WEEK'S SCHEDULE:
 ${thisWeekContext || 'No appointments this week'}
 
+📅 NEXT WEEK'S SCHEDULE:
+${nextWeekContext || 'No appointments next week'}
+
 📝 RECENT BOOKINGS:
 ${recentBookingsContext || 'No recent bookings'}
 
@@ -189,6 +225,7 @@ ${recentBookingsContext || 'No recent bookings'}
 - "summary" - Daily business summary
 - "today" - Today's appointments
 - "week" - This week's schedule
+- "next week" - Next week's schedule
 - "bookings" - Recent bookings
 - "stats" - Business statistics
 - "reschedule [booking_id]" - Reschedule appointment
