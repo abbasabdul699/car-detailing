@@ -252,7 +252,7 @@ Be concise and helpful. For "summary" command, provide a brief business overview
     // Send response back to detailer
     await twilioClient.messages.create({
       body: aiResponse,
-      from: detailer.twilioPhoneNumber,
+      from: detailer.personalAssistantPhoneNumber, // Use Personal Assistant AI number
       to: from
     });
 
