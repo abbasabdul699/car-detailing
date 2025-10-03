@@ -79,8 +79,13 @@ export async function GET(request: NextRequest) {
           }
         });
 
-        // Build daily summary message
-        let message = `🌅 Good morning! Here's your daily business summary for ${detailer.businessName}:\n\n`;
+        // Build comprehensive daily message (morning + evening content)
+        const currentHour = new Date().getHours();
+        const isMorning = currentHour < 12;
+        
+        let message = isMorning 
+          ? `🌅 Good morning! Here's your daily business summary for ${detailer.businessName}:\n\n`
+          : `🌙 Evening summary for ${detailer.businessName}:\n\n`;
         
         // Today's appointments
         if (todaysAppointments.length > 0) {
@@ -107,8 +112,12 @@ export async function GET(request: NextRequest) {
           message += '\n';
         }
 
-        // Add motivational message
-        message += `💪 Have a great day! Reply "help" for more commands.`;
+        // Add time-appropriate closing message
+        if (isMorning) {
+          message += `💪 Have a great day! Reply "help" for more commands.`;
+        } else {
+          message += `💪 Great work today! Rest well and prepare for tomorrow. Reply "help" for more commands.`;
+        }
 
         // Send notification to detailer's personal phone
         await twilioClient.messages.create({
