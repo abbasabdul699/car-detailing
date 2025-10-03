@@ -1146,6 +1146,10 @@ This lead has been automatically processed and is ready for you to contact!`;
 
     // Format availability data for the AI
     const availabilitySummary = 'Availability: Please ask for preferred date and time';
+    
+    console.log('🔍 DEBUG: Availability info being sent to AI:');
+    console.log('Existing bookings count:', existingBookings.length);
+    console.log('Availability info:', availabilityInfo);
 
     // Format business hours for the AI
     const formatBusinessHours = (businessHours: any) => {
