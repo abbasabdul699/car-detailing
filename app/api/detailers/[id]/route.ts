@@ -86,7 +86,7 @@ export async function PATCH(
     const allowedFields = [
       'businessName', 'email', 'phone', 'address', 'city', 'state', 'zipCode',
       'description', 'latitude', 'longitude', 'priceRange', 'website', 'businessHours', 'imageUrl', 'verified', 'hidden', 'googlePlaceId',
-      'firstName', 'lastName', 'instagram', 'tiktok', 'facebook', 'password', 'twilioPhoneNumber', 'smsEnabled'
+      'firstName', 'lastName', 'instagram', 'tiktok', 'facebook', 'password', 'twilioPhoneNumber', 'personalAssistantPhoneNumber', 'personalPhoneNumber', 'smsEnabled'
     ];
     const updateData: Record<string, any> = {};
     for (const key of allowedFields) {

@@ -44,7 +44,8 @@ model Detailer {
   hidden       Boolean @default(false)
   
   // SMS Integration
-  twilioPhoneNumber String?  // Twilio phone number for SMS communication
+  twilioPhoneNumber String?  // Twilio phone number for customer-facing AI concierge
+  personalAssistantPhoneNumber String? // Twilio phone number for Personal Assistant AI
   smsEnabled        Boolean  @default(false)
   personalPhoneNumber String? // Detailer's personal phone number for AI assistant
   

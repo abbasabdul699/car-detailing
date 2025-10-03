@@ -26,6 +26,8 @@ interface Detailer {
   businessHours?: any;
   imageUrl?: string;
   twilioPhoneNumber?: string;
+  personalAssistantPhoneNumber?: string;
+  personalPhoneNumber?: string;
   smsEnabled?: boolean;
   images?: { url: string; alt: string; type?: string }[];
   detailerImages?: { url: string; alt: string; type?: string }[];
@@ -227,10 +229,22 @@ export default function EditDetailerClient({ detailer: initialDetailer }: { deta
               <input type="password" {...register('password')} className="input input-bordered w-full" placeholder="Leave blank to keep current password" />
             </div>
             <div>
-              <label className="block font-medium">Twilio Phone Number (for SMS)</label>
+              <label className="block font-medium">Customer AI Phone Number (for SMS)</label>
               <input {...register('twilioPhoneNumber')} className="input input-bordered w-full" placeholder="+1234567890" />
-              <p className="text-sm text-gray-600 mt-1">Dedicated Twilio number for this detailer's SMS conversations</p>
+              <p className="text-sm text-gray-600 mt-1">Twilio number for customer-facing AI concierge</p>
               {errors.twilioPhoneNumber && <p className="text-red-500 text-sm">{errors.twilioPhoneNumber.message}</p>}
+            </div>
+            <div>
+              <label className="block font-medium">Personal Assistant AI Phone Number</label>
+              <input {...register('personalAssistantPhoneNumber')} className="input input-bordered w-full" placeholder="+1234567890" />
+              <p className="text-sm text-gray-600 mt-1">Dedicated Twilio number for this detailer's Personal Assistant AI</p>
+              {errors.personalAssistantPhoneNumber && <p className="text-red-500 text-sm">{errors.personalAssistantPhoneNumber.message}</p>}
+            </div>
+            <div>
+              <label className="block font-medium">Detailer's Personal Phone Number</label>
+              <input {...register('personalPhoneNumber')} className="input input-bordered w-full" placeholder="+1234567890" />
+              <p className="text-sm text-gray-600 mt-1">Detailer's personal phone number for receiving AI notifications</p>
+              {errors.personalPhoneNumber && <p className="text-red-500 text-sm">{errors.personalPhoneNumber.message}</p>}
             </div>
             <div>
               <label className="block font-medium">SMS Enabled</label>
