@@ -40,8 +40,19 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if the message is from the detailer's personal phone
-    if (from !== detailer.personalPhoneNumber) {
-      console.log('❌ Message not from detailer personal phone:', from);
+    console.log('🔍 Debug - From:', from, 'PersonalPhone:', detailer.personalPhoneNumber);
+    console.log('🔍 Debug - Comparison:', from === detailer.personalPhoneNumber);
+    console.log('🔍 Debug - From type:', typeof from, 'PersonalPhone type:', typeof detailer.personalPhoneNumber);
+    
+    // Normalize phone numbers for comparison
+    const normalizedFrom = from?.trim();
+    const normalizedPersonalPhone = detailer.personalPhoneNumber?.trim();
+    
+    console.log('🔍 Debug - Normalized From:', normalizedFrom, 'Normalized PersonalPhone:', normalizedPersonalPhone);
+    console.log('🔍 Debug - Normalized Comparison:', normalizedFrom === normalizedPersonalPhone);
+    
+    if (normalizedFrom !== normalizedPersonalPhone) {
+      console.log('❌ Message not from detailer personal phone:', normalizedFrom, '!==', normalizedPersonalPhone);
       return new NextResponse('Unauthorized', { status: 403 });
     }
 
