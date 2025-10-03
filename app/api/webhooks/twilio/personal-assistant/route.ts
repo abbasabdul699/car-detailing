@@ -23,14 +23,14 @@ export async function POST(request: NextRequest) {
 
     console.log('📱 Personal Assistant SMS:', { from, body, to });
 
-    // Find detailer by Twilio phone number
+    // Find detailer by Personal Assistant AI phone number
     const detailer = await prisma.detailer.findFirst({
-      where: { twilioPhoneNumber: to },
+      where: { personalAssistantPhoneNumber: to },
       select: {
         id: true,
         businessName: true,
         personalPhoneNumber: true,
-        twilioPhoneNumber: true
+        personalAssistantPhoneNumber: true
       }
     });
 
