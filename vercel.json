@@ -1,4 +1,18 @@
 {
   "buildCommand": "prisma generate && pnpm build",
-  "installCommand": "pnpm install"
+  "installCommand": "pnpm install",
+  "crons": [
+    {
+      "path": "/api/cron/daily-notifications",
+      "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/cron/evening-summary", 
+      "schedule": "0 18 * * *"
+    },
+    {
+      "path": "/api/cron/weekly-summary",
+      "schedule": "0 9 * * 1"
+    }
+  ]
 } 
