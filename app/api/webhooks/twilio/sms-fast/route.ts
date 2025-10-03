@@ -1187,10 +1187,12 @@ Location Type: ${existingSnapshot.locationType || 'Not specified'}
 
 CRITICAL RULES FOR RETURNING CUSTOMERS:
 1. DO NOT ask for information you already have above
-2. ${hasName ? `Always use "${existingSnapshot.customerName}" as their name` : 'Ask for name if not provided'}
-3. ${hasAddress ? `Use "${existingSnapshot.address}" as their address - DO NOT ask again` : 'Ask for address if not provided'}
-4. ${hasVehicle ? `Use "${existingSnapshot.vehicle}" as their vehicle - DO NOT ask again` : 'Ask for vehicle if not provided'}
-5. ${hasEmail ? `Use "${existingSnapshot.customerEmail}" for confirmations` : 'Ask for email only if needed for confirmations'}
+2. ${hasName ? `Always use "${existingSnapshot.customerName}" as their name - NEVER ask for their name again` : 'Ask for name if not provided'}
+3. ${hasAddress ? `Use "${existingSnapshot.address}" as their address - NEVER ask for their address again` : 'Ask for address if not provided'}
+4. ${hasVehicle ? `Use "${existingSnapshot.vehicle}" as their vehicle - NEVER ask for vehicle details again` : 'Ask for vehicle if not provided'}
+5. ${hasEmail ? `Use "${existingSnapshot.customerEmail}" as their email - NEVER ask for email again` : 'Ask for email if not provided'}
+
+IMPORTANT: If you see "RETURNING CUSTOMER" information above, you MUST use that information. Do NOT ask for name, address, vehicle, or email if they're already provided in that section.
 
 WHEN CUSTOMER SAYS "I want to book another appointment" or similar:
 - Greet them by name: "${hasName ? existingSnapshot.customerName : 'there'}"
@@ -1363,11 +1365,6 @@ Use the categorized services to help customers find what they need:
 - If they ask about "additional services" → list only Additional category services with pricing
 - Don't mention categories to customers - just use them to filter and organize your responses
 
-Known customer context (if any):
-Name: ${snapshot?.customerName || 'unknown'}
-Vehicle: ${snapshot?.vehicle || [snapshot?.vehicleYear, snapshot?.vehicleMake, snapshot?.vehicleModel].filter(Boolean).join(' ') || 'unknown'}
-Service Address: ${snapshot?.address || 'unknown'}
-Services: ${snapshot?.services?.join(', ') || 'unknown'}
 
 DATE FORMATTING HELP:
 - Today is ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
