@@ -326,17 +326,33 @@ Be concise, helpful, and provide actionable insights. For "summary", include tod
       const commandIndex = isReschedule ? commandParts.findIndex(part => part.toLowerCase() === 'reschedule') : 
                                       commandParts.findIndex(part => part.toLowerCase() === 'cancel');
       
+      let targetAppointment = null;
+      
       if (commandIndex !== -1 && commandParts.length > commandIndex + 1) {
         // Find customer name (usually the next 1-2 words after the command)
         const customerName = commandParts[commandIndex + 1] + (commandParts[commandIndex + 2] && !commandParts[commandIndex + 2].match(/^\d/) ? ' ' + commandParts[commandIndex + 2] : '');
         
         // Find the appointment to modify
-        const targetAppointment = [...todaysAppointments, ...thisWeekAppointments, ...nextWeekAppointments].find(appointment => 
+        targetAppointment = [...todaysAppointments, ...thisWeekAppointments, ...nextWeekAppointments].find(appointment => 
           appointment.customerName.toLowerCase().includes(customerName.toLowerCase()) ||
           customerName.toLowerCase().includes(appointment.customerName.toLowerCase())
         );
+      } else if (userMessage.includes('appointment') && (userMessage.includes('cancel') || userMessage.includes('reschedule'))) {
+        // Handle general "cancel appointment" or "reschedule appointment" requests
+        // Look for the most recent appointment mentioned in the conversation context
+        const allAppointments = [...todaysAppointments, ...thisWeekAppointments, ...nextWeekAppointments];
         
-        if (targetAppointment) {
+        // If there's only one appointment, use that
+        if (allAppointments.length === 1) {
+          targetAppointment = allAppointments[0];
+        } else {
+          // If there are multiple appointments, look for the one most recently mentioned
+          // For now, prioritize today's appointments, then this week's, then next week's
+          targetAppointment = todaysAppointments[0] || thisWeekAppointments[0] || nextWeekAppointments[0];
+        }
+      }
+      
+      if (targetAppointment) {
           if (isReschedule) {
             // Handle reschedule
             try {
@@ -356,17 +372,31 @@ Be concise, helpful, and provide actionable insights. For "summary", include tod
                 where: { id: targetAppointment.id },
                 data: { status: 'cancelled' }
               });
-              aiResponse = `✅ Appointment cancelled for ${targetAppointment.customerName} on ${targetAppointment.scheduledDate.toLocaleDateString()} at ${targetAppointment.scheduledTime}. The appointment has been marked as cancelled.`;
+              
+              // Send SMS notification to customer about cancellation
+              try {
+                const cancellationMessage = `Hi ${targetAppointment.customerName}, your appointment on ${targetAppointment.scheduledDate.toLocaleDateString()} at ${targetAppointment.scheduledTime} has been cancelled. Please contact us to reschedule. - ${detailer.businessName}`;
+                
+                await twilioClient.messages.create({
+                  body: cancellationMessage,
+                  from: detailer.personalAssistantPhoneNumber,
+                  to: targetAppointment.customerPhone
+                });
+                
+                console.log(`📱 Cancellation SMS sent to ${targetAppointment.customerName} at ${targetAppointment.customerPhone}`);
+              } catch (smsError) {
+                console.error('Error sending cancellation SMS:', smsError);
+                // Continue with the response even if SMS fails
+              }
+              
+              aiResponse = `✅ Appointment cancelled for ${targetAppointment.customerName} on ${targetAppointment.scheduledDate.toLocaleDateString()} at ${targetAppointment.scheduledTime}. SMS notification sent to customer.`;
             } catch (error) {
               console.error('Error cancelling appointment:', error);
               aiResponse = `❌ Error cancelling appointment for ${targetAppointment.customerName}. Please try again.`;
             }
           }
-        } else {
-          aiResponse = `❌ No appointment found for "${customerName}". Please check the name and try again. Available appointments:\n${[...todaysAppointments, ...thisWeekAppointments, ...nextWeekAppointments].map(apt => `- ${apt.customerName} on ${apt.scheduledDate.toLocaleDateString()} at ${apt.scheduledTime}`).join('\n')}`;
-        }
       } else {
-        aiResponse = `❌ Please specify the customer name and date/time. Example: "${isReschedule ? 'reschedule' : 'cancel'} Juan Dudley tomorrow at 2 PM"`;
+        aiResponse = `❌ No appointment found. Please check the name and try again. Available appointments:\n${[...todaysAppointments, ...thisWeekAppointments, ...nextWeekAppointments].map(apt => `- ${apt.customerName} on ${apt.scheduledDate.toLocaleDateString()} at ${apt.scheduledTime}`).join('\n')}`;
       }
     } else {
       // Generate AI response with timeout optimization
