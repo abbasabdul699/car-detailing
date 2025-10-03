@@ -334,7 +334,7 @@ Be concise, helpful, and provide actionable insights. For "summary", include tod
 
     console.log('✅ Personal Assistant response sent successfully');
 
-    return new NextResponse('OK', { status: 200 });
+    return new NextResponse('', { status: 200 });
 
   } catch (error) {
     console.error('❌ Personal Assistant webhook error:', error);
