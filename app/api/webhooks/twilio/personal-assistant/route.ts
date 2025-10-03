@@ -270,6 +270,8 @@ export async function POST(request: NextRequest) {
     // Create comprehensive system prompt for personal assistant
     const systemPrompt = `Personal Assistant for ${detailer.businessName} car detailing business.
 
+${specificDateContext ? `🎯 SPECIFIC DATE REQUEST: ${specificDateContext}` : ''}
+
 📅 TODAY'S APPOINTMENTS (${todaysAppointments.length}):
 ${todaysAppointmentsContext || 'No appointments today'}
 
@@ -286,7 +288,6 @@ ${thisWeekContext || 'No appointments this week'}
 
 📅 NEXT WEEK'S SCHEDULE:
 ${nextWeekContext || 'No appointments next week'}
-${specificDateContext}
 
 📝 RECENT BOOKINGS:
 ${recentBookingsContext || 'No recent bookings'}
@@ -302,6 +303,13 @@ ${recentBookingsContext || 'No recent bookings'}
 - "reschedule [booking_id]" - Reschedule appointment
 - "cancel [booking_id]" - Cancel appointment
 - "contact [phone]" - Start customer conversation
+
+🚨 CRITICAL INSTRUCTIONS:
+- If you see "SPECIFIC DATE REQUEST" above, ALWAYS prioritize that information
+- When customer asks about "tomorrow", check the SPECIFIC DATE REQUEST section first
+- If SPECIFIC DATE REQUEST shows appointments, say "Yes, you have appointments tomorrow"
+- If SPECIFIC DATE REQUEST shows no appointments, say "No appointments tomorrow"
+- NEVER contradict the SPECIFIC DATE REQUEST information
 
 Be concise, helpful, and provide actionable insights. For "summary", include today's performance and tomorrow's preparation.`;
 
