@@ -374,22 +374,34 @@ Be concise, helpful, and provide actionable insights. For "summary", include tod
               });
               
               // Send SMS notification to customer about cancellation
+              let twilioMessage = null;
+              let smsSuccess = false;
+              
               try {
                 const cancellationMessage = `Hi ${targetAppointment.customerName}, your appointment on ${targetAppointment.scheduledDate.toLocaleDateString()} at ${targetAppointment.scheduledTime} has been cancelled. Please contact us to reschedule. - ${detailer.businessName}`;
                 
-                await twilioClient.messages.create({
+                // Use the detailer's Twilio phone number (the one customers text to) as the 'from' field
+                twilioMessage = await twilioClient.messages.create({
                   body: cancellationMessage,
-                  from: detailer.personalAssistantPhoneNumber,
+                  from: detailer.twilioPhoneNumber, // Use the main Twilio number customers text to
                   to: targetAppointment.customerPhone
                 });
                 
-                console.log(`📱 Cancellation SMS sent to ${targetAppointment.customerName} at ${targetAppointment.customerPhone}`);
+                smsSuccess = twilioMessage && twilioMessage.sid;
+                console.log(`📱 Cancellation SMS sent to ${targetAppointment.customerName} at ${targetAppointment.customerPhone} via ${detailer.twilioPhoneNumber} (SID: ${twilioMessage.sid})`);
               } catch (smsError) {
                 console.error('Error sending cancellation SMS:', smsError);
+                console.error('SMS Error details:', {
+                  error: smsError,
+                  from: detailer.twilioPhoneNumber,
+                  to: targetAppointment.customerPhone,
+                  detailerId: detailer.id
+                });
                 // Continue with the response even if SMS fails
               }
               
-              aiResponse = `✅ Appointment cancelled for ${targetAppointment.customerName} on ${targetAppointment.scheduledDate.toLocaleDateString()} at ${targetAppointment.scheduledTime}. SMS notification sent to customer.`;
+              // Check if SMS was actually sent successfully
+              aiResponse = `✅ Appointment cancelled for ${targetAppointment.customerName} on ${targetAppointment.scheduledDate.toLocaleDateString()} at ${targetAppointment.scheduledTime}. ${smsSuccess ? 'SMS notification sent to customer.' : '⚠️ SMS notification failed - please contact customer manually.'}`;
             } catch (error) {
               console.error('Error cancelling appointment:', error);
               aiResponse = `❌ Error cancelling appointment for ${targetAppointment.customerName}. Please try again.`;
