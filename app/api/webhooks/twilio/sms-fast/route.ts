@@ -1212,7 +1212,7 @@ WHEN CUSTOMER ASKS "what is my name?" or "what's my name?":
             lt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // Next 30 days
           },
           status: {
-            not: 'cancelled'
+            in: ['confirmed', 'pending']
           }
         },
         select: {
