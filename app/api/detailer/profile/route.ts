@@ -28,6 +28,7 @@ export async function GET() {
         phone: true,
         twilioPhoneNumber: true,
         smsEnabled: true,
+        personalPhoneNumber: true,
         address: true,
         city: true,
         state: true,
