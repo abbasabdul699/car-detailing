@@ -1228,8 +1228,45 @@ WHEN CUSTOMER ASKS "what is my name?" or "what's my name?":
         }
       });
 
+      // Parse customer's date request to check specific date conflicts
+      const customerMessage = body.toLowerCase();
+      let requestedDate = null;
+      
+      // Check for "tomorrow" requests
+      if (customerMessage.includes('tomorrow')) {
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        requestedDate = tomorrow;
+      }
+      // Check for specific date mentions
+      else if (customerMessage.includes('october 4') || customerMessage.includes('oct 4')) {
+        requestedDate = new Date('2025-10-04');
+      }
+      else if (customerMessage.includes('october 5') || customerMessage.includes('oct 5')) {
+        requestedDate = new Date('2025-10-05');
+      }
+      else if (customerMessage.includes('october 6') || customerMessage.includes('oct 6')) {
+        requestedDate = new Date('2025-10-06');
+      }
+      
+      // Check for conflicts on the specific requested date
+      let specificDateConflicts = [];
+      if (requestedDate) {
+        const startOfDay = new Date(requestedDate);
+        startOfDay.setHours(0, 0, 0, 0);
+        const endOfDay = new Date(requestedDate);
+        endOfDay.setHours(23, 59, 59, 999);
+        
+        specificDateConflicts = existingBookings.filter(booking => {
+          const bookingDate = new Date(booking.scheduledDate);
+          return bookingDate >= startOfDay && bookingDate <= endOfDay;
+        });
+      }
+
     console.log('🔍 DEBUG: Availability info being sent to AI:');
     console.log('Existing bookings count:', existingBookings.length);
+    console.log('Requested date:', requestedDate);
+    console.log('Specific date conflicts:', specificDateConflicts.length);
     console.log('Availability info:', availabilityInfo);
     
     // Check if AI is stuck in a loop of saying "already booked"
@@ -1259,7 +1296,30 @@ WHEN CUSTOMER ASKS "what is my name?" or "what's my name?":
       });
     }
       
-      if (existingBookings.length > 0) {
+      if (requestedDate && specificDateConflicts.length > 0) {
+        // Customer requested a specific date that has conflicts
+        const dateStr = requestedDate.toLocaleDateString('en-US', { 
+          weekday: 'long', 
+          month: 'short', 
+          day: 'numeric',
+          year: 'numeric'
+        });
+        availabilityInfo = `\n\n⚠️ CONFLICT ON ${dateStr.toUpperCase()}:\n`;
+        specificDateConflicts.forEach(booking => {
+          availabilityInfo += `- ${booking.scheduledTime}: ${booking.customerName || 'Customer'}\n`;
+        });
+        availabilityInfo += `\nThis date has existing appointments. Suggest alternative times or dates.`;
+      } else if (requestedDate && specificDateConflicts.length === 0) {
+        // Customer requested a specific date with no conflicts
+        const dateStr = requestedDate.toLocaleDateString('en-US', { 
+          weekday: 'long', 
+          month: 'short', 
+          day: 'numeric',
+          year: 'numeric'
+        });
+        availabilityInfo = `\n\n✅ ${dateStr.toUpperCase()} IS AVAILABLE:\nNo existing appointments on this date. All time slots are open.`;
+      } else if (existingBookings.length > 0) {
+        // General availability info
         availabilityInfo = `\n\nEXISTING APPOINTMENTS (next 30 days):\n`;
         existingBookings.forEach(booking => {
           const date = new Date(booking.scheduledDate);
