@@ -180,6 +180,46 @@ export async function POST(request: NextRequest) {
       }
     });
 
+    // Parse user's date request to provide specific context
+    const userMessage = body.toLowerCase();
+    let requestedDate = null;
+    let specificDateAppointments = [];
+    
+    // Check for "tomorrow" requests
+    if (userMessage.includes('tomorrow')) {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      requestedDate = tomorrow;
+      
+      // Find appointments for tomorrow
+      specificDateAppointments = [...todaysAppointments, ...thisWeekAppointments, ...nextWeekAppointments].filter(appointment => {
+        const appointmentDate = new Date(appointment.scheduledDate);
+        return appointmentDate.toDateString() === tomorrow.toDateString();
+      });
+    }
+    // Check for specific date mentions
+    else if (userMessage.includes('october 4') || userMessage.includes('oct 4')) {
+      requestedDate = new Date('2025-10-04');
+      specificDateAppointments = [...todaysAppointments, ...thisWeekAppointments, ...nextWeekAppointments].filter(appointment => {
+        const appointmentDate = new Date(appointment.scheduledDate);
+        return appointmentDate.toDateString() === requestedDate.toDateString();
+      });
+    }
+    else if (userMessage.includes('october 5') || userMessage.includes('oct 5')) {
+      requestedDate = new Date('2025-10-05');
+      specificDateAppointments = [...todaysAppointments, ...thisWeekAppointments, ...nextWeekAppointments].filter(appointment => {
+        const appointmentDate = new Date(appointment.scheduledDate);
+        return appointmentDate.toDateString() === requestedDate.toDateString();
+      });
+    }
+    else if (userMessage.includes('october 6') || userMessage.includes('oct 6')) {
+      requestedDate = new Date('2025-10-06');
+      specificDateAppointments = [...todaysAppointments, ...thisWeekAppointments, ...nextWeekAppointments].filter(appointment => {
+        const appointmentDate = new Date(appointment.scheduledDate);
+        return appointmentDate.toDateString() === requestedDate.toDateString();
+      });
+    }
+
     // Build comprehensive context for AI
     const todaysAppointmentsContext = todaysAppointments.map(appointment => 
       `Today: ${appointment.customerName} - ${appointment.services.join(', ')} at ${appointment.scheduledTime || 'TBD'} (${appointment.vehicleType})`
@@ -193,9 +233,39 @@ export async function POST(request: NextRequest) {
       `Next Week: ${appointment.customerName} - ${appointment.services.join(', ')} on ${appointment.scheduledDate.toLocaleDateString()} at ${appointment.scheduledTime || 'TBD'}`
     ).join('\n');
 
+    // Build specific date context if user asked about a specific date
+    let specificDateContext = '';
+    if (requestedDate && specificDateAppointments.length > 0) {
+      const dateStr = requestedDate.toLocaleDateString('en-US', { 
+        weekday: 'long', 
+        month: 'short', 
+        day: 'numeric',
+        year: 'numeric'
+      });
+      specificDateContext = `\n\n📅 ${dateStr.toUpperCase()} APPOINTMENTS:\n`;
+      specificDateAppointments.forEach(appointment => {
+        specificDateContext += `- ${appointment.customerName} - ${appointment.services.join(', ')} at ${appointment.scheduledTime || 'TBD'} (${appointment.vehicleType})\n`;
+      });
+    } else if (requestedDate && specificDateAppointments.length === 0) {
+      const dateStr = requestedDate.toLocaleDateString('en-US', { 
+        weekday: 'long', 
+        month: 'short', 
+        day: 'numeric',
+        year: 'numeric'
+      });
+      specificDateContext = `\n\n📅 ${dateStr.toUpperCase()}: No appointments scheduled.`;
+    }
+
     const recentBookingsContext = recentBookings.map(booking => 
       `Recent: ${booking.customerName} - ${booking.services.join(', ')} on ${booking.scheduledDate.toLocaleDateString()} (${booking.status})`
     ).join('\n');
+
+    // Debug logging
+    console.log('🔍 DEBUG: Personal Assistant date parsing:');
+    console.log('User message:', body);
+    console.log('Requested date:', requestedDate);
+    console.log('Specific date appointments:', specificDateAppointments.length);
+    console.log('Specific date context:', specificDateContext);
 
     // Create comprehensive system prompt for personal assistant
     const systemPrompt = `Personal Assistant for ${detailer.businessName} car detailing business.
@@ -216,6 +286,7 @@ ${thisWeekContext || 'No appointments this week'}
 
 📅 NEXT WEEK'S SCHEDULE:
 ${nextWeekContext || 'No appointments next week'}
+${specificDateContext}
 
 📝 RECENT BOOKINGS:
 ${recentBookingsContext || 'No recent bookings'}
