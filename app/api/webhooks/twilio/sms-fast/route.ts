@@ -1241,7 +1241,7 @@ WHEN CUSTOMER ASKS "what is my name?" or "what's my name?":
     
     console.log('🔍 DEBUG: AI saying "booked" in recent messages:', aiSayingBooked);
     
-    if (aiSayingBooked >= 2 && existingBookings.length === 0) {
+    if (aiSayingBooked >= 1 && existingBookings.length === 0) {
       console.log('🚨 DEBUG: AI is stuck in "booked" loop but no actual bookings exist!');
       // Add a fresh context override
       availabilityInfo = '\n\n🚨 CRITICAL OVERRIDE: No existing appointments in the next 30 days. All time slots are available. The previous "booked" responses were incorrect.';
