@@ -1226,9 +1226,26 @@ WHEN CUSTOMER ASKS "what is my name?" or "what's my name?":
         }
       });
 
-      console.log('🔍 DEBUG: Availability info being sent to AI:');
-      console.log('Existing bookings count:', existingBookings.length);
-      console.log('Availability info:', availabilityInfo);
+    console.log('🔍 DEBUG: Availability info being sent to AI:');
+    console.log('Existing bookings count:', existingBookings.length);
+    console.log('Availability info:', availabilityInfo);
+    
+    // Check if AI is stuck in a loop of saying "already booked"
+    const recentMessages = conversationHistory.slice(0, 4); // Last 4 messages
+    const aiSayingBooked = recentMessages.filter(msg => 
+      msg.role === 'assistant' && 
+      (msg.content.includes('already booked') || 
+       msg.content.includes('not available') || 
+       msg.content.includes('already taken'))
+    ).length;
+    
+    console.log('🔍 DEBUG: AI saying "booked" in recent messages:', aiSayingBooked);
+    
+    if (aiSayingBooked >= 2 && existingBookings.length === 0) {
+      console.log('🚨 DEBUG: AI is stuck in "booked" loop but no actual bookings exist!');
+      // Add a fresh context override
+      availabilityInfo = '\n\n🚨 FRESH AVAILABILITY CHECK: No existing appointments in the next 30 days. All time slots are available. The previous "booked" responses were incorrect.';
+    }
       
       if (existingBookings.length > 0) {
         availabilityInfo = `\n\nEXISTING APPOINTMENTS (next 30 days):\n`;
@@ -1305,6 +1322,8 @@ IMPORTANT: You MUST follow the business hours exactly as specified above. Do not
 CRITICAL AVAILABILITY CHECK: ${availabilityInfo}
 
 IMPORTANT: Before saying a time is "booked" or "unavailable", you MUST check the EXISTING APPOINTMENTS list above. If the list shows "No existing appointments in the next 30 days. All time slots are available.", then the time slot IS available and you should proceed with booking.
+
+CRITICAL: IGNORE any previous conversation history about availability. Only trust the REAL-TIME AVAILABILITY data provided above. If the data shows no existing appointments, then the time slot IS available regardless of what was said in previous messages.
 
 ${customerContext}
 
