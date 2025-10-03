@@ -58,7 +58,66 @@ export async function POST(request: NextRequest) {
 
     console.log('✅ Detailer found:', detailer.businessName);
 
-    // Get recent bookings for context
+    // Get comprehensive business data
+    const today = new Date();
+    const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const endOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+    
+    // Get start of week (Monday)
+    const startOfWeek = new Date(today);
+    const dayOfWeek = today.getDay();
+    const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    startOfWeek.setDate(today.getDate() - daysToMonday);
+    startOfWeek.setHours(0, 0, 0, 0);
+    
+    // Get end of week (Sunday)
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(startOfWeek.getDate() + 6);
+    endOfWeek.setHours(23, 59, 59, 999);
+
+    // Today's appointments
+    const todaysAppointments = await prisma.booking.findMany({
+      where: {
+        detailerId: detailer.id,
+        scheduledDate: { gte: startOfToday, lt: endOfToday },
+        status: { in: ['confirmed', 'pending'] }
+      },
+      orderBy: { scheduledTime: 'asc' },
+      select: {
+        id: true,
+        customerName: true,
+        customerPhone: true,
+        services: true,
+        scheduledDate: true,
+        scheduledTime: true,
+        status: true,
+        vehicleType: true,
+        vehicleLocation: true
+      }
+    });
+
+    // This week's appointments
+    const thisWeekAppointments = await prisma.booking.findMany({
+      where: {
+        detailerId: detailer.id,
+        scheduledDate: { gte: startOfWeek, lte: endOfWeek },
+        status: { in: ['confirmed', 'pending'] }
+      },
+      orderBy: { scheduledDate: 'asc' },
+      select: {
+        id: true,
+        customerName: true,
+        customerPhone: true,
+        services: true,
+        scheduledDate: true,
+        scheduledTime: true,
+        status: true,
+        vehicleType: true,
+        vehicleLocation: true
+      }
+    });
+
+    // Recent bookings (last 5)
     const recentBookings = await prisma.booking.findMany({
       where: { detailerId: detailer.id },
       orderBy: { createdAt: 'desc' },
@@ -76,50 +135,67 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    // Get upcoming appointments
-    const today = new Date();
-    const upcomingAppointments = await prisma.booking.findMany({
+    // Today's booking count
+    const todaysBookingCount = await prisma.booking.count({
       where: {
         detailerId: detailer.id,
-        scheduledDate: { gte: today },
-        status: { in: ['confirmed', 'pending'] }
-      },
-      orderBy: { scheduledDate: 'asc' },
-      take: 3,
-      select: {
-        id: true,
-        customerName: true,
-        customerPhone: true,
-        services: true,
-        scheduledDate: true,
-        scheduledTime: true,
-        status: true,
-        vehicleType: true,
-        vehicleLocation: true
+        createdAt: { gte: startOfToday, lt: endOfToday }
       }
     });
 
-    // Build context for AI
-    const bookingsContext = recentBookings.map(booking => 
-      `Booking ID: ${booking.id}, Customer: ${booking.customerName}, Phone: ${booking.customerPhone}, Service: ${booking.services.join(', ')}, Date: ${booking.scheduledDate.toLocaleDateString()}, Time: ${booking.scheduledTime || 'TBD'}, Status: ${booking.status}, Vehicle: ${booking.vehicleType}, Location: ${booking.vehicleLocation}`
+    // This week's booking count
+    const thisWeekBookingCount = await prisma.booking.count({
+      where: {
+        detailerId: detailer.id,
+        createdAt: { gte: startOfWeek, lte: endOfWeek }
+      }
+    });
+
+    // Build comprehensive context for AI
+    const todaysAppointmentsContext = todaysAppointments.map(appointment => 
+      `Today: ${appointment.customerName} - ${appointment.services.join(', ')} at ${appointment.scheduledTime || 'TBD'} (${appointment.vehicleType})`
     ).join('\n');
 
-    const upcomingContext = upcomingAppointments.map(appointment => 
-      `Upcoming: ${appointment.customerName} - ${appointment.services.join(', ')} on ${appointment.scheduledDate.toLocaleDateString()} at ${appointment.scheduledTime || 'TBD'}`
+    const thisWeekContext = thisWeekAppointments.map(appointment => 
+      `This Week: ${appointment.customerName} - ${appointment.services.join(', ')} on ${appointment.scheduledDate.toLocaleDateString()} at ${appointment.scheduledTime || 'TBD'}`
     ).join('\n');
 
-    // Create optimized system prompt for personal assistant
+    const recentBookingsContext = recentBookings.map(booking => 
+      `Recent: ${booking.customerName} - ${booking.services.join(', ')} on ${booking.scheduledDate.toLocaleDateString()} (${booking.status})`
+    ).join('\n');
+
+    // Create comprehensive system prompt for personal assistant
     const systemPrompt = `Personal Assistant for ${detailer.businessName} car detailing business.
 
-RECENT BOOKINGS:
-${bookingsContext}
+📅 TODAY'S APPOINTMENTS (${todaysAppointments.length}):
+${todaysAppointmentsContext || 'No appointments today'}
 
-UPCOMING APPOINTMENTS:
-${upcomingContext}
+📊 TODAY'S STATS:
+- New bookings today: ${todaysBookingCount}
+- Appointments today: ${todaysAppointments.length}
 
-COMMANDS: help, summary, show bookings, show upcoming, reschedule, cancel, contact
+📈 THIS WEEK'S OVERVIEW:
+- Total appointments this week: ${thisWeekAppointments.length}
+- New bookings this week: ${thisWeekBookingCount}
 
-Be concise and helpful. For "summary" command, provide a brief business overview.`;
+📋 THIS WEEK'S SCHEDULE:
+${thisWeekContext || 'No appointments this week'}
+
+📝 RECENT BOOKINGS:
+${recentBookingsContext || 'No recent bookings'}
+
+🤖 AVAILABLE COMMANDS:
+- "help" - Show all commands
+- "summary" - Daily business summary
+- "today" - Today's appointments
+- "week" - This week's schedule
+- "bookings" - Recent bookings
+- "stats" - Business statistics
+- "reschedule [booking_id]" - Reschedule appointment
+- "cancel [booking_id]" - Cancel appointment
+- "contact [phone]" - Start customer conversation
+
+Be concise, helpful, and provide actionable insights. For "summary", include today's performance and tomorrow's preparation.`;
 
     // Generate AI response with timeout optimization
     const completion = await openai.chat.completions.create({
