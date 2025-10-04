@@ -436,20 +436,33 @@ Be concise, helpful, and provide actionable insights. For "summary", include tod
               try {
                 const cancellationMessage = `Hi ${targetAppointment.customerName}, your appointment on ${targetAppointment.scheduledDate.toLocaleDateString()} at ${targetAppointment.scheduledTime} has been cancelled. Please contact us to reschedule. - ${detailer.businessName}`;
                 
+                // Debug: Check what phone numbers are available
+                console.log('🔍 DEBUG: Detailer phone numbers:', {
+                  twilioPhoneNumber: detailer.twilioPhoneNumber,
+                  personalAssistantPhoneNumber: detailer.personalAssistantPhoneNumber,
+                  personalPhoneNumber: detailer.personalPhoneNumber
+                });
+                
                 // Use the detailer's Twilio phone number (the one customers text to) as the 'from' field
+                const fromNumber = detailer.twilioPhoneNumber || detailer.personalAssistantPhoneNumber;
+                
+                if (!fromNumber) {
+                  throw new Error('No valid phone number found for sending SMS');
+                }
+                
                 twilioMessage = await twilioClient.messages.create({
                   body: cancellationMessage,
-                  from: detailer.twilioPhoneNumber, // Use the main Twilio number customers text to
+                  from: fromNumber, // Use the main Twilio number customers text to
                   to: targetAppointment.customerPhone
                 });
                 
                 smsSuccess = twilioMessage && twilioMessage.sid;
-                console.log(`📱 Cancellation SMS sent to ${targetAppointment.customerName} at ${targetAppointment.customerPhone} via ${detailer.twilioPhoneNumber} (SID: ${twilioMessage.sid})`);
+                console.log(`📱 Cancellation SMS sent to ${targetAppointment.customerName} at ${targetAppointment.customerPhone} via ${fromNumber} (SID: ${twilioMessage.sid})`);
               } catch (smsError) {
                 console.error('Error sending cancellation SMS:', smsError);
                 console.error('SMS Error details:', {
                   error: smsError,
-                  from: detailer.twilioPhoneNumber,
+                  from: fromNumber,
                   to: targetAppointment.customerPhone,
                   detailerId: detailer.id
                 });
