@@ -76,7 +76,7 @@ export class StripeSubscriptionService {
     trialEnd.setDate(trialEnd.getDate() + 14);
 
     // Check if detailer is first cohort for discount
-    const detailer = await prisma.detailer.findUnique({
+    const detailerData = await prisma.detailer.findUnique({
       where: { id: detailerId },
     });
 
@@ -91,7 +91,7 @@ export class StripeSubscriptionService {
     };
 
     // Apply 15% discount for first cohort
-    if (detailer?.isFirstCohort && plan.type === 'monthly') {
+    if (detailerData?.isFirstCohort && plan.type === 'monthly') {
       subscriptionParams.discounts = [{
         coupon: {
           percent_off: 15,
