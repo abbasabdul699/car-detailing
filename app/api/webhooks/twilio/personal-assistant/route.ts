@@ -322,6 +322,7 @@ export async function POST(request: NextRequest) {
     console.log('Specific date context:', specificDateContext);
 
     // Create comprehensive system prompt for personal assistant
+    // Simplified system prompt to avoid timeout
     const systemPrompt = `Personal Assistant for ${detailer.businessName} car detailing business.
 
 ${specificDateContext ? `🎯 SPECIFIC DATE REQUEST: ${specificDateContext}` : ''}
@@ -329,25 +330,14 @@ ${specificDateContext ? `🎯 SPECIFIC DATE REQUEST: ${specificDateContext}` : '
 📅 TODAY'S APPOINTMENTS (${todaysAppointments.length}):
 ${todaysAppointmentsContext || 'No appointments today'}
 
-📊 TODAY'S STATS:
-- New bookings today: ${todaysBookingCount}
-- Appointments today: ${todaysAppointments.length}
-
-📈 THIS WEEK'S OVERVIEW:
-- Total appointments this week: ${thisWeekAppointments.length}
-- New bookings this week: ${thisWeekBookingCount}
-
-📋 THIS WEEK'S SCHEDULE:
+📅 THIS WEEK'S SCHEDULE:
 ${thisWeekContext || 'No appointments this week'}
 
-    📅 NEXT WEEK'S SCHEDULE:
-    ${nextWeekContext || 'No appointments next week'}
-    
-    📅 ALL FUTURE APPOINTMENTS:
-    ${allFutureContext || 'No future appointments'}
-    
-    📝 RECENT BOOKINGS:
-    ${recentBookingsContext || 'No recent bookings'}
+📅 NEXT WEEK'S SCHEDULE:
+${nextWeekContext || 'No appointments next week'}
+
+📅 ALL FUTURE APPOINTMENTS:
+${allFutureContext || 'No future appointments'}
 
 🤖 AVAILABLE COMMANDS:
 - "help" - Show all commands
@@ -357,18 +347,14 @@ ${thisWeekContext || 'No appointments this week'}
 - "next week" - Next week's schedule
 - "bookings" - Recent bookings
 - "stats" - Business statistics
-- "reschedule [customer name] [date/time]" - Reschedule appointment (e.g., "reschedule Juan Dudley tomorrow at 2 PM")
-- "cancel [customer name] [date/time]" - Cancel appointment (e.g., "cancel Juan Dudley October 4th at 1 PM")
+- "reschedule [customer name] [date/time]" - Reschedule appointment
+- "cancel [customer name] [date/time]" - Cancel appointment
 - "contact [phone]" - Start customer conversation
 
 🚨 CRITICAL INSTRUCTIONS:
 - If you see "SPECIFIC DATE REQUEST" above, ALWAYS prioritize that information
-- When customer asks about "tomorrow", check the SPECIFIC DATE REQUEST section first
-- If SPECIFIC DATE REQUEST shows appointments, say "Yes, you have appointments tomorrow"
-- If SPECIFIC DATE REQUEST shows no appointments, say "No appointments tomorrow"
-- NEVER contradict the SPECIFIC DATE REQUEST information
-
-Be concise, helpful, and provide actionable insights. For "summary", include today's performance and tomorrow's preparation.`;
+- Be concise and helpful
+- Provide actionable insights`;
 
     // Check for reschedule/cancel commands and handle them
     let aiResponse = '';
@@ -480,20 +466,42 @@ Be concise, helpful, and provide actionable insights. For "summary", include tod
         aiResponse = `❌ No appointment found. Please check the name and try again. Available appointments:\n${allFutureAppointments.map(apt => `- ${apt.customerName} on ${apt.scheduledDate.toLocaleDateString()} at ${apt.scheduledTime}`).join('\n')}`;
       }
     } else {
-      // Generate AI response with timeout optimization
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: body }
-        ],
-        max_tokens: 200, // Reduced from 300
-        temperature: 0.7,
-      }, {
-        timeout: 7000, // 7 second timeout
-      });
+      // Check for common quick queries first
+      const userMessage = body.toLowerCase();
       
-      aiResponse = completion.choices[0].message.content;
+      if (userMessage.includes('appointments this month') || userMessage.includes('appointments this month')) {
+        // Quick response for monthly appointments
+        const monthlyAppointments = allFutureAppointments.filter(apt => {
+          const aptDate = new Date(apt.scheduledDate);
+          const now = new Date();
+          return aptDate.getMonth() === now.getMonth() && aptDate.getFullYear() === now.getFullYear();
+        });
+        
+        if (monthlyAppointments.length === 0) {
+          aiResponse = "📅 No appointments scheduled for this month.";
+        } else {
+          const appointmentsList = monthlyAppointments.map(apt => 
+            `• ${apt.customerName} - ${apt.services.join(', ')} on ${apt.scheduledDate.toLocaleDateString()} at ${apt.scheduledTime} (${apt.status})`
+          ).join('\n');
+          
+          aiResponse = `📅 Appointments this month (${monthlyAppointments.length}):\n\n${appointmentsList}`;
+        }
+      } else {
+        // Generate AI response with timeout optimization
+        const completion = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: body }
+          ],
+          max_tokens: 200, // Reduced from 300
+          temperature: 0.7,
+        }, {
+          timeout: 5000, // Reduced to 5 second timeout
+        });
+        
+        aiResponse = completion.choices[0].message.content;
+      }
     }
 
     console.log('🤖 AI Response:', aiResponse);
