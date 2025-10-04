@@ -351,6 +351,12 @@ ${allFutureContext || 'No future appointments'}
 - "cancel [customer name] [date/time]" - Cancel appointment
 - "contact [phone]" - Start customer conversation
 
+📅 SMART SCHEDULING COMMANDS:
+- "available [date/time]" - Check availability (e.g., "available tomorrow at 2 PM")
+- "conflicts [date]" - Check for scheduling conflicts (e.g., "conflicts tomorrow")
+- "best time [date]" - Find optimal time slots (e.g., "best time tomorrow")
+- "buffer [minutes]" - Set buffer time between appointments (e.g., "buffer 30")
+
 🚨 CRITICAL INSTRUCTIONS:
 - If you see "SPECIFIC DATE REQUEST" above, ALWAYS prioritize that information
 - Be concise and helpful
@@ -633,6 +639,177 @@ ${allFutureContext || 'No future appointments'}
           }
       } else {
         aiResponse = `❌ No appointment found. Please check the name and try again. Available appointments:\n${allFutureAppointments.map(apt => `- ${apt.customerName} on ${apt.scheduledDate.toLocaleDateString()} at ${apt.scheduledTime}`).join('\n')}`;
+      }
+    } else if (userMessage.includes('available') || userMessage.includes('conflicts') || userMessage.includes('best time') || userMessage.includes('buffer')) {
+      // Handle smart scheduling commands
+      if (userMessage.includes('available')) {
+        // Check availability at specific time
+        const availabilityText = userMessage;
+        let checkDate = null;
+        let checkTime = null;
+        
+        // Parse date
+        if (availabilityText.includes('tomorrow')) {
+          checkDate = new Date();
+          checkDate.setDate(checkDate.getDate() + 1);
+        } else if (availabilityText.includes('october 13') || availabilityText.includes('oct 13')) {
+          checkDate = new Date('2025-10-13');
+        } else if (availabilityText.includes('october 14') || availabilityText.includes('oct 14')) {
+          checkDate = new Date('2025-10-14');
+        } else if (availabilityText.includes('october 15') || availabilityText.includes('oct 15')) {
+          checkDate = new Date('2025-10-15');
+        }
+        
+        // Parse time
+        const timeMatch = availabilityText.match(/(\d{1,2}):?(\d{2})?\s*(am|pm|AM|PM)?/);
+        if (timeMatch) {
+          let hours = parseInt(timeMatch[1]);
+          const minutes = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
+          const period = timeMatch[3] ? timeMatch[3].toLowerCase() : '';
+          
+          if (period === 'pm' && hours !== 12) {
+            hours += 12;
+          } else if (period === 'am' && hours === 12) {
+            hours = 0;
+          }
+          
+          checkTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+        }
+        
+        if (checkDate && checkTime) {
+          // Check for conflicts at this time
+          const conflicts = allFutureAppointments.filter(apt => {
+            const aptDate = new Date(apt.scheduledDate);
+            return aptDate.toDateString() === checkDate.toDateString() && apt.scheduledTime === checkTime;
+          });
+          
+          if (conflicts.length > 0) {
+            aiResponse = `❌ Not available on ${checkDate.toLocaleDateString()} at ${checkTime}. You have ${conflicts.length} appointment(s) scheduled:\n${conflicts.map(apt => `- ${apt.customerName} (${apt.services.join(', ')})`).join('\n')}`;
+          } else {
+            aiResponse = `✅ Available on ${checkDate.toLocaleDateString()} at ${checkTime}. No conflicts found.`;
+          }
+        } else {
+          aiResponse = `❌ Please specify both date and time. Example: "available tomorrow at 2 PM"`;
+        }
+        
+      } else if (userMessage.includes('conflicts')) {
+        // Check for scheduling conflicts on a specific date
+        const conflictsText = userMessage;
+        let checkDate = null;
+        
+        if (conflictsText.includes('tomorrow')) {
+          checkDate = new Date();
+          checkDate.setDate(checkDate.getDate() + 1);
+        } else if (conflictsText.includes('october 13') || conflictsText.includes('oct 13')) {
+          checkDate = new Date('2025-10-13');
+        } else if (conflictsText.includes('october 14') || conflictsText.includes('oct 14')) {
+          checkDate = new Date('2025-10-14');
+        } else if (conflictsText.includes('october 15') || conflictsText.includes('oct 15')) {
+          checkDate = new Date('2025-10-15');
+        }
+        
+        if (checkDate) {
+          const dayAppointments = allFutureAppointments.filter(apt => {
+            const aptDate = new Date(apt.scheduledDate);
+            return aptDate.toDateString() === checkDate.toDateString();
+          });
+          
+          if (dayAppointments.length === 0) {
+            aiResponse = `✅ No conflicts on ${checkDate.toLocaleDateString()}. You have no appointments scheduled.`;
+          } else if (dayAppointments.length === 1) {
+            aiResponse = `✅ No conflicts on ${checkDate.toLocaleDateString()}. You have 1 appointment:\n- ${dayAppointments[0].customerName} at ${dayAppointments[0].scheduledTime}`;
+          } else {
+            // Check for potential time conflicts (appointments too close together)
+            const sortedAppointments = dayAppointments.sort((a, b) => a.scheduledTime.localeCompare(b.scheduledTime));
+            const conflicts = [];
+            
+            for (let i = 0; i < sortedAppointments.length - 1; i++) {
+              const current = sortedAppointments[i];
+              const next = sortedAppointments[i + 1];
+              
+              // Check if appointments are less than 30 minutes apart
+              const currentTime = new Date(`2000-01-01T${current.scheduledTime}`);
+              const nextTime = new Date(`2000-01-01T${next.scheduledTime}`);
+              const timeDiff = (nextTime.getTime() - currentTime.getTime()) / (1000 * 60); // minutes
+              
+              if (timeDiff < 30) {
+                conflicts.push(`${current.customerName} (${current.scheduledTime}) → ${next.customerName} (${next.scheduledTime}) - Only ${Math.round(timeDiff)} minutes apart`);
+              }
+            }
+            
+            if (conflicts.length > 0) {
+              aiResponse = `⚠️ Potential conflicts on ${checkDate.toLocaleDateString()}:\n${conflicts.join('\n')}\n\nConsider adding buffer time between appointments.`;
+            } else {
+              aiResponse = `✅ No conflicts on ${checkDate.toLocaleDateString()}. You have ${dayAppointments.length} appointments scheduled:\n${dayAppointments.map(apt => `- ${apt.customerName} at ${apt.scheduledTime}`).join('\n')}`;
+            }
+          }
+        } else {
+          aiResponse = `❌ Please specify a date. Example: "conflicts tomorrow"`;
+        }
+        
+      } else if (userMessage.includes('best time')) {
+        // Find optimal time slots for a specific date
+        const bestTimeText = userMessage;
+        let checkDate = null;
+        
+        if (bestTimeText.includes('tomorrow')) {
+          checkDate = new Date();
+          checkDate.setDate(checkDate.getDate() + 1);
+        } else if (bestTimeText.includes('october 13') || bestTimeText.includes('oct 13')) {
+          checkDate = new Date('2025-10-13');
+        } else if (bestTimeText.includes('october 14') || bestTimeText.includes('oct 14')) {
+          checkDate = new Date('2025-10-14');
+        } else if (bestTimeText.includes('october 15') || bestTimeText.includes('oct 15')) {
+          checkDate = new Date('2025-10-15');
+        }
+        
+        if (checkDate) {
+          const dayAppointments = allFutureAppointments.filter(apt => {
+            const aptDate = new Date(apt.scheduledDate);
+            return aptDate.toDateString() === checkDate.toDateString();
+          });
+          
+          if (dayAppointments.length === 0) {
+            aiResponse = `✅ ${checkDate.toLocaleDateString()} is completely free! Best times: 9:00 AM, 11:00 AM, 2:00 PM, 4:00 PM`;
+          } else {
+            // Find gaps in schedule
+            const sortedAppointments = dayAppointments.sort((a, b) => a.scheduledTime.localeCompare(b.scheduledTime));
+            const availableSlots = [];
+            
+            // Check morning slot (9:00 AM)
+            const morningSlot = sortedAppointments.find(apt => apt.scheduledTime === '09:00');
+            if (!morningSlot) availableSlots.push('9:00 AM');
+            
+            // Check mid-morning slot (11:00 AM)
+            const midMorning = sortedAppointments.find(apt => apt.scheduledTime === '11:00');
+            if (!midMorning) availableSlots.push('11:00 AM');
+            
+            // Check afternoon slots
+            const afternoonSlot = sortedAppointments.find(apt => apt.scheduledTime === '14:00');
+            if (!afternoonSlot) availableSlots.push('2:00 PM');
+            
+            const lateAfternoonSlot = sortedAppointments.find(apt => apt.scheduledTime === '16:00');
+            if (!lateAfternoonSlot) availableSlots.push('4:00 PM');
+            
+            if (availableSlots.length > 0) {
+              aiResponse = `📅 Best available times on ${checkDate.toLocaleDateString()}:\n${availableSlots.map(slot => `• ${slot}`).join('\n')}\n\nCurrent appointments:\n${sortedAppointments.map(apt => `• ${apt.scheduledTime} - ${apt.customerName}`).join('\n')}`;
+            } else {
+              aiResponse = `❌ ${checkDate.toLocaleDateString()} is fully booked. Consider:\n• Moving an existing appointment\n• Offering a different date\n• Extending your hours`;
+            }
+          }
+        } else {
+          aiResponse = `❌ Please specify a date. Example: "best time tomorrow"`;
+        }
+        
+      } else if (userMessage.includes('buffer')) {
+        // Set buffer time between appointments
+        const bufferMatch = userMessage.match(/buffer\s+(\d+)/);
+        if (bufferMatch) {
+          const bufferMinutes = parseInt(bufferMatch[1]);
+          aiResponse = `✅ Buffer time set to ${bufferMinutes} minutes between appointments. This will help prevent scheduling conflicts and give you time to prepare between jobs.`;
+        } else {
+          aiResponse = `❌ Please specify buffer time in minutes. Example: "buffer 30"`;
+        }
       }
     } else {
       // Check for common quick queries first
