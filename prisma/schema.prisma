@@ -68,6 +68,12 @@ model Detailer {
   resetToken        String?
   resetTokenExpiry  DateTime?
   
+  // Subscription & Billing
+  subscription      Subscription?
+  stripeCustomerId  String?        // Stripe customer ID
+  trialEndsAt       DateTime?      // 14-day trial end date
+  isFirstCohort     Boolean        @default(false) // For discounted rate
+  
   // Relations
   conversations     Conversation[]
   bookings          Booking[]
@@ -311,4 +317,62 @@ model Event {
   updatedAt      DateTime? @updatedAt
 
   @@map("events")
+}
+
+// Subscription Plans
+model SubscriptionPlan {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String   @unique // "Detailer Starter" or "Detailer Pro"
+  type        String   // "pay_per_booking" or "monthly"
+  price       Float    // $3 for starter, $200 for pro
+  stripePriceId String? // Stripe price ID
+  description String
+  features    String[] // Array of feature descriptions
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  subscriptions Subscription[]
+}
+
+// Detailer Subscriptions
+model Subscription {
+  id                String           @id @default(auto()) @map("_id") @db.ObjectId
+  detailer          Detailer         @relation(fields: [detailerId], references: [id])
+  detailerId        String           @db.ObjectId
+  plan              SubscriptionPlan @relation(fields: [planId], references: [id])
+  planId            String           @db.ObjectId
+  status            String           @default("trial") // trial, active, past_due, canceled, incomplete
+  stripeSubscriptionId String?       // Stripe subscription ID
+  stripeCustomerId  String?         // Stripe customer ID
+  currentPeriodStart DateTime?       // Current billing period start
+  currentPeriodEnd   DateTime?       // Current billing period end
+  trialStart        DateTime?        // Trial start date
+  trialEnd          DateTime?        // Trial end date
+  canceledAt        DateTime?        // When subscription was canceled
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  
+  // Relations
+  invoices          Invoice[]
+  
+  @@unique([detailerId])
+}
+
+// Invoices
+model Invoice {
+  id                String       @id @default(auto()) @map("_id") @db.ObjectId
+  subscription      Subscription @relation(fields: [subscriptionId], references: [id])
+  subscriptionId    String       @db.ObjectId
+  stripeInvoiceId   String?      // Stripe invoice ID
+  amount            Float        // Invoice amount
+  currency          String       @default("usd")
+  status            String       @default("draft") // draft, open, paid, void, uncollectible
+  periodStart       DateTime     // Billing period start
+  periodEnd         DateTime     // Billing period end
+  dueDate           DateTime?    // Invoice due date
+  paidAt            DateTime?    // When invoice was paid
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
 }

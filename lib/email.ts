@@ -90,4 +90,35 @@ export async function sendPasswordResetEmail(email: string, businessName: string
     console.error('Error sending password reset email:', error);
     throw error;
   }
+}
+
+// Generic email function for billing and other emails
+export async function sendEmail({
+  to,
+  subject,
+  html,
+  text,
+}: {
+  to: string;
+  subject: string;
+  html: string;
+  text: string;
+}) {
+  try {
+    console.log('Sending email to:', to);
+
+    const info = await transporter.sendMail({
+      from: `"ReevaCar" <${process.env.EMAIL_FROM}>`,
+      to,
+      subject,
+      text,
+      html,
+    });
+
+    console.log('Email sent: %s', info.messageId);
+    return info;
+  } catch (error) {
+    console.error('Error sending email:', error);
+    throw error;
+  }
 } 

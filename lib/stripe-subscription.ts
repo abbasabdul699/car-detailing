@@ -1,0 +1,309 @@
+import Stripe from 'stripe';
+import { prisma } from './prisma';
+import { SubscriptionPlan, Subscription, Invoice } from '@/types/subscription';
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: '2024-12-18.acacia',
+});
+
+export class StripeSubscriptionService {
+  // Create a Stripe customer
+  async createCustomer(detailerId: string, email: string, name: string) {
+    const customer = await stripe.customers.create({
+      email,
+      name,
+      metadata: {
+        detailerId,
+      },
+    });
+
+    // Update detailer with Stripe customer ID
+    await prisma.detailer.update({
+      where: { id: detailerId },
+      data: { stripeCustomerId: customer.id },
+    });
+
+    return customer;
+  }
+
+  // Create a subscription
+  async createSubscription(
+    detailerId: string,
+    planId: string,
+    paymentMethodId?: string
+  ) {
+    const detailer = await prisma.detailer.findUnique({
+      where: { id: detailerId },
+      include: { subscription: { include: { plan: true } } },
+    });
+
+    if (!detailer) {
+      throw new Error('Detailer not found');
+    }
+
+    if (detailer.subscription) {
+      throw new Error('Detailer already has a subscription');
+    }
+
+    const plan = await prisma.subscriptionPlan.findUnique({
+      where: { id: planId },
+    });
+
+    if (!plan || !plan.stripePriceId) {
+      throw new Error('Plan not found or not configured for Stripe');
+    }
+
+    // Create or get Stripe customer
+    let stripeCustomerId = detailer.stripeCustomerId;
+    if (!stripeCustomerId) {
+      const customer = await this.createCustomer(
+        detailerId,
+        detailer.email || '',
+        detailer.businessName
+      );
+      stripeCustomerId = customer.id;
+    }
+
+    // Set up payment method if provided
+    if (paymentMethodId) {
+      await stripe.paymentMethods.attach(paymentMethodId, {
+        customer: stripeCustomerId,
+      });
+    }
+
+    // Create subscription with 14-day trial
+    const trialEnd = new Date();
+    trialEnd.setDate(trialEnd.getDate() + 14);
+
+    // Check if detailer is first cohort for discount
+    const detailer = await prisma.detailer.findUnique({
+      where: { id: detailerId },
+    });
+
+    const subscriptionParams: any = {
+      customer: stripeCustomerId,
+      items: [{ price: plan.stripePriceId }],
+      trial_end: Math.floor(trialEnd.getTime() / 1000),
+      metadata: {
+        detailerId,
+        planId,
+      },
+    };
+
+    // Apply 15% discount for first cohort
+    if (detailer?.isFirstCohort && plan.type === 'monthly') {
+      subscriptionParams.discounts = [{
+        coupon: {
+          percent_off: 15,
+          duration: 'forever',
+          name: 'First Cohort 15% Discount',
+        },
+      }];
+    }
+
+    const subscription = await stripe.subscriptions.create(subscriptionParams);
+
+    // Create subscription record in database
+    const dbSubscription = await prisma.subscription.create({
+      data: {
+        detailerId,
+        planId,
+        status: 'trial',
+        stripeSubscriptionId: subscription.id,
+        stripeCustomerId,
+        currentPeriodStart: new Date(subscription.current_period_start * 1000),
+        currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+        trialStart: new Date(subscription.trial_start! * 1000),
+        trialEnd: new Date(subscription.trial_end! * 1000),
+      },
+    });
+
+    // Update detailer trial end date
+    await prisma.detailer.update({
+      where: { id: detailerId },
+      data: { trialEndsAt: trialEnd },
+    });
+
+    return dbSubscription;
+  }
+
+  // Get subscription status
+  async getSubscriptionStatus(detailerId: string) {
+    const detailer = await prisma.detailer.findUnique({
+      where: { id: detailerId },
+      include: {
+        subscription: {
+          include: { plan: true },
+        },
+      },
+    });
+
+    if (!detailer || !detailer.subscription) {
+      return {
+        isActive: false,
+        isTrial: false,
+        currentPlan: null,
+        canUpgrade: true,
+        canDowngrade: false,
+      };
+    }
+
+    const subscription = detailer.subscription;
+    const isTrial = subscription.status === 'trial';
+    const isActive = subscription.status === 'active';
+    
+    let trialDaysRemaining: number | undefined;
+    if (isTrial && subscription.trialEnd) {
+      const now = new Date();
+      const trialEnd = new Date(subscription.trialEnd);
+      const diffTime = trialEnd.getTime() - now.getTime();
+      trialDaysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    }
+
+    return {
+      isActive,
+      isTrial,
+      trialDaysRemaining,
+      currentPlan: subscription.plan,
+      nextBillingDate: subscription.currentPeriodEnd,
+      canUpgrade: subscription.plan.type === 'pay_per_booking',
+      canDowngrade: subscription.plan.type === 'monthly',
+    };
+  }
+
+  // Create customer portal session
+  async createCustomerPortalSession(detailerId: string) {
+    const detailer = await prisma.detailer.findUnique({
+      where: { id: detailerId },
+    });
+
+    if (!detailer || !detailer.stripeCustomerId) {
+      throw new Error('Detailer not found or not connected to Stripe');
+    }
+
+    const session = await stripe.billingPortal.sessions.create({
+      customer: detailer.stripeCustomerId,
+      return_url: `${process.env.NEXTAUTH_URL}/detailer-dashboard/subscription`,
+    });
+
+    return session;
+  }
+
+  // Handle webhook events
+  async handleWebhook(event: Stripe.Event) {
+    switch (event.type) {
+      case 'customer.subscription.created':
+      case 'customer.subscription.updated':
+        await this.handleSubscriptionChange(event.data.object as Stripe.Subscription);
+        break;
+      case 'customer.subscription.deleted':
+        await this.handleSubscriptionDeleted(event.data.object as Stripe.Subscription);
+        break;
+      case 'invoice.payment_succeeded':
+        await this.handleInvoicePaymentSucceeded(event.data.object as Stripe.Invoice);
+        break;
+      case 'invoice.payment_failed':
+        await this.handleInvoicePaymentFailed(event.data.object as Stripe.Invoice);
+        break;
+    }
+  }
+
+  private async handleSubscriptionChange(subscription: Stripe.Subscription) {
+    const detailerId = subscription.metadata.detailerId;
+    if (!detailerId) return;
+
+    const status = subscription.status === 'active' ? 'active' : 
+                  subscription.status === 'past_due' ? 'past_due' : 'incomplete';
+
+    await prisma.subscription.updateMany({
+      where: { stripeSubscriptionId: subscription.id },
+      data: {
+        status,
+        currentPeriodStart: new Date(subscription.current_period_start * 1000),
+        currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+      },
+    });
+  }
+
+  private async handleSubscriptionDeleted(subscription: Stripe.Subscription) {
+    await prisma.subscription.updateMany({
+      where: { stripeSubscriptionId: subscription.id },
+      data: {
+        status: 'canceled',
+        canceledAt: new Date(),
+      },
+    });
+  }
+
+  private async handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
+    if (!invoice.subscription) return;
+
+    const dbSubscription = await prisma.subscription.findFirst({
+      where: { stripeSubscriptionId: invoice.subscription as string },
+    });
+
+    if (!dbSubscription) return;
+
+    // Create invoice record
+    const dbInvoice = await prisma.invoice.create({
+      data: {
+        subscriptionId: dbSubscription.id,
+        stripeInvoiceId: invoice.id,
+        amount: invoice.amount_paid / 100, // Convert from cents
+        currency: invoice.currency,
+        status: 'paid',
+        periodStart: new Date(invoice.period_start * 1000),
+        periodEnd: new Date(invoice.period_end * 1000),
+        paidAt: new Date(),
+      },
+    });
+
+    // Send billing email
+    try {
+      const { billingEmailService } = await import('./billing-email');
+      await billingEmailService.sendInvoiceEmail(dbInvoice.id);
+    } catch (error) {
+      console.error('Failed to send billing email:', error);
+    }
+  }
+
+  private async handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
+    if (!invoice.subscription) return;
+
+    const dbSubscription = await prisma.subscription.findFirst({
+      where: { stripeSubscriptionId: invoice.subscription as string },
+    });
+
+    if (!dbSubscription) return;
+
+    // Update subscription status
+    await prisma.subscription.update({
+      where: { id: dbSubscription.id },
+      data: { status: 'past_due' },
+    });
+
+    // Send payment failed notification
+    try {
+      const { billingEmailService } = await import('./billing-email');
+      await billingEmailService.sendPaymentFailedNotification(dbSubscription.detailerId);
+    } catch (error) {
+      console.error('Failed to send payment failed notification:', error);
+    }
+  }
+
+  // Get invoices for a detailer
+  async getInvoices(detailerId: string) {
+    const subscription = await prisma.subscription.findUnique({
+      where: { detailerId },
+      include: {
+        invoices: {
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+    });
+
+    return subscription?.invoices || [];
+  }
+}
+
+export const stripeSubscriptionService = new StripeSubscriptionService();

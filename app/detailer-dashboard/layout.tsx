@@ -15,7 +15,8 @@ import {
   StarIcon,
   DocumentTextIcon,
   CubeIcon,
-  ChatBubbleLeftRightIcon
+  ChatBubbleLeftRightIcon,
+  CreditCardIcon
 } from "@heroicons/react/24/outline";
 import DashboardNavbar from "./components/DashboardNavbar";
 import MobileNav from "./components/MobileNav";
@@ -41,7 +42,7 @@ export default function DetailerDashboardLayout({
     { name: "Services", href: "/detailer-dashboard/services", icon: CalendarIcon },
     // { name: "Bundles", href: "/detailer-dashboard/bundles", icon: CubeIcon },
     { name: "Images", href: "/detailer-dashboard/images", icon: PhotoIcon },
-    // { name: "Invoices", href: "/detailer-dashboard/invoices", icon: DocumentTextIcon },
+    { name: "Subscription", href: "/detailer-dashboard/subscription", icon: CreditCardIcon },
     // { name: "Settings", href: "/detailer-dashboard/settings", icon: CogIcon },
   ];
 
