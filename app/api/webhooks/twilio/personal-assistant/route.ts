@@ -396,13 +396,130 @@ ${allFutureContext || 'No future appointments'}
       
       if (targetAppointment) {
           if (isReschedule) {
-            // Handle reschedule
+            // Handle reschedule - parse new date/time from the message
             try {
+              // Extract new date/time from the reschedule command
+              const rescheduleText = body.toLowerCase();
+              let newDate = null;
+              let newTime = null;
+              
+              // Parse common date formats
+              if (rescheduleText.includes('tomorrow')) {
+                newDate = new Date();
+                newDate.setDate(newDate.getDate() + 1);
+              } else if (rescheduleText.includes('october 13') || rescheduleText.includes('oct 13')) {
+                newDate = new Date('2025-10-13');
+              } else if (rescheduleText.includes('october 14') || rescheduleText.includes('oct 14')) {
+                newDate = new Date('2025-10-14');
+              } else if (rescheduleText.includes('october 15') || rescheduleText.includes('oct 15')) {
+                newDate = new Date('2025-10-15');
+              }
+              
+              // Parse time formats
+              const timeMatch = rescheduleText.match(/(\d{1,2}):?(\d{2})?\s*(am|pm|AM|PM)?/);
+              if (timeMatch) {
+                let hours = parseInt(timeMatch[1]);
+                const minutes = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
+                const period = timeMatch[3] ? timeMatch[3].toLowerCase() : '';
+                
+                if (period === 'pm' && hours !== 12) {
+                  hours += 12;
+                } else if (period === 'am' && hours === 12) {
+                  hours = 0;
+                }
+                
+                newTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+              }
+              
+              // Update the appointment with new date/time
+              const updateData: any = { status: 'rescheduled' };
+              if (newDate) {
+                updateData.scheduledDate = newDate;
+              }
+              if (newTime) {
+                updateData.scheduledTime = newTime;
+              }
+              
               await prisma.booking.update({
                 where: { id: targetAppointment.id },
-                data: { status: 'rescheduled' }
+                data: updateData
               });
-              aiResponse = `✅ Appointment rescheduled for ${targetAppointment.customerName} on ${targetAppointment.scheduledDate.toLocaleDateString()} at ${targetAppointment.scheduledTime}. The appointment has been marked as rescheduled.`;
+              
+              // Send SMS notification to customer about reschedule
+              let twilioMessage = null;
+              let smsSuccess = false;
+              
+              try {
+                const rescheduleMessage = `Hi ${targetAppointment.customerName}, your appointment has been rescheduled to ${newDate ? newDate.toLocaleDateString() : targetAppointment.scheduledDate.toLocaleDateString()} at ${newTime || targetAppointment.scheduledTime}. Please contact us if you need any changes. - ${detailer.businessName}`;
+                
+                // Use the same phone number logic as cancellation
+                let fromNumber = detailer.twilioPhoneNumber;
+                
+                if (!fromNumber) {
+                  console.log('⚠️ WARNING: detailer.twilioPhoneNumber is undefined! Looking for main business number...');
+                  
+                  const originalConversation = await prisma.conversation.findFirst({
+                    where: {
+                      detailerId: detailer.id,
+                      customerPhone: targetAppointment.customerPhone
+                    },
+                    select: { id: true }
+                  });
+                  
+                  if (originalConversation) {
+                    const firstMessage = await prisma.message.findFirst({
+                      where: {
+                        conversationId: originalConversation.id,
+                        direction: 'inbound'
+                      },
+                      orderBy: { createdAt: 'asc' },
+                      select: { twilioSid: true }
+                    });
+                    
+                    if (firstMessage) {
+                      try {
+                        const twilioMessageDetails = await twilioClient.messages(firstMessage.twilioSid).fetch();
+                        fromNumber = twilioMessageDetails.to;
+                        console.log('✅ Found original business number for reschedule SMS:', fromNumber);
+                      } catch (twilioError) {
+                        console.error('Error fetching Twilio message for reschedule:', twilioError);
+                        fromNumber = detailer.personalAssistantPhoneNumber;
+                        console.log('🚨 CRITICAL: Using Personal Assistant number as fallback for reschedule SMS.');
+                      }
+                    } else {
+                      fromNumber = detailer.personalAssistantPhoneNumber;
+                    }
+                  } else {
+                    fromNumber = detailer.personalAssistantPhoneNumber;
+                  }
+                }
+                
+                if (fromNumber) {
+                  twilioMessage = await twilioClient.messages.create({
+                    body: rescheduleMessage,
+                    from: fromNumber,
+                    to: targetAppointment.customerPhone
+                  });
+                  
+                  smsSuccess = twilioMessage && twilioMessage.sid;
+                  console.log(`📱 Reschedule SMS sent to ${targetAppointment.customerName} at ${targetAppointment.customerPhone} via ${fromNumber} (SID: ${twilioMessage.sid})`);
+                }
+              } catch (smsError) {
+                console.error('Error sending reschedule SMS:', smsError);
+                console.error('Reschedule SMS Error details:', {
+                  error: smsError,
+                  from: fromNumber,
+                  to: targetAppointment.customerPhone,
+                  detailerId: detailer.id
+                });
+              }
+              
+              // Build response message
+              const newDateStr = newDate ? newDate.toLocaleDateString() : targetAppointment.scheduledDate.toLocaleDateString();
+              const newTimeStr = newTime || targetAppointment.scheduledTime;
+              
+              aiResponse = `✅ Appointment rescheduled for ${targetAppointment.customerName} to ${newDateStr} at ${newTimeStr}. ${smsSuccess ? 'SMS notification sent to customer.' : '⚠️ SMS notification failed - please contact customer manually.'}`;
+              
             } catch (error) {
               console.error('Error rescheduling appointment:', error);
               aiResponse = `❌ Error rescheduling appointment for ${targetAppointment.customerName}. Please try again.`;
