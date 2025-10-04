@@ -429,8 +429,60 @@ ${allFutureContext || 'No future appointments'}
                   personalPhoneNumber: detailer.personalPhoneNumber
                 });
                 
-                // Use the detailer's Twilio phone number (the one customers text to) as the 'from' field
-                const fromNumber = detailer.twilioPhoneNumber || detailer.personalAssistantPhoneNumber;
+                // CRITICAL FIX: Use the main business phone number that customers text to
+                // This should be the same number that customers use to book appointments
+                let fromNumber = detailer.twilioPhoneNumber;
+                
+                // If main business number is not set, we need to find it from the database
+                if (!fromNumber) {
+                  console.log('⚠️ WARNING: detailer.twilioPhoneNumber is undefined! Looking for main business number...');
+                  
+                  // Find the original conversation to get the main business phone number
+                  const originalConversation = await prisma.conversation.findFirst({
+                    where: {
+                      detailerId: detailer.id,
+                      customerPhone: targetAppointment.customerPhone
+                    },
+                    select: {
+                      id: true
+                    }
+                  });
+                  
+                  if (originalConversation) {
+                    // Find the first message in this conversation to see what number the customer originally texted
+                    const firstMessage = await prisma.message.findFirst({
+                      where: {
+                        conversationId: originalConversation.id,
+                        direction: 'inbound'
+                      },
+                      orderBy: {
+                        createdAt: 'asc'
+                      },
+                      select: {
+                        twilioSid: true
+                      }
+                    });
+                    
+                    if (firstMessage) {
+                      // Get the Twilio message details to find the original 'To' number
+                      try {
+                        const twilioMessage = await twilioClient.messages(firstMessage.twilioSid).fetch();
+                        fromNumber = twilioMessage.to; // This is the number the customer originally texted
+                        console.log('✅ Found original business number from Twilio:', fromNumber);
+                      } catch (twilioError) {
+                        console.error('Error fetching Twilio message:', twilioError);
+                        fromNumber = detailer.personalAssistantPhoneNumber;
+                        console.log('🚨 CRITICAL: Using Personal Assistant number as fallback. This may cause delivery issues.');
+                      }
+                    } else {
+                      fromNumber = detailer.personalAssistantPhoneNumber;
+                      console.log('🚨 CRITICAL: Using Personal Assistant number as fallback. This may cause delivery issues.');
+                    }
+                  } else {
+                    fromNumber = detailer.personalAssistantPhoneNumber;
+                    console.log('🚨 CRITICAL: Using Personal Assistant number as fallback. This may cause delivery issues.');
+                  }
+                }
                 
                 if (!fromNumber) {
                   throw new Error('No valid phone number found for sending SMS');
