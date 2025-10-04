@@ -93,11 +93,7 @@ export class StripeSubscriptionService {
     // Apply 15% discount for first cohort
     if (detailerData?.isFirstCohort && plan.type === 'monthly') {
       subscriptionParams.discounts = [{
-        coupon: {
-          percent_off: 15,
-          duration: 'forever',
-          name: 'First Cohort 15% Discount',
-        },
+        coupon: process.env.STRIPE_FIRST_COHORT_COUPON_ID || 'first_cohort_15_off',
       }];
     }
 
