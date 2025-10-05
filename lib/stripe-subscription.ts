@@ -71,7 +71,28 @@ export class StripeSubscriptionService {
       });
     }
 
-    // Create subscription with 14-day trial
+    // Handle different plan types
+    if (plan.type === 'pay_per_booking') {
+      // For pay-per-booking plans, we don't create a Stripe subscription
+      // Instead, we just create a database record and handle billing per booking
+      const dbSubscription = await prisma.subscription.create({
+        data: {
+          detailerId,
+          planId,
+          status: 'active',
+          stripeSubscriptionId: null, // No Stripe subscription for pay-per-booking
+          stripeCustomerId,
+          currentPeriodStart: new Date(),
+          currentPeriodEnd: null, // No recurring billing
+          trialStart: null,
+          trialEnd: null,
+        },
+      });
+
+      return dbSubscription;
+    }
+
+    // For monthly plans, create Stripe subscription
     const trialEnd = new Date();
     trialEnd.setDate(trialEnd.getDate() + 14);
 
@@ -99,7 +120,7 @@ export class StripeSubscriptionService {
 
     const subscription = await stripe.subscriptions.create(subscriptionParams);
 
-    // Create subscription record in database
+    // Create subscription record in database for monthly plans
     const dbSubscription = await prisma.subscription.create({
       data: {
         detailerId,
