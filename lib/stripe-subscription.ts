@@ -30,6 +30,8 @@ export class StripeSubscriptionService {
   async createSubscription(
     detailerId: string,
     planId: string,
+    stripePriceId?: string,
+    planType?: 'monthly' | 'pay_per_booking',
     paymentMethodId?: string
   ) {
     const detailer = await prisma.detailer.findUnique({
@@ -47,8 +49,17 @@ export class StripeSubscriptionService {
       where: { id: planId },
     });
 
-    if (!plan || !plan.stripePriceId) {
-      throw new Error('Plan not found or not configured for Stripe');
+    if (!plan) {
+      throw new Error('Plan not found');
+    }
+
+    // Use passed parameters or fall back to plan data
+    const finalPlanType = planType || plan.type as 'monthly' | 'pay_per_booking';
+    const finalStripePriceId = stripePriceId || plan.stripePriceId;
+
+    // Only require stripePriceId for monthly plans
+    if (finalPlanType === 'monthly' && !finalStripePriceId) {
+      throw new Error('Monthly plan not configured for Stripe');
     }
 
     // Create or get Stripe customer
@@ -70,7 +81,7 @@ export class StripeSubscriptionService {
     }
 
     // Handle different plan types
-    if (plan.type === 'pay_per_booking') {
+    if (finalPlanType === 'pay_per_booking') {
       // For pay-per-booking plans, we don't create a Stripe subscription
       // Instead, we just create a database record and handle billing per booking
       const dbSubscription = await prisma.subscription.create({
@@ -87,7 +98,7 @@ export class StripeSubscriptionService {
         },
       });
 
-      return dbSubscription;
+      return { subscription: dbSubscription };
     }
 
     // For monthly plans, create Stripe Checkout Session
@@ -104,7 +115,7 @@ export class StripeSubscriptionService {
       customer: stripeCustomerId,
       line_items: [
         {
-          price: plan.stripePriceId,
+          price: finalStripePriceId,
           quantity: 1,
         },
       ],
@@ -125,7 +136,7 @@ export class StripeSubscriptionService {
     };
 
     // Apply discount for first cohort at the session level
-    if (detailerData?.isFirstCohort && plan.type === 'monthly') {
+    if (detailerData?.isFirstCohort && finalPlanType === 'monthly') {
       checkoutSessionParams.discounts = [{
         coupon: process.env.STRIPE_FIRST_COHORT_COUPON_ID || 'first_cohort_15_off',
       }];
