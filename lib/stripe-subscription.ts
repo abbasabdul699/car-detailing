@@ -82,23 +82,53 @@ export class StripeSubscriptionService {
 
     // Handle different plan types
     if (finalPlanType === 'pay_per_booking') {
-      // For pay-per-booking plans, we don't create a Stripe subscription
-      // Instead, we just create a database record and handle billing per booking
-      const dbSubscription = await prisma.subscription.create({
+      // Downgrade flow to Starter (pay-per-booking)
+      // If there is an existing Stripe subscription, cancel it at period end
+      if (detailer.subscription?.stripeSubscriptionId) {
+        try {
+          await stripe.subscriptions.update(
+            detailer.subscription.stripeSubscriptionId,
+            { cancel_at_period_end: true }
+          );
+        } catch (err) {
+          // Log but continue with local downgrade so the UI reflects the change
+          console.error('Failed to schedule Stripe subscription cancellation:', err);
+        }
+
+        // Update existing subscription record to Starter
+        const updated = await prisma.subscription.update({
+          where: { detailerId },
+          data: {
+            planId,
+            status: 'active',
+            stripeSubscriptionId: null, // No Stripe subscription for Starter
+            stripeCustomerId,
+            currentPeriodStart: new Date(),
+            currentPeriodEnd: null,
+            trialStart: null,
+            trialEnd: null,
+          },
+        });
+
+        return { subscription: updated };
+      }
+
+      // If no existing subscription, create a new Starter record
+      const created = await prisma.subscription.create({
         data: {
           detailerId,
           planId,
           status: 'active',
-          stripeSubscriptionId: null, // No Stripe subscription for pay-per-booking
+          stripeSubscriptionId: null,
           stripeCustomerId,
           currentPeriodStart: new Date(),
-          currentPeriodEnd: null, // No recurring billing
+          currentPeriodEnd: null,
           trialStart: null,
           trialEnd: null,
         },
       });
 
-      return { subscription: dbSubscription };
+      return { subscription: created };
     }
 
     // For monthly plans, create Stripe Checkout Session
