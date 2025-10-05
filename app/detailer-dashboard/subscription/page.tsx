@@ -62,7 +62,14 @@ export default function SubscriptionPage() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to create customer portal session');
+        const errorData = await response.json();
+        
+        if (errorData.needsSubscription) {
+          setError('Please subscribe to a plan first to manage your subscription.');
+          return;
+        }
+        
+        throw new Error(errorData.error || 'Failed to create customer portal session');
       }
 
       const { url } = await response.json();
