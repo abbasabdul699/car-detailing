@@ -103,11 +103,14 @@ export default function SubscriptionPage() {
         throw new Error('Failed to upgrade subscription');
       }
 
-      const { subscription } = await response.json();
+      const result = await response.json();
       
-      // Redirect to Stripe Checkout or handle payment
-      if (subscription.stripeSubscriptionId) {
-        // Handle successful subscription creation
+      // Check if we got a checkout URL for monthly plans
+      if (result.checkoutUrl) {
+        // Redirect to Stripe Checkout for monthly plans
+        window.location.href = result.checkoutUrl;
+      } else if (result.subscription) {
+        // Handle successful subscription creation (pay-per-booking)
         fetchData(); // Refresh data
       }
     } catch (err: any) {

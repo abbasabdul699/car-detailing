@@ -41,8 +41,15 @@ export class StripeSubscriptionService {
       throw new Error('Detailer not found');
     }
 
+    // Check if detailer already has a subscription
     if (detailer.subscription) {
-      throw new Error('Detailer already has a subscription');
+      // If they're trying to upgrade to the same plan, return existing subscription
+      if (detailer.subscription.planId === planId) {
+        return { subscription: detailer.subscription };
+      }
+      
+      // If they're trying to upgrade to a different plan, allow it
+      // The webhook will handle canceling the old subscription
     }
 
     const plan = await prisma.subscriptionPlan.findUnique({
