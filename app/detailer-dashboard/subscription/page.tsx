@@ -291,15 +291,7 @@ export default function SubscriptionPage() {
                       </button>
                     )}
                     
-                    {status?.canDowngrade && plan.type === 'pay_per_booking' && (
-                      <button
-                        onClick={() => handleUpgrade(plan.id)}
-                        className="w-full inline-flex items-center justify-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-                      >
-                        <ArrowDownIcon className="h-4 w-4 mr-2" />
-                        Downgrade to Starter
-                      </button>
-                    )}
+                    {/* Downgrade removed: Starter plan discontinued */}
                   </>
                 )}
               </div>

@@ -30,6 +30,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Plan not found' }, { status: 404 });
     }
 
+    // Block creation of pay_per_booking (Starter) from API
+    if (plan.type === 'pay_per_booking') {
+      return NextResponse.json({ error: 'Starter plan is no longer available' }, { status: 400 });
+    }
+
     const result = await stripeSubscriptionService.createSubscription(
       session.user.id,
       planId,
