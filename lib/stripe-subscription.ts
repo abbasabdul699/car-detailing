@@ -99,7 +99,7 @@ export class StripeSubscriptionService {
       return dbSubscription;
     }
 
-    // For monthly plans, create Stripe subscription
+    // For monthly plans, create Stripe Checkout Session
     const trialEnd = new Date();
     trialEnd.setDate(trialEnd.getDate() + 14);
 
@@ -108,47 +108,40 @@ export class StripeSubscriptionService {
       where: { id: detailerId },
     });
 
-    const subscriptionParams: any = {
+    // Create a Stripe Checkout Session for monthly plans
+    const checkoutSession = await stripe.checkout.sessions.create({
       customer: stripeCustomerId,
-      items: [{ price: plan.stripePriceId }],
-      trial_end: Math.floor(trialEnd.getTime() / 1000),
+      line_items: [
+        {
+          price: plan.stripePriceId,
+          quantity: 1,
+        },
+      ],
+      mode: 'subscription',
+      success_url: `${process.env.NEXT_PUBLIC_BASE_URL}/detailer-dashboard/subscription?success=true&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.NEXT_PUBLIC_BASE_URL}/detailer-dashboard/subscription?canceled=true`,
+      subscription_data: {
+        trial_end: Math.floor(trialEnd.getTime() / 1000),
+        metadata: {
+          detailerId,
+          planId,
+        },
+        ...(detailerData?.isFirstCohort && plan.type === 'monthly' && { // Apply discount if first cohort
+          coupon: process.env.STRIPE_FIRST_COHORT_COUPON_ID || 'first_cohort_15_off',
+        }),
+      },
       metadata: {
         detailerId,
         planId,
       },
-    };
+    });
 
-    // Apply 15% discount for first cohort
-    if (detailerData?.isFirstCohort && plan.type === 'monthly') {
-      subscriptionParams.discounts = [{
-        coupon: process.env.STRIPE_FIRST_COHORT_COUPON_ID || 'first_cohort_15_off',
-      }];
+    if (!checkoutSession.url) {
+      throw new Error('Failed to create Stripe Checkout Session URL');
     }
 
-    const subscription = await stripe.subscriptions.create(subscriptionParams);
-
-    // Create subscription record in database for monthly plans
-    const dbSubscription = await prisma.subscription.create({
-      data: {
-        detailerId,
-        planId,
-        status: 'trial',
-        stripeSubscriptionId: subscription.id,
-        stripeCustomerId,
-        currentPeriodStart: new Date(subscription.current_period_start * 1000),
-        currentPeriodEnd: new Date(subscription.current_period_end * 1000),
-        trialStart: new Date(subscription.trial_start! * 1000),
-        trialEnd: new Date(subscription.trial_end! * 1000),
-      },
-    });
-
-    // Update detailer trial end date
-    await prisma.detailer.update({
-      where: { id: detailerId },
-      data: { trialEndsAt: trialEnd },
-    });
-
-    return dbSubscription;
+    // For monthly plans, we return the checkout URL for redirection
+    return { subscription: null, checkoutUrl: checkoutSession.url };
   }
 
   // Get subscription status
