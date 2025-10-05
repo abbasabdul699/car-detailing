@@ -201,7 +201,19 @@ export default function SubscriptionPage() {
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {plans.map((plan) => (
-            <div key={plan.id} className="border rounded-lg p-6">
+            <div key={plan.id} className={`border rounded-lg p-6 relative ${
+              plan.name === 'Detailer Pro' ? 'border-green-500 shadow-lg' : ''
+            }`}>
+              {/* Recommended Badge for Detailer Pro */}
+              {plan.name === 'Detailer Pro' && (
+                <div className="absolute -top-2 right-6">
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">
+                    <CheckCircleIcon className="h-3 w-3 mr-1" />
+                    Recommended
+                  </span>
+                </div>
+              )}
+              
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-gray-900">{plan.name}</h3>
                 <div className="text-right">

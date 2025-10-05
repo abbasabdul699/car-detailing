@@ -61,7 +61,11 @@ export default async function EditDetailerPage({ params }: { params: Promise<{ i
         }
       },
       verified: true,
-      hidden: true
+      hidden: true,
+      // Subscription fields
+      trialEndsAt: true,
+      isFirstCohort: true,
+      stripeCustomerId: true
     },
   });
 
@@ -109,6 +113,10 @@ export default async function EditDetailerPage({ params }: { params: Promise<{ i
           }
         })) : [],
         googlePlaceId: detailer.googlePlaceId || undefined,
+        // Subscription fields
+        trialEndsAt: detailer.trialEndsAt || undefined,
+        isFirstCohort: detailer.isFirstCohort || false,
+        stripeCustomerId: detailer.stripeCustomerId || undefined,
       }} />
     </div>
   );

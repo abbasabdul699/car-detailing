@@ -22,6 +22,8 @@ import DashboardNavbar from "./components/DashboardNavbar";
 import MobileNav from "./components/MobileNav";
 import { useSession } from "next-auth/react";
 import { ThemeProvider } from "@/app/components/ThemeContext";
+import PlanSelectionModal from "@/app/components/PlanSelectionModal";
+import { usePlanSelection } from "@/app/hooks/usePlanSelection";
 
 export default function DetailerDashboardLayout({
   children,
@@ -32,6 +34,16 @@ export default function DetailerDashboardLayout({
   const pathname = usePathname();
 
   const { data: session } = useSession();
+  
+  // Plan selection logic
+  const {
+    showPlanSelection,
+    plans,
+    isLoading,
+    error,
+    handleSelectPlan,
+    closePlanSelection,
+  } = usePlanSelection();
   
   const navigation = [
     { name: "Dashboard", href: "/detailer-dashboard", icon: HomeIcon },
@@ -148,6 +160,15 @@ export default function DetailerDashboardLayout({
           {/* Mobile bottom navigation */}
           <MobileNav />
         </div>
+        
+        {/* Plan Selection Modal */}
+        <PlanSelectionModal
+          isOpen={showPlanSelection}
+          onClose={closePlanSelection}
+          onSelectPlan={handleSelectPlan}
+          plans={plans}
+          isLoading={isLoading}
+        />
       </div>
     </ThemeProvider>
   );

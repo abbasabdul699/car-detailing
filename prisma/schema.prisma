@@ -80,6 +80,7 @@ model Detailer {
   customers         Customer[]
   customerSnapshots CustomerSnapshot[]
   events            Event[]
+  charges           Charge[]
 }
 
 model Image {
@@ -375,4 +376,19 @@ model Invoice {
   paidAt            DateTime?    // When invoice was paid
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
+}
+
+// Pay-per-booking charges
+model Charge {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  detailer    Detailer @relation(fields: [detailerId], references: [id])
+  detailerId  String   @db.ObjectId
+  bookingId   String?  // Reference to the booking that triggered this charge
+  amount      Int      // Amount in cents ($3.00 = 300 cents)
+  currency    String   @default("usd")
+  status      String   @default("pending") // pending, completed, failed, refunded
+  description String   // "Pay-per-booking fee"
+  chargedAt   DateTime? // When the charge was processed
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }

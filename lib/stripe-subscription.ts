@@ -134,7 +134,41 @@ export class StripeSubscriptionService {
       },
     });
 
-    if (!detailer || !detailer.subscription) {
+    if (!detailer) {
+      return {
+        isActive: false,
+        isTrial: false,
+        currentPlan: null,
+        canUpgrade: true,
+        canDowngrade: false,
+      };
+    }
+
+    // Check if detailer is in admin-controlled trial period
+    const now = new Date();
+    const isInTrialPeriod = detailer.trialEndsAt && new Date(detailer.trialEndsAt) > now;
+    
+    let trialDaysRemaining: number | undefined;
+    if (isInTrialPeriod && detailer.trialEndsAt) {
+      const trialEnd = new Date(detailer.trialEndsAt);
+      const diffTime = trialEnd.getTime() - now.getTime();
+      trialDaysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    }
+
+    // If no subscription but in trial period
+    if (!detailer.subscription && isInTrialPeriod) {
+      return {
+        isActive: false,
+        isTrial: true,
+        trialDaysRemaining,
+        currentPlan: null,
+        canUpgrade: true,
+        canDowngrade: false,
+      };
+    }
+
+    // If no subscription and not in trial
+    if (!detailer.subscription) {
       return {
         isActive: false,
         isTrial: false,
@@ -145,21 +179,21 @@ export class StripeSubscriptionService {
     }
 
     const subscription = detailer.subscription;
-    const isTrial = subscription.status === 'trial';
+    const isStripeTrial = subscription.status === 'trial';
     const isActive = subscription.status === 'active';
     
-    let trialDaysRemaining: number | undefined;
-    if (isTrial && subscription.trialEnd) {
-      const now = new Date();
+    // Calculate Stripe trial days if applicable
+    let stripeTrialDaysRemaining: number | undefined;
+    if (isStripeTrial && subscription.trialEnd) {
       const trialEnd = new Date(subscription.trialEnd);
       const diffTime = trialEnd.getTime() - now.getTime();
-      trialDaysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      stripeTrialDaysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     }
 
     return {
       isActive,
-      isTrial,
-      trialDaysRemaining,
+      isTrial: isInTrialPeriod || isStripeTrial,
+      trialDaysRemaining: trialDaysRemaining || stripeTrialDaysRemaining,
       currentPlan: subscription.plan,
       nextBillingDate: subscription.currentPeriodEnd,
       canUpgrade: subscription.plan.type === 'pay_per_booking',

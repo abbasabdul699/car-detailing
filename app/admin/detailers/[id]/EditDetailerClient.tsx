@@ -38,6 +38,10 @@ interface Detailer {
   tiktok?: string;
   verified?: boolean;
   hidden?: boolean;
+  // Subscription fields
+  trialEndsAt?: Date | string;
+  isFirstCohort?: boolean;
+  stripeCustomerId?: string;
 }
 
 export default function EditDetailerClient({ detailer: initialDetailer }: { detailer: Detailer }) {
@@ -73,6 +77,8 @@ export default function EditDetailerClient({ detailer: initialDetailer }: { deta
       services,
       businessHours,
       hidden: data.hidden ?? false,
+      // Handle trial end date conversion
+      trialEndsAt: data.trialEndsAt ? new Date(data.trialEndsAt).toISOString() : null,
     };
     try {
       const res = await fetch(`/api/detailers/${data.id}`, {
@@ -273,6 +279,44 @@ export default function EditDetailerClient({ detailer: initialDetailer }: { deta
               <label className="block font-medium">Instagram (optional)</label>
               <input {...register('instagram')} className="input input-bordered w-full" placeholder="https://instagram.com/..." />
               {errors.instagram && <p className="text-red-500 text-sm">{errors.instagram.message}</p>}
+            </div>
+          </div>
+        </div>
+        {/* Subscription Management */}
+        <div className="bg-gray-50 p-4 rounded-lg shadow">
+          <h2 className="text-lg font-semibold mb-4">Subscription & Trial Management</h2>
+          <div className="space-y-4">
+            <div>
+              <label className="block font-medium">Trial End Date</label>
+              <input 
+                type="datetime-local" 
+                {...register('trialEndsAt')} 
+                className="input input-bordered w-full" 
+                placeholder="Set trial end date"
+              />
+              <p className="text-sm text-gray-600 mt-1">
+                Set when the detailer's trial period ends. Leave empty for no trial.
+              </p>
+              {errors.trialEndsAt && <p className="text-red-500 text-sm">{errors.trialEndsAt.message}</p>}
+            </div>
+            <div>
+              <label className="block font-medium">First Cohort Member</label>
+              <div className="flex items-center space-x-2">
+                <input type="checkbox" {...register('isFirstCohort')} className="checkbox" />
+                <span className="text-sm">This detailer is part of the first cohort (gets 15% discount on Pro plan)</span>
+              </div>
+            </div>
+            <div>
+              <label className="block font-medium">Stripe Customer ID</label>
+              <input 
+                {...register('stripeCustomerId')} 
+                className="input input-bordered w-full" 
+                placeholder="cus_..." 
+                readOnly
+              />
+              <p className="text-sm text-gray-600 mt-1">
+                Stripe customer ID (auto-generated when detailer subscribes)
+              </p>
             </div>
           </div>
         </div>
