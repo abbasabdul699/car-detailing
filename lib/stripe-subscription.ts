@@ -41,16 +41,7 @@ export class StripeSubscriptionService {
       throw new Error('Detailer not found');
     }
 
-    // Check if detailer already has a subscription
-    if (detailer.subscription) {
-      // If they're trying to upgrade to the same plan, return existing subscription
-      if (detailer.subscription.planId === planId) {
-        return { subscription: detailer.subscription };
-      }
-      
-      // If they're trying to upgrade to a different plan, allow it
-      // The webhook will handle canceling the old subscription
-    }
+    // Allow upgrades - if detailer has existing subscription, we'll handle it
 
     const plan = await prisma.subscriptionPlan.findUnique({
       where: { id: planId },
@@ -109,7 +100,7 @@ export class StripeSubscriptionService {
     });
 
     // Create a Stripe Checkout Session for monthly plans
-    const checkoutSession = await stripe.checkout.sessions.create({
+    const checkoutSessionParams: any = {
       customer: stripeCustomerId,
       line_items: [
         {
@@ -126,15 +117,21 @@ export class StripeSubscriptionService {
           detailerId,
           planId,
         },
-        ...(detailerData?.isFirstCohort && plan.type === 'monthly' && { // Apply discount if first cohort
-          coupon: process.env.STRIPE_FIRST_COHORT_COUPON_ID || 'first_cohort_15_off',
-        }),
       },
       metadata: {
         detailerId,
         planId,
       },
-    });
+    };
+
+    // Apply discount for first cohort at the session level
+    if (detailerData?.isFirstCohort && plan.type === 'monthly') {
+      checkoutSessionParams.discounts = [{
+        coupon: process.env.STRIPE_FIRST_COHORT_COUPON_ID || 'first_cohort_15_off',
+      }];
+    }
+
+    const checkoutSession = await stripe.checkout.sessions.create(checkoutSessionParams);
 
     if (!checkoutSession.url) {
       throw new Error('Failed to create Stripe Checkout Session URL');
