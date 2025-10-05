@@ -11,13 +11,12 @@ import {
   ArrowUpIcon,
   ArrowDownIcon
 } from '@heroicons/react/24/outline';
-import { SubscriptionPlan, SubscriptionStatus, Invoice } from '@/types/subscription';
+import { SubscriptionPlan, SubscriptionStatus } from '@/types/subscription';
 
 export default function SubscriptionPage() {
   const { data: session } = useSession();
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [status, setStatus] = useState<SubscriptionStatus | null>(null);
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -29,25 +28,22 @@ export default function SubscriptionPage() {
     try {
       setLoading(true);
       
-      const [plansRes, statusRes, invoicesRes] = await Promise.all([
+      const [plansRes, statusRes] = await Promise.all([
         fetch('/api/subscription/plans'),
-        fetch('/api/subscription/status'),
-        fetch('/api/subscription/invoices')
+        fetch('/api/subscription/status')
       ]);
 
-      if (!plansRes.ok || !statusRes.ok || !invoicesRes.ok) {
+      if (!plansRes.ok || !statusRes.ok) {
         throw new Error('Failed to fetch subscription data');
       }
 
-      const [plansData, statusData, invoicesData] = await Promise.all([
+      const [plansData, statusData] = await Promise.all([
         plansRes.json(),
-        statusRes.json(),
-        invoicesRes.json()
+        statusRes.json()
       ]);
 
       setPlans(plansData.plans);
       setStatus(statusData.status);
-      setInvoices(invoicesData.invoices);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -312,61 +308,6 @@ export default function SubscriptionPage() {
         </div>
       </div>
 
-      {/* Invoices */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Recent Invoices</h2>
-        
-        {invoices.length === 0 ? (
-          <p className="text-gray-500 text-center py-8">No invoices yet</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Date
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Amount
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Period
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {invoices.map((invoice) => (
-                  <tr key={invoice.id}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {new Date(invoice.createdAt).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      ${invoice.amount.toFixed(2)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                        invoice.status === 'paid' 
-                          ? 'bg-green-100 text-green-800'
-                          : invoice.status === 'open'
-                          ? 'bg-yellow-100 text-yellow-800'
-                          : 'bg-red-100 text-red-800'
-                      }`}>
-                        {invoice.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(invoice.periodStart).toLocaleDateString()} - {new Date(invoice.periodEnd).toLocaleDateString()}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
     </div>
   );
 }
