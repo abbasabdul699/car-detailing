@@ -6,24 +6,10 @@ async function seedSubscriptionPlans() {
   try {
     console.log('🌱 Seeding subscription plans...');
 
-    // Detailer Starter Plan
-    const starterPlan = await prisma.subscriptionPlan.upsert({
+    // Starter plan discontinued: ensure it remains inactive if present
+    await prisma.subscriptionPlan.updateMany({
       where: { name: 'Detailer Starter' },
-      update: {},
-      create: {
-        name: 'Detailer Starter',
-        type: 'pay_per_booking',
-        price: 3.00,
-        description: 'Perfect for new or low-volume detailers. Pay only when you get bookings.',
-        features: [
-          'Local Search Visibility Only. Be featured in front of customers looking for detailers',
-          'Limited Photos and Services. Customers book with you directly, hassle-free',
-          'Only Direct Bookings We handle marketing so you don\'t have to',
-          'AI-Powered Customer Service Automated responses and booking assistance',
-          'Basic Support Cancel anytime if you\'re not seeing results'
-        ],
-        isActive: true,
-      },
+      data: { isActive: false },
     });
 
     // Detailer Pro Plan
@@ -48,8 +34,7 @@ async function seedSubscriptionPlans() {
     });
 
     console.log('✅ Subscription plans seeded successfully!');
-    console.log('📋 Plans created:');
-    console.log(`   - ${starterPlan.name}: $${starterPlan.price} ${starterPlan.type}`);
+    console.log('📋 Plans ensured:');
     console.log(`   - ${proPlan.name}: $${proPlan.price} ${proPlan.type}`);
 
   } catch (error) {

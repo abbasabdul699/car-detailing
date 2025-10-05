@@ -30,11 +30,8 @@ async function testSubscriptionCreation() {
       where: { isActive: true }
     });
 
-    console.log(`📋 Available plans: ${plans.length}`);
-
-    // Test 1: Pay-per-booking plan (Detailer Starter)
-    console.log('\n1️⃣ Testing Pay-Per-Booking Plan...');
-    const starterPlan = plans.find(p => p.type === 'pay_per_booking');
+    console.log(`📋 Available plans (Pro only expected): ${plans.length}`);
+    const starterPlan = undefined; // Starter discontinued
     
     if (!starterPlan) {
       console.log('❌ No pay-per-booking plan found');

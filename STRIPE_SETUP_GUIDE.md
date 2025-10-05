@@ -10,12 +10,7 @@
 
 ## **Step 2: Create Products in Stripe**
 
-### **Product 1: Detailer Starter**
-1. **Go to Products → Add Product**
-2. **Product Details:**
-   - Name: `Detailer Starter`
-   - Description: `Pay-per-booking plan for detailers`
-3. **Pricing:**
+<!-- Starter product discontinued -->
    - Model: `One-time`
    - Price: `$3.00`
    - Currency: `USD`

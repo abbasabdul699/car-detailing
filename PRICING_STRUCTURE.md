@@ -2,11 +2,8 @@
 
 ## 🎯 **Current Pricing (Updated)**
 
-### **Detailer Starter Plan**
-- **Price**: $3 per booking
-- **Model**: Pay-per-booking
-- **Discount**: No discount (already low-cost)
-- **Best for**: New or low-volume detailers
+<!-- Detailer Starter discontinued -->
+### ~~Detailer Starter Plan~~ (Discontinued)
 
 ### **Detailer Pro Plan**
 - **Base Price**: $300/month
@@ -17,14 +14,13 @@
 ## 🎉 **First Cohort Benefits**
 
 The first 10 detailers who sign up get:
-- **Detailer Starter**: $3/booking (no change)
 - **Detailer Pro**: $255/month (15% off regular $300/month)
 
 ## 📊 **Pricing Comparison**
 
 | Plan | Regular Price | First Cohort Price | Savings |
 |------|---------------|-------------------|---------|
-| **Detailer Starter** | $3/booking | $3/booking | $0 |
+| (Discontinued) Detailer Starter | — | — | — |
 | **Detailer Pro** | $300/month | $255/month | $45/month |
 
 ## 🔧 **How Discounts Work**

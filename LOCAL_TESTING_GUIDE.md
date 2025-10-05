@@ -18,8 +18,7 @@ Server will run at: `http://localhost:3000`
 #### **Step 2: Test Subscription Selection**
 1. Navigate to: `http://localhost:3000/detailer-dashboard/subscription`
 2. You should see the plan selection modal
-3. Click **"Choose Detailer Starter"** (pay-per-booking)
-4. Click **"Choose Detailer Pro"** (monthly subscription)
+3. Click **"Choose Detailer Pro"** (monthly subscription)
 
 #### **Step 3: Verify Results**
 Check the database to see if subscriptions were created:
@@ -29,9 +28,8 @@ node scripts/test-local-subscription.js
 
 ### **3. Test Different Scenarios**
 
-#### **Scenario A: Pay-Per-Booking (Detailer Starter)**
-- ✅ Should create database subscription record
-- ✅ No Stripe subscription created
+<!-- Starter plan discontinued -->
+#### ~~Scenario A: Pay-Per-Booking (Detailer Starter)~~ (Discontinued)
 - ✅ Status: "active" immediately
 - ✅ No trial period
 
@@ -154,7 +152,6 @@ prisma.subscription.deleteMany({
 Before pushing to Vercel, verify:
 - [ ] ✅ Local server runs without errors
 - [ ] ✅ Plan selection modal appears
-- [ ] ✅ "Choose Detailer Starter" works (creates DB record)
 - [ ] ✅ "Choose Detailer Pro" works (creates Stripe subscription)
 - [ ] ✅ No console errors in browser
 - [ ] ✅ Database records created correctly

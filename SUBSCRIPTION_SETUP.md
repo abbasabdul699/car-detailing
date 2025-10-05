@@ -5,7 +5,7 @@ This guide will help you set up the complete subscription and billing system for
 ## 🎯 Overview
 
 The subscription system includes:
-- **Two subscription plans**: Detailer Starter (pay-per-booking) and Detailer Pro (monthly)
+- **Subscription plan**: Detailer Pro (monthly)
 - **14-day free trial** for all new detailers
 - **First cohort discount** for the first 10 detailers
 - **Stripe integration** for secure payment processing
@@ -46,10 +46,7 @@ The subscription system includes:
 1. Go to **Products** in Stripe Dashboard
 2. Create two products:
 
-**Detailer Starter Product:**
-- Name: "Detailer Starter"
-- Description: "Pay-per-booking plan for detailers"
-- Price: $3.00 per booking (one-time payment)
+<!-- Starter product discontinued -->
 
 **Detailer Pro Product:**
 - Name: "Detailer Pro"
