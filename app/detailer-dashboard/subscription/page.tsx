@@ -91,6 +91,8 @@ export default function SubscriptionPage() {
 
   const handleUpgrade = async (planId: string) => {
     try {
+      console.log('🚀 Starting upgrade for plan:', planId);
+      
       const response = await fetch('/api/subscription/create', {
         method: 'POST',
         headers: {
@@ -99,21 +101,33 @@ export default function SubscriptionPage() {
         body: JSON.stringify({ planId }),
       });
 
+      console.log('📊 Response status:', response.status);
+      console.log('📊 Response ok:', response.ok);
+
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ API Error:', errorText);
         throw new Error('Failed to upgrade subscription');
       }
 
       const result = await response.json();
+      console.log('📊 API Response:', result);
       
       // Check if we got a checkout URL for monthly plans
       if (result.checkoutUrl) {
+        console.log('✅ Checkout URL found, redirecting to:', result.checkoutUrl);
         // Redirect to Stripe Checkout for monthly plans
         window.location.href = result.checkoutUrl;
       } else if (result.subscription) {
+        console.log('✅ Subscription created (pay-per-booking)');
         // Handle successful subscription creation (pay-per-booking)
         fetchData(); // Refresh data
+      } else {
+        console.log('❌ No checkoutUrl or subscription in response');
+        setError('Unexpected response from server');
       }
     } catch (err: any) {
+      console.error('❌ Upgrade error:', err);
       setError(err.message);
     }
   };

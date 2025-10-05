@@ -20,13 +20,25 @@ export async function POST(request: Request) {
       );
     }
 
-    const subscription = await stripeSubscriptionService.createSubscription(
+    // Get the plan to determine the type and stripe price ID
+    const { prisma } = await import('@/lib/prisma');
+    const plan = await prisma.subscriptionPlan.findUnique({
+      where: { id: planId },
+    });
+
+    if (!plan) {
+      return NextResponse.json({ error: 'Plan not found' }, { status: 404 });
+    }
+
+    const result = await stripeSubscriptionService.createSubscription(
       session.user.id,
       planId,
-      paymentMethodId
+      plan.stripePriceId,
+      plan.type as 'monthly' | 'pay_per_booking'
     );
 
-    return NextResponse.json({ subscription });
+    // Return the result which may contain checkoutUrl or subscription
+    return NextResponse.json(result);
   } catch (error: any) {
     console.error('Error creating subscription:', error);
     return NextResponse.json(
