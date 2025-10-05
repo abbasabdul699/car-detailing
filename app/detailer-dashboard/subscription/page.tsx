@@ -57,6 +57,8 @@ export default function SubscriptionPage() {
 
   const handleManageSubscription = async () => {
     try {
+      setError(''); // Clear any previous errors
+      
       const response = await fetch('/api/subscription/portal', {
         method: 'POST',
       });
@@ -73,7 +75,15 @@ export default function SubscriptionPage() {
       }
 
       const { url } = await response.json();
+      
+      // Open in new tab and provide feedback
       window.open(url, '_blank');
+      
+      // Optional: Show success message briefly
+      setTimeout(() => {
+        // Could add a success toast here if you have a toast system
+      }, 1000);
+      
     } catch (err: any) {
       setError(err.message);
     }
@@ -198,6 +208,12 @@ export default function SubscriptionPage() {
               <CreditCardIcon className="h-4 w-4 mr-2" />
               Manage Subscription
             </button>
+            <p className="mt-2 text-xs text-gray-500">
+              Opens secure billing portal to update payment methods, view invoices, and manage billing details
+            </p>
+            <p className="mt-1 text-xs text-gray-400">
+              Note: To downgrade plans, please contact ReevaCar support
+            </p>
           </div>
         </div>
       )}
