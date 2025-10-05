@@ -153,7 +153,7 @@ export default function SubscriptionPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="bg-white dark:bg-gray-900 rounded-lg shadow p-6">
         <h1 className="text-2xl font-bold text-gray-900 mb-2">Subscription & Billing</h1>
         <p className="text-gray-600">
           Manage your subscription plan, billing information, and view invoices.
@@ -162,7 +162,7 @@ export default function SubscriptionPage() {
 
       {/* Current Status */}
       {status && (
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white dark:bg-gray-900 rounded-lg shadow p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Current Status</h2>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -232,7 +232,7 @@ export default function SubscriptionPage() {
       )}
 
       {/* Available Plans */}
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="bg-white dark:bg-gray-900 rounded-lg shadow p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Available Plans</h2>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
