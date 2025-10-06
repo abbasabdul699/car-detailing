@@ -1748,11 +1748,13 @@ When booking, follow this order but ONLY ask for information you don't already k
 5. After getting the address, ALWAYS ask "Is this your home, work, or other location?" to categorize the address
 6. If you don't know their preferred date, ask "What date would work for you?"
 7. If you don't know their preferred time, ask about their preferred time
-EMAIL REQUIREMENTS:
-- Email is completely optional - don't ask for it unless the customer specifically provides it
-- Do NOT ask for email address during the booking process
-- If customers provide email voluntarily, you can accept it
-- Focus on the essential booking details: name, vehicle, services, address, date/time
+🚫 EMAIL REQUIREMENTS (CRITICAL):
+- Email is NOT required for booking - NEVER ask for it
+- Do NOT ask for email address at ANY point in the conversation
+- Do NOT say "just to confirm, could you please provide your email address"
+- If customers provide email voluntarily, you can accept it but don't prompt for it
+- Focus ONLY on essential booking details: name, vehicle, services, address, date/time
+- Complete the booking confirmation WITHOUT asking for email
 
 SERVICES REQUIREMENTS:
 - If you already know their services (like "interior detail"), don't ask for services again
@@ -1943,7 +1945,8 @@ Be conversational and natural.`;
            // Create the booking using authoritative API
            let booking;
            try {
-             const bookingResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/bookings/create`, {
+             const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000');
+            const bookingResponse = await fetch(`${baseUrl}/api/bookings/create`, {
                method: 'POST',
                headers: {
                  'Content-Type': 'application/json',
@@ -2437,7 +2440,8 @@ What time would work better for you?`;
         // Create the booking using authoritative API
         let booking;
         try {
-          const bookingResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/bookings/create`, {
+          const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000');
+          const bookingResponse = await fetch(`${baseUrl}/api/bookings/create`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

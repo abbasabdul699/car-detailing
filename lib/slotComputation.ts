@@ -151,15 +151,16 @@ export async function computeSlots(options: SlotOptions): Promise<TimeSlot[]> {
       continue;
     }
     
-    // Parse business hours (format: "09:00", "17:00")
+    // Parse business hours (format: "08:00", "18:00")
     const [startHour, startMin] = startTime.split(':').map(Number);
     const [endHour, endMin] = endTime.split(':').map(Number);
 
-    const workStart = new Date(currentDate);
-    workStart.setHours(startHour, startMin, 0, 0);
-
-    const workEnd = new Date(currentDate);
-    workEnd.setHours(endHour, endMin, 0, 0);
+    // Create dates in the specified timezone
+    const dateStr = currentDate.toISOString().split('T')[0]; // YYYY-MM-DD
+    
+    // Create work start time in the target timezone
+    const workStart = new Date(`${dateStr}T${startTime.padStart(2, '0')}:${startMin.toString().padStart(2, '0')}:00`);
+    const workEnd = new Date(`${dateStr}T${endTime.padStart(2, '0')}:${endMin.toString().padStart(2, '0')}:00`);
 
     let currentTime = new Date(workStart);
 
