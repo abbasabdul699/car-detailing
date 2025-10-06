@@ -3,13 +3,13 @@ import React, { useState } from "react";
 import classNames from "classnames";
 
 const days = [
-  { key: "mon", label: "Mon" },
-  { key: "tue", label: "Tue" },
-  { key: "wed", label: "Wed" },
-  { key: "thu", label: "Thu" },
-  { key: "fri", label: "Fri" },
-  { key: "sat", label: "Sat" },
-  { key: "sun", label: "Sun" },
+  { key: "monday", label: "Mon" },
+  { key: "tuesday", label: "Tue" },
+  { key: "wednesday", label: "Wed" },
+  { key: "thursday", label: "Thu" },
+  { key: "friday", label: "Fri" },
+  { key: "saturday", label: "Sat" },
+  { key: "sunday", label: "Sun" },
 ];
 
 export type BusinessHours = {
@@ -25,7 +25,7 @@ const DEFAULT_OPEN = "09:00";
 const DEFAULT_CLOSE = "17:00";
 
 export default function BusinessHoursPicker({ value = {}, onChange }: BusinessHoursPickerProps) {
-  const [sourceDay, setSourceDay] = useState<string>("mon");
+  const [sourceDay, setSourceDay] = useState<string>("monday");
 
   const handleTimeChange = (day: string, idx: 0 | 1, newTime: string) => {
     const updated: BusinessHours = { ...value };

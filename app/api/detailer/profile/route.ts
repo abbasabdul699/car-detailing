@@ -92,6 +92,21 @@ export async function PATCH(request: Request) {
     if (key in data) updateData[key] = data[key];
   }
 
+  // Clean business hours: remove abbreviated entries and keep only full day names
+  if (updateData.businessHours) {
+    const cleanBusinessHours: Record<string, any> = {};
+    const fullDayNames = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+    
+    for (const day of fullDayNames) {
+      if (updateData.businessHours[day]) {
+        cleanBusinessHours[day] = updateData.businessHours[day];
+      }
+    }
+    
+    updateData.businessHours = cleanBusinessHours;
+    console.log('Cleaned business hours:', cleanBusinessHours);
+  }
+
   try {
     console.log('Updating profile with data:', updateData);
     console.log('User ID:', session.user.id);
