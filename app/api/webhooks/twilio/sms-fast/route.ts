@@ -898,6 +898,61 @@ async function sendAsMmsIfLong(client: any, to: string, from: string, body: stri
   return firstSid
 }
 
+// 🔒 HOTFIX: Extract first time/date from AI response for validation
+function parseFirstTime(aiResponse: string) {
+  if (!aiResponse) return null;
+  
+  // Look for time patterns in the AI response
+  const timeMatch = aiResponse.match(/(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)/i) || 
+                   aiResponse.match(/(\d{1,2})\s*(AM|PM|am|pm)/i) ||
+                   aiResponse.match(/(\d{1,2}):(\d{2})/i) ||
+                   aiResponse.match(/(\d{1,2})/i);
+  
+  if (!timeMatch) return null;
+  
+  let time = timeMatch[0];
+  let date = null;
+  
+  // Look for date patterns
+  const dateMatch = aiResponse.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/i) ||
+                   aiResponse.match(/(monday|tuesday|wednesday|thursday|friday|saturday|sunday)/i) ||
+                   aiResponse.match(/(october|november|december|january|february|march|april|may|june|july|august|september)\s+(\d{1,2})/i);
+  
+  if (dateMatch) {
+    if (dateMatch[1] && dateMatch[2] && dateMatch[3]) {
+      // MM/DD/YYYY format
+      const month = parseInt(dateMatch[1]) - 1; // JavaScript months are 0-indexed
+      const day = parseInt(dateMatch[2]);
+      const year = parseInt(dateMatch[3]);
+      date = new Date(year, month, day).toISOString().split('T')[0];
+    } else if (dateMatch[0].toLowerCase().includes('october') && dateMatch[2]) {
+      // "October 10" format
+      const day = parseInt(dateMatch[2]);
+      date = `2025-10-${day.toString().padStart(2, '0')}`;
+    } else if (dateMatch[0].toLowerCase().includes('friday')) {
+      // "Friday" - assume next Friday
+      const today = new Date();
+      const dayOfWeek = today.getDay(); // 0 = Sunday, 5 = Friday
+      const daysUntilFriday = (5 - dayOfWeek + 7) % 7 || 7;
+      const nextFriday = new Date(today.getTime() + daysUntilFriday * 24 * 60 * 60 * 1000);
+      date = nextFriday.toISOString().split('T')[0];
+    }
+  }
+  
+  // If no specific date found, assume next week (common pattern)
+  if (!date) {
+    const nextWeek = new Date();
+    nextWeek.setDate(nextWeek.getDate() + 7);
+    date = nextWeek.toISOString().split('T')[0];
+  }
+  
+  return {
+    time,
+    date,
+    pretty: `${time} on ${date}`
+  };
+}
+
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
   try {
@@ -1520,6 +1575,9 @@ WHEN CUSTOMER ASKS "what is my name?" or "what's my name?":
       availabilityInfo = `\n\nCURRENT AVAILABILITY: Unable to check existing appointments. Proceed with normal booking flow.`;
     }
     
+    // 🔒 HOTFIX: Add cache buster to prevent stale responses
+    const cacheBuster = `\n\nCurrent time: ${new Date().toISOString()}`;
+    
     const systemPrompt = `You are Arian from ${detailer.businessName}, a mobile car detailing service.
 
 🎯 MISSION: Help customers book services in 6-8 messages maximum. Be efficient and direct.
@@ -1715,7 +1773,7 @@ Service: [Service Type]
 Address: [Complete Address]
 Looking forward to seeing you!"
 
-Be conversational and natural.`;
+Be conversational and natural.${cacheBuster}`;
 
     // Helper: ask for the next missing slot if AI call fails
     function buildNextSlotPrompt(snap: any): string {
@@ -2546,6 +2604,48 @@ Notes: ${parsed.note || 'Auto-captured from SMS conversation'}
     // Log performance metrics
     const endTime = Date.now();
     console.log(`Webhook processing time: ${endTime - startTime}ms`);
+
+    // 🔒 HOTFIX: Server-side validation before sending SMS
+    const picked = parseFirstTime(aiResponse);
+    if (picked) {
+      console.log('Extracted time from AI response:', picked);
+      
+      try {
+        const checkResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/bookings/check`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            detailerId: detailer.id,
+            date: picked.date,
+            time: picked.time,
+            durationMinutes: 120,
+            tz: 'America/New_York'
+          })
+        });
+
+        const checkResult = await checkResponse.json();
+        
+        if (!checkResult.available) {
+          console.log('❌ CONFLICT DETECTED in AI response, overriding with safe message');
+          
+          const alt = checkResult.suggestions?.[0];
+          const safeText = alt
+            ? `I'm sorry, but ${picked.pretty || `${picked.time} on ${picked.date}`} is already booked. The next available time is ${alt.startLocal}. Does that work for you?`
+            : `I'm sorry, but ${picked.pretty || `${picked.time} on ${picked.date}`} is already booked. I don't have another opening that day—would you like to choose a different date?`;
+          
+          // Override the AI response with the safe message
+          aiResponse = safeText;
+          console.log('✅ Overriding AI response with conflict-safe message');
+        } else {
+          console.log('✅ AI suggested time is available, proceeding');
+        }
+      } catch (validationError) {
+        console.error('Error validating AI response:', validationError);
+        // Continue with original response if validation fails
+      }
+    }
 
     return NextResponse.json({ 
       success: true,
