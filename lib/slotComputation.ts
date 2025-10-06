@@ -36,6 +36,17 @@ export async function computeSlots(options: SlotOptions): Promise<TimeSlot[]> {
     to
   } = options;
 
+  // Get detailer's business hours
+  const detailer = await prisma.detailer.findUnique({
+    where: { id: detailerId },
+    select: { businessHours: true }
+  });
+
+  if (!detailer?.businessHours) {
+    console.warn('No business hours found for detailer:', detailerId);
+    return [];
+  }
+
   // Determine date range
   let startDate: Date;
   let endDate: Date;
@@ -121,12 +132,28 @@ export async function computeSlots(options: SlotOptions): Promise<TimeSlot[]> {
       continue;
     }
 
-    // Working hours: 9 AM to 6 PM
+    // Get business hours for this day of the week
+    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const dayOfWeek = dayNames[currentDate.getDay()];
+    const dayHours = detailer.businessHours[dayOfWeek];
+    
+    // Skip if business is closed on this day
+    if (!dayHours || !Array.isArray(dayHours) || dayHours.length !== 2) {
+      currentDate.setDate(currentDate.getDate() + 1);
+      continue;
+    }
+
+    const [startTime, endTime] = dayHours;
+    
+    // Parse business hours (format: "09:00", "17:00")
+    const [startHour, startMin] = startTime.split(':').map(Number);
+    const [endHour, endMin] = endTime.split(':').map(Number);
+
     const workStart = new Date(currentDate);
-    workStart.setHours(9, 0, 0, 0);
+    workStart.setHours(startHour, startMin, 0, 0);
 
     const workEnd = new Date(currentDate);
-    workEnd.setHours(18, 0, 0, 0);
+    workEnd.setHours(endHour, endMin, 0, 0);
 
     let currentTime = new Date(workStart);
 
