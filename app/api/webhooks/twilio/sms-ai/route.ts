@@ -36,6 +36,7 @@ When booking appointments:
 - Ask what services they need if not already specified
 - Ask for their address (where they want the mobile service performed) if not already provided
 - Confirm all details before finalizing
+- DO NOT ask for email address - it's not required for booking
 
 When customers want to change their booking:
 - Acknowledge what they want to change (service, time, date)

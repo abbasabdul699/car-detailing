@@ -680,15 +680,51 @@ async function checkAppointmentConflict(detailerId: string, scheduledDate: Date,
         }
       }
     });
+
+    // Find existing events for the same detailer on the same day
+    const existingEvents = await prisma.event.findMany({
+      where: {
+        detailerId: detailerId,
+        date: {
+          gte: new Date(scheduledDate.getFullYear(), scheduledDate.getMonth(), scheduledDate.getDate()),
+          lt: new Date(scheduledDate.getFullYear(), scheduledDate.getMonth(), scheduledDate.getDate() + 1)
+        }
+      }
+    });
     
     console.log('Found existing bookings for the day:', existingBookings.length);
+    console.log('Found existing events for the day:', existingEvents.length);
     
     // Check for conflicts with existing bookings
     for (const booking of existingBookings) {
       if (!booking.scheduledTime) continue;
       
-      const [existingTimeStr, existingPeriod] = booking.scheduledTime.split(' ');
-      const [existingHours, existingMinutes] = existingTimeStr.split(':');
+      // Parse different time formats: "10:00 AM", "10:00", "10 AM", "10"
+      let existingTimeStr = booking.scheduledTime.trim();
+      let existingPeriod = '';
+      let existingHours = '';
+      let existingMinutes = '00';
+      
+      // Check if it has AM/PM
+      if (existingTimeStr.includes('AM') || existingTimeStr.includes('PM')) {
+        const parts = existingTimeStr.split(' ');
+        existingTimeStr = parts[0];
+        existingPeriod = parts[1] || '';
+      } else {
+        // Assume AM if no period specified and hour is 1-12
+        const hour = parseInt(existingTimeStr);
+        if (hour >= 1 && hour <= 12) {
+          existingPeriod = 'AM';
+        }
+      }
+      
+      // Parse hours and minutes
+      if (existingTimeStr.includes(':')) {
+        [existingHours, existingMinutes] = existingTimeStr.split(':');
+      } else {
+        existingHours = existingTimeStr;
+      }
+      
       let existingStartHour = parseInt(existingHours);
       if (existingPeriod === 'PM' && existingStartHour !== 12) existingStartHour += 12;
       if (existingPeriod === 'AM' && existingStartHour === 12) existingStartHour = 0;
@@ -724,6 +760,76 @@ async function checkAppointmentConflict(detailerId: string, scheduledDate: Date,
             id: booking.id,
             time: booking.scheduledTime,
             customer: booking.customerName
+          }
+        };
+      }
+    }
+
+    // Check for conflicts with existing events
+    for (const event of existingEvents) {
+      if (!event.time) continue;
+      
+      // Parse different time formats: "10:00 AM", "10:00", "10 AM", "10"
+      let existingTimeStr = event.time.trim();
+      let existingPeriod = '';
+      let existingHours = '';
+      let existingMinutes = '00';
+      
+      // Check if it has AM/PM
+      if (existingTimeStr.includes('AM') || existingTimeStr.includes('PM')) {
+        const parts = existingTimeStr.split(' ');
+        existingTimeStr = parts[0];
+        existingPeriod = parts[1] || '';
+      } else {
+        // Assume AM if no period specified and hour is 1-12
+        const hour = parseInt(existingTimeStr);
+        if (hour >= 1 && hour <= 12) {
+          existingPeriod = 'AM';
+        }
+      }
+      
+      // Parse hours and minutes
+      if (existingTimeStr.includes(':')) {
+        [existingHours, existingMinutes] = existingTimeStr.split(':');
+      } else {
+        existingHours = existingTimeStr;
+      }
+      
+      let existingStartHour = parseInt(existingHours);
+      if (existingPeriod === 'PM' && existingStartHour !== 12) existingStartHour += 12;
+      if (existingPeriod === 'AM' && existingStartHour === 12) existingStartHour = 0;
+      
+      const existingStartDateTime = new Date(event.date);
+      existingStartDateTime.setHours(existingStartHour, parseInt(existingMinutes), 0, 0);
+      
+      // Default duration is 2 hours for existing events too
+      const existingEndDateTime = new Date(existingStartDateTime);
+      existingEndDateTime.setHours(existingEndDateTime.getHours() + 2);
+      
+      console.log('Checking against existing event:', {
+        eventId: event.id,
+        existingStart: existingStartDateTime.toISOString(),
+        existingEnd: existingEndDateTime.toISOString(),
+        newStart: startDateTime.toISOString(),
+        newEnd: endDateTime.toISOString()
+      });
+      
+      // Check if there's any overlap
+      const hasOverlap = (startDateTime < existingEndDateTime && endDateTime > existingStartDateTime);
+      
+      if (hasOverlap) {
+        console.log('CONFLICT DETECTED WITH EVENT:', {
+          existingEvent: event.id,
+          existingTime: event.time,
+          newTime: scheduledTime
+        });
+        
+        return {
+          hasConflict: true,
+          conflictingAppointment: {
+            id: event.id,
+            time: event.time,
+            customer: event.title
           }
         };
       }
@@ -1203,9 +1309,10 @@ WHEN CUSTOMER ASKS "what is my name?" or "what's my name?":
 - ${hasName ? `Tell them: "Your name is ${existingSnapshot.customerName}!"` : `Say: "I don't have your name on file yet. What's your name?"`}`;
     }
     
-    // Check for existing bookings to provide real-time availability info to the AI
+    // Check for existing bookings AND calendar events to provide real-time availability info to the AI
     let availabilityInfo = '';
     try {
+      // Get existing bookings
       const existingBookings = await prisma.booking.findMany({
         where: {
           detailerId: detailer.id,
@@ -1228,6 +1335,29 @@ WHEN CUSTOMER ASKS "what is my name?" or "what's my name?":
         }
       });
 
+      // Get existing calendar events (both from bookings and manually created)
+      const existingEvents = await prisma.event.findMany({
+        where: {
+          detailerId: detailer.id,
+          date: {
+            gte: new Date(),
+            lt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // Next 30 days
+          }
+        },
+        select: {
+          date: true,
+          time: true,
+          title: true,
+          bookingId: true
+        },
+        orderBy: {
+          date: 'asc'
+        }
+      });
+
+      console.log('🔍 DEBUG: Found existing bookings:', existingBookings.length);
+      console.log('🔍 DEBUG: Found existing events:', existingEvents.length);
+
       // Parse customer's date request to check specific date conflicts
       const customerMessage = body.toLowerCase();
       let requestedDate = null;
@@ -1248,8 +1378,11 @@ WHEN CUSTOMER ASKS "what is my name?" or "what's my name?":
       else if (customerMessage.includes('october 6') || customerMessage.includes('oct 6')) {
         requestedDate = new Date('2025-10-06');
       }
+      else if (customerMessage.includes('october 7') || customerMessage.includes('oct 7')) {
+        requestedDate = new Date('2025-10-07');
+      }
       
-      // Check for conflicts on the specific requested date
+      // Check for conflicts on the specific requested date (both bookings and events)
       let specificDateConflicts = [];
       if (requestedDate) {
         const startOfDay = new Date(requestedDate);
@@ -1257,14 +1390,25 @@ WHEN CUSTOMER ASKS "what is my name?" or "what's my name?":
         const endOfDay = new Date(requestedDate);
         endOfDay.setHours(23, 59, 59, 999);
         
-        specificDateConflicts = existingBookings.filter(booking => {
+        // Check booking conflicts
+        const bookingConflicts = existingBookings.filter(booking => {
           const bookingDate = new Date(booking.scheduledDate);
           return bookingDate >= startOfDay && bookingDate <= endOfDay;
         });
+
+        // Check event conflicts
+        const eventConflicts = existingEvents.filter(event => {
+          const eventDate = new Date(event.date);
+          return eventDate >= startOfDay && eventDate <= endOfDay;
+        });
+
+        // Combine conflicts from both sources
+        specificDateConflicts = [...bookingConflicts, ...eventConflicts];
       }
 
     console.log('🔍 DEBUG: Availability info being sent to AI:');
     console.log('Existing bookings count:', existingBookings.length);
+    console.log('Existing events count:', existingEvents.length);
     console.log('Requested date:', requestedDate);
     console.log('Specific date conflicts:', specificDateConflicts.length);
     console.log('Availability info:', availabilityInfo);
@@ -1280,10 +1424,10 @@ WHEN CUSTOMER ASKS "what is my name?" or "what's my name?":
     
     console.log('🔍 DEBUG: AI saying "booked" in recent messages:', aiSayingBooked);
     
-    if (aiSayingBooked >= 1 && existingBookings.length === 0) {
-      console.log('🚨 DEBUG: AI is stuck in "booked" loop but no actual bookings exist!');
+    if (aiSayingBooked >= 1 && existingBookings.length === 0 && existingEvents.length === 0) {
+      console.log('🚨 DEBUG: AI is stuck in "booked" loop but no actual bookings or events exist!');
       // Add a fresh context override
-      availabilityInfo = '\n\n🚨 CRITICAL OVERRIDE: No existing appointments in the next 30 days. All time slots are available. The previous "booked" responses were incorrect.';
+      availabilityInfo = '\n\n🚨 CRITICAL OVERRIDE: No existing appointments or calendar events in the next 30 days. All time slots are available. The previous "booked" responses were incorrect.';
       
       // Clear conversation history to break the loop
       console.log('🔄 DEBUG: Clearing conversation history to break the loop');
@@ -1292,7 +1436,7 @@ WHEN CUSTOMER ASKS "what is my name?" or "what's my name?":
       // Add a fresh system message
       conversationHistory.push({
         role: 'system',
-        content: 'FRESH START: Ignore all previous conversation history. There are NO existing appointments. All time slots are available.'
+        content: 'FRESH START: Ignore all previous conversation history. There are NO existing appointments or calendar events. All time slots are available.'
       });
     }
       
@@ -1302,13 +1446,19 @@ WHEN CUSTOMER ASKS "what is my name?" or "what's my name?":
           weekday: 'long', 
           month: 'short', 
           day: 'numeric',
-          year: 'numeric'
+          year: 'numeric',
+          timeZone: 'UTC'
         });
         availabilityInfo = `\n\n⚠️ CONFLICT ON ${dateStr.toUpperCase()}:\n`;
-        specificDateConflicts.forEach(booking => {
-          availabilityInfo += `- ${booking.scheduledTime}: ${booking.customerName || 'Customer'}\n`;
+        specificDateConflicts.forEach(item => {
+          // Handle both bookings and events
+          if ('scheduledTime' in item) {
+            availabilityInfo += `- ${item.scheduledTime}: ${item.customerName || 'Customer'} (booking)\n`;
+          } else {
+            availabilityInfo += `- ${item.time || 'TBD'}: ${item.title} (event)\n`;
+          }
         });
-        availabilityInfo += `\nThis date has existing appointments. Suggest alternative times or dates.`;
+        availabilityInfo += `\nThis date has existing appointments/events. Suggest alternative times or dates.`;
       } else if (requestedDate && specificDateConflicts.length === 0) {
         // Customer requested a specific date with no conflicts
         const dateStr = requestedDate.toLocaleDateString('en-US', { 
@@ -1318,22 +1468,52 @@ WHEN CUSTOMER ASKS "what is my name?" or "what's my name?":
           year: 'numeric'
         });
         availabilityInfo = `\n\n✅ ${dateStr.toUpperCase()} IS AVAILABLE:\nNo existing appointments on this date. All time slots are open.`;
-      } else if (existingBookings.length > 0) {
-        // General availability info
-        availabilityInfo = `\n\nEXISTING APPOINTMENTS (next 30 days):\n`;
+      } else if (existingBookings.length > 0 || existingEvents.length > 0) {
+        // General availability info (combine bookings and events)
+        availabilityInfo = `\n\nEXISTING APPOINTMENTS/EVENTS (next 30 days):\n`;
+        
+        // Combine all scheduled items
+        const allScheduledItems = [];
+        
+        // Add bookings
         existingBookings.forEach(booking => {
-          const date = new Date(booking.scheduledDate);
+          allScheduledItems.push({
+            date: booking.scheduledDate,
+            time: booking.scheduledTime,
+            title: booking.customerName || 'Customer',
+            type: 'booking'
+          });
+        });
+        
+        // Add events (but exclude events that are linked to bookings to avoid duplicates)
+        existingEvents.forEach(event => {
+          if (!event.bookingId) { // Only include standalone events, not events linked to bookings
+            allScheduledItems.push({
+              date: event.date,
+              time: event.time,
+              title: event.title,
+              type: 'event'
+            });
+          }
+        });
+        
+        // Sort by date
+        allScheduledItems.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        
+        // Show up to 10 items
+        allScheduledItems.slice(0, 10).forEach(item => {
+          const date = new Date(item.date);
           const dateStr = date.toLocaleDateString('en-US', { 
             weekday: 'long', 
             month: 'short', 
             day: 'numeric',
             year: 'numeric'
           });
-          availabilityInfo += `- ${dateStr} at ${booking.scheduledTime}: ${booking.customerName || 'Customer'}\n`;
+          availabilityInfo += `- ${dateStr} at ${item.time || 'TBD'}: ${item.title} (${item.type})\n`;
         });
         availabilityInfo += `\nWhen customers request dates/times, check this list to avoid conflicts.`;
       } else {
-        availabilityInfo = `\n\nCURRENT AVAILABILITY: No existing appointments in the next 30 days. All time slots are available.`;
+        availabilityInfo = `\n\nCURRENT AVAILABILITY: No existing appointments or calendar events in the next 30 days. All time slots are available.`;
       }
     } catch (error) {
       console.error('Error fetching existing bookings for AI context:', error);
@@ -1399,6 +1579,15 @@ CRITICAL: IGNORE any previous conversation history about availability. Only trus
 
 🚨 OVERRIDE INSTRUCTION: If you see "CRITICAL OVERRIDE" in the availability data above, you MUST ignore ALL previous conversation history and proceed with booking. The previous responses were incorrect.
 
+🚨 CONFLICT DETECTION: If the availability data shows "⚠️ CONFLICT ON [DATE]" or lists specific existing appointments/events, you MUST NOT book those times. Instead, suggest alternative available times or dates. If a customer specifically requests a conflicting time, politely explain that time is already booked and offer alternatives.
+
+    🚨 CRITICAL CONFLICT DETECTION:
+    - The server will automatically check for conflicts when creating bookings
+    - If you see "⚠️ CONFLICT ON [DATE]" in the availability data above, you MUST NOT proceed with booking
+    - Instead, explain that the requested time is already booked and suggest available alternatives
+    - DO NOT ask for email or other details if there's a conflict
+    - The system will provide alternative time suggestions when conflicts are detected
+
 ${customerContext}
 
 Available Services: ${availableServices || 'Various car detailing services'}
@@ -1451,14 +1640,11 @@ When booking, follow this order but ONLY ask for information you don't already k
 5. After getting the address, ALWAYS ask "Is this your home, work, or other location?" to categorize the address
 6. If you don't know their preferred date, ask "What date would work for you?"
 7. If you don't know their preferred time, ask about their preferred time
-8. If you don't have their email, ask "What's your email address? (Optional - for invoices and reminders)"
-
 EMAIL REQUIREMENTS:
-- Email is completely optional - don't pressure customers to provide it
-- If they say "no" or "skip" or "not needed", move on without asking again
-- Only ask once, and accept their decision
-- Mention it's for invoices and appointment reminders to explain the value
-- IMPORTANT: Always ask for email before finalizing any booking confirmation
+- Email is completely optional - don't ask for it unless the customer specifically provides it
+- Do NOT ask for email address during the booking process
+- If customers provide email voluntarily, you can accept it
+- Focus on the essential booking details: name, vehicle, services, address, date/time
 
 SERVICES REQUIREMENTS:
 - If you already know their services (like "interior detail"), don't ask for services again
@@ -1540,7 +1726,6 @@ Be conversational and natural.`;
       if (snap?.address && !snap?.locationType) return "Is this your home, work, or other location?"
       if (!snap?.preferredDate) return "What date works for you?"
       if (!snap?.preferredTime) return "What time works for you?"
-      if (!snap?.customerEmail) return "What's your email address? (Optional - for invoices and reminders)"
       return "Great! Anything else you'd like to add?"
     }
 
@@ -1647,26 +1832,51 @@ Be conversational and natural.`;
                   }
                 }
                 
-           // Create the booking with error handling
+           // Create the booking using authoritative API
            let booking;
            try {
-             booking = await prisma.booking.create({
-               data: {
+             const bookingResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/bookings/create`, {
+               method: 'POST',
+               headers: {
+                 'Content-Type': 'application/json',
+               },
+               body: JSON.stringify({
                  detailerId: detailer.id,
-                 conversationId: conversation.id,
-                 customerPhone: from,
+                 date: scheduledDate.toISOString().split('T')[0], // YYYY-MM-DD format
+                 time: time !== 'Your scheduled time' ? time : '10:00 AM', // Default time if not specified
+                 durationMinutes: 120,
+                 tz: 'America/New_York',
+                 title: `${name} - ${service}`,
                  customerName: name,
-                 customerEmail: snapshot?.customerEmail || undefined,
+                 customerPhone: from,
                  vehicleType: car,
                  vehicleLocation: address,
                  services: [service],
-                 scheduledDate: scheduledDate,
-                 scheduledTime: time !== 'Your scheduled time' ? time : undefined,
-                 status: 'confirmed',
-                 notes: 'Auto-captured from SMS conversation (AI confirmation)'
-               }
+                 source: 'AI'
+               })
              });
-             console.log('✅ AI confirmation booking created successfully:', booking.id);
+
+             const bookingResult = await bookingResponse.json();
+             
+             if (bookingResponse.ok && bookingResult.ok) {
+               // Fetch the created booking for further processing
+               booking = await prisma.booking.findUnique({
+                 where: { id: bookingResult.bookingId }
+               });
+               console.log('✅ AI confirmation booking created successfully:', booking?.id);
+             } else {
+               console.log('❌ BOOKING CONFLICT DETECTED:', bookingResult);
+               // Update AI response to inform about conflict
+               aiResponse = `I'm sorry, but ${time} on ${scheduledDate.toLocaleDateString()} is already booked. ${bookingResult.message || 'Please choose a different time.'}`;
+               
+               if (bookingResult.suggestions && bookingResult.suggestions.length > 0) {
+                 const suggestions = bookingResult.suggestions.map(s => s.startLocal).join(', ');
+                 aiResponse += ` Available times: ${suggestions}`;
+               }
+               
+               // Don't create booking, just return the conflict message
+               booking = null;
+             }
            } catch (bookingError: any) {
              console.error('❌ ERROR CREATING AI CONFIRMATION BOOKING:', bookingError);
              
@@ -1980,17 +2190,12 @@ Please let me know what you'd prefer!`;
       }
 
       // Check if we have enough details to create a booking and replace AI response with detailed confirmation
-      // Only create booking if we have email OR customer explicitly declined to provide it
-      const hasEmail = snapForBooking?.customerEmail
-      const emailDeclined = /\b(no|skip|not needed|don't need|not required|optional)\b/i.test(body)
       
       console.log('DEBUG: Booking creation conditions:', {
         hasDate,
         hasTime,
         hasMinimumDetails,
         asksForServices,
-        hasEmail: !!hasEmail,
-        emailDeclined,
         snapForBooking: snapForBooking ? {
           customerName: snapForBooking.customerName,
           vehicle: snapForBooking.vehicle,
@@ -1999,13 +2204,8 @@ Please let me know what you'd prefer!`;
         } : null
       })
       
-      // If we have all details except email, ask for email first
-      if (hasDate && hasTime && hasMinimumDetails && !asksForServices && !hasEmail && !emailDeclined) {
-        console.log('DEBUG: Asking for email - missing email but have all other details')
-        aiResponse = "What's your email address? (Optional - for invoices and reminders)"
-      }
-      // Only create booking if we have email OR customer explicitly declined to provide it
-      else if (hasDate && hasTime && hasMinimumDetails && !asksForServices && (hasEmail || emailDeclined)) {
+      // Create booking if we have all required details (email is optional)
+      if (hasDate && hasTime && hasMinimumDetails && !asksForServices) {
         console.log('DEBUG: Creating booking - all conditions met')
         const when = parseDateFromText(body) || new Date()
         const services = Array.isArray(snapForBooking?.services) ? snapForBooking?.services as string[] : []
@@ -2036,26 +2236,51 @@ What time would work better for you?`;
           }
         }
 
-        // Create the booking with error handling
+        // Create the booking using authoritative API
         let booking;
         try {
-          booking = await prisma.booking.create({
-            data: {
+          const bookingResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/bookings/create`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
               detailerId: detailer.id,
-              conversationId: conversation.id,
+              date: when.toISOString().split('T')[0], // YYYY-MM-DD format
+              time: parsed.time || '10:00 AM', // Default time if not specified
+              durationMinutes: 120,
+              tz: 'America/New_York',
+              title: `${snapForBooking?.customerName || 'Customer'} - ${services.length ? services.join(', ') : 'Detailing'}`,
+              customerName: snapForBooking?.customerName || 'Customer',
               customerPhone: from,
-              customerName: snapForBooking?.customerName || undefined,
-              customerEmail: snapForBooking?.customerEmail || undefined,
-              vehicleType: snapForBooking?.vehicle || [snapForBooking?.vehicleYear, snapForBooking?.vehicleMake, snapForBooking?.vehicleModel].filter(Boolean).join(' ') || undefined,
-              vehicleLocation: snapForBooking?.address || undefined,
+              vehicleType: snapForBooking?.vehicle || [snapForBooking?.vehicleYear, snapForBooking?.vehicleMake, snapForBooking?.vehicleModel].filter(Boolean).join(' ') || '',
+              vehicleLocation: snapForBooking?.address || '',
               services: services.length ? services : ['Detailing'],
-              scheduledDate: when,
-              scheduledTime: parsed.time || undefined,
-              status: 'pending',
-              notes: parsed.note ? `Auto-captured from SMS conversation (fast webhook) | ${parsed.note}` : 'Auto-captured from SMS conversation (fast webhook)'
+              source: 'AI'
+            })
+          });
+
+          const bookingResult = await bookingResponse.json();
+          
+          if (bookingResponse.ok && bookingResult.ok) {
+            // Fetch the created booking for further processing
+            booking = await prisma.booking.findUnique({
+              where: { id: bookingResult.bookingId }
+            });
+            console.log('✅ Booking created successfully via API:', booking?.id);
+          } else {
+            console.log('❌ BOOKING CONFLICT DETECTED:', bookingResult);
+            // Update AI response to inform about conflict
+            aiResponse = `I'm sorry, but ${parsed.time || 'that time'} on ${when.toLocaleDateString()} is already booked. ${bookingResult.message || 'Please choose a different time.'}`;
+            
+            if (bookingResult.suggestions && bookingResult.suggestions.length > 0) {
+              const suggestions = bookingResult.suggestions.map(s => s.startLocal).join(', ');
+              aiResponse += ` Available times: ${suggestions}`;
             }
-          })
-          console.log('✅ Booking created successfully:', booking.id);
+            
+            // Don't create booking, just return the conflict message
+            booking = null;
+          }
         } catch (bookingError: any) {
           console.error('❌ ERROR CREATING BOOKING:', bookingError);
           
@@ -2304,13 +2529,10 @@ Notes: ${parsed.note || 'Auto-captured from SMS conversation'}
           hasTime,
           hasMinimumDetails,
           asksForServices,
-          hasEmail: !!hasEmail,
-          emailDeclined,
           reason: !hasDate ? 'no date detected' :
                   !hasTime ? 'no time detected' :
                   !hasMinimumDetails ? 'missing minimum details (name/vehicle/address)' :
                   asksForServices ? 'asking for services' :
-                  !hasEmail && !emailDeclined ? 'missing email and not declined' :
                   'unknown'
         })
       }
