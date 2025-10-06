@@ -2091,6 +2091,72 @@ Please let me know what you'd prefer!`;
         await safeSend(client, from, to, optIn)
       }
 
+      // 🔒 CRITICAL: Validate AI response BEFORE sending SMS
+      
+      // Layer 1: Detect and block stale responses
+      const staleLine = /next available time .* Friday, October 10(th)? at 10:00 AM/i;
+      if (staleLine.test(aiResponse)) {
+        console.log('❌ STALE RESPONSE DETECTED - blocking "Friday, October 10th at 10:00 AM"');
+        
+        // Generate safe alternatives using slot computation
+        const { computeSlots, nextWeekWindow } = await import('@/lib/slotComputation');
+        const { start, end } = nextWeekWindow('America/New_York');
+        const slots = await computeSlots({
+          detailerId: detailer.id,
+          from: start,
+          to: end,
+          durationMinutes: 120,
+          tz: 'America/New_York'
+        });
+        
+        if (slots.length > 0) {
+          const alternatives = slots.slice(0, 3).map(s => s.startLocal);
+          aiResponse = `Here are my next openings: ${alternatives.join(', ')}. Which works for you?`;
+        } else {
+          aiResponse = `I'm booked at that time. Would morning or afternoon be better for you next week?`;
+        }
+        console.log('✅ Replaced stale response with computed alternatives');
+      }
+
+      // Layer 2: Extract and validate any suggested times
+      const picked = parseFirstTime(aiResponse);
+      if (picked) {
+        console.log('Extracted time from AI response:', picked);
+        
+        try {
+          // Use direct validation function
+          const { validateTime } = await import('@/lib/validation');
+          
+          const validationResult = await validateTime({
+            detailerId: detailer.id,
+            date: picked.date,
+            time: picked.time,
+            durationMinutes: 120,
+            tz: 'America/New_York'
+          });
+          
+          if (!validationResult.available) {
+            console.log('❌ CONFLICT DETECTED in AI response, overriding with safe message');
+            
+            const alt = validationResult.suggestions?.[0];
+            const safeText = alt
+              ? `That time's booked. Next opening: ${alt.startLocal}. Want me to book that?`
+              : `That time's booked. Morning or afternoon next week?`;
+            
+            aiResponse = safeText;
+            console.log('✅ Overriding AI response with conflict-safe message');
+          } else {
+            console.log('✅ AI suggested time is available, proceeding');
+          }
+        } catch (validationError) {
+          console.error('Error validating AI response:', validationError);
+          // Fail-closed: avoid proposing a time we didn't validate
+          aiResponse = "Let me double-check availability—do mornings or afternoons work better?";
+          console.log('✅ Failing closed with neutral response due to validation error');
+        }
+      }
+
+      // Now send the validated response
       // Check if message contains calendar link and is too long
       const calendarLinkMatch = aiResponse.match(/📅 Calendar: (https:\/\/[^\s]+)/);
       const messageWithoutCalendar = aiResponse.replace(/\n\n📅 Calendar: https:\/\/[^\s]+/, '');
@@ -2626,71 +2692,6 @@ Notes: ${parsed.note || 'Auto-captured from SMS conversation'}
     // Log performance metrics
     const endTime = Date.now();
     console.log(`Webhook processing time: ${endTime - startTime}ms`);
-
-    // 🔒 COMPLETE PROTECTION: Multi-layer validation
-    
-    // Layer 1: Detect and block stale responses
-    const staleLine = /next available time .* Friday, October 10(th)? at 10:00 AM/i;
-    if (staleLine.test(aiResponse)) {
-      console.log('❌ STALE RESPONSE DETECTED - blocking "Friday, October 10th at 10:00 AM"');
-      
-      // Generate safe alternatives using slot computation
-      const { computeSlots, nextWeekWindow } = await import('@/lib/slotComputation');
-      const { start, end } = nextWeekWindow('America/New_York');
-      const slots = await computeSlots({
-        detailerId: detailer.id,
-        from: start,
-        to: end,
-        durationMinutes: 120,
-        tz: 'America/New_York'
-      });
-      
-      if (slots.length > 0) {
-        const alternatives = slots.slice(0, 3).map(s => s.startLocal);
-        aiResponse = `Here are my next openings: ${alternatives.join(', ')}. Which works for you?`;
-      } else {
-        aiResponse = `I'm booked at that time. Would morning or afternoon be better for you next week?`;
-      }
-      console.log('✅ Replaced stale response with computed alternatives');
-    }
-
-    // Layer 2: Extract and validate any suggested times
-    const picked = parseFirstTime(aiResponse);
-    if (picked) {
-      console.log('Extracted time from AI response:', picked);
-      
-      try {
-        // Use direct validation function
-        const { validateTime } = await import('@/lib/validation');
-        
-        const validationResult = await validateTime({
-          detailerId: detailer.id,
-          date: picked.date,
-          time: picked.time,
-          durationMinutes: 120,
-          tz: 'America/New_York'
-        });
-        
-        if (!validationResult.available) {
-          console.log('❌ CONFLICT DETECTED in AI response, overriding with safe message');
-          
-          const alt = validationResult.suggestions?.[0];
-          const safeText = alt
-            ? `That time's booked. Next opening: ${alt.startLocal}. Want me to book that?`
-            : `That time's booked. Morning or afternoon next week?`;
-          
-          aiResponse = safeText;
-          console.log('✅ Overriding AI response with conflict-safe message');
-        } else {
-          console.log('✅ AI suggested time is available, proceeding');
-        }
-      } catch (validationError) {
-        console.error('Error validating AI response:', validationError);
-        // Fail-closed: avoid proposing a time we didn't validate
-        aiResponse = "Let me double-check availability—do mornings or afternoons work better?";
-        console.log('✅ Failing closed with neutral response due to validation error');
-      }
-    }
 
     return NextResponse.json({ 
       success: true,
