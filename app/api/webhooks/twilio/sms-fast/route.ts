@@ -1576,33 +1576,57 @@ WHEN CUSTOMER ASKS "what is my name?" or "what's my name?":
     }
     
     // 🔒 COMPLETE PROTECTION: Compute available slots and guard the AI
-    const { computeSlots, nextWeekWindow } = await import('@/lib/slotComputation');
+    console.log('🔍 DEBUG: Starting slot computation...');
+    let availableSlots = [];
     
-    // Get concrete slots for next week
-    const { start, end } = nextWeekWindow('America/New_York');
-    const availableSlots = await computeSlots({
-      detailerId: detailer.id,
-      from: start,
-      to: end,
-      durationMinutes: 120,
-      tz: 'America/New_York'
-    });
-    
-    // Debug: Log available slots
-    console.log(`🔍 DEBUG: Generated ${availableSlots.length} available slots:`);
-    availableSlots.forEach((slot, index) => {
-      console.log(`  ${index + 1}. ${slot.startLocal} – ${slot.endLocal}`);
-    });
+    try {
+      const { computeSlots, nextWeekWindow } = await import('@/lib/slotComputation');
+      
+      // Get concrete slots for next week
+      const { start, end } = nextWeekWindow('America/New_York');
+      console.log(`🔍 DEBUG: Next week window: ${start.toISOString()} to ${end.toISOString()}`);
+      
+      availableSlots = await computeSlots({
+        detailerId: detailer.id,
+        from: start,
+        to: end,
+        durationMinutes: 120,
+        tz: 'America/New_York'
+      });
+      
+      console.log(`🔍 DEBUG: Generated ${availableSlots.length} available slots:`);
+      availableSlots.forEach((slot, index) => {
+        console.log(`  ${index + 1}. ${slot.startLocal} – ${slot.endLocal}`);
+      });
+    } catch (error) {
+      console.error('❌ ERROR in slot computation:', error);
+      availableSlots = []; // Fallback to empty slots
+    }
     
     // Create slot guard for AI
     const slotGuard = `
 RULES:
 - You may ONLY propose times from AVAILABLE_SLOTS below.
 - If none fit the user request, ask for another day or offer nearest matches.
+- DO NOT reuse any times from previous conversation history.
+- Generate fresh availability based ONLY on AVAILABLE_SLOTS below.
 AVAILABLE_SLOTS:
 ${availableSlots.map(s => `- ${s.startLocal} – ${s.endLocal} | ISO:${s.startISO}`).join('\n')}
 now=${Date.now()} // cache buster
 `;
+
+    // Filter out contaminated conversation history
+    const cleanHistory = conversationHistory.filter(msg => {
+      // Remove any messages that contain early morning times (outside business hours)
+      const content = msg.content?.toLowerCase() || '';
+      return !content.includes('5:00 am') && 
+             !content.includes('5:30 am') && 
+             !content.includes('6:00 am') &&
+             !content.includes('6:30 am') &&
+             !content.includes('7:00 am');
+    });
+    
+    console.log(`🔍 DEBUG: Filtered conversation history from ${conversationHistory.length} to ${cleanHistory.length} messages`);
     
     const systemPrompt = `${slotGuard}
 
@@ -1828,7 +1852,7 @@ Be conversational and natural.`;
         
         const messages = [
           { role: 'system', content: systemPrompt },
-          ...conversationHistory,
+          ...cleanHistory,
           { role: 'user', content: body }
         ];
         
