@@ -1575,10 +1575,32 @@ WHEN CUSTOMER ASKS "what is my name?" or "what's my name?":
       availabilityInfo = `\n\nCURRENT AVAILABILITY: Unable to check existing appointments. Proceed with normal booking flow.`;
     }
     
-    // 🔒 HOTFIX: Add cache buster to prevent stale responses
-    const cacheBuster = `\n\nnow=${Date.now()}`;
+    // 🔒 COMPLETE PROTECTION: Compute available slots and guard the AI
+    const { computeSlots, nextWeekWindow } = await import('@/lib/slotComputation');
     
-    const systemPrompt = `You are Arian from ${detailer.businessName}, a mobile car detailing service.
+    // Get concrete slots for next week
+    const { start, end } = nextWeekWindow('America/New_York');
+    const availableSlots = await computeSlots({
+      detailerId: detailer.id,
+      from: start,
+      to: end,
+      durationMinutes: 120,
+      tz: 'America/New_York'
+    });
+    
+    // Create slot guard for AI
+    const slotGuard = `
+RULES:
+- You may ONLY propose times from AVAILABLE_SLOTS below.
+- If none fit the user request, ask for another day or offer nearest matches.
+AVAILABLE_SLOTS:
+${availableSlots.map(s => `- ${s.startLocal} – ${s.endLocal} | ISO:${s.startISO}`).join('\n')}
+now=${Date.now()} // cache buster
+`;
+    
+    const systemPrompt = `${slotGuard}
+
+You are Arian from ${detailer.businessName}, a mobile car detailing service.
 
 🎯 MISSION: Help customers book services in 6-8 messages maximum. Be efficient and direct.
 
@@ -1773,7 +1795,7 @@ Service: [Service Type]
 Address: [Complete Address]
 Looking forward to seeing you!"
 
-Be conversational and natural.${cacheBuster}`;
+Be conversational and natural.`;
 
     // Helper: ask for the next missing slot if AI call fails
     function buildNextSlotPrompt(snap: any): string {
@@ -2605,106 +2627,58 @@ Notes: ${parsed.note || 'Auto-captured from SMS conversation'}
     const endTime = Date.now();
     console.log(`Webhook processing time: ${endTime - startTime}ms`);
 
-    // 🔒 HOTFIX: Detect and block stale responses
+    // 🔒 COMPLETE PROTECTION: Multi-layer validation
+    
+    // Layer 1: Detect and block stale responses
     const staleLine = /next available time .* Friday, October 10(th)? at 10:00 AM/i;
     if (staleLine.test(aiResponse)) {
       console.log('❌ STALE RESPONSE DETECTED - blocking "Friday, October 10th at 10:00 AM"');
       
-      // Generate safe alternatives
-      const nextWeek = new Date();
-      nextWeek.setDate(nextWeek.getDate() + 7);
-      const alternatives = [
-        `${nextWeek.toLocaleDateString()} at 9:00 AM`,
-        `${nextWeek.toLocaleDateString()} at 2:00 PM`,
-        `${nextWeek.toLocaleDateString()} at 4:00 PM`
-      ];
+      // Generate safe alternatives using slot computation
+      const { computeSlots, nextWeekWindow } = await import('@/lib/slotComputation');
+      const { start, end } = nextWeekWindow('America/New_York');
+      const slots = await computeSlots({
+        detailerId: detailer.id,
+        from: start,
+        to: end,
+        durationMinutes: 120,
+        tz: 'America/New_York'
+      });
       
-      aiResponse = `Here are my next openings: ${alternatives.join(', ')}. Which works for you?`;
+      if (slots.length > 0) {
+        const alternatives = slots.slice(0, 3).map(s => s.startLocal);
+        aiResponse = `Here are my next openings: ${alternatives.join(', ')}. Which works for you?`;
+      } else {
+        aiResponse = `I'm booked at that time. Would morning or afternoon be better for you next week?`;
+      }
       console.log('✅ Replaced stale response with computed alternatives');
     }
 
-    // 🔒 HOTFIX: Server-side validation before sending SMS
+    // Layer 2: Extract and validate any suggested times
     const picked = parseFirstTime(aiResponse);
     if (picked) {
       console.log('Extracted time from AI response:', picked);
       
       try {
-        // Import and call the conflict checker directly (no HTTP fetch)
-        const { normalizeLocalSlot, timeSlotsOverlap } = await import('@/lib/timeUtils');
+        // Use direct validation function
+        const { validateTime } = await import('@/lib/validation');
         
-        // Normalize the time to ISO format
-        const { startUtcISO, endUtcISO } = normalizeLocalSlot(picked.date, picked.time, 'America/New_York', 120);
-        
-        // Check for conflicts with existing bookings
-        const existingBookings = await prisma.booking.findMany({
-          where: {
-            detailerId: detailer.id,
-            status: { in: ['confirmed', 'pending'] }
-          },
-          select: {
-            id: true,
-            scheduledDate: true,
-            scheduledTime: true,
-            customerName: true
-          }
+        const validationResult = await validateTime({
+          detailerId: detailer.id,
+          date: picked.date,
+          time: picked.time,
+          durationMinutes: 120,
+          tz: 'America/New_York'
         });
-
-        const existingEvents = await prisma.event.findMany({
-          where: {
-            detailerId: detailer.id
-          },
-          select: {
-            id: true,
-            date: true,
-            time: true,
-            title: true
-          }
-        });
-
-        // Check for conflicts
-        let hasConflict = false;
         
-        for (const booking of existingBookings) {
-          try {
-            const bookingDate = booking.scheduledDate.toISOString().split('T')[0];
-            const normalized = normalizeLocalSlot(bookingDate, booking.scheduledTime || '', 'America/New_York', 120);
-            if (timeSlotsOverlap({ startUtcISO, endUtcISO }, normalized)) {
-              hasConflict = true;
-              break;
-            }
-          } catch (e) {
-            // Skip invalid booking times
-          }
-        }
-
-        for (const event of existingEvents) {
-          try {
-            const eventDate = event.date.toISOString().split('T')[0];
-            const normalized = normalizeLocalSlot(eventDate, event.time || '', 'America/New_York', 120);
-            if (timeSlotsOverlap({ startUtcISO, endUtcISO }, normalized)) {
-              hasConflict = true;
-              break;
-            }
-          } catch (e) {
-            // Skip invalid event times
-          }
-        }
-        
-        if (hasConflict) {
+        if (!validationResult.available) {
           console.log('❌ CONFLICT DETECTED in AI response, overriding with safe message');
           
-          // Generate safe alternatives
-          const nextWeek = new Date();
-          nextWeek.setDate(nextWeek.getDate() + 7);
-          const alternatives = [
-            `${nextWeek.toLocaleDateString()} at 9:00 AM`,
-            `${nextWeek.toLocaleDateString()} at 2:00 PM`,
-            `${nextWeek.toLocaleDateString()} at 4:00 PM`
-          ];
+          const alt = validationResult.suggestions?.[0];
+          const safeText = alt
+            ? `That time's booked. Next opening: ${alt.startLocal}. Want me to book that?`
+            : `That time's booked. Morning or afternoon next week?`;
           
-          const safeText = `I'm sorry, but ${picked.pretty || `${picked.time} on ${picked.date}`} is already booked. I have availability next week: ${alternatives.join(', ')}. Which works for you?`;
-          
-          // Override the AI response with the safe message
           aiResponse = safeText;
           console.log('✅ Overriding AI response with conflict-safe message');
         } else {
@@ -2713,7 +2687,7 @@ Notes: ${parsed.note || 'Auto-captured from SMS conversation'}
       } catch (validationError) {
         console.error('Error validating AI response:', validationError);
         // Fail-closed: avoid proposing a time we didn't validate
-        aiResponse = "Got it—let me double-check availability. Do mornings or afternoons work better for you next week?";
+        aiResponse = "Let me double-check availability—do mornings or afternoons work better?";
         console.log('✅ Failing closed with neutral response due to validation error');
       }
     }
