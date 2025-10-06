@@ -1623,6 +1623,9 @@ now=${Date.now()} // cache buster
     
     console.log(`🔍 DEBUG: Filtered conversation history from ${conversationHistory.length} to ${cleanHistory.length} messages (removed contaminated early morning times)`);
     
+    // Debug: Log the actual slot guard being sent to AI
+    console.log(`🔍 DEBUG: Slot Guard Content:`, slotGuard);
+    
     const systemPrompt = `${slotGuard}
 
 You are Arian from ${detailer.businessName}, a mobile car detailing service.
@@ -2094,6 +2097,30 @@ Please let me know what you'd prefer!`;
 
     console.log('AI Response:', aiResponse);
 
+    // 🔒 AGGRESSIVE VALIDATION: Block ANY response containing early morning times
+    const earlyMorningPattern = /\b([4-7]:[0-5][0-9]\s*AM|[4-7]\s*AM)\b/gi;
+    const hasEarlyMorning = earlyMorningPattern.test(aiResponse);
+    
+    if (hasEarlyMorning) {
+      console.log('❌ AI suggested early morning time outside business hours, overriding response');
+      
+      // Generate safe alternative times within business hours
+      const safeTimes = [
+        'Monday, October 13th: 9:00 AM, 10:00 AM, 11:00 AM, 12:00 PM, 1:00 PM, 2:00 PM',
+        'Tuesday, October 14th: 8:00 AM, 9:00 AM, 10:00 AM, 11:00 AM, 12:00 PM, 1:00 PM, 2:00 PM',
+        'Wednesday, October 15th: 8:00 AM, 9:00 AM, 10:00 AM, 11:00 AM, 12:00 PM, 1:00 PM, 2:00 PM',
+        'Thursday, October 16th: 8:00 AM, 9:00 AM, 10:00 AM, 11:00 AM, 12:00 PM, 1:00 PM, 2:00 PM',
+        'Friday, October 17th: 8:00 AM, 9:00 AM, 10:00 AM, 11:00 AM, 12:00 PM, 1:00 PM, 2:00 PM'
+      ].join('\n');
+      
+      aiResponse = `Hi! I apologize, but those early morning times are outside our business hours. Our business hours are 8:00 AM - 6:00 PM Monday through Friday, and 9:00 AM - 5:00 PM on Sunday. We're closed on Saturdays.
+
+Here are available times within our business hours:
+
+${safeTimes}
+
+Which day and time would work best for you?`;
+    }
 
     // Check if this is a first-time customer who just agreed to SMS consent
     if (isFirstTimeCustomer && body && (body.toLowerCase().includes('yes') || body.toLowerCase().includes('okay') || body.toLowerCase().includes('sure') || body.toLowerCase().includes('ok'))) {
