@@ -1576,7 +1576,6 @@ WHEN CUSTOMER ASKS "what is my name?" or "what's my name?":
     }
     
     // 🔒 COMPLETE PROTECTION: Compute available slots and guard the AI
-    console.log('🔍 DEBUG: Starting slot computation...');
     let availableSlots = [];
     
     try {
@@ -1584,7 +1583,6 @@ WHEN CUSTOMER ASKS "what is my name?" or "what's my name?":
       
       // Get concrete slots for next week
       const { start, end } = nextWeekWindow('America/New_York');
-      console.log(`🔍 DEBUG: Next week window: ${start.toISOString()} to ${end.toISOString()}`);
       
       availableSlots = await computeSlots({
         detailerId: detailer.id,
@@ -1594,10 +1592,7 @@ WHEN CUSTOMER ASKS "what is my name?" or "what's my name?":
         tz: 'America/New_York'
       });
       
-      console.log(`🔍 DEBUG: Generated ${availableSlots.length} available slots:`);
-      availableSlots.forEach((slot, index) => {
-        console.log(`  ${index + 1}. ${slot.startLocal} – ${slot.endLocal}`);
-      });
+      console.log(`🔍 DEBUG: Generated ${availableSlots.length} available slots for business hours compliance`);
     } catch (error) {
       console.error('❌ ERROR in slot computation:', error);
       availableSlots = []; // Fallback to empty slots
@@ -1626,7 +1621,7 @@ now=${Date.now()} // cache buster
              !content.includes('7:00 am');
     });
     
-    console.log(`🔍 DEBUG: Filtered conversation history from ${conversationHistory.length} to ${cleanHistory.length} messages`);
+    console.log(`🔍 DEBUG: Filtered conversation history from ${conversationHistory.length} to ${cleanHistory.length} messages (removed contaminated early morning times)`);
     
     const systemPrompt = `${slotGuard}
 
