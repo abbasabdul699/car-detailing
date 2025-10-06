@@ -145,6 +145,12 @@ export async function computeSlots(options: SlotOptions): Promise<TimeSlot[]> {
 
     const [startTime, endTime] = dayHours;
     
+    // Skip if times are empty strings (business is closed)
+    if (!startTime || !endTime || startTime === '' || endTime === '') {
+      currentDate.setDate(currentDate.getDate() + 1);
+      continue;
+    }
+    
     // Parse business hours (format: "09:00", "17:00")
     const [startHour, startMin] = startTime.split(':').map(Number);
     const [endHour, endMin] = endTime.split(':').map(Number);

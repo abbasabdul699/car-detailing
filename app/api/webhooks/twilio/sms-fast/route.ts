@@ -1588,6 +1588,12 @@ WHEN CUSTOMER ASKS "what is my name?" or "what's my name?":
       tz: 'America/New_York'
     });
     
+    // Debug: Log available slots
+    console.log(`🔍 DEBUG: Generated ${availableSlots.length} available slots:`);
+    availableSlots.forEach((slot, index) => {
+      console.log(`  ${index + 1}. ${slot.startLocal} – ${slot.endLocal}`);
+    });
+    
     // Create slot guard for AI
     const slotGuard = `
 RULES:
