@@ -508,9 +508,9 @@ export default function DetailerProfilePage() {
           
           <div className="space-y-4">
             {/* Google Calendar Connection */}
-            <div className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
+            <div className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-xl">
               <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center">
+                <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900 rounded-xl flex items-center justify-center">
                   <svg className="w-6 h-6 text-blue-600 dark:text-blue-400" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/>
                   </svg>
@@ -539,7 +539,7 @@ export default function DetailerProfilePage() {
                 ) : (
                   <button
                     onClick={() => handleConnectGoogleCalendar()}
-                    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+                    className="bg-blue-600 text-white px-4 py-2 rounded-xl hover:bg-blue-700 transition-colors flex items-center space-x-2"
                   >
                     <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
                       <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
@@ -552,7 +552,7 @@ export default function DetailerProfilePage() {
 
             {/* Calendar Sync Status */}
             {profile?.googleCalendarConnected && (
-              <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+              <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-4">
                 <div className="flex items-center space-x-2">
                   <svg className="w-5 h-5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -603,9 +603,9 @@ export default function DetailerProfilePage() {
           
           <div className="space-y-4">
             {/* Instagram Connection */}
-            <div className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
+            <div className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-xl">
               <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
+                <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center">
                   <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
                   </svg>
@@ -634,7 +634,7 @@ export default function DetailerProfilePage() {
                 ) : (
                   <button
                     onClick={() => handleConnectInstagram()}
-                    className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:from-purple-600 hover:to-pink-600 transition-colors"
+                    className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-4 py-2 rounded-xl text-sm font-medium hover:from-purple-600 hover:to-pink-600 transition-colors"
                   >
                     Connect Instagram
                   </button>
@@ -644,7 +644,7 @@ export default function DetailerProfilePage() {
 
             {/* Instagram DM Settings */}
             {profile?.instagramConnected && (
-              <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+              <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl">
                 <div className="flex items-center space-x-2">
                   <svg className="w-5 h-5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -719,7 +719,7 @@ export default function DetailerProfilePage() {
               </div>
               {emailError && <div className="text-red-600 font-semibold">{emailError}</div>}
               {emailSuccess && <div className="text-green-600 font-semibold">{emailSuccess}</div>}
-              <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-green-700 transition" disabled={emailLoading}>
+              <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded-xl font-semibold hover:bg-green-700 transition" disabled={emailLoading}>
                 {emailLoading ? 'Saving...' : 'Save Changes'}
               </button>
             </form>
@@ -818,7 +818,7 @@ export default function DetailerProfilePage() {
               </div>
               {passwordError && <div className="text-red-600 font-semibold">{passwordError}</div>}
               {passwordSuccess && <div className="text-green-600 font-semibold">{passwordSuccess}</div>}
-              <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-green-700 transition" disabled={passwordLoading}>
+              <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded-xl font-semibold hover:bg-green-700 transition" disabled={passwordLoading}>
                 {passwordLoading ? 'Saving...' : 'Save Changes'}
               </button>
             </form>
@@ -870,7 +870,7 @@ export default function DetailerProfilePage() {
                 </div>
                 {phoneError && <div className="text-red-600 font-semibold">{phoneError}</div>}
                 {phoneSuccess && <div className="text-green-600 font-semibold">{phoneSuccess}</div>}
-                <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-700 transition" disabled={phoneLoading}>
+                <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded-xl font-semibold hover:bg-blue-700 transition" disabled={phoneLoading}>
                   {phoneLoading ? 'Saving...' : 'Save Phone Number'}
                 </button>
               </form>
@@ -916,7 +916,7 @@ export default function DetailerProfilePage() {
         {/* Profile Image Modal */}
         {showProfileImageModal && (
           <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-            <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-8 w-full max-w-md relative">
+            <div className="bg-white dark:bg-gray-900 rounded-2xl shadow p-8 w-full max-w-md relative">
               <button className="absolute top-2 right-2 text-gray-500 hover:text-gray-700" onClick={() => setShowProfileImageModal(false)}>&times;</button>
               <h2 className="text-xl font-bold mb-4">Change Profile Image</h2>
               <ImageUploader

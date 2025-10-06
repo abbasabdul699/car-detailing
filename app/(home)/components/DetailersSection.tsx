@@ -7,6 +7,7 @@ import Image from 'next/image';
 interface DetailerImage {
   url: string;
   alt: string;
+  type?: string;
 }
 
 interface Detailer {
@@ -38,7 +39,7 @@ export default function DetailersSection() {
         .then(setDetailers)
         .catch((err) => setError(err instanceof Error ? err.message : 'Failed to fetch detailers'))
         .finally(() => setLoading(false));
-      }
+    }
 
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -101,11 +102,8 @@ export default function DetailersSection() {
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8 items-start">
           {detailers.slice(0, 5).map((detailer) => {
-            // Combine images and detailerImages for legacy support
-            const allImages = [
-              ...(detailer.images || []),
-              ...(detailer.detailerImages || [])
-            ];
+            // Use images from the API response
+            const allImages = detailer.images || [];
             const profileImage = allImages.find(img => img.type === 'profile') || allImages[0];
             return (
               <Link 

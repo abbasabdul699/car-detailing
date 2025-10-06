@@ -30,7 +30,7 @@ export default function PlanSelectionModal({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-2xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b">
           <div>
@@ -53,7 +53,7 @@ export default function PlanSelectionModal({
             {plans.map((plan) => (
               <div 
                 key={plan.id} 
-                className={`border rounded-lg p-6 relative cursor-pointer transition-all ${
+                className={`border rounded-xl p-6 relative cursor-pointer transition-all ${
                   selectedPlan === plan.id 
                     ? 'border-green-500 shadow-lg ring-2 ring-green-200' 
                     : 'border-gray-200 hover:border-gray-300'
@@ -101,7 +101,7 @@ export default function PlanSelectionModal({
                       handleSelectPlan(plan.id);
                     }}
                     disabled={isLoading}
-                    className={`w-full py-3 px-4 rounded-lg font-medium transition-colors ${
+                    className={`w-full py-3 px-4 rounded-xl font-medium transition-colors ${
                       selectedPlan === plan.id
                         ? 'bg-green-600 text-white hover:bg-green-700'
                         : plan.name === 'Detailer Pro'
@@ -118,7 +118,7 @@ export default function PlanSelectionModal({
         </div>
 
         {/* Footer */}
-        <div className="bg-gray-50 px-6 py-4 rounded-b-lg">
+        <div className="bg-gray-50 px-6 py-4 rounded-b-2xl">
           <p className="text-sm text-gray-600 text-center">
             💡 <strong>Tip:</strong> Most successful detailers choose the Pro plan for unlimited bookings and advanced features.
           </p>

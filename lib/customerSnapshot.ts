@@ -52,14 +52,26 @@ export function extractSnapshotHints(text: string, availableServices?: string[])
   const result: SnapshotUpdate = {}
   const normalized = collapseWhitespace(text).trim()
 
-  // Name patterns - be more specific to avoid false matches
+  // Name patterns - improved to handle more common patterns
   const namePatterns = [
-    /\bmy name is\s+([a-zA-Z][a-zA-Z\s'-]{1,40}?)(?:\s+and\s+|\s+at\s+|\s+have\s+|\s+want\s+|\s+need\s+|\s+looking\s+)/i,
-    /\bi am\s+([a-zA-Z][a-zA-Z\s'-]{1,40}?)(?:\s+and\s+|\s+at\s+|\s+have\s+|\s+want\s+|\s+need\s+|\s+looking\s+)/i,
-    /\bthis is\s+([a-zA-Z][a-zA-Z\s'-]{1,40}?)(?:\s+and\s+|\s+at\s+|\s+have\s+|\s+want\s+|\s+need\s+|\s+looking\s+)/i,
-    /\b(?:i'm|im)\s+([a-zA-Z][a-zA-Z\s'-]{1,40}?)(?:\s+and\s+|\s+at\s+|\s+have\s+|\s+want\s+|\s+need\s+|\s+looking\s+)/i,
-    // Standalone name patterns (no trigger words needed) - but exclude addresses
-    /\b([A-Z][a-z]+\s+[A-Z][a-z]+)\b(?!\s+(?:St|Street|Ave|Avenue|Rd|Road|Dr|Drive|Blvd|Boulevard|Ln|Lane|Ct|Court|Pl|Place|Way|Cir|Circle|Suite|Apt|Unit))/,
+    // "My name is Sabeeh" - more flexible ending
+    /\bmy name is\s+([a-zA-Z][a-zA-Z\s'-]{1,40}?)(?:\s+(?:and|at|have|want|need|looking|for|to|get|book|schedule|thanks|thank|you|please|sorry|help|stop|cancel|booking|appointment|time|date|service|interior|exterior|wash|detail|cleaning|car|vehicle|home|work|office|address|location|price|cost|money|payment)|\s*$)/i,
+    // "I am Sabeeh" - more flexible ending
+    /\bi am\s+([a-zA-Z][a-zA-Z\s'-]{1,40}?)(?:\s+(?:and|at|have|want|need|looking|for|to|get|book|schedule|thanks|thank|you|please|sorry|help|stop|cancel|booking|appointment|time|date|service|interior|exterior|wash|detail|cleaning|car|vehicle|home|work|office|address|location|price|cost|money|payment)|\s*$)/i,
+    // "This is Sabeeh" - more flexible ending
+    /\bthis is\s+([a-zA-Z][a-zA-Z\s'-]{1,40}?)(?:\s+(?:and|at|have|want|need|looking|for|to|get|book|schedule|thanks|thank|you|please|sorry|help|stop|cancel|booking|appointment|time|date|service|interior|exterior|wash|detail|cleaning|car|vehicle|home|work|office|address|location|price|cost|money|payment)|\s*$)/i,
+    // "I'm Sabeeh" - more flexible ending
+    /\b(?:i'm|im)\s+([a-zA-Z][a-zA-Z\s'-]{1,40}?)(?:\s+(?:and|at|have|want|need|looking|for|to|get|book|schedule|thanks|thank|you|please|sorry|help|stop|cancel|booking|appointment|time|date|service|interior|exterior|wash|detail|cleaning|car|vehicle|home|work|office|address|location|price|cost|money|payment)|\s*$)/i,
+    // Handle greetings like "Hi Mom Pean!" - extract the name after greeting words
+    /\b(?:hi|hello|hey|greetings)\s+([A-Z][a-z]+\s+[A-Z][a-z]+)/i,
+    // "My mama is sabeeh" -> "My name is Sabeeh" correction
+    /\bmy mama is\s+([a-zA-Z][a-zA-Z\s'-]{1,40})/i,
+    // "No my name is Sabeeh" - correction pattern
+    /\bno my name is\s+([a-zA-Z][a-zA-Z\s'-]{1,40}?)(?:\s+(?:and|at|have|want|need|looking|for|to|get|book|schedule|thanks|thank|you|please|sorry|help|stop|cancel|booking|appointment|time|date|service|interior|exterior|wash|detail|cleaning|car|vehicle|home|work|office|address|location|price|cost|money|payment)|\s*$)/i,
+    // Standalone name patterns (no trigger words needed) - but exclude addresses and common greeting words
+    /\b(?!hi|hello|hey|greetings|thanks|thank|please|sorry|help|stop|cancel|book|booking|appointment|schedule|time|date|service|interior|exterior|wash|detail|cleaning|car|vehicle|toyota|honda|ford|bmw|mercedes|tesla|nissan|hyundai|kia|subaru|mazda|lexus|audi|volkswagen|home|work|office|address|location|price|cost|money|payment)([A-Z][a-z]+\s+[A-Z][a-z]+)\b(?!\s+(?:St|Street|Ave|Avenue|Rd|Road|Dr|Drive|Blvd|Boulevard|Ln|Lane|Ct|Court|Pl|Place|Way|Cir|Circle|Suite|Apt|Unit))/,
+    // Handle names like "Mom Pean" - two capitalized words that aren't addresses
+    /\b([A-Z][a-z]+\s+[A-Z][a-z]+)\b(?!\s+(?:St|Street|Ave|Avenue|Rd|Road|Dr|Drive|Blvd|Boulevard|Ln|Lane|Ct|Court|Pl|Place|Way|Cir|Circle|Suite|Apt|Unit|MA|CA|NY|TX|FL|IL|PA|OH|GA|NC|MI|NJ|VA|WA|AZ|TN|IN|MO|MD|WI|CO|MN|SC|AL|LA|KY|OR|OK|CT|UT|IA|NV|AR|MS|KS|NM|NE|WV|ID|HI|NH|ME|RI|MT|DE|SD|ND|AK|VT|WY|DC))/,
   ]
   for (const p of namePatterns) {
     const m = normalized.match(p)
@@ -209,10 +221,12 @@ export function extractSnapshotHints(text: string, availableServices?: string[])
 
   // Service patterns
   const servicePatterns = [
-    /\b(?:want|need|looking for|interested in|book|get)\s+(?:a|an)?\s*(interior\s+detail|exterior\s+detail|full\s+detail|wash|wax|ppf|paint\s+protection|ceramic\s+coating|detailing)/i,
-    /\b(interior\s+detail|exterior\s+detail|full\s+detail|wash|wax|ppf|paint\s+protection|ceramic\s+coating|detailing)\b/i,
+    /\b(?:want|need|looking for|interested in|book|get|i want|i need|i'm looking for)\s+(?:a|an)?\s*(interior\s+detail|exterior\s+detail|full\s+detail|wash|wax|ppf|paint\s+protection|ceramic\s+coating|detailing|cleaning|car\s+wash|auto\s+detail|mobile\s+detail)/i,
+    /\b(interior\s+detail|exterior\s+detail|full\s+detail|wash|wax|ppf|paint\s+protection|ceramic\s+coating|detailing|cleaning|car\s+wash|auto\s+detail|mobile\s+detail)\b/i,
     // Handle "want interior detail" format
-    /\b(?:want|need|looking for|interested in|book|get)\s+(interior\s+detail|exterior\s+detail|full\s+detail|wash|wax|ppf|paint\s+protection|ceramic\s+coating|detailing)\b/i,
+    /\b(?:want|need|looking for|interested in|book|get|i want|i need|i'm looking for)\s+(interior\s+detail|exterior\s+detail|full\s+detail|wash|wax|ppf|paint\s+protection|ceramic\s+coating|detailing|cleaning|car\s+wash|auto\s+detail|mobile\s+detail)\b/i,
+    // Handle "full detailing" or "interior cleaning" patterns
+    /\b(full\s+detailing|interior\s+cleaning|exterior\s+cleaning|car\s+detailing|auto\s+detailing|mobile\s+detailing)\b/i,
   ]
   
   for (const p of servicePatterns) {

@@ -6,6 +6,7 @@ import { MapLoaderProvider } from '@/app/components/MapLoaderProvider';
 interface DetailerImage {
   url: string;
   alt: string;
+  type?: string;
 }
 
 interface Detailer {
@@ -54,7 +55,8 @@ export default async function SearchResults(props: SearchResultsProps) {
       images: {
         select: {
           url: true,
-          alt: true
+          alt: true,
+          type: true
         }
       }
     }

@@ -144,9 +144,9 @@ export async function PATCH(
   }
 }
 
-export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const detailerId = params.id;
+    const { id: detailerId } = await params;
 
     // 1. Delete all images from S3 and DB
     const images = await prisma.image.findMany({ where: { detailerId } });
@@ -195,7 +195,22 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
     // 3. Delete all services selected by the detailer
     await prisma.detailerService.deleteMany({ where: { detailerId } });
 
-    // 4. Delete the detailer record itself
+    // 4. Delete all notifications for this detailer
+    await prisma.notification.deleteMany({ where: { detailerId } });
+
+    // 5. Delete all conversations for this detailer
+    await prisma.conversation.deleteMany({ where: { detailerId } });
+
+    // 6. Delete all bundles for this detailer
+    await prisma.bundle.deleteMany({ where: { detailerId } });
+
+    // 7. Delete all reviews for this detailer
+    await prisma.review.deleteMany({ where: { detailerId } });
+
+    // 8. Delete all subscriptions for this detailer
+    await prisma.subscription.deleteMany({ where: { detailerId } });
+
+    // 9. Delete the detailer record itself
     await prisma.detailer.delete({ where: { id: detailerId } });
 
     return NextResponse.json({ success: true });

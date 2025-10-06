@@ -9,6 +9,7 @@ interface DetailerCardProps {
   images?: {
     url: string
     alt: string
+    type?: string
   }[]
   latitude?: number
   longitude?: number
@@ -48,8 +49,8 @@ export default function DetailerCard({
       <div className="flex p-4 gap-4">
         <div className="relative w-32 h-32 rounded-lg overflow-hidden flex-shrink-0">
           <Image
-            src={images?.[0]?.url || '/images/detailers/default-business.jpg'}
-            alt={images?.[0]?.alt || businessName}
+            src={images?.find(img => img.type === 'profile')?.url || images?.[0]?.url || '/images/detailers/default-business.jpg'}
+            alt={images?.find(img => img.type === 'profile')?.alt || images?.[0]?.alt || businessName}
             fill
             className="object-cover"
           />
@@ -67,7 +68,8 @@ export default function DetailerCard({
           
           {description && (
             <p className="text-sm text-gray-600 line-clamp-2 mb-3">
-              {description}
+              {description.split(' ').slice(0, 12).join(' ') + 
+               (description.split(' ').length > 12 ? '...' : '')}
             </p>
           )}
 

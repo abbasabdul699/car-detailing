@@ -7,6 +7,7 @@ import { FaRegHeart, FaStar, FaCheckCircle } from 'react-icons/fa';
 interface DetailerImage {
   url: string;
   alt: string;
+  type?: string;
 }
 
 interface Detailer {
@@ -37,8 +38,8 @@ export default function DetailerCard({ detailer }: DetailerCardProps) {
         {/* Image Section */}
         <div className="relative h-64 w-full">
           <Image
-            src={detailer.images?.[0]?.url || '/images/detailers/default-car.jpg'}
-            alt={detailer.images?.[0]?.alt || detailer.businessName}
+            src={detailer.images?.find(img => img.type === 'profile')?.url || detailer.images?.[0]?.url || '/images/detailers/default-car.jpg'}
+            alt={detailer.images?.find(img => img.type === 'profile')?.alt || detailer.images?.[0]?.alt || detailer.businessName}
             fill
             className="object-cover"
             sizes="400px"
@@ -72,7 +73,9 @@ export default function DetailerCard({ detailer }: DetailerCardProps) {
               </span>
             )}
           </div>
-          <div className="text-gray-700 text-sm mb-1">{detailer.description}</div>
+          <div className="text-gray-700 text-sm mb-1">
+            {detailer.description.split('.')[0] + (detailer.description.includes('.') ? '...' : '')}
+          </div>
           <div className="text-gray-500 text-xs mb-1">{detailer.city}</div>
           <div className="text-base">
             <span className="font-semibold">{detailer.price || detailer.priceRange}</span>

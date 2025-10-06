@@ -138,7 +138,7 @@ export default function SubscriptionPage() {
 
   if (error) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+      <div className="bg-red-50 border border-red-200 rounded-xl p-4">
         <div className="flex">
           <ExclamationTriangleIcon className="h-5 w-5 text-red-400" />
           <div className="ml-3">
@@ -153,17 +153,17 @@ export default function SubscriptionPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-white dark:bg-gray-900 rounded-lg shadow p-6">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Subscription & Billing</h1>
-        <p className="text-gray-600">
+      <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-6">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">Subscription & Billing</h1>
+        <p className="text-gray-600 dark:text-gray-300">
           Manage your subscription plan, billing information, and view invoices.
         </p>
       </div>
 
       {/* Current Status */}
       {status && (
-        <div className="bg-white dark:bg-gray-900 rounded-lg shadow p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Current Status</h2>
+        <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-6">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Current Status</h2>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="flex items-center space-x-3">
@@ -175,10 +175,10 @@ export default function SubscriptionPage() {
                 }`} />
               </div>
               <div>
-                <p className="text-sm font-medium text-gray-900">
+                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
                   {status.isActive ? 'Active' : status.isTrial ? 'Trial' : 'Inactive'}
                 </p>
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-gray-500 dark:text-gray-400">
                   {status.currentPlan?.name || 'No plan selected'}
                 </p>
               </div>
@@ -190,10 +190,10 @@ export default function SubscriptionPage() {
                   <CalendarIcon className="h-5 w-5 text-blue-600" />
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-gray-900">
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
                     {status.trialDaysRemaining} days remaining
                   </p>
-                  <p className="text-sm text-gray-500">Free trial</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Free trial</p>
                 </div>
               </div>
             )}
@@ -204,27 +204,27 @@ export default function SubscriptionPage() {
                   <CalendarIcon className="h-5 w-5 text-gray-600" />
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-gray-900">
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
                     Next billing: {new Date(status.nextBillingDate).toLocaleDateString()}
                   </p>
-                  <p className="text-sm text-gray-500">Automatic renewal</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Automatic renewal</p>
                 </div>
               </div>
             )}
           </div>
 
           <div className="mt-6">
-            <button
-              onClick={handleManageSubscription}
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-            >
+        <button
+          onClick={handleManageSubscription}
+          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-xl text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+        >
               <CreditCardIcon className="h-4 w-4 mr-2" />
               Manage Subscription
             </button>
-            <p className="mt-2 text-xs text-gray-500">
+            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
               Opens secure billing portal to update payment methods, view invoices, and manage billing details
             </p>
-            <p className="mt-1 text-xs text-gray-400">
+            <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
               Note: To downgrade plans, please contact ReevaCar support
             </p>
           </div>
@@ -232,12 +232,12 @@ export default function SubscriptionPage() {
       )}
 
       {/* Available Plans */}
-      <div className="bg-white dark:bg-gray-900 rounded-lg shadow p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Available Plans</h2>
+      <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-6">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Available Plans</h2>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {plans.map((plan) => (
-            <div key={plan.id} className={`border rounded-lg p-6 relative ${
+            <div key={plan.id} className={`border rounded-xl p-6 relative ${
               plan.name === 'Detailer Pro' ? 'border-green-500 shadow-lg' : ''
             }`}>
               {/* Recommended Badge for Detailer Pro */}
@@ -251,25 +251,25 @@ export default function SubscriptionPage() {
               )}
               
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">{plan.name}</h3>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{plan.name}</h3>
                 <div className="text-right">
-                  <div className="text-2xl font-bold text-gray-900">
+                  <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
                     ${plan.price}
                     {plan.type === 'monthly' ? '/month' : '/booking'}
                   </div>
-                  <div className="text-sm text-gray-500">
+                  <div className="text-sm text-gray-500 dark:text-gray-400">
                     {plan.type === 'monthly' ? 'Billed monthly' : 'Pay per booking'}
                   </div>
                 </div>
               </div>
 
-              <p className="text-gray-600 mb-4">{plan.description}</p>
+              <p className="text-gray-600 dark:text-gray-300 mb-4">{plan.description}</p>
 
               <ul className="space-y-2 mb-6">
                 {plan.features.map((feature, index) => (
                   <li key={index} className="flex items-start">
                     <CheckCircleIcon className="h-5 w-5 text-green-500 mr-2 mt-0.5 flex-shrink-0" />
-                    <span className="text-sm text-gray-700">{feature}</span>
+                    <span className="text-sm text-gray-700 dark:text-gray-200">{feature}</span>
                   </li>
                 ))}
               </ul>
@@ -284,7 +284,7 @@ export default function SubscriptionPage() {
                     {status?.canUpgrade && plan.type === 'monthly' && (
                       <button
                         onClick={() => handleUpgrade(plan.id)}
-                        className="w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                        className="w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-xl text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
                       >
                         <ArrowUpIcon className="h-4 w-4 mr-2" />
                         Upgrade to Pro

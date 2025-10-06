@@ -63,7 +63,8 @@ export async function GET(req: NextRequest) {
         images: {
           select: {
             url: true,
-            alt: true
+            alt: true,
+            type: true
           }
         }
       }

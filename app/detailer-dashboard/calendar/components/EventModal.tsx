@@ -117,7 +117,7 @@ export default function EventModal({ isOpen, onClose, onAddEvent }: EventModalPr
                 <div className="mt-6 space-y-6">
                     <div>
                         <label htmlFor="event-title" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Event Title</label>
-                        <input type="text" id="event-title" value={title} onChange={e => setTitle(e.target.value)} className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+                        <input type="text" id="event-title" value={title} onChange={e => setTitle(e.target.value)} className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
                     </div>
                     
                     <div>
@@ -157,7 +157,7 @@ export default function EventModal({ isOpen, onClose, onAddEvent }: EventModalPr
 
                     <div>
                         <label htmlFor="start-date" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Enter Start Date</label>
-                        <input type="date" id="start-date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white" placeholder="dd/mm/yyyy" />
+                        <input type="date" id="start-date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white" placeholder="dd/mm/yyyy" />
                     </div>
 
                     {/* Time fields - only show if not all-day */}
@@ -165,26 +165,26 @@ export default function EventModal({ isOpen, onClose, onAddEvent }: EventModalPr
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <label htmlFor="start-time" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Start Time</label>
-                                <input type="time" id="start-time" value={startTime} onChange={e => setStartTime(e.target.value)} className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+                                <input type="time" id="start-time" value={startTime} onChange={e => setStartTime(e.target.value)} className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
                             </div>
                             <div>
                                 <label htmlFor="end-time" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">End Time</label>
-                                <input type="time" id="end-time" value={endTime} onChange={e => setEndTime(e.target.value)} className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+                                <input type="time" id="end-time" value={endTime} onChange={e => setEndTime(e.target.value)} className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
                             </div>
                         </div>
                     )}
 
                     <div>
                         <label htmlFor="end-date" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Enter End Date</label>
-                        <input type="date" id="end-date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white" placeholder="dd/mm/yyyy" />
+                        <input type="date" id="end-date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white" placeholder="dd/mm/yyyy" />
                     </div>
                 </div>
 
                 <div className="mt-8 flex justify-end space-x-4">
-                    <button onClick={onClose} className="px-6 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <button onClick={onClose} className="px-6 py-2 border border-gray-300 dark:border-gray-600 rounded-xl text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
                         Close
                     </button>
-                    <button onClick={handleSubmit} className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">
+                    <button onClick={handleSubmit} className="px-6 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700">
                         Add Event
                     </button>
                 </div>

@@ -31,7 +31,8 @@ const eventColors: { [key: string]: { bg: string, border: string } } = {
 };
 
 const MonthView = ({ date, events, selectedEvent, onEventClick }: { date: Date, events: any[], selectedEvent: string | null, onEventClick: (eventId: string) => void }) => {
-    console.log('MonthView received events:', events.length, events.map(e => ({ title: e.title, date: e.date, allDay: e.allDay, color: e.color })));
+    console.log('MonthView received events:', events.length, 'events');
+    console.log('Sample events in MonthView:', events.slice(0, 3).map(e => ({ title: e.title, source: e.source, start: e.start, end: e.end })));
     const year = date.getFullYear();
     const month = date.getMonth();
     const daysInMonth = getDaysInMonth(year, month);
@@ -54,13 +55,45 @@ const MonthView = ({ date, events, selectedEvent, onEventClick }: { date: Date, 
                 const dayEvents = events.filter(e => {
                   const currentDateStr = format(currentDate, 'yyyy-MM-dd');
                   
-                  // For bookings, use the date field which we fixed to be timezone-safe
+                  console.log(`Checking event "${e.title}" for day ${day}:`, {
+                    source: e.source,
+                    start: e.start,
+                    end: e.end,
+                    date: e.date,
+                    currentDateStr
+                  });
+                  
+                  // For local bookings, use the date field which we fixed to be timezone-safe
                   if ((e.source === 'local-booking' || e.source === 'local-google-synced') && e.date) {
                     const matches = e.date === currentDateStr;
                     if (matches) {
                       console.log('Local booking match for day', day, ':', {
                         eventTitle: e.title,
                         eventDate: e.date,
+                        currentDateStr,
+                        event: e
+                      });
+                    }
+                    return matches;
+                  }
+                  
+                  // For Google Calendar events, use start/end dates
+                  if (e.source === 'google' && e.start) {
+                    // Extract date from start time (handle both datetime and date-only formats)
+                    let eventStartDate;
+                    if (e.start.includes('T')) {
+                      // DateTime format: "2025-01-15T10:00:00Z" -> "2025-01-15"
+                      eventStartDate = e.start.split('T')[0];
+                    } else {
+                      // Date-only format: "2025-01-15" -> "2025-01-15"
+                      eventStartDate = e.start;
+                    }
+                    
+                    const matches = eventStartDate === currentDateStr;
+                    if (matches) {
+                      console.log('Google Calendar event match for day', day, ':', {
+                        eventTitle: e.title,
+                        eventStartDate,
                         currentDateStr,
                         event: e
                       });
@@ -89,24 +122,27 @@ const MonthView = ({ date, events, selectedEvent, onEventClick }: { date: Date, 
                     return isWithinRange;
                   }
                   
-                  // For single-day events, use the existing logic
-                  // Handle both Date objects and date strings
-                  let eventDate;
-                  if (typeof e.date === 'string') {
-                    eventDate = e.date; // Already in YYYY-MM-DD format
-                  } else {
-                    eventDate = format(e.date, 'yyyy-MM-dd');
+                  // For single-day events with date field, use the existing logic
+                  if (e.date) {
+                    let eventDate;
+                    if (typeof e.date === 'string') {
+                      eventDate = e.date; // Already in YYYY-MM-DD format
+                    } else {
+                      eventDate = format(e.date, 'yyyy-MM-dd');
+                    }
+                    const matches = eventDate === currentDateStr;
+                    if (matches) {
+                      console.log('Single-day event match for day', day, ':', {
+                        eventTitle: e.title,
+                        eventDate,
+                        currentDateStr,
+                        event: e
+                      });
+                    }
+                    return matches;
                   }
-                  const matches = eventDate === currentDateStr;
-                  if (e.source === 'google' && matches) {
-                    console.log('Single-day Google event match for day', day, ':', {
-                      eventTitle: e.title,
-                      eventDate,
-                      currentDateStr,
-                      event: e
-                    });
-                  }
-                  return matches;
+                  
+                  return false;
                 });
                 return (
                     <div key={day} className="h-24 md:h-32 p-1.5 md:p-2 border-r border-b border-gray-200 dark:border-gray-700 flex flex-col">
@@ -201,19 +237,36 @@ const WeekView = ({ date, events }: { date: Date, events: any[] }) => {
                                 {slot === 'All-day' && events.filter(e => {
                                     if (!e.allDay) return false;
                                     
-                                    // Check if this is a multi-day event by comparing start and end dates
-                                    const eventStart = new Date(e.start);
-                                    const eventEnd = new Date(e.end);
-                                    const currentDay = new Date(day);
-                                    
-                                    // If we have both start and end dates, check if current day falls within the range
-                                    if (e.start && e.end && eventStart && eventEnd) {
-                                        // Check if current day is between start and end (inclusive)
-                                        return currentDay >= eventStart && currentDay <= eventEnd;
+                                    // For Google Calendar events, use start/end dates
+                                    if (e.source === 'google' && e.start) {
+                                        let eventStartDate;
+                                        if (e.start.includes('T')) {
+                                            eventStartDate = e.start.split('T')[0];
+                                        } else {
+                                            eventStartDate = e.start;
+                                        }
+                                        return eventStartDate === format(day, 'yyyy-MM-dd');
                                     }
                                     
-                                    // For single-day events, use the existing logic
-                                    return format(e.date, 'yyyy-MM-dd') === format(day, 'yyyy-MM-dd');
+                                    // Check if this is a multi-day event by comparing start and end dates
+                                    if (e.start && e.end) {
+                                        const eventStart = new Date(e.start);
+                                        const eventEnd = new Date(e.end);
+                                        const currentDay = new Date(day);
+                                        
+                                        // If we have both start and end dates, check if current day falls within the range
+                                        if (eventStart && eventEnd) {
+                                            // Check if current day is between start and end (inclusive)
+                                            return currentDay >= eventStart && currentDay <= eventEnd;
+                                        }
+                                    }
+                                    
+                                    // For single-day events with date field, use the existing logic
+                                    if (e.date) {
+                                        return format(e.date, 'yyyy-MM-dd') === format(day, 'yyyy-MM-dd');
+                                    }
+                                    
+                                    return false;
                                 }).map((event, i) => (
                                     <div key={i} className={`absolute w-[95%] left-1 top-1 ${eventColors[event.color]?.bg} p-1.5 rounded-md flex items-center text-xs dark:text-white`}>
                                         <div className={`w-2 h-full mr-2 rounded-l-md ${eventColors[event.color]?.border} border-l-2`}></div>
@@ -235,7 +288,17 @@ const WeekView = ({ date, events }: { date: Date, events: any[] }) => {
                                     if (e.allDay) return false;
                                     
                                     // Check if event is on the current day
-                                    const eventStartDate = e.start ? e.start.split('T')[0] : '';
+                                    let eventStartDate;
+                                    if (e.start) {
+                                        if (e.start.includes('T')) {
+                                            eventStartDate = e.start.split('T')[0];
+                                        } else {
+                                            eventStartDate = e.start;
+                                        }
+                                    } else {
+                                        eventStartDate = '';
+                                    }
+                                    
                                     const currentDateStr = format(day, 'yyyy-MM-dd');
                                     if (eventStartDate !== currentDateStr) return false;
                                     
@@ -309,7 +372,17 @@ const DayView = ({ date, events }: { date: Date, events: any[] }) => {
     
     const dayEvents = events.filter(e => {
         // Check if event is on the current day
-        const eventStartDate = e.start ? e.start.split('T')[0] : '';
+        let eventStartDate;
+        if (e.start) {
+            if (e.start.includes('T')) {
+                eventStartDate = e.start.split('T')[0];
+            } else {
+                eventStartDate = e.start;
+            }
+        } else {
+            eventStartDate = '';
+        }
+        
         const currentDateStr = format(date, 'yyyy-MM-dd');
         return eventStartDate === currentDateStr;
     });
@@ -331,7 +404,23 @@ const DayView = ({ date, events }: { date: Date, events: any[] }) => {
                     {timeSlots.map(slot => (
                         <div key={slot} className="h-16 border-b border-r border-gray-200 dark:border-gray-700 relative">
                             {/* Show all-day events */}
-                            {slot === 'All-day' && dayEvents.filter(e => e.allDay).map((event, i) => (
+                            {slot === 'All-day' && dayEvents.filter(e => {
+                                if (!e.allDay) return false;
+                                
+                                // For Google Calendar events, use start/end dates
+                                if (e.source === 'google' && e.start) {
+                                    let eventStartDate;
+                                    if (e.start.includes('T')) {
+                                        eventStartDate = e.start.split('T')[0];
+                                    } else {
+                                        eventStartDate = e.start;
+                                    }
+                                    return eventStartDate === format(date, 'yyyy-MM-dd');
+                                }
+                                
+                                // For other events, use existing logic
+                                return true;
+                            }).map((event, i) => (
                                 <div key={i} className={`absolute w-[98%] left-1 top-1 ${eventColors[event.color]?.bg} p-1.5 rounded-md flex items-center text-xs dark:text-white`}>
                                     <div className={`w-2 h-full mr-2 rounded-l-md ${eventColors[event.color]?.border} border-l-2`}></div>
                                     {event.source === 'google' && (
@@ -422,6 +511,7 @@ export default function CalendarPage() {
   ]);
   
   const [bookings, setBookings] = useState<any[]>([]);
+  const [isLoadingEvents, setIsLoadingEvents] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<string | null>(null);
   const [eventDetailsOpen, setEventDetailsOpen] = useState(false);
   const [selectedEventData, setSelectedEventData] = useState<any>(null);
@@ -432,10 +522,22 @@ export default function CalendarPage() {
   
   console.log('Calendar component render - bookings state:', bookings.length, bookings.map(b => ({ title: b.title, date: b.date, allDay: b.allDay, color: b.color })));
 
+  // Monitor bookings state changes
+  useEffect(() => {
+    console.log('Bookings state changed:', bookings.length, 'events');
+    if (bookings.length > 0) {
+      console.log('Sample booking:', bookings[0]);
+    }
+  }, [bookings]);
+
   useEffect(() => {
     console.log('useEffect triggered - detailerId:', detailerId, 'session status:', session.status, 'currentDate:', currentDate);
+    console.log('Session data:', session.data);
     if (detailerId && session.status === 'authenticated') {
+      console.log('Calling fetchCalendarEvents...');
       fetchCalendarEvents();
+    } else {
+      console.log('Not calling fetchCalendarEvents - detailerId:', detailerId, 'session status:', session.status);
     }
   }, [detailerId, currentDate, session.status]);
 
@@ -458,33 +560,49 @@ export default function CalendarPage() {
   }
 
   const fetchCalendarEvents = async () => {
-    if (!detailerId || session.status !== 'authenticated') return;
+    console.log('fetchCalendarEvents called - detailerId:', detailerId, 'session status:', session.status);
+    if (!detailerId || session.status !== 'authenticated') {
+      console.log('fetchCalendarEvents early return - detailerId:', detailerId, 'session status:', session.status);
+      return;
+    }
     
-      const monthStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
+    const monthStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
     
     try {
+      setIsLoadingEvents(true);
+      console.log('Fetching calendar events for month:', monthStr);
+      
       // Fetch all events from the calendar-events API (includes both local and Google events)
-      const allEvents = await fetch(`/api/detailer/calendar-events?month=${monthStr}`)
-        .then(res => {
-          console.log('Calendar events API response status:', res.status);
-          return res.json();
-        })
-        .then(data => {
-          console.log('Calendar events API response data:', data);
-          return data.events || [];
-        })
-        .catch(error => {
-          console.error('Error fetching calendar events:', error);
-          return [];
-        });
-
-      // All events are already properly formatted from the API
+      const response = await fetch(`/api/detailer/calendar-events?month=${monthStr}`);
+      console.log('Calendar events API response status:', response.status);
+      
+      if (!response.ok) {
+        throw new Error(`API responded with status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log('Calendar events API response data:', data);
+      
+      const allEvents = data.events || [];
       console.log('Setting bookings state with:', allEvents.length, 'events');
-      console.log('Event sources:', allEvents.map(e => ({ title: e.title, source: e.source, color: e.color })));
+      console.log('Event sources:', allEvents.map((e: any) => ({ title: e.title, source: e.source, color: e.color })));
       console.log('Current month being fetched:', monthStr);
+      console.log('Sample events:', allEvents.slice(0, 3));
+      
+      // Set the events in state
+      console.log('About to call setBookings with:', allEvents.length, 'events');
       setBookings(allEvents);
+      console.log('setBookings called with:', allEvents.length, 'events');
+      
+      // Debug: Check if setBookings actually worked
+      setTimeout(() => {
+        console.log('After setBookings - bookings state should be:', allEvents.length);
+      }, 100);
     } catch (error) {
       console.error('Error fetching calendar events:', error);
+      setBookings([]); // Set empty array on error
+    } finally {
+      setIsLoadingEvents(false);
     }
   };
 
@@ -605,9 +723,17 @@ export default function CalendarPage() {
             </div>
         </div>
         
-        {viewMode === 'month' && <MonthView date={currentDate} events={bookings} selectedEvent={selectedEvent} onEventClick={handleEventClick} />}
-        {viewMode === 'week' && <WeekView date={currentDate} events={bookings} />}
-        {viewMode === 'day' && <DayView date={currentDate} events={bookings} />}
+        {isLoadingEvents ? (
+          <div className="flex items-center justify-center h-64">
+            <div className="text-lg text-gray-600 dark:text-gray-400">Loading calendar events...</div>
+          </div>
+        ) : (
+          <>
+            {viewMode === 'month' && <MonthView date={currentDate} events={bookings} selectedEvent={selectedEvent} onEventClick={handleEventClick} />}
+            {viewMode === 'week' && <WeekView date={currentDate} events={bookings} />}
+            {viewMode === 'day' && <DayView date={currentDate} events={bookings} />}
+          </>
+        )}
 
         <EventModal 
             isOpen={isModalOpen}

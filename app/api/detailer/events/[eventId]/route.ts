@@ -33,7 +33,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Detailer not found' }, { status: 404 });
     }
 
-    // Find and delete the event
+    // Find the event first (check both events and bookings tables)
     const event = await prisma.event.findFirst({
       where: {
         id: eventId,
@@ -41,17 +41,82 @@ export async function DELETE(
       }
     });
 
+    // If not found in events table, check if it's a booking
+    let booking = null;
     if (!event) {
-      return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+      booking = await prisma.booking.findFirst({
+        where: {
+          id: eventId,
+          detailerId: detailerId
+        }
+      });
     }
 
-    // Delete the event from database
-    await prisma.event.delete({
-      where: { id: eventId }
-    });
+    // If neither event nor booking found in local database, it might be a Google Calendar-only event
+    // In this case, we'll try to delete it directly from Google Calendar
+    if (!event && !booking) {
+      console.log('Event not found in local database, checking if it\'s a Google Calendar event');
+      
+      // Try to delete from Google Calendar directly
+      try {
+        // Get detailer's Google Calendar tokens
+        const detailerWithTokens = await prisma.detailer.findUnique({
+          where: { id: detailerId },
+          select: {
+            googleCalendarConnected: true,
+            googleCalendarTokens: true,
+            googleCalendarRefreshToken: true
+          }
+        });
 
-    // If the event has a Google Calendar ID, try to delete it from Google Calendar too
-    if (event.googleEventId) {
+        if (detailerWithTokens?.googleCalendarConnected && detailerWithTokens.googleCalendarTokens) {
+          const tokens = JSON.parse(detailerWithTokens.googleCalendarTokens);
+          const accessToken = tokens.access_token;
+
+          // Try to delete from Google Calendar using the eventId as googleEventId
+          const googleResponse = await fetch(
+            `https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventId}`,
+            {
+              method: 'DELETE',
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+              },
+            }
+          );
+
+          if (googleResponse.ok) {
+            console.log('Successfully deleted Google Calendar event:', eventId);
+            return NextResponse.json({ 
+              success: true,
+              message: 'Google Calendar event deleted successfully' 
+            });
+          } else {
+            console.log('Failed to delete Google Calendar event:', googleResponse.status, googleResponse.statusText);
+            return NextResponse.json({ error: 'Event not found in Google Calendar either' }, { status: 404 });
+          }
+        } else {
+          return NextResponse.json({ error: 'Event not found and Google Calendar not connected' }, { status: 404 });
+        }
+      } catch (error) {
+        console.error('Error deleting Google Calendar event:', error);
+        return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+      }
+    }
+
+    // Delete from database (either event or booking)
+    if (event) {
+      await prisma.event.delete({
+        where: { id: eventId }
+      });
+    } else if (booking) {
+      await prisma.booking.delete({
+        where: { id: eventId }
+      });
+    }
+
+    // If the event or booking has a Google Calendar ID, try to delete it from Google Calendar too
+    const googleEventId = event?.googleEventId || booking?.googleEventId;
+    if (googleEventId) {
       try {
         // Get detailer's Google Calendar tokens
         const detailerWithTokens = await prisma.detailer.findUnique({
@@ -69,7 +134,7 @@ export async function DELETE(
 
           // Delete from Google Calendar
           await fetch(
-            `https://www.googleapis.com/calendar/v3/calendars/primary/events/${event.googleEventId}`,
+            `https://www.googleapis.com/calendar/v3/calendars/primary/events/${googleEventId}`,
             {
               method: 'DELETE',
               headers: {

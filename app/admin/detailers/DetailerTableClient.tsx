@@ -37,8 +37,8 @@ export default function DetailerTableClient({ detailers }: { detailers: any[] })
                   <td>
                     <div className="relative w-16 h-16">
                       <Image
-                        src={combinedImages[0]?.url || '/images/detailers/default-car.jpg'}
-                        alt={combinedImages[0]?.alt || d.businessName}
+                        src={combinedImages.find(img => img.type === 'profile')?.url || combinedImages[0]?.url || '/images/detailers/default-car.jpg'}
+                        alt={combinedImages.find(img => img.type === 'profile')?.alt || combinedImages[0]?.alt || d.businessName}
                         fill
                         className="object-cover rounded-lg"
                         sizes="64px"

@@ -292,19 +292,8 @@ export async function GET(request: NextRequest) {
         }
 
         // Transform Google Calendar events to match our calendar format
-        // Filter to only show car detailing related events
+        // Show all events from Google Calendar (no filtering for now)
         events = events
-          .filter((event: any) => {
-            const title = (event.summary || '').toLowerCase();
-            const description = (event.description || '').toLowerCase();
-            
-            // Only show events that are car detailing related
-            return title.includes('car') || 
-                   title.includes('detailing') || 
-                   title.includes('customer') ||
-                   description.includes('car') ||
-                   description.includes('detailing');
-          })
           .map((event: any) => ({
             id: event.id,
             title: event.summary || 'No Title',
@@ -317,6 +306,18 @@ export async function GET(request: NextRequest) {
             location: event.location || '',
           }));
 
+        console.log('Sample Google Calendar events after transformation:');
+        events.slice(0, 3).forEach((event, index) => {
+          console.log(`Event ${index + 1}:`, {
+            id: event.id,
+            title: event.title,
+            start: event.start,
+            end: event.end,
+            source: event.source,
+            allDay: event.allDay
+          });
+        });
+
       } catch (error) {
         console.error('Error fetching Google Calendar events:', error);
         // Return empty events array if Google Calendar fetch fails
@@ -326,6 +327,13 @@ export async function GET(request: NextRequest) {
 
     // Combine local and Google Calendar events
     const allEvents = [...localEvents, ...events];
+
+    console.log('Calendar Events API Response:');
+    console.log('- Local events:', localEvents.length);
+    console.log('- Google events:', events.length);
+    console.log('- Total events:', allEvents.length);
+    console.log('- Google Calendar connected:', detailer.googleCalendarConnected);
+    console.log('- Sync appointments:', detailer.syncAppointments);
 
     return NextResponse.json({ 
       events: allEvents,

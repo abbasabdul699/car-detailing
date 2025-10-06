@@ -384,7 +384,7 @@ function BundleFormModal({ isOpen, onClose, onSave, bundle, allServices }: {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl p-8 w-full max-w-2xl relative max-h-[90vh] overflow-y-auto">
+      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl p-8 w-full max-w-2xl relative max-h-[90vh] overflow-y-auto">
         <button onClick={onClose} className="absolute top-3 right-3 text-2xl text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 transition-colors">&times;</button>
         <h2 className="text-xl font-bold mb-6 text-gray-900 dark:text-gray-100">{bundle ? 'Edit Bundle' : 'Create New Bundle'}</h2>
         <form onSubmit={handleSubmit} className="space-y-6">

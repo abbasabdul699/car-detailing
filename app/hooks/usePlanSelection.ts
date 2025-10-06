@@ -26,8 +26,13 @@ export function usePlanSelection() {
           // 1. No active subscription
           // 2. Not in trial period
           // 3. No current plan selected
-          if (!status?.isActive && !status?.isTrial && !status?.currentPlan) {
+          // 4. Not already shown in this session
+          const hasSeenPlanSelection = sessionStorage.getItem('planSelectionShown');
+          
+          if (!status?.isActive && !status?.isTrial && !status?.currentPlan && !hasSeenPlanSelection) {
             setShowPlanSelection(true);
+            // Mark as shown to prevent showing again in this session
+            sessionStorage.setItem('planSelectionShown', 'true');
           }
         }
       } catch (err) {
@@ -95,6 +100,8 @@ export function usePlanSelection() {
   const closePlanSelection = () => {
     setShowPlanSelection(false);
     setError(null);
+    // Clear the session storage so it can show again if needed
+    sessionStorage.removeItem('planSelectionShown');
   };
 
   return {
