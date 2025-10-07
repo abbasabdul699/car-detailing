@@ -1599,18 +1599,39 @@ WHEN CUSTOMER ASKS "what is my name?" or "what's my name?":
     let availableSlots = [];
     
     try {
-      const { computeSlots, nextWeekWindow } = await import('@/lib/slotComputation');
+      const { getMergedFreeSlots } = await import('@/lib/slotComputationV2');
       
-      // Get concrete slots for next week
-      const { start, end } = nextWeekWindow('America/New_York');
+      // Get concrete slots for next week using Google FreeBusy
+      const today = new Date();
+      const dayISO = today.toISOString().split('T')[0];
       
-      availableSlots = await computeSlots({
-        detailerId: detailer.id,
-        from: start,
-        to: end,
-        durationMinutes: 120,
-        tz: 'America/New_York'
+      // Get existing Reeva bookings for the day
+      const existingBookings = await prisma.booking.findMany({
+        where: {
+          detailerId: detailer.id,
+          scheduledDate: {
+            gte: new Date(dayISO + 'T00:00:00.000Z'),
+            lt: new Date(dayISO + 'T23:59:59.999Z')
+          },
+          status: { in: ['confirmed', 'pending'] }
+        }
       });
+      
+      const reevaBookings = existingBookings.map(b => ({
+        start: new Date(b.scheduledDate).toISOString(),
+        end: new Date(new Date(b.scheduledDate).getTime() + 120 * 60000).toISOString()
+      }));
+      
+      const googleCalendarId = detailer.googleCalendarConnected ? 'primary' : null;
+      const detailerTimezone = detailer.timezone || 'America/New_York';
+      const rawSlots = await getMergedFreeSlots(dayISO, googleCalendarId, reevaBookings, detailer.id, 120, 30, detailerTimezone);
+      
+      availableSlots = rawSlots.map(slot => ({
+        startLocal: slot.label,
+        endLocal: slot.label.split(' – ')[1] || slot.label,
+        startUtcISO: slot.start,
+        endUtcISO: slot.end
+      }));
       
       console.log(`🔍 DEBUG: Generated ${availableSlots.length} available slots for business hours compliance`);
       console.log('🔍 DEBUG: First 5 slots:', availableSlots.slice(0, 5).map(s => `${s.startLocal} – ${s.endLocal}`));
@@ -2232,16 +2253,38 @@ Which day and time would work best for you?`;
       if (staleLine.test(aiResponse)) {
         console.log('❌ STALE RESPONSE DETECTED - blocking "Friday, October 10th at 10:00 AM"');
         
-        // Generate safe alternatives using slot computation
-        const { computeSlots, nextWeekWindow } = await import('@/lib/slotComputation');
-        const { start, end } = nextWeekWindow('America/New_York');
-        const slots = await computeSlots({
-          detailerId: detailer.id,
-          from: start,
-          to: end,
-          durationMinutes: 120,
-          tz: 'America/New_York'
+        // Generate safe alternatives using Google FreeBusy
+        const { getMergedFreeSlots } = await import('@/lib/slotComputationV2');
+        const today = new Date();
+        const dayISO = today.toISOString().split('T')[0];
+        
+        // Get existing Reeva bookings for the day
+        const existingBookings = await prisma.booking.findMany({
+          where: {
+            detailerId: detailer.id,
+            scheduledDate: {
+              gte: new Date(dayISO + 'T00:00:00.000Z'),
+              lt: new Date(dayISO + 'T23:59:59.999Z')
+            },
+            status: { in: ['confirmed', 'pending'] }
+          }
         });
+        
+        const reevaBookings = existingBookings.map(b => ({
+          start: new Date(b.scheduledDate).toISOString(),
+          end: new Date(new Date(b.scheduledDate).getTime() + 120 * 60000).toISOString()
+        }));
+        
+        const googleCalendarId = detailer.googleCalendarConnected ? 'primary' : null;
+        const detailerTimezone = detailer.timezone || 'America/New_York';
+        const rawSlots = await getMergedFreeSlots(dayISO, googleCalendarId, reevaBookings, detailer.id, 120, 30, detailerTimezone);
+        
+        const slots = rawSlots.map(slot => ({
+          startLocal: slot.label,
+          endLocal: slot.label.split(' – ')[1] || slot.label,
+          startUtcISO: slot.start,
+          endUtcISO: slot.end
+        }));
         
         if (slots.length > 0) {
           const alternatives = slots.slice(0, 3).map(s => s.startLocal);
@@ -2526,6 +2569,7 @@ What time would work better for you?`;
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
+              'Idempotency-Key': messageSid, // Prevent duplicate bookings on retries
             },
             body: JSON.stringify({
               detailerId: detailer.id,
@@ -2542,6 +2586,18 @@ What time would work better for you?`;
               source: 'AI'
             })
           });
+
+          // Check content type before parsing JSON
+          const contentType = bookingResponse.headers.get('content-type') || '';
+          if (!bookingResponse.ok || !contentType.includes('application/json')) {
+            const errorText = await bookingResponse.text();
+            console.error('❌ BOOKING API ERROR:', {
+              status: bookingResponse.status,
+              contentType,
+              response: errorText.slice(0, 500)
+            });
+            throw new Error(`Booking API failed: ${bookingResponse.status} - ${contentType} - ${errorText.slice(0, 200)}`);
+          }
 
           const bookingResult = await bookingResponse.json();
           

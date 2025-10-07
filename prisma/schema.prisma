@@ -48,6 +48,7 @@ model Detailer {
   personalAssistantPhoneNumber String? // Twilio phone number for Personal Assistant AI
   smsEnabled        Boolean  @default(false)
   personalPhoneNumber String? // Detailer's personal phone number for AI assistant
+  timezone          String   @default("America/New_York") // IANA timezone for accurate slot generation
   
   // Google Calendar Integration
   googleCalendarConnected   Boolean @default(false)
@@ -187,6 +188,7 @@ model Conversation {
   customerPhone String   // Customer's phone number
   customerName  String?  // Customer's name (if provided)
   status       String    @default("active") // active, completed, cancelled
+  metadata     Json?     // Conversation state machine data
   lastMessageAt DateTime? @default(now())
   createdAt    DateTime? @default(now())
   updatedAt    DateTime? @updatedAt

@@ -185,7 +185,7 @@ export function shouldThrottle(
 export async function isDuplicateMessage(messageSid: string): Promise<boolean> {
   try {
     const existingMessage = await prisma.message.findUnique({
-      where: { twilioMessageSid: messageSid }
+      where: { twilioSid: messageSid }
     });
     
     return !!existingMessage;
