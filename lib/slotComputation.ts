@@ -262,27 +262,21 @@ export async function computeSlots(options: SlotOptions): Promise<TimeSlot[]> {
 }
 
 /**
- * Get next week window for concrete date ranges
+ * Get current and next week window for concrete date ranges
  */
 export function nextWeekWindow(tz: string = 'America/New_York') {
   const now = new Date();
   
-  // Find next Monday in the target timezone
-  const daysUntilMonday = (1 - now.getDay() + 7) % 7 || 7;
+  // Start from today (current week)
   const start = new Date(now);
-  start.setDate(now.getDate() + daysUntilMonday);
   start.setHours(0, 0, 0, 0);
 
-  const end = new Date(start);
-  end.setDate(start.getDate() + 7);
+  // End 14 days from today (covers current week + next week)
+  const end = new Date(now);
+  end.setDate(now.getDate() + 14);
   end.setHours(23, 59, 59, 999);
-  
-  // Ensure we're working in local timezone for day calculations
-  // Convert to local timezone strings to avoid UTC day shifts
-  const startLocal = new Date(start.getTime() - (start.getTimezoneOffset() * 60000));
-  const endLocal = new Date(end.getTime() - (end.getTimezoneOffset() * 60000));
 
-  console.log('Next week window:', {
+  console.log('Current and next week window:', {
     start: start.toISOString(),
     startLocal: start.toLocaleDateString('en-US', { weekday: 'long', timeZone: tz }),
     startDate: start.toLocaleDateString('en-US', { timeZone: tz }),
