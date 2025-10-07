@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
-import { normalizeLocalSlot, timeSlotsOverlap, suggestNextSlots } from '@/lib/timeUtils';
+import { normalizeLocalSlotV2, timeSlotsOverlapV2, suggestNextSlotsV2 } from '@/lib/timeUtilsV2';
 
 const prisma = new PrismaClient();
 
@@ -25,8 +25,8 @@ export async function POST(request: NextRequest) {
     console.log('=== BOOKING CREATION REQUEST ===');
     console.log('Input:', { detailerId, date, time, durationMinutes, tz, title });
 
-    // Normalize the time input to ISO format
-    const { startUtcISO, endUtcISO } = normalizeLocalSlot(date, time, tz, durationMinutes);
+    // Normalize the time input to ISO format using Luxon
+    const { startUtcISO, endUtcISO } = normalizeLocalSlotV2(date, time, tz, durationMinutes);
     
     console.log('Normalized time:', { startUtcISO, endUtcISO });
 
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
         const bookingDate = booking.scheduledDate.toISOString().split('T')[0];
         
         // Normalize existing booking time
-        const normalized = normalizeLocalSlot(bookingDate, existingTime, tz, durationMinutes);
+        const normalized = normalizeLocalSlotV2(bookingDate, existingTime, tz, durationMinutes);
         
         return {
           ...booking,
@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
         const eventDate = event.date.toISOString().split('T')[0];
         
         // Normalize existing event time
-        const normalized = normalizeLocalSlot(eventDate, existingTime, tz, durationMinutes);
+        const normalized = normalizeLocalSlotV2(eventDate, existingTime, tz, durationMinutes);
         
         return {
           ...event,
@@ -100,12 +100,12 @@ export async function POST(request: NextRequest) {
 
     // Check for conflicts with existing bookings
     const bookingConflicts = existingBookingSlots.filter(existing => 
-      timeSlotsOverlap({ startUtcISO, endUtcISO }, existing)
+      timeSlotsOverlapV2({ startUtcISO, endUtcISO }, existing)
     );
 
     // Check for conflicts with existing events
     const eventConflicts = existingEventSlots.filter(existing => 
-      timeSlotsOverlap({ startUtcISO, endUtcISO }, existing)
+      timeSlotsOverlapV2({ startUtcISO, endUtcISO }, existing)
     );
 
     console.log('Conflict check results:', {

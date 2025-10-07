@@ -980,6 +980,23 @@ export async function POST(request: NextRequest) {
     
     console.log('Fast - Incoming message:', { from, to, body, messageSid });
     
+    // Check if this is a duplicate message using conversation state
+    const { isDuplicateMessage } = await import('@/lib/conversationState');
+    if (messageSid && await isDuplicateMessage(messageSid)) {
+      console.log('Duplicate message detected, skipping processing:', messageSid);
+      return NextResponse.json({ success: true, deduped: true });
+    }
+    
+    // Create conversation lock ID
+    const conversationId = `${from}:${to}`;
+    
+    // Check for conversation lock to prevent concurrent processing
+    const { acquireLock, releaseLock } = await import('@/lib/conversationLock');
+    if (!acquireLock(conversationId, 15000)) { // 15 second lock
+      console.log('Conversation is locked, skipping processing:', conversationId);
+      return NextResponse.json({ success: true, locked: true });
+    }
+    
     // Check if this is a Meta lead first
     if (isMetaLead(body)) {
       console.log('🔥 META LEAD DETECTED:', body);
@@ -1844,12 +1861,54 @@ Be conversational and natural.`;
       return "Great! Anything else you'd like to add?"
     }
 
-    // If user intent is clearly "what services", skip the LLM and send catalog
+    // Try conversation state machine first for booking-related messages
     let aiResponse = 'Hey! Thanks for reaching out! What can I help you with today?'
+    let useStateMachine = false;
+    
+    // Check if this looks like a booking conversation
+    const isBookingRelated = body.toLowerCase().includes('book') || 
+                           body.toLowerCase().includes('appointment') ||
+                           body.toLowerCase().includes('schedule') ||
+                           body.toLowerCase().includes('time') ||
+                           body.toLowerCase().includes('date') ||
+                           body.toLowerCase().includes('available') ||
+                           conversationHistory.some(msg => 
+                             msg.role === 'assistant' && 
+                             (msg.content.includes('available times') || msg.content.includes('pick one'))
+                           );
+    
+    if (isBookingRelated && !asksForServices) {
+      try {
+        const { getConversationContext, processConversationState } = await import('@/lib/conversationState');
+        
+        const context = await getConversationContext(detailer.id, from, messageSid);
+        const { response: stateResponse, newContext, shouldSend } = await processConversationState(
+          context,
+          body,
+          detailerServices.map(ds => ds.service)
+        );
+        
+        if (shouldSend) {
+          aiResponse = stateResponse;
+          useStateMachine = true;
+          console.log('Using conversation state machine response:', aiResponse);
+          
+          // Update context in database
+          await import('@/lib/conversationState').then(({ updateConversationContext }) => 
+            updateConversationContext(newContext)
+          );
+        }
+      } catch (error) {
+        console.error('Error in conversation state machine:', error);
+        // Fall back to regular AI processing
+      }
+    }
+    
+    // If user intent is clearly "what services", skip the LLM and send catalog
     if (asksForServices) {
       aiResponse = renderServices(servicesByCategory)
       console.log('INTENT: Services catalog requested. Bypassing LLM.')
-    } else {
+    } else if (!useStateMachine) {
       try {
         const controller = new AbortController()
         // Abort a bit under Vercel's 10s function limit to leave time for post-processing
@@ -1947,34 +2006,39 @@ Be conversational and natural.`;
                   }
                 }
                 
-           // Create the booking using authoritative API
+           // Create the booking using robust API client
            let booking;
            try {
-             const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000');
-            const bookingResponse = await fetch(`${baseUrl}/api/bookings/create`, {
-               method: 'POST',
-               headers: {
-                 'Content-Type': 'application/json',
-               },
-               body: JSON.stringify({
-                 detailerId: detailer.id,
-                 date: scheduledDate.toISOString().split('T')[0], // YYYY-MM-DD format
-                 time: time !== 'Your scheduled time' ? time : '10:00 AM', // Default time if not specified
-                 durationMinutes: 120,
-                 tz: 'America/New_York',
-                 title: `${name} - ${service}`,
-                 customerName: name,
-                 customerPhone: from,
-                 vehicleType: car,
-                 vehicleLocation: address,
-                 services: [service],
-                 source: 'AI'
-               })
-             });
-
-             const bookingResult = await bookingResponse.json();
+             const { createBookingWithRetry, generateIdempotencyKey } = await import('@/lib/bookingClient');
              
-             if (bookingResponse.ok && bookingResult.ok) {
+             const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000');
+             
+             const idempotencyKey = generateIdempotencyKey(
+               messageSid,
+               detailer.id,
+               from,
+               scheduledDate.toISOString().split('T')[0],
+               time !== 'Your scheduled time' ? time : '10:00 AM'
+             );
+             
+             const bookingRequest = {
+               detailerId: detailer.id,
+               date: scheduledDate.toISOString().split('T')[0], // YYYY-MM-DD format
+               time: time !== 'Your scheduled time' ? time : '10:00 AM', // Default time if not specified
+               durationMinutes: 120,
+               tz: 'America/New_York',
+               title: `${name} - ${service}`,
+               customerName: name,
+               customerPhone: from,
+               vehicleType: car,
+               vehicleLocation: address,
+               services: [service],
+               source: 'AI'
+             };
+             
+             const bookingResult = await createBookingWithRetry(bookingRequest, idempotencyKey, 3, baseUrl);
+             
+             if (bookingResult.ok) {
                // Fetch the created booking for further processing
                booking = await prisma.booking.findUnique({
                  where: { id: bookingResult.bookingId }
@@ -2023,14 +2087,19 @@ Would you like to:
 Please let me know what you'd prefer!`;
                  
                  console.log('📝 Sending duplicate booking message to customer (AI confirmation)');
-                 return new Response(aiResponse, { status: 200 });
+                 releaseLock(conversationId);
+                releaseLock(conversationId);
+            releaseLock(conversationId);
+          return new Response(aiResponse, { status: 200 });
                }
              }
              
              // For other errors, show a generic message
              aiResponse = `I apologize, but I'm having trouble creating your appointment right now. Please try again in a moment, or contact us directly for assistance.`;
              console.log('📝 Sending error message to customer due to AI confirmation booking creation failure');
-             return new Response(aiResponse, { status: 200 });
+             releaseLock(conversationId);
+            releaseLock(conversationId);
+          return new Response(aiResponse, { status: 200 });
            }
 
                 // Create customer record if needed
@@ -2443,7 +2512,9 @@ What time would work better for you?`;
             });
             
             // Don't create the booking, send conflict message instead
-            return new Response(aiResponse, { status: 200 });
+            releaseLock(conversationId);
+            releaseLock(conversationId);
+          return new Response(aiResponse, { status: 200 });
           }
         }
 
@@ -2523,13 +2594,16 @@ Would you like to:
 Please let me know what you'd prefer!`;
               
               console.log('📝 Sending duplicate booking message to customer');
-              return new Response(aiResponse, { status: 200 });
+              releaseLock(conversationId);
+            releaseLock(conversationId);
+          return new Response(aiResponse, { status: 200 });
             }
           }
           
           // For other errors, show a generic message
           aiResponse = `I apologize, but I'm having trouble creating your appointment right now. Please try again in a moment, or contact us directly for assistance.`;
           console.log('📝 Sending error message to customer due to booking creation failure');
+          releaseLock(conversationId);
           return new Response(aiResponse, { status: 200 });
         }
 
@@ -2759,6 +2833,9 @@ Notes: ${parsed.note || 'Auto-captured from SMS conversation'}
     const endTime = Date.now();
     console.log(`Webhook processing time: ${endTime - startTime}ms`);
 
+    // Release conversation lock
+    releaseLock(conversationId);
+    
     return NextResponse.json({ 
       success: true,
       aiResponse,
@@ -2769,6 +2846,9 @@ Notes: ${parsed.note || 'Auto-captured from SMS conversation'}
   } catch (error) {
     console.error('=== FAST SMS WEBHOOK ERROR ===');
     console.error('Error details:', error);
+    
+    // Release conversation lock on error
+    releaseLock(conversationId);
     
     return NextResponse.json({
       error: 'Fast webhook error',
