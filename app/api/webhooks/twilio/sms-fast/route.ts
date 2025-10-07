@@ -652,8 +652,9 @@ async function checkAppointmentConflict(detailerId: string, scheduledDate: Date,
     if (period === 'PM' && startHour !== 12) startHour += 12;
     if (period === 'AM' && startHour === 12) startHour = 0;
     
-    const startDateTime = new Date(scheduledDate);
-    startDateTime.setHours(startHour, parseInt(minutes), 0, 0);
+    // Create proper date in local timezone
+    const dateStr = scheduledDate.toISOString().split('T')[0]; // YYYY-MM-DD
+    const startDateTime = new Date(`${dateStr}T${startHour.toString().padStart(2, '0')}:${minutes.padStart(2, '0')}:00`);
     
     // Default duration is 2 hours
     const endDateTime = new Date(startDateTime);
@@ -729,8 +730,9 @@ async function checkAppointmentConflict(detailerId: string, scheduledDate: Date,
       if (existingPeriod === 'PM' && existingStartHour !== 12) existingStartHour += 12;
       if (existingPeriod === 'AM' && existingStartHour === 12) existingStartHour = 0;
       
-      const existingStartDateTime = new Date(booking.scheduledDate);
-      existingStartDateTime.setHours(existingStartHour, parseInt(existingMinutes), 0, 0);
+      // Create proper date in local timezone for existing booking
+      const existingDateStr = booking.scheduledDate.toISOString().split('T')[0];
+      const existingStartDateTime = new Date(`${existingDateStr}T${existingStartHour.toString().padStart(2, '0')}:${existingMinutes.padStart(2, '0')}:00`);
       
       // Default duration is 2 hours for existing bookings too
       const existingEndDateTime = new Date(existingStartDateTime);
@@ -799,8 +801,9 @@ async function checkAppointmentConflict(detailerId: string, scheduledDate: Date,
       if (existingPeriod === 'PM' && existingStartHour !== 12) existingStartHour += 12;
       if (existingPeriod === 'AM' && existingStartHour === 12) existingStartHour = 0;
       
-      const existingStartDateTime = new Date(event.date);
-      existingStartDateTime.setHours(existingStartHour, parseInt(existingMinutes), 0, 0);
+      // Create proper date in local timezone for existing event
+      const existingDateStr = event.date.toISOString().split('T')[0];
+      const existingStartDateTime = new Date(`${existingDateStr}T${existingStartHour.toString().padStart(2, '0')}:${existingMinutes.padStart(2, '0')}:00`);
       
       // Default duration is 2 hours for existing events too
       const existingEndDateTime = new Date(existingStartDateTime);
@@ -1593,6 +1596,7 @@ WHEN CUSTOMER ASKS "what is my name?" or "what's my name?":
       });
       
       console.log(`🔍 DEBUG: Generated ${availableSlots.length} available slots for business hours compliance`);
+      console.log('🔍 DEBUG: First 5 slots:', availableSlots.slice(0, 5).map(s => `${s.startLocal} – ${s.endLocal}`));
     } catch (error) {
       console.error('❌ ERROR in slot computation:', error);
       availableSlots = []; // Fallback to empty slots
@@ -1623,7 +1627,8 @@ now=${Date.now()} // cache buster
     
     console.log(`🔍 DEBUG: Filtered conversation history from ${conversationHistory.length} to ${cleanHistory.length} messages (removed contaminated early morning times)`);
     
-    // Debug: Log the actual slot guard being sent to AI
+    // Debug: Log the actual slots being generated
+    console.log(`🔍 DEBUG: Available Slots:`, JSON.stringify(availableSlots, null, 2));
     console.log(`🔍 DEBUG: Slot Guard Content:`, slotGuard);
     
     const systemPrompt = `${slotGuard}
@@ -2103,6 +2108,11 @@ Please let me know what you'd prefer!`;
     // 🔒 AGGRESSIVE VALIDATION: Block ANY response containing early morning times
     const earlyMorningPattern = /\b([4-7]:[0-5][0-9]\s*AM|[4-7]\s*AM)\b/gi;
     const hasEarlyMorning = earlyMorningPattern.test(aiResponse);
+    
+    console.log('🔍 DEBUG: Early morning validation check:');
+    console.log('AI Response:', aiResponse);
+    console.log('Pattern matches:', aiResponse.match(earlyMorningPattern));
+    console.log('Has early morning:', hasEarlyMorning);
     
     if (hasEarlyMorning) {
       console.log('❌ AI suggested early morning time outside business hours, overriding response');
