@@ -84,11 +84,19 @@ export async function getMergedFreeSlots(
     // Get Google Calendar busy times if connected
     if (detailer.googleCalendarTokens) {
       try {
+        // Get detailer's refresh token for token refresh capability
+        const detailerWithRefreshToken = await prisma.detailer.findUnique({
+          where: { id: detailerId },
+          select: { googleCalendarRefreshToken: true }
+        });
+
         const googleBusy = await getGoogleCalendarBusyTimes(
           detailer.googleCalendarTokens,
           calendarId,
           open.toUTC(),
-          close.toUTC()
+          close.toUTC(),
+          detailerId,
+          detailerWithRefreshToken?.googleCalendarRefreshToken
         );
         allBusy = [...allBusy, ...googleBusy];
         console.log(`Found ${googleBusy.length} Google Calendar busy intervals`);
@@ -163,17 +171,50 @@ export async function getMergedFreeSlots(
 }
 
 /**
- * Get Google Calendar busy times using FreeBusy API
+ * Refresh Google Calendar access token
+ */
+async function refreshGoogleCalendarToken(refreshToken: string): Promise<string | null> {
+  try {
+    const response = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        client_id: process.env.GOOGLE_CLIENT_ID!,
+        client_secret: process.env.GOOGLE_CLIENT_SECRET!,
+        refresh_token: refreshToken,
+        grant_type: 'refresh_token',
+      }),
+    });
+
+    if (!response.ok) {
+      console.error('Failed to refresh Google Calendar token:', response.statusText);
+      return null;
+    }
+
+    const data = await response.json();
+    return data.access_token;
+  } catch (error) {
+    console.error('Error refreshing Google Calendar token:', error);
+    return null;
+  }
+}
+
+/**
+ * Get Google Calendar busy times using FreeBusy API with token refresh
  */
 async function getGoogleCalendarBusyTimes(
   tokens: string,
   calendarId: string,
   timeMin: DateTime,
-  timeMax: DateTime
+  timeMax: DateTime,
+  detailerId?: string,
+  refreshToken?: string
 ): Promise<Interval[]> {
   try {
     const parsedTokens = JSON.parse(tokens);
-    const accessToken = parsedTokens.access_token;
+    let accessToken = parsedTokens.access_token;
 
     if (!accessToken) {
       console.warn('No Google Calendar access token available');
@@ -186,31 +227,94 @@ async function getGoogleCalendarBusyTimes(
     
     const calendar = google.calendar({ version: 'v3', auth });
 
-    // Query FreeBusy API
-    const response = await calendar.freebusy.query({
-      requestBody: {
-        timeMin: timeMin.toISO(),
-        timeMax: timeMax.toISO(),
-        items: [{ id: calendarId }]
-      }
-    });
+    try {
+      // Query FreeBusy API
+      const response = await calendar.freebusy.query({
+        requestBody: {
+          timeMin: timeMin.toISO(),
+          timeMax: timeMax.toISO(),
+          items: [{ id: calendarId }]
+        }
+      });
 
-    const busyTimes = response.data.calendars?.[calendarId]?.busy || [];
-    
-    // Debug: Log the busy times we're getting from Google Calendar
-    console.log(`🔍 DEBUG: Google Calendar busy times for ${calendarId}:`, busyTimes.map(busy => ({
-      start: busy.start,
-      end: busy.end,
-      startLocal: DateTime.fromISO(busy.start!).setZone('America/New_York').toFormat('ccc, LLL d h:mm a'),
-      endLocal: DateTime.fromISO(busy.end!).setZone('America/New_York').toFormat('ccc, LLL d h:mm a')
-    })));
-    
-    return busyTimes.map(busy => 
-      Interval.fromDateTimes(
-        DateTime.fromISO(busy.start!),
-        DateTime.fromISO(busy.end!)
-      )
-    );
+      const busyTimes = response.data.calendars?.[calendarId]?.busy || [];
+      
+      // Debug: Log the busy times we're getting from Google Calendar
+      console.log(`🔍 DEBUG: Google Calendar busy times for ${calendarId}:`, busyTimes.map(busy => ({
+        start: busy.start,
+        end: busy.end,
+        startLocal: DateTime.fromISO(busy.start!).setZone('America/New_York').toFormat('ccc, LLL d h:mm a'),
+        endLocal: DateTime.fromISO(busy.end!).setZone('America/New_York').toFormat('ccc, LLL d h:mm a')
+      })));
+      
+      return busyTimes.map(busy => 
+        Interval.fromDateTimes(
+          DateTime.fromISO(busy.start!),
+          DateTime.fromISO(busy.end!)
+        )
+      );
+
+    } catch (apiError: any) {
+      // If access token is expired (401), try to refresh it
+      if (apiError.code === 401 || apiError.message?.includes('401') || apiError.message?.includes('unauthorized')) {
+        console.log('🔑 Google Calendar access token expired, refreshing...');
+        
+        if (refreshToken && detailerId) {
+          const newAccessToken = await refreshGoogleCalendarToken(refreshToken);
+          
+          if (newAccessToken) {
+            // Update the stored tokens in database
+            const updatedTokens = {
+              ...parsedTokens,
+              access_token: newAccessToken,
+            };
+            
+            await prisma.detailer.update({
+              where: { id: detailerId },
+              data: {
+                googleCalendarTokens: JSON.stringify(updatedTokens),
+              },
+            });
+
+            console.log('✅ Google Calendar token refreshed successfully');
+            
+            // Retry the FreeBusy query with new token
+            const auth2 = new google.auth.OAuth2();
+            auth2.setCredentials({ access_token: newAccessToken });
+            const calendar2 = google.calendar({ version: 'v3', auth: auth2 });
+
+            const response = await calendar2.freebusy.query({
+              requestBody: {
+                timeMin: timeMin.toISO(),
+                timeMax: timeMax.toISO(),
+                items: [{ id: calendarId }]
+              }
+            });
+
+            const busyTimes = response.data.calendars?.[calendarId]?.busy || [];
+            
+            console.log(`🔍 DEBUG: Google Calendar busy times (after refresh) for ${calendarId}:`, busyTimes.map(busy => ({
+              start: busy.start,
+              end: busy.end,
+              startLocal: DateTime.fromISO(busy.start!).setZone('America/New_York').toFormat('ccc, LLL d h:mm a'),
+              endLocal: DateTime.fromISO(busy.end!).setZone('America/New_York').toFormat('ccc, LLL d h:mm a')
+            })));
+            
+            return busyTimes.map(busy => 
+              Interval.fromDateTimes(
+                DateTime.fromISO(busy.start!),
+                DateTime.fromISO(busy.end!)
+              )
+            );
+          }
+        }
+        
+        console.error('❌ Failed to refresh Google Calendar token');
+        throw apiError;
+      } else {
+        throw apiError;
+      }
+    }
 
   } catch (error) {
     console.error('Error querying Google Calendar FreeBusy:', error);

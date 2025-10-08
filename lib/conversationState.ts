@@ -4,6 +4,7 @@
  */
 
 import { PrismaClient } from '@prisma/client';
+import { DateTime } from 'luxon';
 
 const prisma = new PrismaClient();
 
@@ -234,10 +235,45 @@ export async function processConversationState(
           
           // Check availability for this specific time
           const { getMergedFreeSlots } = await import('./slotComputationV2');
+          
+          // Fetch existing bookings for this date to pass to getMergedFreeSlots
+          const existingBookings = await prisma.booking.findMany({
+            where: {
+              detailerId: context.detailerId,
+              status: { in: ['confirmed', 'pending'] },
+              scheduledDate: {
+                gte: new Date(requestedDate.toISOString().split('T')[0] + 'T00:00:00.000Z'),
+                lt: new Date(requestedDate.toISOString().split('T')[0] + 'T23:59:59.999Z')
+              }
+            },
+            select: {
+              scheduledDate: true,
+              scheduledTime: true,
+              duration: true
+            }
+          });
+
+          // Convert bookings to the format expected by getMergedFreeSlots
+          const reevaBookings = existingBookings.map(booking => {
+            const bookingDate = booking.scheduledDate.toISOString().split('T')[0];
+            const startTime = booking.scheduledTime || '10:00';
+            const duration = booking.duration || 240;
+            
+            const start = DateTime.fromISO(`${bookingDate}T${startTime}`, { zone: 'America/New_York' });
+            const end = start.plus({ minutes: duration });
+            
+            return {
+              start: start.toUTC().toISO(),
+              end: end.toUTC().toISO()
+            };
+          });
+
+          console.log(`🔍 DEBUG: Found ${reevaBookings.length} existing bookings for ${dateStr}`);
+          
           const slots = await getMergedFreeSlots(
             dateStr,
             'primary',
-            [],
+            reevaBookings,
             context.detailerId,
             240, // 4 hour service
             30,
@@ -302,10 +338,42 @@ export async function processConversationState(
             date.setDate(today.getDate() + i);
             const dateStr = date.toISOString().split('T')[0];
             
+            // Fetch existing bookings for this date
+            const existingBookings = await prisma.booking.findMany({
+              where: {
+                detailerId: context.detailerId,
+                status: { in: ['confirmed', 'pending'] },
+                scheduledDate: {
+                  gte: new Date(dateStr + 'T00:00:00.000Z'),
+                  lt: new Date(dateStr + 'T23:59:59.999Z')
+                }
+              },
+              select: {
+                scheduledDate: true,
+                scheduledTime: true,
+                duration: true
+              }
+            });
+
+            // Convert bookings to the format expected by getMergedFreeSlots
+            const reevaBookings = existingBookings.map(booking => {
+              const bookingDate = booking.scheduledDate.toISOString().split('T')[0];
+              const startTime = booking.scheduledTime || '10:00';
+              const duration = booking.duration || 240;
+              
+              const start = DateTime.fromISO(`${bookingDate}T${startTime}`, { zone: 'America/New_York' });
+              const end = start.plus({ minutes: duration });
+              
+              return {
+                start: start.toUTC().toISO(),
+                end: end.toUTC().toISO()
+              };
+            });
+            
             const slots = await getMergedFreeSlots(
               dateStr,
               'primary', // Use primary calendar for now
-              [], // No existing bookings for now
+              reevaBookings,
               context.detailerId,
               120, // 2 hour service
               30, // 30 minute steps
@@ -370,10 +438,43 @@ export async function processConversationState(
         });
         
         const calendarId = detailer?.googleCalendarId || 'primary';
+        
+        // Fetch existing bookings for this date
+        const existingBookings = await prisma.booking.findMany({
+          where: {
+            detailerId: context.detailerId,
+            status: { in: ['confirmed', 'pending'] },
+            scheduledDate: {
+              gte: new Date(dateStr + 'T00:00:00.000Z'),
+              lt: new Date(dateStr + 'T23:59:59.999Z')
+            }
+          },
+          select: {
+            scheduledDate: true,
+            scheduledTime: true,
+            duration: true
+          }
+        });
+
+        // Convert bookings to the format expected by getMergedFreeSlots
+        const reevaBookings = existingBookings.map(booking => {
+          const bookingDate = booking.scheduledDate.toISOString().split('T')[0];
+          const startTime = booking.scheduledTime || '10:00';
+          const duration = booking.duration || 240;
+          
+          const start = DateTime.fromISO(`${bookingDate}T${startTime}`, { zone: 'America/New_York' });
+          const end = start.plus({ minutes: duration });
+          
+          return {
+            start: start.toUTC().toISO(),
+            end: end.toUTC().toISO()
+          };
+        });
+        
         const slots = await getMergedFreeSlots(
           dateStr,
           calendarId,
-          [], // Will be populated with existing bookings
+          reevaBookings,
           context.detailerId,
           240, // 4 hours for full detail
           30,  // 30-minute steps
