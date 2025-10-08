@@ -130,18 +130,114 @@ export async function DELETE(
 
         if (detailerWithTokens?.googleCalendarConnected && detailerWithTokens.googleCalendarTokens) {
           const tokens = JSON.parse(detailerWithTokens.googleCalendarTokens);
-          const accessToken = tokens.access_token;
+          let accessToken = tokens.access_token;
 
-          // Delete from Google Calendar
-          await fetch(
-            `https://www.googleapis.com/calendar/v3/calendars/primary/events/${googleEventId}`,
-            {
-              method: 'DELETE',
-              headers: {
-                Authorization: `Bearer ${accessToken}`,
-              },
+          try {
+            // Delete from Google Calendar
+            const response = await fetch(
+              `https://www.googleapis.com/calendar/v3/calendars/primary/events/${googleEventId}`,
+              {
+                method: 'DELETE',
+                headers: {
+                  Authorization: `Bearer ${accessToken}`,
+                },
+              }
+            );
+
+            if (response.status === 404) {
+              console.log(`Google Calendar event ${googleEventId} not found (404) - likely already deleted`);
+              // Clear the Google ID from local database since it doesn't exist in Google Calendar
+              if (event) {
+                await prisma.event.update({
+                  where: { id: eventId },
+                  data: { googleEventId: null }
+                });
+              } else if (booking) {
+                await prisma.booking.update({
+                  where: { id: eventId },
+                  data: { googleEventId: null }
+                });
+              }
+            } else if (!response.ok) {
+              console.error(`Google Calendar deletion failed: ${response.status} ${response.statusText}`);
+            } else {
+              console.log(`Successfully deleted Google Calendar event: ${googleEventId}`);
             }
-          );
+          } catch (fetchError) {
+            // If access token is expired, try to refresh it
+            if (fetchError.message?.includes('401') || fetchError.message?.includes('unauthorized')) {
+              console.log('Access token expired, refreshing...');
+              try {
+                const refreshResponse = await fetch('https://oauth2.googleapis.com/token', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                  },
+                  body: new URLSearchParams({
+                    client_id: process.env.GOOGLE_CLIENT_ID!,
+                    client_secret: process.env.GOOGLE_CLIENT_SECRET!,
+                    refresh_token: detailerWithTokens.googleCalendarRefreshToken!,
+                    grant_type: 'refresh_token',
+                  }),
+                });
+
+                if (refreshResponse.ok) {
+                  const refreshData = await refreshResponse.json();
+                  accessToken = refreshData.access_token;
+                  
+                  // Update stored tokens
+                  const updatedTokens = {
+                    ...tokens,
+                    access_token: accessToken,
+                  };
+                  
+                  await prisma.detailer.update({
+                    where: { id: detailerId },
+                    data: {
+                      googleCalendarTokens: JSON.stringify(updatedTokens),
+                    },
+                  });
+
+                  // Retry deletion with new token
+                  const retryResponse = await fetch(
+                    `https://www.googleapis.com/calendar/v3/calendars/primary/events/${googleEventId}`,
+                    {
+                      method: 'DELETE',
+                      headers: {
+                        Authorization: `Bearer ${accessToken}`,
+                      },
+                    }
+                  );
+
+                  if (retryResponse.status === 404) {
+                    console.log(`Google Calendar event ${googleEventId} not found after token refresh (404) - likely already deleted`);
+                    // Clear the Google ID from local database
+                    if (event) {
+                      await prisma.event.update({
+                        where: { id: eventId },
+                        data: { googleEventId: null }
+                      });
+                    } else if (booking) {
+                      await prisma.booking.update({
+                        where: { id: eventId },
+                        data: { googleEventId: null }
+                      });
+                    }
+                  } else if (retryResponse.ok) {
+                    console.log(`Successfully deleted Google Calendar event after token refresh: ${googleEventId}`);
+                  } else {
+                    console.error(`Google Calendar deletion failed after token refresh: ${retryResponse.status} ${retryResponse.statusText}`);
+                  }
+                } else {
+                  console.error('Failed to refresh Google Calendar token');
+                }
+              } catch (refreshError) {
+                console.error('Error refreshing Google Calendar token:', refreshError);
+              }
+            } else {
+              console.error('Google Calendar deletion error:', fetchError);
+            }
+          }
         }
       } catch (error) {
         console.error('Failed to delete from Google Calendar:', error);

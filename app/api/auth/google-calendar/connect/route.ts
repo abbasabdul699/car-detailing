@@ -25,10 +25,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Google Calendar app not configured' }, { status: 500 });
     }
 
-    // Google Calendar API scopes
+    // Google Calendar API scopes (including FreeBusy)
     const scopes = [
       'https://www.googleapis.com/auth/calendar.readonly',
-      'https://www.googleapis.com/auth/calendar.events'
+      'https://www.googleapis.com/auth/calendar.events',
+      'https://www.googleapis.com/auth/calendar.freebusy'
     ];
 
     const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
