@@ -2070,10 +2070,13 @@ Be conversational and natural.`;
              );
              
              // Check for conflicts with existing bookings and events
+             // Exclude current customer's bookings to prevent self-conflicts
              const existingBookings = await prisma.booking.findMany({
                where: {
                  detailerId: detailer.id,
-                 status: { in: ['confirmed', 'pending'] }
+                 status: { in: ['confirmed', 'pending'] },
+                 // Exclude current customer's bookings to prevent self-conflicts
+                 customerPhone: { not: from }
                },
                select: {
                  id: true,
