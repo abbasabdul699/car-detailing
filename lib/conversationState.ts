@@ -317,7 +317,18 @@ export async function processConversationState(
           }
           
           if (availableSlots.length > 0) {
-            response = `Here are our available times:\n\n${availableSlots.join('\n')}\n\nWhich day and time works for you?`;
+            // Check if Google Calendar is connected for this detailer
+            const { prisma } = await import('@/lib/prisma');
+            const detailer = await prisma.detailer.findUnique({
+              where: { id: context.detailerId },
+              select: { googleCalendarConnected: true, googleCalendarTokens: true }
+            });
+            
+            const calendarWarning = (!detailer?.googleCalendarConnected || !detailer?.googleCalendarTokens) 
+              ? "\n\n⚠️ Note: My calendar sync is temporarily unavailable, so please confirm your preferred time is still open."
+              : "";
+            
+            response = `Here are our available times:\n\n${availableSlots.join('\n')}${calendarWarning}\n\nWhich day and time works for you?`;
             newContext = await updateConversationContext(context, 'awaiting_time');
           } else {
             response = "I don't see any available slots in the next few days. What date works for you? (We're open Mon–Fri 8a–6p)";

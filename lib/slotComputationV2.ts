@@ -94,6 +94,7 @@ export async function getMergedFreeSlots(
         console.log(`Found ${googleBusy.length} Google Calendar busy intervals`);
       } catch (error) {
         console.error('Error fetching Google Calendar busy times:', error);
+        console.warn('⚠️ Google Calendar unavailable - availability may not be accurate');
         // Continue without Google Calendar data
       }
     }
