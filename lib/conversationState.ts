@@ -184,7 +184,7 @@ export function shouldThrottle(
  */
 export async function isDuplicateMessage(messageSid: string): Promise<boolean> {
   try {
-    const existingMessage = await prisma.message.findUnique({
+    const existingMessage = await prisma.message.findFirst({
       where: { twilioSid: messageSid }
     });
     
@@ -213,10 +213,75 @@ export async function processConversationState(
 
   switch (context.state) {
     case 'idle':
-      // Check if user is asking for available times
-      const isAskingForAvailability = /available|times?|slots?|openings?|schedule/i.test(userMessage);
+      // Check if user is asking for specific time availability (e.g., "Is October 10th at 9:30 AM available?")
+      const specificTimeMatch = userMessage.match(/(?:is\s+)?(october|november|december|january|february|march|april|may|june|july|august|september)\s+(\d{1,2})(?:st|nd|rd|th)?\s+(?:at\s+)?(\d{1,2}):?(\d{2})?\s*(am|pm)?\s+(?:available\??)/i);
       
-      if (isAskingForAvailability) {
+      if (specificTimeMatch) {
+        // User is asking about a specific time availability
+        try {
+          const [, month, day, hour, minute = '00', period] = specificTimeMatch;
+          const currentYear = new Date().getFullYear();
+          const monthIndex = new Date(`${month} 1, ${currentYear}`).getMonth();
+          const requestedDate = new Date(currentYear, monthIndex, parseInt(day));
+          
+          // Parse time
+          let hour24 = parseInt(hour);
+          if (period?.toLowerCase() === 'pm' && hour24 !== 12) hour24 += 12;
+          if (period?.toLowerCase() === 'am' && hour24 === 12) hour24 = 0;
+          
+          const requestedTime = `${hour24.toString().padStart(2, '0')}:${minute}`;
+          const dateStr = requestedDate.toISOString().split('T')[0];
+          
+          // Check availability for this specific time
+          const { getMergedFreeSlots } = await import('./slotComputationV2');
+          const slots = await getMergedFreeSlots(
+            dateStr,
+            'primary',
+            [],
+            context.detailerId,
+            240, // 4 hour service
+            30,
+            'America/New_York'
+          );
+          
+          // Check if the requested time is available
+          const isAvailable = slots.some(slot => {
+            const slotTimeMatch = slot.label.match(/(\d{1,2}):(\d{2}) (AM|PM)/);
+            if (slotTimeMatch) {
+              const [, slotHour, slotMin, slotPeriod] = slotTimeMatch;
+              let slotHour24 = parseInt(slotHour);
+              if (slotPeriod === 'PM' && slotHour24 !== 12) slotHour24 += 12;
+              if (slotPeriod === 'AM' && slotHour24 === 12) slotHour24 = 0;
+              
+              return slotHour24 === hour24 && slotMin === minute;
+            }
+            return false;
+          });
+          
+          if (isAvailable) {
+            response = `Yes! ${month} ${day} at ${hour}:${minute} ${period?.toUpperCase() || ''} is available. Would you like to book that time?`;
+            newContext = await updateConversationContext(context, 'awaiting_confirm');
+          } else {
+            // Find available times for that day
+            const availableTimes = slots.slice(0, 4).map(slot => {
+              const timeMatch = slot.label.match(/(\d{1,2}:\d{2} [AP]M)/);
+              return timeMatch ? timeMatch[1] : 'time';
+            }).join(', ');
+            
+            if (availableTimes) {
+              response = `No, ${month} ${day} at ${hour}:${minute} ${period?.toUpperCase() || ''} is not available. Here are the available times for ${month} ${day}: ${availableTimes}. Which time works for you?`;
+            } else {
+              response = `No, ${month} ${day} at ${hour}:${minute} ${period?.toUpperCase() || ''} is not available. That day is fully booked. What other date works for you?`;
+            }
+            newContext = await updateConversationContext(context, 'awaiting_time');
+          }
+        } catch (error) {
+          console.error('Error checking specific time availability:', error);
+          response = "I had trouble checking that specific time. What date works for you? (We're open Mon–Fri 8a–6p)";
+          newContext = await updateConversationContext(context, 'awaiting_date');
+        }
+      } else if (/available|times?|slots?|openings?|schedule/i.test(userMessage)) {
+        // Check if user is asking for available times
         // Provide actual available times for next few days
         try {
           const { getMergedFreeSlots } = await import('./slotComputationV2');
