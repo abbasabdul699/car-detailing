@@ -26,6 +26,7 @@ export interface TimeRequest {
   time: string;
   durationMinutes?: number;
   tz?: string;
+  excludeCustomerPhone?: string;
 }
 
 /**
@@ -37,7 +38,8 @@ export async function validateTime(request: TimeRequest): Promise<ValidationResu
     date,
     time,
     durationMinutes = 120,
-    tz = 'America/New_York'
+    tz = 'America/New_York',
+    excludeCustomerPhone
   } = request;
 
   try {
@@ -45,10 +47,13 @@ export async function validateTime(request: TimeRequest): Promise<ValidationResu
     const { startUtcISO, endUtcISO } = normalizeLocalSlot(date, time, tz, durationMinutes);
 
     // Get existing bookings and events
+    // Exclude current customer's bookings to prevent self-conflicts
     const existingBookings = await prisma.booking.findMany({
       where: {
         detailerId,
-        status: { in: ['confirmed', 'pending'] }
+        status: { in: ['confirmed', 'pending'] },
+        // Exclude current customer's bookings to prevent self-conflicts
+        ...(excludeCustomerPhone ? { customerPhone: { not: excludeCustomerPhone } } : {})
       },
       select: {
         id: true,

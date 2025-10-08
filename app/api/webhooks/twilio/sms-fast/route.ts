@@ -2394,7 +2394,8 @@ Which day and time would work best for you?`;
             date: picked.date,
             time: picked.time,
             durationMinutes: 120,
-            tz: 'America/New_York'
+            tz: 'America/New_York',
+            excludeCustomerPhone: from
           });
           
           // Check if AI is correctly stating unavailability vs trying to book unavailable time
