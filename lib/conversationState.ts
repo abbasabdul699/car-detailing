@@ -245,6 +245,10 @@ export async function processConversationState(
           );
           
           // Check if the requested time is available
+          console.log(`🔍 DEBUG: Checking availability for ${month} ${day} at ${hour}:${minute} ${period?.toUpperCase() || ''}`);
+          console.log(`🔍 DEBUG: Parsed time - hour24: ${hour24}, minute: ${minute}`);
+          console.log(`🔍 DEBUG: Available slots:`, slots.map(slot => slot.label));
+          
           const isAvailable = slots.some(slot => {
             const slotTimeMatch = slot.label.match(/(\d{1,2}):(\d{2}) (AM|PM)/);
             if (slotTimeMatch) {
@@ -253,10 +257,14 @@ export async function processConversationState(
               if (slotPeriod === 'PM' && slotHour24 !== 12) slotHour24 += 12;
               if (slotPeriod === 'AM' && slotHour24 === 12) slotHour24 = 0;
               
-              return slotHour24 === hour24 && slotMin === minute;
+              const matches = slotHour24 === hour24 && slotMin === minute;
+              console.log(`🔍 DEBUG: Slot ${slot.label} -> hour24: ${slotHour24}, minute: ${slotMin} -> matches: ${matches}`);
+              return matches;
             }
             return false;
           });
+          
+          console.log(`🔍 DEBUG: Final availability result: ${isAvailable}`);
           
           if (isAvailable) {
             response = `Yes! ${month} ${day} at ${hour}:${minute} ${period?.toUpperCase() || ''} is available. Would you like to book that time?`;
