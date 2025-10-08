@@ -2314,7 +2314,10 @@ Which day and time would work best for you?`;
             tz: 'America/New_York'
           });
           
-          if (!validationResult.available) {
+          // Check if AI is correctly stating unavailability vs trying to book unavailable time
+          const isStatingUnavailability = /not available|booked|unavailable|taken/i.test(aiResponse);
+          
+          if (!validationResult.available && !isStatingUnavailability) {
             console.log('❌ CONFLICT DETECTED in AI response, overriding with safe message');
             
             const alt = validationResult.suggestions?.[0];
@@ -2324,6 +2327,8 @@ Which day and time would work best for you?`;
             
             aiResponse = safeText;
             console.log('✅ Overriding AI response with conflict-safe message');
+          } else if (!validationResult.available && isStatingUnavailability) {
+            console.log('✅ AI correctly stated unavailability, keeping response');
           } else {
             console.log('✅ AI suggested time is available, proceeding');
           }
