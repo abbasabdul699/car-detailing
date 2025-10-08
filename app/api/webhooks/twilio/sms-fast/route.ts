@@ -1900,29 +1900,50 @@ Be conversational and natural.`;
                              (msg.content.includes('available times') || msg.content.includes('pick one'))
                            );
     
+    console.log('🔍 DEBUG: Conversation state machine check:', {
+      body: body,
+      isBookingRelated,
+      asksForServices,
+      willUseStateMachine: isBookingRelated && !asksForServices,
+      containsAvailable: body.toLowerCase().includes('available'),
+      containsTime: body.toLowerCase().includes('time'),
+      containsDate: body.toLowerCase().includes('date')
+    });
+    
     if (isBookingRelated && !asksForServices) {
       try {
+        console.log('🔍 DEBUG: Attempting to use conversation state machine...');
         const { getConversationContext, processConversationState } = await import('@/lib/conversationState');
         
         const context = await getConversationContext(detailer.id, from, messageSid);
+        console.log('🔍 DEBUG: Got conversation context:', context);
+        
         const { response: stateResponse, newContext, shouldSend } = await processConversationState(
           context,
           body,
           detailerServices.map(ds => ds.service)
         );
         
+        console.log('🔍 DEBUG: Conversation state machine result:', {
+          stateResponse,
+          shouldSend,
+          newContextState: newContext.state
+        });
+        
         if (shouldSend) {
           aiResponse = stateResponse;
           useStateMachine = true;
-          console.log('Using conversation state machine response:', aiResponse);
+          console.log('✅ Using conversation state machine response:', aiResponse);
           
           // Update context in database
           await import('@/lib/conversationState').then(({ updateConversationContext }) => 
             updateConversationContext(newContext)
           );
+        } else {
+          console.log('❌ Conversation state machine returned shouldSend=false');
         }
       } catch (error) {
-        console.error('Error in conversation state machine:', error);
+        console.error('❌ Error in conversation state machine:', error);
         // Fall back to regular AI processing
       }
     }
@@ -2029,53 +2050,115 @@ Be conversational and natural.`;
                   }
                 }
                 
-           // Create the booking using robust API client
+           // Create the booking directly using Prisma (avoid external HTTP call)
            let booking;
            try {
-             const { createBookingWithRetry, generateIdempotencyKey } = await import('@/lib/bookingClient');
+             // Import the booking creation logic directly
+             const { normalizeLocalSlotV2 } = await import('@/lib/timeUtilsV2');
              
-             const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000');
+             const bookingTime = time !== 'Your scheduled time' ? time : '10:00 AM';
              
-             const idempotencyKey = generateIdempotencyKey(
-               messageSid,
-               detailer.id,
-               from,
-               scheduledDate.toISOString().split('T')[0],
-               time !== 'Your scheduled time' ? time : '10:00 AM'
+             // Normalize the time input to ISO format
+             const { startUtcISO, endUtcISO } = normalizeLocalSlotV2(
+               scheduledDate.toISOString().split('T')[0], 
+               bookingTime, 
+               'America/New_York', 
+               120
              );
              
-             const bookingRequest = {
-               detailerId: detailer.id,
-               date: scheduledDate.toISOString().split('T')[0], // YYYY-MM-DD format
-               time: time !== 'Your scheduled time' ? time : '10:00 AM', // Default time if not specified
-               durationMinutes: 120,
-               tz: 'America/New_York',
-               title: `${name} - ${service}`,
-               customerName: name,
-               customerPhone: from,
-               vehicleType: car,
-               vehicleLocation: address,
-               services: [service],
-               source: 'AI'
-             };
+             // Check for conflicts with existing bookings and events
+             const existingBookings = await prisma.booking.findMany({
+               where: {
+                 detailerId: detailer.id,
+                 status: { in: ['confirmed', 'pending'] }
+               },
+               select: {
+                 id: true,
+                 scheduledDate: true,
+                 scheduledTime: true,
+                 customerName: true
+               }
+             });
+
+             const existingEvents = await prisma.event.findMany({
+               where: {
+                 detailerId: detailer.id
+               },
+               select: {
+                 id: true,
+                 date: true,
+                 time: true,
+                 title: true
+               }
+             });
+
+             // Check for conflicts (simplified version of the booking API logic)
+             const startDateTime = new Date(startUtcISO);
+             const endDateTime = new Date(endUtcISO);
              
-             const bookingResult = await createBookingWithRetry(bookingRequest, idempotencyKey, 3, baseUrl);
+             const bookingConflicts = existingBookings.filter(booking => {
+               const bookingStart = new Date(booking.scheduledDate);
+               const bookingEnd = new Date(bookingStart.getTime() + 120 * 60000); // 2 hours
+               return (startDateTime < bookingEnd && endDateTime > bookingStart);
+             });
+
+             const eventConflicts = existingEvents.filter(event => {
+               if (!event.date || !event.time) return false;
+               const eventStart = new Date(`${event.date}T${event.time}`);
+               const eventEnd = new Date(eventStart.getTime() + 120 * 60000); // 2 hours
+               return (startDateTime < eventEnd && endDateTime > eventStart);
+             });
+
+             if (bookingConflicts.length > 0 || eventConflicts.length > 0) {
+               console.log('❌ BOOKING CONFLICT DETECTED:', {
+                 bookingConflicts: bookingConflicts.length,
+                 eventConflicts: eventConflicts.length
+               });
+               throw new Error('Time conflict with existing appointment');
+             }
+
+             // Create the booking directly
+             booking = await prisma.booking.create({
+               data: {
+                 detailerId: detailer.id,
+                 customerName: name,
+                 customerPhone: from,
+                 vehicleType: car,
+                 vehicleLocation: address,
+                 services: [service],
+                 scheduledDate: startDateTime,
+                 scheduledTime: bookingTime,
+                 status: 'confirmed',
+                 notes: `${name} - ${service}`
+               }
+             });
+
+             // Create corresponding calendar event
+             await prisma.event.create({
+               data: {
+                 detailerId: detailer.id,
+                 title: booking.notes || `${name} - ${service}`,
+                 date: scheduledDate.toISOString().split('T')[0],
+                 time: bookingTime,
+                 bookingId: booking?.id,
+                 color: '#10B981' // Green color for confirmed bookings
+               }
+             });
+
+             console.log('✅ Booking created successfully:', booking.id);
+             
+             const bookingResult = { ok: true, bookingId: booking.id };
              
              if (bookingResult.ok) {
                // Fetch the created booking for further processing
-               booking = await prisma.booking.findUnique({
+               const fetchedBooking = await prisma.booking.findUnique({
                  where: { id: bookingResult.bookingId }
                });
-               console.log('✅ AI confirmation booking created successfully:', booking?.id);
+               console.log('✅ AI confirmation booking created successfully:', fetchedBooking?.id);
              } else {
-               console.log('❌ BOOKING CONFLICT DETECTED:', bookingResult);
+               console.log('❌ BOOKING CONFLICT DETECTED');
                // Update AI response to inform about conflict
-               aiResponse = `I'm sorry, but ${time} on ${scheduledDate.toLocaleDateString()} is already booked. ${bookingResult.message || 'Please choose a different time.'}`;
-               
-               if (bookingResult.suggestions && bookingResult.suggestions.length > 0) {
-                 const suggestions = bookingResult.suggestions.map(s => s.startLocal).join(', ');
-                 aiResponse += ` Available times: ${suggestions}`;
-               }
+               aiResponse = `I'm sorry, but ${time} on ${scheduledDate.toLocaleDateString()} is already booked. Please choose a different time.`;
                
                // Don't create booking, just return the conflict message
                booking = null;
@@ -2111,9 +2194,7 @@ Please let me know what you'd prefer!`;
                  
                  console.log('📝 Sending duplicate booking message to customer (AI confirmation)');
                  releaseLock(conversationId);
-                releaseLock(conversationId);
-            releaseLock(conversationId);
-          return new Response(aiResponse, { status: 200 });
+                 return new Response(aiResponse, { status: 200 });
                }
              }
              
@@ -2121,8 +2202,7 @@ Please let me know what you'd prefer!`;
              aiResponse = `I apologize, but I'm having trouble creating your appointment right now. Please try again in a moment, or contact us directly for assistance.`;
              console.log('📝 Sending error message to customer due to AI confirmation booking creation failure');
              releaseLock(conversationId);
-            releaseLock(conversationId);
-          return new Response(aiResponse, { status: 200 });
+             return new Response(aiResponse, { status: 200 });
            }
 
                 // Create customer record if needed
@@ -2173,7 +2253,7 @@ Please let me know what you'd prefer!`;
              console.error('❌ Error sending Personal Assistant notification:', paError);
            }
 
-                console.log('✅ BOOKING CREATED SUCCESSFULLY:', booking.id);
+                console.log('✅ BOOKING CREATED SUCCESSFULLY:', booking?.id);
               } catch (bookingError) {
                 console.error('❌ ERROR CREATING BOOKING:', bookingError);
               }
@@ -2563,66 +2643,115 @@ What time would work better for you?`;
             
             // Don't create the booking, send conflict message instead
             releaseLock(conversationId);
-            releaseLock(conversationId);
-          return new Response(aiResponse, { status: 200 });
+            return new Response(aiResponse, { status: 200 });
           }
         }
 
-        // Create the booking using authoritative API
+        // Create the booking directly using Prisma (avoid external HTTP call)
         let booking;
         try {
-          const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000');
-          const bookingResponse = await fetch(`${baseUrl}/api/bookings/create`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Idempotency-Key': messageSid, // Prevent duplicate bookings on retries
-            },
-            body: JSON.stringify({
+          // Import the booking creation logic directly
+          const { normalizeLocalSlotV2 } = await import('@/lib/timeUtilsV2');
+          
+          // Normalize the time input to ISO format
+          const { startUtcISO, endUtcISO } = normalizeLocalSlotV2(
+            when.toISOString().split('T')[0], 
+            parsed.time || '10:00 AM', 
+            'America/New_York', 
+            120
+          );
+          
+          // Check for conflicts with existing bookings and events
+          const existingBookings = await prisma.booking.findMany({
+            where: {
               detailerId: detailer.id,
-              date: when.toISOString().split('T')[0], // YYYY-MM-DD format
-              time: parsed.time || '10:00 AM', // Default time if not specified
-              durationMinutes: 120,
-              tz: 'America/New_York',
-              title: `${snapForBooking?.customerName || 'Customer'} - ${services.length ? services.join(', ') : 'Detailing'}`,
+              status: { in: ['confirmed', 'pending'] }
+            },
+            select: {
+              id: true,
+              scheduledDate: true,
+              scheduledTime: true,
+              customerName: true
+            }
+          });
+
+          const existingEvents = await prisma.event.findMany({
+            where: {
+              detailerId: detailer.id
+            },
+            select: {
+              id: true,
+              date: true,
+              time: true,
+              title: true
+            }
+          });
+
+          // Check for conflicts (simplified version of the booking API logic)
+          const startDateTime = new Date(startUtcISO);
+          const endDateTime = new Date(endUtcISO);
+          
+          const bookingConflicts = existingBookings.filter(booking => {
+            const bookingStart = new Date(booking.scheduledDate);
+            const bookingEnd = new Date(bookingStart.getTime() + 120 * 60000); // 2 hours
+            return (startDateTime < bookingEnd && endDateTime > bookingStart);
+          });
+
+          const eventConflicts = existingEvents.filter(event => {
+            if (!event.date || !event.time) return false;
+            const eventStart = new Date(`${event.date}T${event.time}`);
+            const eventEnd = new Date(eventStart.getTime() + 120 * 60000); // 2 hours
+            return (startDateTime < eventEnd && endDateTime > eventStart);
+          });
+
+          if (bookingConflicts.length > 0 || eventConflicts.length > 0) {
+            console.log('❌ BOOKING CONFLICT DETECTED:', {
+              bookingConflicts: bookingConflicts.length,
+              eventConflicts: eventConflicts.length
+            });
+            throw new Error('Time conflict with existing appointment');
+          }
+
+          // Create the booking directly
+          booking = await prisma.booking.create({
+            data: {
+              detailerId: detailer.id,
               customerName: snapForBooking?.customerName || 'Customer',
               customerPhone: from,
               vehicleType: snapForBooking?.vehicle || [snapForBooking?.vehicleYear, snapForBooking?.vehicleMake, snapForBooking?.vehicleModel].filter(Boolean).join(' ') || '',
               vehicleLocation: snapForBooking?.address || '',
               services: services.length ? services : ['Detailing'],
-              source: 'AI'
-            })
+              scheduledDate: startDateTime,
+              scheduledTime: parsed.time || '10:00 AM',
+              status: 'confirmed',
+              notes: `${snapForBooking?.customerName || 'Customer'} - ${services.length ? services.join(', ') : 'Detailing'}`
+            }
           });
 
-          // Check content type before parsing JSON
-          const contentType = bookingResponse.headers.get('content-type') || '';
-          if (!bookingResponse.ok || !contentType.includes('application/json')) {
-            const errorText = await bookingResponse.text();
-            console.error('❌ BOOKING API ERROR:', {
-              status: bookingResponse.status,
-              contentType,
-              response: errorText.slice(0, 500)
-            });
-            throw new Error(`Booking API failed: ${bookingResponse.status} - ${contentType} - ${errorText.slice(0, 200)}`);
-          }
-
-          const bookingResult = await bookingResponse.json();
-          
-          if (bookingResponse.ok && bookingResult.ok) {
-            // Fetch the created booking for further processing
-            booking = await prisma.booking.findUnique({
-              where: { id: bookingResult.bookingId }
-            });
-            console.log('✅ Booking created successfully via API:', booking?.id);
-          } else {
-            console.log('❌ BOOKING CONFLICT DETECTED:', bookingResult);
-            // Update AI response to inform about conflict
-            aiResponse = `I'm sorry, but ${parsed.time || 'that time'} on ${when.toLocaleDateString()} is already booked. ${bookingResult.message || 'Please choose a different time.'}`;
-            
-            if (bookingResult.suggestions && bookingResult.suggestions.length > 0) {
-              const suggestions = bookingResult.suggestions.map(s => s.startLocal).join(', ');
-              aiResponse += ` Available times: ${suggestions}`;
+          // Create corresponding calendar event
+          await prisma.event.create({
+            data: {
+              detailerId: detailer.id,
+              title: booking.notes || `${snapForBooking?.customerName || 'Customer'} - ${services.length ? services.join(', ') : 'Detailing'}`,
+              date: when.toISOString().split('T')[0],
+              time: parsed.time || '10:00 AM',
+              bookingId: booking?.id,
+              color: '#10B981' // Green color for confirmed bookings
             }
+          });
+
+          console.log('✅ Booking created successfully:', booking.id);
+          
+          if (booking) {
+            // Fetch the created booking for further processing
+            const fetchedBooking = await prisma.booking.findUnique({
+              where: { id: booking.id }
+            });
+            console.log('✅ Booking created successfully:', fetchedBooking?.id);
+          } else {
+            console.log('❌ BOOKING CREATION FAILED');
+            // Update AI response to inform about failure
+            aiResponse = `I'm sorry, but ${parsed.time || 'that time'} on ${when.toLocaleDateString()} is already booked. Please choose a different time.`;
             
             // Don't create booking, just return the conflict message
             booking = null;
@@ -2658,8 +2787,7 @@ Please let me know what you'd prefer!`;
               
               console.log('📝 Sending duplicate booking message to customer');
               releaseLock(conversationId);
-            releaseLock(conversationId);
-          return new Response(aiResponse, { status: 200 });
+              return new Response(aiResponse, { status: 200 });
             }
           }
           
@@ -2681,7 +2809,7 @@ Please let me know what you'd prefer!`;
               await prisma.customer.update({
                 where: { id: customer.id },
                 data: { 
-                  lastDetailId: booking.id,
+                  lastDetailId: booking?.id,
                   updatedAt: new Date()
                 }
               })
@@ -2703,7 +2831,7 @@ Please let me know what you'd prefer!`;
         
         // Create calendar page URL with multiple calendar options
         const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://www.reevacar.com';
-        const calendarUrl = `${baseUrl}/api/calendar/add/${booking.id}`;
+        const calendarUrl = `${baseUrl}/api/calendar/add/${booking?.id}`;
         
         // Use customer name from snapshot, or try to extract from conversation if not available
         let customerName = snapForBooking?.customerName || 'Customer'
@@ -2795,7 +2923,7 @@ Notes: ${parsed.note || 'Auto-captured from SMS conversation'}
                 
                 // Update booking with Google Calendar event ID
                 await prisma.booking.update({
-                  where: { id: booking.id },
+                  where: { id: booking?.id },
                   data: { googleEventId }
                 })
 
@@ -2853,7 +2981,7 @@ Notes: ${parsed.note || 'Auto-captured from SMS conversation'}
                     const googleEventId = createdEvent.id
                     
                     await prisma.booking.update({
-                      where: { id: booking.id },
+                      where: { id: booking?.id },
                       data: { googleEventId }
                     })
 
