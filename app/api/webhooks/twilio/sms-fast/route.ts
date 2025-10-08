@@ -922,7 +922,8 @@ function parseFirstTime(aiResponse: string) {
   // Look for date patterns
   const dateMatch = aiResponse.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/i) ||
                    aiResponse.match(/(monday|tuesday|wednesday|thursday|friday|saturday|sunday)/i) ||
-                   aiResponse.match(/(october|november|december|january|february|march|april|may|june|july|august|september)\s+(\d{1,2})/i);
+                   aiResponse.match(/(october|november|december|january|february|march|april|may|june|july|august|september)\s+(\d{1,2})/i) ||
+                   aiResponse.match(/(oct|nov|dec|jan|feb|mar|apr|may|jun|jul|aug|sep)\s+(\d{1,2})/i);
   
   if (dateMatch) {
     if (dateMatch[1] && dateMatch[2] && dateMatch[3]) {
@@ -931,10 +932,17 @@ function parseFirstTime(aiResponse: string) {
       const day = parseInt(dateMatch[2]);
       const year = parseInt(dateMatch[3]);
       date = new Date(year, month, day).toISOString().split('T')[0];
-    } else if (dateMatch[0].toLowerCase().includes('october') && dateMatch[2]) {
-      // "October 10" format
+    } else if ((dateMatch[0].toLowerCase().includes('october') || dateMatch[0].toLowerCase().includes('oct')) && dateMatch[2]) {
+      // "October 10" or "Oct 10" format
       const day = parseInt(dateMatch[2]);
       date = `2025-10-${day.toString().padStart(2, '0')}`;
+    } else if (dateMatch[0].toLowerCase().includes('thursday')) {
+      // "Thursday" - assume next Thursday
+      const today = new Date();
+      const dayOfWeek = today.getDay(); // 0 = Sunday, 4 = Thursday
+      const daysUntilThursday = (4 - dayOfWeek + 7) % 7 || 7;
+      const nextThursday = new Date(today.getTime() + daysUntilThursday * 24 * 60 * 60 * 1000);
+      date = nextThursday.toISOString().split('T')[0];
     } else if (dateMatch[0].toLowerCase().includes('friday')) {
       // "Friday" - assume next Friday
       const today = new Date();
