@@ -1985,7 +1985,7 @@ Be conversational and natural.`;
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: 'gpt-4o-mini-2024-07-18', // Faster model for better performance
+            model: 'gpt-5', // Using GPT-5 for improved performance
             messages,
             max_tokens: 160,
             temperature: 0.7,
