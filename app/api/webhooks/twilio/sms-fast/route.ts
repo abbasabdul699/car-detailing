@@ -643,7 +643,7 @@ function chunkForSms(text: string) {
 }
 
 // Check for appointment conflicts
-async function checkAppointmentConflict(detailerId: string, scheduledDate: Date, scheduledTime: string): Promise<{ hasConflict: boolean, conflictingAppointment?: any }> {
+async function checkAppointmentConflict(detailerId: string, scheduledDate: Date, scheduledTime: string, currentCustomerPhone?: string): Promise<{ hasConflict: boolean, conflictingAppointment?: any }> {
   try {
     // Parse the scheduled time to get start and end times
     const [timeStr, period] = scheduledTime.split(' ');
@@ -669,6 +669,7 @@ async function checkAppointmentConflict(detailerId: string, scheduledDate: Date,
     });
     
     // Find existing bookings for the same detailer on the same day
+    // Exclude the current customer's own bookings to prevent self-conflicts
     const existingBookings = await prisma.booking.findMany({
       where: {
         detailerId: detailerId,
@@ -678,7 +679,9 @@ async function checkAppointmentConflict(detailerId: string, scheduledDate: Date,
         },
         status: {
           in: ['confirmed', 'pending']
-        }
+        },
+        // Exclude current customer's bookings to prevent self-conflicts
+        ...(currentCustomerPhone ? { customerPhone: { not: currentCustomerPhone } } : {})
       }
     });
 
@@ -2640,6 +2643,12 @@ Which day and time would work best for you?`;
         } : null
       })
       
+      // DEBUG: Check if customer name looks suspicious (might be detailer's name)
+      if (snapForBooking?.customerName && snapForBooking.customerName.trim() !== '') {
+        console.log('WARNING: Customer snapshot has name:', snapForBooking.customerName)
+        console.log('WARNING: This might be causing booking conflicts!')
+      }
+      
       // Create booking if we have all required details (email is optional)
       if (hasDate && hasTime && hasMinimumDetails && !asksForServices) {
         console.log('DEBUG: Creating booking - all conditions met')
@@ -2649,7 +2658,7 @@ Which day and time would work best for you?`;
 
         // Check for appointment conflicts before creating booking
         if (parsed.time) {
-          const conflictCheck = await checkAppointmentConflict(detailer.id, when, parsed.time);
+          const conflictCheck = await checkAppointmentConflict(detailer.id, when, parsed.time, from);
           
           if (conflictCheck.hasConflict) {
             const conflictingTime = conflictCheck.conflictingAppointment?.time || 'another appointment';
