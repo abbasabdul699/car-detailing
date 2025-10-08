@@ -2548,6 +2548,32 @@ Which day and time would work best for you?`;
           if (!isNaN(d.getTime())) return d
         }
 
+        // Month name with day: "Oct 10", "October 10", "Oct 10th"
+        const monthNames = ['january', 'february', 'march', 'april', 'may', 'june',
+                           'july', 'august', 'september', 'october', 'november', 'december']
+        const monthAbbrevs = ['jan', 'feb', 'mar', 'apr', 'may', 'jun',
+                             'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
+        
+        const monthDay = text.match(/\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s+(\d{1,2})(?:st|nd|rd|th)?\b/i)
+        if (monthDay) {
+          const monthName = monthDay[1].toLowerCase()
+          const day = parseInt(monthDay[2], 10)
+          
+          let monthIndex = monthNames.indexOf(monthName)
+          if (monthIndex === -1) {
+            monthIndex = monthAbbrevs.indexOf(monthName)
+          }
+          
+          if (monthIndex !== -1) {
+            const d = new Date(today.getFullYear(), monthIndex, day)
+            // If the date is in the past, assume next year
+            if (d < today) {
+              d.setFullYear(today.getFullYear() + 1)
+            }
+            return d
+          }
+        }
+
         return null
       }
 
