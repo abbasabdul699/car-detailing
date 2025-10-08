@@ -143,6 +143,16 @@ export async function getMergedFreeSlots(
     }
 
     console.log(`Generated ${slots.length} available slots for ${dayISO}`);
+    
+    // Debug: Log the first few available slots
+    if (slots.length > 0) {
+      console.log(`🔍 DEBUG: First 5 available slots for ${dayISO}:`, slots.slice(0, 5).map(slot => ({
+        label: slot.label,
+        startISO: slot.startISO,
+        endISO: slot.endISO
+      })));
+    }
+    
     return slots;
 
   } catch (error) {
@@ -185,6 +195,14 @@ async function getGoogleCalendarBusyTimes(
     });
 
     const busyTimes = response.data.calendars?.[calendarId]?.busy || [];
+    
+    // Debug: Log the busy times we're getting from Google Calendar
+    console.log(`🔍 DEBUG: Google Calendar busy times for ${calendarId}:`, busyTimes.map(busy => ({
+      start: busy.start,
+      end: busy.end,
+      startLocal: DateTime.fromISO(busy.start!).setZone('America/New_York').toFormat('ccc, LLL d h:mm a'),
+      endLocal: DateTime.fromISO(busy.end!).setZone('America/New_York').toFormat('ccc, LLL d h:mm a')
+    })));
     
     return busyTimes.map(busy => 
       Interval.fromDateTimes(
