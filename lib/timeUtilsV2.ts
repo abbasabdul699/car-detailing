@@ -116,7 +116,7 @@ export function parseDateV2(dateInput: string, tz: string = "America/New_York"):
     const today = DateTime.now().setZone(tz);
     const currentDay = today.weekday === 7 ? 0 : today.weekday; // Convert Sunday from 7 to 0
     const daysUntil = (dayIndex - currentDay + 7) % 7;
-    const targetDay = daysUntil === 0 ? 7 : daysUntil; // If today, make it next week
+    const targetDay = daysUntil === 0 ? 0 : daysUntil; // If today, use today (0 days until)
     return today.plus({ days: targetDay }).startOf('day');
   }
   

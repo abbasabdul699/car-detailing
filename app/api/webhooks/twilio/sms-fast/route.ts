@@ -1333,7 +1333,10 @@ This lead has been automatically processed and is ready for you to contact!`;
 
     // Format business hours for the AI
     const formatBusinessHours = (businessHours: any) => {
-      if (!businessHours) return 'Business hours not specified';
+      if (!businessHours) {
+        // Default business hours if not specified
+        return 'Monday - Friday: 8:00 AM - 6:00 PM\nSaturday: 9:00 AM - 5:00 PM\nSunday: Closed';
+      }
       
       const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
       const dayKeys = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
@@ -1349,7 +1352,7 @@ This lead has been automatically processed and is ready for you to contact!`;
         }
       }
       
-      return hoursText || 'Business hours not specified';
+      return hoursText || 'Monday - Friday: 8:00 AM - 6:00 PM\nSaturday: 9:00 AM - 5:00 PM\nSunday: Closed';
     };
 
     console.log('DEBUG: Generating system prompt with isFirstTimeCustomer:', isFirstTimeCustomer)
