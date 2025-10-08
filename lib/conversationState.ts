@@ -547,6 +547,7 @@ export async function processConversationState(
         response = "What date works for you? (We're open Mon–Fri 8a–6p)";
         newContext = await updateConversationContext(context, 'awaiting_date');
       }
+      }
       break;
 
     case 'awaiting_date':
