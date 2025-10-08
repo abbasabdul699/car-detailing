@@ -1903,14 +1903,18 @@ Be conversational and natural.`;
                              (msg.content.includes('available times') || msg.content.includes('pick one'))
                            );
     
+    // Better detection for date/time in messages
+    const hasDatePattern = /\b(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|\d{1,2}[\/\-]\d{1,2}(?:[\/\-]\d{2,4})?|\d{4}-\d{2}-\d{2}|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|january|february|march|april|may|june|july|august|september|october|november|december)\b/i.test(body || '');
+    const hasTimePattern = /\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i.test(body || '') || /(morning|afternoon|evening|tonight|night)/i.test(body || '') || /\b\d{1,2}\s*(?:am|pm)?\s*[-–]\s*\d{1,2}\s*(?:am|pm)\b/i.test(body || '');
+    
     console.log('🔍 DEBUG: Conversation state machine check:', {
       body: body,
       isBookingRelated,
       asksForServices,
       willUseStateMachine: isBookingRelated && !asksForServices,
       containsAvailable: body.toLowerCase().includes('available'),
-      containsTime: body.toLowerCase().includes('time'),
-      containsDate: body.toLowerCase().includes('date')
+      containsTime: hasTimePattern,
+      containsDate: hasDatePattern
     });
     
     if (isBookingRelated && !asksForServices) {
@@ -2529,7 +2533,9 @@ Which day and time would work best for you?`;
               // Don't add another 7 days - "next" already means next week
             } else {
               // Regular weekday means this week or next week
-              if (diff <= 0) diff += 7  // Next week
+              // If it's the same day (diff = 0), use today
+              // If it's a past day this week (diff < 0), use next week
+              if (diff < 0) diff += 7  // Next week (only for past days)
             }
             
             d.setDate(d.getDate() + diff)
