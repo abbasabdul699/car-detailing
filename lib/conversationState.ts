@@ -213,8 +213,60 @@ export async function processConversationState(
 
   switch (context.state) {
     case 'idle':
-      response = "What date works for you? (We're open Mon–Fri 8a–6p)";
-      newContext = await updateConversationContext(context, 'awaiting_date');
+      // Check if user is asking for available times
+      const isAskingForAvailability = /available|times?|slots?|openings?|schedule/i.test(userMessage);
+      
+      if (isAskingForAvailability) {
+        // Provide actual available times for next few days
+        try {
+          const { getMergedFreeSlots } = await import('./slotComputationV2');
+          const today = new Date();
+          const availableSlots = [];
+          
+          // Get slots for next 3 days
+          for (let i = 1; i <= 3; i++) {
+            const date = new Date(today);
+            date.setDate(today.getDate() + i);
+            const dateStr = date.toISOString().split('T')[0];
+            
+            const slots = await getMergedFreeSlots(
+              dateStr,
+              'primary', // Use primary calendar for now
+              [], // No existing bookings for now
+              context.detailerId,
+              120, // 2 hour service
+              30, // 30 minute steps
+              'America/New_York'
+            );
+            
+            if (slots.length > 0) {
+              const dayName = date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+              const daySlots = slots.slice(0, 4).map(slot => {
+                // Extract time from label like "Wed, Oct 8: 8:00 AM – 10:00 AM"
+                const timeMatch = slot.label.match(/(\d{1,2}:\d{2} [AP]M)/);
+                return timeMatch ? timeMatch[1] : slot.label.split(': ')[1]?.split(' –')[0] || 'time';
+              }).join(', ');
+              
+              availableSlots.push(`${dayName}: ${daySlots}`);
+            }
+          }
+          
+          if (availableSlots.length > 0) {
+            response = `Here are our available times:\n\n${availableSlots.join('\n')}\n\nWhich day and time works for you?`;
+            newContext = await updateConversationContext(context, 'awaiting_time');
+          } else {
+            response = "I don't see any available slots in the next few days. What date works for you? (We're open Mon–Fri 8a–6p)";
+            newContext = await updateConversationContext(context, 'awaiting_date');
+          }
+        } catch (error) {
+          console.error('Error getting availability:', error);
+          response = "What date works for you? (We're open Mon–Fri 8a–6p)";
+          newContext = await updateConversationContext(context, 'awaiting_date');
+        }
+      } else {
+        response = "What date works for you? (We're open Mon–Fri 8a–6p)";
+        newContext = await updateConversationContext(context, 'awaiting_date');
+      }
       break;
 
     case 'awaiting_date':
