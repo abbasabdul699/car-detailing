@@ -2138,7 +2138,7 @@ Be conversational and natural.`;
                data: {
                  detailerId: detailer.id,
                  title: booking.notes || `${name} - ${service}`,
-                 date: scheduledDate.toISOString().split('T')[0],
+                 date: scheduledDate,
                  time: bookingTime,
                  bookingId: booking?.id,
                  color: '#10B981' // Green color for confirmed bookings
@@ -2733,7 +2733,7 @@ What time would work better for you?`;
             data: {
               detailerId: detailer.id,
               title: booking.notes || `${snapForBooking?.customerName || 'Customer'} - ${services.length ? services.join(', ') : 'Detailing'}`,
-              date: when.toISOString().split('T')[0],
+              date: when,
               time: parsed.time || '10:00 AM',
               bookingId: booking?.id,
               color: '#10B981' // Green color for confirmed bookings
