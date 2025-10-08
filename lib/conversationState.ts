@@ -452,7 +452,6 @@ export async function processConversationState(
           response = "I had trouble checking that specific time. What date works for you? (We're open Mon–Fri 8a–6p)";
           newContext = await updateConversationContext(context, 'awaiting_date');
         }
-      }
       } else if (/available|times?|slots?|openings?|schedule/i.test(userMessage)) {
         // Check if user is asking for available times
         // Provide actual available times for next few days
