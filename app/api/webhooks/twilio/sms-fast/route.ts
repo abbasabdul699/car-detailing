@@ -1239,6 +1239,16 @@ This lead has been automatically processed and is ready for you to contact!`;
       return NextResponse.json({ error: 'Conversation unavailable' }, { status: 500 })
     }
 
+    // Check if this is a first-time customer BEFORE storing the inbound message
+    const existingSnapshot = await getCustomerSnapshot(detailer.id, from)
+    const hasPreviousMessages = conversation && conversation.messages && conversation.messages.length > 0
+    const isFirstTimeCustomer = !existingSnapshot && !hasPreviousMessages
+    
+    console.log('DEBUG: isFirstTimeCustomer:', isFirstTimeCustomer)
+    console.log('DEBUG: existingSnapshot:', existingSnapshot)
+    console.log('DEBUG: hasPreviousMessages:', hasPreviousMessages)
+    console.log('DEBUG: conversation.messages.length:', conversation.messages.length)
+
     // Store incoming message
     const inbound = await prisma.message.create({
       data: {
@@ -1314,15 +1324,7 @@ This lead has been automatically processed and is ready for you to contact!`;
     // If the user explicitly asks for services, answer deterministically
     const asksForServices = /\b(what\s+services|services\s*\?|do\s+you\s+(offer|provide)\s+.*services?)\b/i.test((body || '').toLowerCase())
 
-    // Check if this is a first-time customer - look at both snapshot and conversation history
-    const existingSnapshot = await getCustomerSnapshot(detailer.id, from)
-    const hasPreviousMessages = conversation && conversation.messages && conversation.messages.length > 1
-    const isFirstTimeCustomer = !existingSnapshot && !hasPreviousMessages
-    
-    console.log('DEBUG: isFirstTimeCustomer:', isFirstTimeCustomer)
-    console.log('DEBUG: existingSnapshot:', existingSnapshot)
-    console.log('DEBUG: detailer.id:', detailer.id)
-    console.log('DEBUG: from phone:', from)
+    // isFirstTimeCustomer is already determined above, before storing the inbound message
 
     // Update snapshot with any hints from this message and get updated snapshot
     const inferred = extractSnapshotHintsSafe(body || '', detailerServices.map(ds => ds.service.name))
@@ -2156,7 +2158,7 @@ Be conversational and natural.`;
           body: JSON.stringify({
             model: 'gpt-5', // Using GPT-5 for improved performance
             messages,
-            max_tokens: 160,
+            max_completion_tokens: 160,
             temperature: 0.7,
           }),
         });
