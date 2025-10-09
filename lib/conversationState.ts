@@ -654,16 +654,48 @@ export async function processConversationState(
         const slotsToUse = availableSlots || context.slots || [];
         console.log('🔍 DEBUG: Using slots:', slotsToUse);
         
+        // Check if user is asking for available times (e.g., "what times?", "I don't see the times")
+        const isAskingForTimes = /what times?|don'?t see|show me|available|options/i.test(userMessage);
+        
+        if (isAskingForTimes && slotsToUse.length > 0) {
+          // Show the available times
+          const timeOptions = slotsToUse.map((slot, index) => {
+            const timeMatch = slot.startLocal.match(/(\d{1,2}:\d{2}\s*[AP]M)/i);
+            const timeStr = timeMatch ? timeMatch[1] : slot.startLocal;
+            return `${index + 1}. ${timeStr}`;
+          }).join('\n');
+          
+          response = `Here are our available times:\n\n${timeOptions}\n\nPlease reply with the time you'd like (e.g., "7:00 PM") or the number.`;
+          newContext = await updateConversationContext(context, 'awaiting_time');
+          break;
+        }
+        
         // Parse slot selection from user message
         const selectedSlot = pickSlotFromMessage(userMessage, slotsToUse);
         
         console.log('🔍 DEBUG: Selected slot:', selectedSlot);
         
         if (!selectedSlot) {
-          response = "Please pick one of the shown times by number (1, 2, 3, etc.)";
+          // Show the available times to the user
+          if (slotsToUse.length > 0) {
+            const timeOptions = slotsToUse.map((slot, index) => {
+              // Extract time from startLocal (e.g., "Thursday, Oct 9 7:00 PM – 9:00 PM America/New_York" -> "7:00 PM")
+              const timeMatch = slot.startLocal.match(/(\d{1,2}:\d{2}\s*[AP]M)/i);
+              const timeStr = timeMatch ? timeMatch[1] : slot.startLocal;
+              return `${index + 1}. ${timeStr}`;
+            }).join('\n');
+            
+            response = `Here are our available times:\n\n${timeOptions}\n\nPlease reply with the time you'd like (e.g., "7:00 PM") or the number.`;
+          } else {
+            response = "I don't have any available times right now. What day works for you?";
+            newContext = await updateConversationContext(context, 'awaiting_date');
+          }
           newContext = await updateConversationContext(context, 'awaiting_time');
         } else {
-          response = `Great! I have you down for ${selectedSlot.label}.\n\nPlease confirm by replying 'yes' or 'confirm' to book this appointment.`;
+          // Extract time from startLocal for display
+          const timeMatch = selectedSlot.startLocal.match(/(\d{1,2}:\d{2}\s*[AP]M)/i);
+          const timeStr = timeMatch ? timeMatch[1] : selectedSlot.startLocal;
+          response = `Great! I have you down for ${timeStr}.\n\nPlease confirm by replying 'yes' or 'confirm' to book this appointment.`;
           
           newContext = await updateConversationContext(context, 'awaiting_confirm', {
             selectedSlot
