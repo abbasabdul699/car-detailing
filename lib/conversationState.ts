@@ -654,6 +654,19 @@ export async function processConversationState(
         const slotsToUse = availableSlots || context.slots || [];
         console.log('🔍 DEBUG: Using slots:', slotsToUse);
         
+        // Check if user is confirming (e.g., "yes", "confirm") and we have a selected slot
+        const isConfirming = /^(yes|confirm|confirmed|book|book it|schedule)$/i.test(userMessage.trim());
+        if (isConfirming && context.selectedSlot) {
+          // User is confirming their selected time
+          const timeMatch = context.selectedSlot.startLocal.match(/(\d{1,2}:\d{2}\s*[AP]M)/i);
+          const timeStr = timeMatch ? timeMatch[1] : context.selectedSlot.startLocal;
+          response = `Great! I have you down for ${timeStr}.\n\nPlease confirm by replying 'yes' or 'confirm' to book this appointment.`;
+          newContext = await updateConversationContext(context, 'awaiting_confirm', {
+            selectedSlot: context.selectedSlot
+          });
+          break;
+        }
+        
         // Check if user is asking for available times (e.g., "what times?", "I don't see the times")
         const isAskingForTimes = /what times?|don'?t see|show me|available|options/i.test(userMessage);
         
@@ -788,21 +801,33 @@ function pickSlotFromMessage(
     }
   }
   
-  // Check for time mentioned in message - improved matching
-  for (const slot of slots) {
-    const slotTime = slot.startLocal.toLowerCase();
-    
-    // Direct time format matching (e.g., "9:00 AM")
-    const timeMatch = message.match(/(\d{1,2}):?(\d{2})?\s*(am|pm)/);
-    if (timeMatch) {
-      const [, hour, minute = '00', period] = timeMatch;
-      const normalizedTime = `${hour}:${minute} ${period}`;
+    // Check for time mentioned in message - improved matching
+    for (const slot of slots) {
+      const slotTime = slot.startLocal.toLowerCase();
       
-      // Check if this time appears in the slot
-      if (slotTime.includes(normalizedTime) || slotTime.includes(`${hour}:${minute} ${period}`)) {
-        return slot;
+      // Direct time format matching (e.g., "9:00 AM")
+      const timeMatch = message.match(/(\d{1,2}):?(\d{2})?\s*(am|pm)/);
+      if (timeMatch) {
+        const [, hour, minute = '00', period] = timeMatch;
+        const normalizedTime = `${hour}:${minute} ${period}`;
+        
+        console.log('🔍 DEBUG: Time matching:', {
+          message,
+          slotTime,
+          normalizedTime,
+          hour,
+          minute,
+          period,
+          includesNormalized: slotTime.includes(normalizedTime),
+          includesUpperCase: slotTime.includes(normalizedTime.toUpperCase())
+        });
+        
+        // Check if this time appears in the slot (case-insensitive)
+        if (slotTime.includes(normalizedTime) || slotTime.includes(`${hour}:${minute} ${period}`) || slotTime.includes(normalizedTime.toUpperCase())) {
+          console.log('🔍 DEBUG: Time match found for slot:', slot.startLocal);
+          return slot;
+        }
       }
-    }
     
     // Fallback: check if message contains any part of the slot time
     if (message.includes(slotTime)) {
