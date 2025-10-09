@@ -645,8 +645,13 @@ export async function processConversationState(
 
     case 'awaiting_time':
       try {
+        console.log('🔍 DEBUG: Time selection - User message:', userMessage);
+        console.log('🔍 DEBUG: Available slots:', context.slots);
+        
         // Parse slot selection from user message
         const selectedSlot = pickSlotFromMessage(userMessage, context.slots || []);
+        
+        console.log('🔍 DEBUG: Selected slot:', selectedSlot);
         
         if (!selectedSlot) {
           response = "Please pick one of the shown times by number (1, 2, 3, etc.)";
@@ -745,9 +750,29 @@ function pickSlotFromMessage(
     }
   }
   
-  // Check for time mentioned in message
+  // Check for time mentioned in message - improved matching
   for (const slot of slots) {
-    if (message.includes(slot.startLocal.toLowerCase())) {
+    const slotTime = slot.startLocal.toLowerCase();
+    
+    // Direct time format matching (e.g., "9:00 AM")
+    const timeMatch = message.match(/(\d{1,2}):?(\d{2})?\s*(am|pm)/);
+    if (timeMatch) {
+      const [, hour, minute = '00', period] = timeMatch;
+      const normalizedTime = `${hour}:${minute} ${period}`;
+      
+      // Check if this time appears in the slot
+      if (slotTime.includes(normalizedTime) || slotTime.includes(`${hour}:${minute} ${period}`)) {
+        return slot;
+      }
+    }
+    
+    // Fallback: check if message contains any part of the slot time
+    if (message.includes(slotTime)) {
+      return slot;
+    }
+    
+    // Also check the label field
+    if (message.includes(slot.label.toLowerCase())) {
       return slot;
     }
   }
