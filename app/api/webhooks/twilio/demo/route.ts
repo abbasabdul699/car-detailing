@@ -93,7 +93,11 @@ export async function POST(request: NextRequest) {
     console.log('🎭 === DEMO WEBHOOK SUCCESS ===');
     console.log('Demo: Message processed, waiting for manual response from dashboard');
     
-    return new NextResponse('Demo message processed', { status: 200 });
+    // Return empty TwiML response - no automatic reply to customer
+    return new NextResponse('<?xml version="1.0" encoding="UTF-8"?><Response></Response>', {
+      status: 200,
+      headers: { 'Content-Type': 'text/xml' }
+    });
 
   } catch (error) {
     console.error('❌ Demo webhook error:', error);
