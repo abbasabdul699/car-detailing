@@ -2159,7 +2159,7 @@ Be conversational and natural.`;
             model: 'gpt-5', // Using GPT-5 for improved performance
             messages,
             max_completion_tokens: 160,
-            temperature: 0.7,
+            //temperature: 0.7,
           }),
         });
         clearTimeout(timeout)
