@@ -1939,7 +1939,8 @@ Be conversational and natural.`;
         const { response: stateResponse, newContext, shouldSend } = await processConversationState(
           context,
           body,
-          detailerServices.map(ds => ds.service)
+          detailerServices.map(ds => ds.service),
+          availableSlots
         );
         
         console.log('🔍 DEBUG: Conversation state machine result:', {

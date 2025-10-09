@@ -202,7 +202,8 @@ export async function isDuplicateMessage(messageSid: string): Promise<boolean> {
 export async function processConversationState(
   context: ConversationContext,
   userMessage: string,
-  detailerServices: any[]
+  detailerServices: any[],
+  availableSlots?: Array<{ startLocal: string; startISO: string; label: string }>
 ): Promise<{
   response: string;
   newContext: ConversationContext;
@@ -646,10 +647,15 @@ export async function processConversationState(
     case 'awaiting_time':
       try {
         console.log('🔍 DEBUG: Time selection - User message:', userMessage);
-        console.log('🔍 DEBUG: Available slots:', context.slots);
+        console.log('🔍 DEBUG: Available slots from context:', context.slots);
+        console.log('🔍 DEBUG: Available slots from parameter:', availableSlots);
+        
+        // Use passed availableSlots if available, otherwise fall back to context.slots
+        const slotsToUse = availableSlots || context.slots || [];
+        console.log('🔍 DEBUG: Using slots:', slotsToUse);
         
         // Parse slot selection from user message
-        const selectedSlot = pickSlotFromMessage(userMessage, context.slots || []);
+        const selectedSlot = pickSlotFromMessage(userMessage, slotsToUse);
         
         console.log('🔍 DEBUG: Selected slot:', selectedSlot);
         
