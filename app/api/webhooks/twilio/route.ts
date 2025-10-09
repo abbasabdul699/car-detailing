@@ -7,6 +7,19 @@ import twilio from 'twilio';
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('=== BASIC TWILIO WEBHOOK DISABLED ===');
+    console.log('🚫 BASIC WEBHOOK DISABLED - Use sms-fast route instead');
+    
+    // This route is disabled to prevent duplicate processing
+    // All SMS processing is now handled by /api/webhooks/twilio/sms-fast/route.ts
+    return NextResponse.json({ 
+      error: 'This webhook endpoint is disabled. Use /api/webhooks/twilio/sms-fast instead.',
+      deprecated: true,
+      redirect: '/api/webhooks/twilio/sms-fast'
+    }, { status: 410 }); // 410 Gone - permanently unavailable
+    
+    // Original code below (commented out to prevent execution)
+    /*
     const formData = await request.formData();
     
     // Extract Twilio webhook data
@@ -245,5 +258,12 @@ I'll confirm the exact time with you shortly. Is this correct?`;
       { error: 'Internal server error' },
       { status: 500 }
     );
+  } catch (error) {
+    console.error('Twilio webhook error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
+  */
 }

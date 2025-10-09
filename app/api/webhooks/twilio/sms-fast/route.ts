@@ -969,6 +969,9 @@ function parseFirstTime(aiResponse: string) {
 
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
+  let conversationId = '';
+  let releaseLock: any = null;
+  
   try {
     console.log('=== FAST SMS WEBHOOK START (v2) ===');
     
@@ -980,33 +983,90 @@ export async function POST(request: NextRequest) {
     const from = normalizeToE164(fromRaw) || fromRaw;
     const to = normalizeToE164(toRaw) || toRaw;
     
-    // Idempotency: if we've already stored a message with this SID, acknowledge and return
+    // 1) HARD DEDUPE BY MESSAGESID - FIRST LINE OF DEFENSE
     if (messageSid) {
-      const existing = await prisma.message.findFirst({ where: { twilioSid: messageSid } }).catch(() => null)
-      if (existing) {
-        console.log('Duplicate webhook for MessageSid, acknowledging without reprocessing:', messageSid)
-        return NextResponse.json({ success: true, deduped: true });
+      try {
+        // Create unique index if it doesn't exist (this will be idempotent)
+        // Note: Index creation is handled at the database level, not in application code
+        console.log('Checking for MessageSid uniqueness constraint...');
+        
+        // Try to find existing message
+        const existing = await prisma.message.findFirst({ 
+          where: { twilioSid: messageSid } 
+        });
+        
+        if (existing) {
+          console.log('🚫 DUPLICATE WEBHOOK DETECTED - MessageSid already processed:', messageSid);
+          return NextResponse.json({ success: true, deduped: true, reason: 'message_already_processed' });
+        }
+        
+        // Create a temporary record to prevent race conditions
+        await prisma.message.create({
+          data: {
+            conversationId: 'temp-dedup', // Temporary, will be updated later
+            direction: 'inbound',
+            content: 'TEMP_DEDUP_RECORD',
+            twilioSid: messageSid,
+            status: 'processing',
+          }
+        }).catch((error: any) => {
+          if (error.code === 'P2002') { // Unique constraint violation
+            console.log('🚫 RACE CONDITION DETECTED - MessageSid being processed by another worker:', messageSid);
+            return NextResponse.json({ success: true, deduped: true, reason: 'race_condition' });
+          }
+          throw error;
+        });
+        
+      } catch (error: any) {
+        if (error.code === 'P2002') { // Unique constraint violation
+          console.log('🚫 DUPLICATE MESSAGESID - Another worker is processing this:', messageSid);
+          return NextResponse.json({ success: true, deduped: true, reason: 'unique_constraint' });
+        }
+        throw error;
       }
     }
     
     console.log('Fast - Incoming message:', { from, to, body, messageSid });
     
-    // Check if this is a duplicate message using conversation state
-    const { isDuplicateMessage } = await import('@/lib/conversationState');
-    if (messageSid && await isDuplicateMessage(messageSid)) {
-      console.log('Duplicate message detected, skipping processing:', messageSid);
-      return NextResponse.json({ success: true, deduped: true });
-    }
+    // Create trace ID for observability
+    const traceId = `${from.replace('+', '')}:${messageSid}`;
+    console.log(`🔍 [${traceId}] Processing message`);
     
     // Create conversation lock ID
-    const conversationId = `${from}:${to}`;
+    conversationId = `${from}:${to}`;
     
     // Check for conversation lock to prevent concurrent processing
-    const { acquireLock, releaseLock } = await import('@/lib/conversationLock');
+    const { acquireLock, releaseLock: releaseLockFn } = await import('@/lib/conversationLock');
+    releaseLock = releaseLockFn;
     if (!acquireLock(conversationId, 15000)) { // 15 second lock
       console.log('Conversation is locked, skipping processing:', conversationId);
       return NextResponse.json({ success: true, locked: true });
     }
+    
+    // 2) PHASE-DRIVEN STATE MACHINE - PREVENT RE-OFFERING SLOTS
+    type ConversationPhase = 'collecting_info' | 'offering_slots' | 'awaiting_choice' | 'confirming' | 'completed';
+    
+    const updateConversationPhase = async (conversationId: string, phase: ConversationPhase, additionalData?: any) => {
+      const metadata = {
+        phase,
+        phaseUpdatedAt: new Date().toISOString(),
+        slotsOfferedAt: phase === 'offering_slots' ? new Date().toISOString() : undefined,
+        slotsSetId: phase === 'offering_slots' ? `slots_${Date.now()}_${Math.random().toString(36).substr(2, 9)}` : undefined,
+        ...additionalData
+      };
+      
+      await prisma.conversation.update({
+        where: { id: conversationId },
+        data: { metadata }
+      });
+      
+      console.log(`🔄 [${traceId}] Phase updated to: ${phase}`, metadata);
+      return metadata;
+    };
+    
+    const getConversationPhase = (metadata: any): ConversationPhase => {
+      return metadata?.phase || 'collecting_info';
+    };
     
     // Check if this is a Meta lead first
     if (isMetaLead(body)) {
@@ -1472,7 +1532,7 @@ WHEN CUSTOMER ASKS "what is my name?" or "what's my name?":
       }
       
       // Check for conflicts on the specific requested date (both bookings and events)
-      let specificDateConflicts = [];
+      let specificDateConflicts: any[] = [];
       if (requestedDate) {
         const startOfDay = new Date(requestedDate);
         startOfDay.setHours(0, 0, 0, 0);
@@ -1562,7 +1622,7 @@ WHEN CUSTOMER ASKS "what is my name?" or "what's my name?":
         availabilityInfo = `\n\nEXISTING APPOINTMENTS/EVENTS (next 30 days):\n`;
         
         // Combine all scheduled items
-        const allScheduledItems = [];
+        const allScheduledItems: any[] = [];
         
         // Add bookings
         existingBookings.forEach(booking => {
@@ -1610,7 +1670,10 @@ WHEN CUSTOMER ASKS "what is my name?" or "what's my name?":
     }
     
     // 🔒 COMPLETE PROTECTION: Compute available slots and guard the AI
-    let availableSlots = [];
+    let availableSlots: any[] = [];
+    let existingBookings: any[] = [];
+    let existingEvents: any[] = [];
+    let reevaBusyIntervals: any[] = [];
     
     try {
       const { getMergedFreeSlots } = await import('@/lib/slotComputationV2');
@@ -1619,32 +1682,95 @@ WHEN CUSTOMER ASKS "what is my name?" or "what's my name?":
       const today = new Date();
       const dayISO = today.toISOString().split('T')[0];
       
-      // Get existing Reeva bookings for the day
+      // 6) MERGE REEVA CALENDAR INTO BUSY SET - COMPREHENSIVE AVAILABILITY
+      console.log(`🔍 [${traceId}] Computing comprehensive availability including all Reeva calendar events`);
+      
+      // Get ALL Reeva bookings for the next 7 days (not just today)
+      const weekStart = new Date(dayISO + 'T00:00:00.000Z');
+      const weekEnd = new Date(weekStart.getTime() + 7 * 24 * 60 * 60 * 1000);
+      
       const existingBookings = await prisma.booking.findMany({
         where: {
           detailerId: detailer.id,
           scheduledDate: {
-            gte: new Date(dayISO + 'T00:00:00.000Z'),
-            lt: new Date(dayISO + 'T23:59:59.999Z')
+            gte: weekStart,
+            lt: weekEnd
           },
           status: { in: ['confirmed', 'pending'] }
         }
       });
       
-      const reevaBookings = existingBookings.map(b => ({
-        start: new Date(b.scheduledDate).toISOString(),
-        end: new Date(new Date(b.scheduledDate).getTime() + 120 * 60000).toISOString()
-      }));
+      // Get ALL Reeva events for the next 7 days
+      const existingEvents = await prisma.event.findMany({
+        where: {
+          detailerId: detailer.id,
+          date: {
+            gte: weekStart,
+            lt: weekEnd
+          }
+        }
+      });
       
-      const googleCalendarId = detailer.googleCalendarConnected ? 'primary' : null;
+      console.log(`🔍 [${traceId}] Found ${existingBookings.length} Reeva bookings and ${existingEvents.length} Reeva events`);
+      
+      // Convert ALL Reeva calendar items to busy intervals
+      const reevaBusyIntervals = [];
+      
+      // Add bookings
+      existingBookings.forEach(booking => {
+        reevaBusyIntervals.push({
+          start: new Date(booking.scheduledDate).toISOString(),
+          end: new Date(new Date(booking.scheduledDate).getTime() + 120 * 60000).toISOString(),
+          type: 'booking',
+          title: booking.customerName || 'Customer'
+        });
+      });
+      
+      // Add events
+      existingEvents.forEach(event => {
+        // Parse event time if provided, otherwise assume full day
+        let startTime = new Date(event.date);
+        let endTime = new Date(event.date);
+        
+        if (event.time) {
+          // Parse time like "10:00 AM" or "14:00"
+          const timeMatch = event.time.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i);
+          if (timeMatch) {
+            let hours = parseInt(timeMatch[1], 10);
+            const minutes = timeMatch[2] ? parseInt(timeMatch[2], 10) : 0;
+            const period = timeMatch[3]?.toLowerCase();
+            
+            if (period === 'pm' && hours !== 12) hours += 12;
+            if (period === 'am' && hours === 12) hours = 0;
+            
+            startTime.setHours(hours, minutes, 0, 0);
+            endTime = new Date(startTime.getTime() + 120 * 60000); // Default 2 hours
+          }
+        } else {
+          // Full day event
+          startTime.setHours(0, 0, 0, 0);
+          endTime.setHours(23, 59, 59, 999);
+        }
+        
+        reevaBusyIntervals.push({
+          start: startTime.toISOString(),
+          end: endTime.toISOString(),
+          type: 'event',
+          title: event.title
+        });
+      });
+      
+      console.log(`🔍 [${traceId}] Total Reeva busy intervals: ${reevaBusyIntervals.length}`);
+      
+      const googleCalendarId = detailer.googleCalendarConnected ? 'primary' : undefined;
       const detailerTimezone = detailer.timezone || 'America/New_York';
-      const rawSlots = await getMergedFreeSlots(dayISO, googleCalendarId, reevaBookings, detailer.id, 120, 30, detailerTimezone);
+      const rawSlots = await getMergedFreeSlots(dayISO, googleCalendarId || 'primary', reevaBusyIntervals, detailer.id, 120, 30, detailerTimezone);
       
       availableSlots = rawSlots.map(slot => ({
         startLocal: slot.label,
         endLocal: slot.label.split(' – ')[1] || slot.label,
-        startUtcISO: slot.start,
-        endUtcISO: slot.end
+        startUtcISO: slot.startISO,
+        endUtcISO: slot.endISO
       }));
       
       console.log(`🔍 DEBUG: Generated ${availableSlots.length} available slots for business hours compliance`);
@@ -1662,7 +1788,7 @@ RULES:
 - DO NOT reuse any times from previous conversation history.
 - Generate fresh availability based ONLY on AVAILABLE_SLOTS below.
 AVAILABLE_SLOTS:
-${availableSlots.map(s => `- ${s.startLocal} – ${s.endLocal} | ISO:${s.startISO}`).join('\n')}
+${availableSlots.map(s => `- ${s.startLocal} – ${s.endLocal} | ISO:${s.startUtcISO}`).join('\n')}
 now=${Date.now()} // cache buster
 `;
 
@@ -1898,9 +2024,26 @@ Be conversational and natural.`;
       return "Great! Anything else you'd like to add?"
     }
 
+    // 3) PHASE-DRIVEN STATE MACHINE - PREVENT RE-OFFERING SLOTS
+    const currentPhase = getConversationPhase(conversation.metadata);
+    console.log(`🔄 [${traceId}] Current phase: ${currentPhase}`);
+    
+    // Check if user is selecting from previously offered slots
+    const userPickedExactSlot = currentPhase === 'awaiting_choice' && 
+      (body.toLowerCase().includes('1') || body.toLowerCase().includes('2') || 
+       body.toLowerCase().includes('3') || body.toLowerCase().includes('4') ||
+       body.toLowerCase().includes('5') || body.toLowerCase().includes('6') ||
+       body.toLowerCase().includes('7') || body.toLowerCase().includes('8') ||
+       body.toLowerCase().includes('9'));
+    
+    const userAskedDifferentTime = currentPhase === 'awaiting_choice' && 
+      (body.toLowerCase().includes('different') || body.toLowerCase().includes('other') ||
+       body.toLowerCase().includes('more') || body.toLowerCase().includes('another'));
+    
     // Try conversation state machine first for booking-related messages
     let aiResponse = 'Hey! Thanks for reaching out! What can I help you with today?'
     let useStateMachine = false;
+    let newPhase: ConversationPhase = currentPhase;
     
     // Check if this looks like a booking conversation
     const isBookingRelated = body.toLowerCase().includes('book') || 
@@ -1925,8 +2068,39 @@ Be conversational and natural.`;
       willUseStateMachine: isBookingRelated && !asksForServices,
       containsAvailable: body.toLowerCase().includes('available'),
       containsTime: hasTimePattern,
-      containsDate: hasDatePattern
+      containsDate: hasDatePattern,
+      currentPhase,
+      userPickedExactSlot,
+      userAskedDifferentTime
     });
+
+    // 5) PREVENT RE-OFFERING SLOTS - PHASE-BASED LOGIC
+    if (currentPhase === 'awaiting_choice' && !userPickedExactSlot && !userAskedDifferentTime) {
+      // User is in choice phase but didn't pick a slot or ask for different time
+      // Check if they're asking for availability again
+      const askingForAvailability = body.toLowerCase().includes('available') || 
+                                   body.toLowerCase().includes('time') ||
+                                   body.toLowerCase().includes('when') ||
+                                   body.toLowerCase().includes('schedule');
+      
+      if (askingForAvailability) {
+        console.log(`🚫 [${traceId}] PREVENTING RE-OFFERING: User in awaiting_choice phase asking for availability again`);
+        
+        // Use cached slots from metadata if available
+        const metadata = conversation.metadata as any;
+        const cachedSlots = metadata?.slotsSetId;
+        if (cachedSlots) {
+          aiResponse = `I just shared my available times above. Please pick one of those options, or let me know if you'd like different times!`;
+          console.log(`✅ [${traceId}] Using cached response to prevent re-offering`);
+        } else {
+          aiResponse = `I shared my available times in my previous message. Please pick one of those options, or let me know if you'd like different times!`;
+          console.log(`✅ [${traceId}] Using fallback response to prevent re-offering`);
+        }
+        
+        // Skip AI processing and go directly to sending
+        useStateMachine = false;
+      }
+    }
     
     if (isBookingRelated && !asksForServices) {
       try {
@@ -2379,15 +2553,15 @@ Which day and time would work best for you?`;
           end: new Date(new Date(b.scheduledDate).getTime() + 120 * 60000).toISOString()
         }));
         
-        const googleCalendarId = detailer.googleCalendarConnected ? 'primary' : null;
+        const googleCalendarId = detailer.googleCalendarConnected ? 'primary' : undefined;
         const detailerTimezone = detailer.timezone || 'America/New_York';
-        const rawSlots = await getMergedFreeSlots(dayISO, googleCalendarId, reevaBookings, detailer.id, 120, 30, detailerTimezone);
+        const rawSlots = await getMergedFreeSlots(dayISO, googleCalendarId || 'primary', reevaBookings, detailer.id, 120, 30, detailerTimezone);
         
         const slots = rawSlots.map(slot => ({
           startLocal: slot.label,
           endLocal: slot.label.split(' – ')[1] || slot.label,
-          startUtcISO: slot.start,
-          endUtcISO: slot.end
+          startUtcISO: slot.startISO,
+          endUtcISO: slot.endISO
         }));
         
         if (slots.length > 0) {
@@ -2507,6 +2681,67 @@ Which day and time would work best for you?`;
         status: twilioSid ? 'sent' : 'simulated',
       },
     });
+
+    // 4) UPDATE CONVERSATION PHASE BASED ON RESPONSE
+    console.log(`🔄 [${traceId}] Updating conversation phase based on response`);
+    
+    // Determine new phase based on current phase and AI response
+    if (currentPhase === 'collecting_info') {
+      // Check if we have enough info to offer slots
+      const snap = await getCustomerSnapshot(detailer.id, from);
+      const hasName = snap?.customerName && snap.customerName.trim() !== '';
+      const hasVehicle = snap?.vehicle && snap.vehicle.trim() !== '';
+      const hasServices = snap?.services && snap.services.length > 0;
+      const hasAddress = snap?.address && snap.address.trim() !== '';
+      
+      if (hasName && hasVehicle && hasServices && hasAddress) {
+        newPhase = 'offering_slots';
+        await updateConversationPhase(conversation.id, newPhase, {
+          readyForSlots: true,
+          lastSlotOffer: new Date().toISOString()
+        });
+      }
+    } else if (currentPhase === 'offering_slots') {
+      // Move to awaiting choice after offering slots
+      if (aiResponse.toLowerCase().includes('available') || 
+          aiResponse.toLowerCase().includes('time') ||
+          aiResponse.toLowerCase().includes('pick') ||
+          aiResponse.toLowerCase().includes('choose')) {
+        newPhase = 'awaiting_choice';
+        await updateConversationPhase(conversation.id, newPhase, {
+          slotsOffered: true,
+          slotsOfferedAt: new Date().toISOString()
+        });
+      }
+    } else if (currentPhase === 'awaiting_choice') {
+      if (userPickedExactSlot) {
+        newPhase = 'confirming';
+        await updateConversationPhase(conversation.id, newPhase, {
+          slotSelected: true,
+          selectedAt: new Date().toISOString()
+        });
+      } else if (userAskedDifferentTime) {
+        // Go back to offering slots for different time
+        newPhase = 'offering_slots';
+        await updateConversationPhase(conversation.id, newPhase, {
+          requestedDifferentTime: true,
+          requestedAt: new Date().toISOString()
+        });
+      }
+    } else if (currentPhase === 'confirming') {
+      // Check if booking was completed
+      if (aiResponse.toLowerCase().includes('confirmation') || 
+          aiResponse.toLowerCase().includes('booked') ||
+          aiResponse.toLowerCase().includes('scheduled')) {
+        newPhase = 'completed';
+        await updateConversationPhase(conversation.id, newPhase, {
+          bookingCompleted: true,
+          completedAt: new Date().toISOString()
+        });
+      }
+    }
+    
+    console.log(`🔄 [${traceId}] Phase transition: ${currentPhase} → ${newPhase}`);
 
     // Lightweight booking creation: if user message includes a clear date and time
     // and we already have key details in the snapshot (name, vehicle, address),
@@ -3074,12 +3309,43 @@ Notes: ${parsed.note || 'Auto-captured from SMS conversation'}
       console.error('Non-fatal error creating lightweight booking:', e)
     }
 
-    console.log('=== FAST SMS WEBHOOK SUCCESS ===');
-    if (twilioSid) console.log('Response sent:', twilioSid);
-    
-    // Log performance metrics
+    // 7) COMPREHENSIVE LOGGING AND OBSERVABILITY
     const endTime = Date.now();
-    console.log(`Webhook processing time: ${endTime - startTime}ms`);
+    const processingTime = endTime - startTime;
+    
+    console.log('=== FAST SMS WEBHOOK SUCCESS ===');
+    console.log(`🔍 [${traceId}] Performance Metrics:`, {
+      processingTimeMs: processingTime,
+      messageLength: body?.length || 0,
+      aiResponseLength: aiResponse?.length || 0,
+      availableSlotsGenerated: availableSlots?.length || 0,
+      phaseTransition: `${currentPhase} → ${newPhase}`,
+      twilioSid: twilioSid,
+      duplicatePrevented: false,
+      slotReofferingPrevented: currentPhase === 'awaiting_choice' && !userPickedExactSlot && !userAskedDifferentTime
+    });
+    
+    console.log(`🔍 [${traceId}] Availability Audit:`, {
+      reevaBookingsCount: existingBookings?.length || 0,
+      reevaEventsCount: existingEvents?.length || 0,
+      totalReevaBusyIntervals: reevaBusyIntervals?.length || 0,
+      googleCalendarConnected: detailer?.googleCalendarConnected || false,
+      businessHoursConfigured: !!detailer?.businessHours,
+      availableSlotsCount: availableSlots?.length || 0
+    });
+    
+    console.log(`🔍 [${traceId}] Conversation State:`, {
+      isFirstTimeCustomer,
+      hasExistingSnapshot: !!existingSnapshot,
+      conversationPhase: currentPhase,
+      userPickedExactSlot,
+      userAskedDifferentTime,
+      isBookingRelated,
+      asksForServices,
+      useStateMachine
+    });
+    
+    if (twilioSid) console.log(`📱 [${traceId}] Response sent successfully:`, twilioSid);
 
     // Release conversation lock
     releaseLock(conversationId);
@@ -3088,15 +3354,28 @@ Notes: ${parsed.note || 'Auto-captured from SMS conversation'}
       success: true,
       aiResponse,
       twilioSid: twilioSid,
-      processingTimeMs: endTime - startTime
+      processingTimeMs: processingTime,
+      traceId,
+      phaseTransition: `${currentPhase} → ${newPhase}`,
+      availabilityAudit: {
+        reevaBookingsCount: existingBookings?.length || 0,
+        reevaEventsCount: existingEvents?.length || 0,
+        availableSlotsCount: availableSlots?.length || 0
+      }
     });
 
   } catch (error) {
     console.error('=== FAST SMS WEBHOOK ERROR ===');
     console.error('Error details:', error);
     
-    // Release conversation lock on error
-    releaseLock(conversationId);
+    // Release conversation lock on error (if variables are in scope)
+    try {
+      if (typeof releaseLock === 'function' && conversationId) {
+        releaseLock(conversationId);
+      }
+    } catch (lockError) {
+      console.error('Error releasing conversation lock:', lockError);
+    }
     
     return NextResponse.json({
       error: 'Fast webhook error',
