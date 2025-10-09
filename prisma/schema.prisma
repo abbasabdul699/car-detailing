@@ -209,7 +209,7 @@ model Message {
   conversationId String       @db.ObjectId
   direction      String       // "inbound" or "outbound"
   content        String       // Message content
-  twilioSid      String?      // Twilio message SID for tracking
+  twilioSid      String?      @unique // Twilio message SID for tracking (unique to prevent duplicates)
   status         String       @default("sent") // sent, delivered, failed
   createdAt      DateTime?    @default(now())
 }

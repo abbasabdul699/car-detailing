@@ -1000,22 +1000,8 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ success: true, deduped: true, reason: 'message_already_processed' });
         }
         
-        // Create a temporary record to prevent race conditions
-        await prisma.message.create({
-          data: {
-            conversationId: 'temp-dedup', // Temporary, will be updated later
-            direction: 'inbound',
-            content: 'TEMP_DEDUP_RECORD',
-            twilioSid: messageSid,
-            status: 'processing',
-          }
-        }).catch((error: any) => {
-          if (error.code === 'P2002') { // Unique constraint violation
-            console.log('🚫 RACE CONDITION DETECTED - MessageSid being processed by another worker:', messageSid);
-            return NextResponse.json({ success: true, deduped: true, reason: 'race_condition' });
-          }
-          throw error;
-        });
+        // Note: We rely on the unique constraint on twilioSid to prevent duplicates
+        // The actual message will be created later in the flow with the real conversationId
         
       } catch (error: any) {
         if (error.code === 'P2002') { // Unique constraint violation
