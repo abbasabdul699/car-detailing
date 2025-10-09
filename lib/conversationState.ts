@@ -21,8 +21,8 @@ export interface ConversationContext {
   detailerId: string;
   customerPhone: string;
   messageSid: string;
-  slots?: Array<{ startLocal: string; startISO: string; label: string }>;
-  selectedSlot?: { startLocal: string; startISO: string; label: string };
+  slots?: Array<{ startLocal: string; startISO?: string; label?: string; endLocal?: string; startUtcISO?: string; endUtcISO?: string }>;
+  selectedSlot?: { startLocal: string; startISO?: string; label?: string; endLocal?: string; startUtcISO?: string; endUtcISO?: string };
   lastMessageTime: Date;
   attempts: number;
   metadata?: Record<string, any>;
@@ -203,7 +203,7 @@ export async function processConversationState(
   context: ConversationContext,
   userMessage: string,
   detailerServices: any[],
-  availableSlots?: Array<{ startLocal: string; startISO: string; label: string }>
+  availableSlots?: Array<{ startLocal: string; startISO?: string; label?: string; endLocal?: string; startUtcISO?: string; endUtcISO?: string }>
 ): Promise<{
   response: string;
   newContext: ConversationContext;
@@ -743,8 +743,8 @@ export async function processConversationState(
  */
 function pickSlotFromMessage(
   userMessage: string,
-  slots: Array<{ startLocal: string; startISO: string; label: string }>
-): { startLocal: string; startISO: string; label: string } | null {
+  slots: Array<{ startLocal: string; startISO?: string; label?: string; endLocal?: string; startUtcISO?: string; endUtcISO?: string }>
+): { startLocal: string; startISO?: string; label?: string; endLocal?: string; startUtcISO?: string; endUtcISO?: string } | null {
   const message = userMessage.trim().toLowerCase();
   
   // Check for number selection (1, 2, 3, etc.)
@@ -777,8 +777,8 @@ function pickSlotFromMessage(
       return slot;
     }
     
-    // Also check the label field
-    if (message.includes(slot.label.toLowerCase())) {
+    // Also check the label field if it exists
+    if (slot.label && message.includes(slot.label.toLowerCase())) {
       return slot;
     }
   }
