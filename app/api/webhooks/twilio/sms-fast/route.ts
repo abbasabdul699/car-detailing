@@ -2156,10 +2156,10 @@ Be conversational and natural.`;
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: 'gpt-5', // Using GPT-5 for improved performance
+            model: 'gpt-4o', // Using GPT-4o (most reliable and available model)
             messages,
-            max_completion_tokens: 160,
-            //temperature: 0.7,
+            max_tokens: 160,
+            temperature: 0.7,
           }),
         });
         clearTimeout(timeout)
