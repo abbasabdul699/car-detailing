@@ -308,11 +308,12 @@ export async function processConversationState(
           if (isAvailable) {
             response = `Perfect! I have ${month} ${day} at ${hour}:${minute} ${period?.toUpperCase() || ''} available. Please confirm by replying 'yes' or 'confirm' to book this appointment.`;
             
-            // Create a mock slot for the selected time
+            // Create a mock slot for the selected time with date field
             const selectedSlot = {
               startLocal: `${month} ${day} at ${hour}:${minute} ${period?.toUpperCase() || ''}`,
               startISO: `${dateStr}T${requestedTime}:00.000Z`,
-              label: `${month} ${day} at ${hour}:${minute} ${period?.toUpperCase() || ''}`
+              label: `${month} ${day} at ${hour}:${minute} ${period?.toUpperCase() || ''}`,
+              date: dateStr // Add date field for booking creation
             };
             
             newContext = await updateConversationContext(context, 'awaiting_confirm', {
