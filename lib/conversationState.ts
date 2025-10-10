@@ -688,7 +688,16 @@ export async function processConversationState(
             } else {
               // IMPROVED: Handle conflicts by suggesting alternative times
               if (bookingResult.error && bookingResult.error.includes('conflict')) {
-                response = "Sorry, that time slot just got booked by someone else. Here are some alternative times:\n\nMonday, Oct 13: 8:00 AM, 8:30 AM, 9:00 AM, 9:30 AM\nTuesday, Oct 14: 8:00 AM, 8:30 AM, 9:00 AM, 9:30 AM\n\nWhich time would work for you?";
+                if (bookingResult.suggestions && bookingResult.suggestions.length > 0) {
+                  // Use dynamic suggestions from the booking API
+                  const suggestionsText = bookingResult.suggestions.map((slot, i) => 
+                    `${i + 1}. ${slot.startLocal}`
+                  ).join('\n');
+                  
+                  response = `Sorry, that time slot just got booked by someone else. Here are some alternative times:\n\n${suggestionsText}\n\nWhich time would work for you?`;
+                } else {
+                  response = "Sorry, that time slot just got booked by someone else. Please try asking for available times again.";
+                }
                 newContext = await updateConversationContext(context, 'awaiting_time');
               } else {
                 response = `Hit a snag creating the booking. ${bookingResult.message || 'Please try "confirm" again in a moment or text HELP.'}`;
@@ -836,7 +845,16 @@ export async function processConversationState(
           } else {
             // IMPROVED: Handle conflicts by suggesting alternative times
             if (bookingResult.error && bookingResult.error.includes('conflict')) {
-              response = "Sorry, that time slot just got booked by someone else. Here are some alternative times:\n\nMonday, Oct 13: 8:00 AM, 8:30 AM, 9:00 AM, 9:30 AM\nTuesday, Oct 14: 8:00 AM, 8:30 AM, 9:00 AM, 9:30 AM\n\nWhich time would work for you?";
+              if (bookingResult.suggestions && bookingResult.suggestions.length > 0) {
+                // Use dynamic suggestions from the booking API
+                const suggestionsText = bookingResult.suggestions.map((slot, i) => 
+                  `${i + 1}. ${slot.startLocal}`
+                ).join('\n');
+                
+                response = `Sorry, that time slot just got booked by someone else. Here are some alternative times:\n\n${suggestionsText}\n\nWhich time would work for you?`;
+              } else {
+                response = "Sorry, that time slot just got booked by someone else. Please try asking for available times again.";
+              }
               newContext = await updateConversationContext(context, 'awaiting_time');
             } else {
               response = `Hit a snag creating the booking. ${bookingResult.message || 'Please try "confirm" again in a moment or text HELP.'}`;
