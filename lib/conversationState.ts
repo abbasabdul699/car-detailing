@@ -435,7 +435,23 @@ export async function processConversationState(
           
           if (isAvailable) {
             response = `Yes! ${month} ${day} at ${hour}:${minute} ${period?.toUpperCase() || ''} is available. Would you like to book that time?`;
-            newContext = await updateConversationContext(context, 'awaiting_confirm');
+            
+            // Create a selectedSlot for the available time
+            const selectedSlot = {
+              startLocal: `${month} ${day} at ${hour}:${minute} ${period?.toUpperCase() || ''}`,
+              startISO: `${dateStr}T${requestedTime}:00.000Z`,
+              label: `${month} ${day} at ${hour}:${minute} ${period?.toUpperCase() || ''}`,
+              date: dateStr // Add date field for booking creation
+            };
+            
+            newContext = await updateConversationContext(context, 'awaiting_confirm', {
+              selectedSlot,
+              metadata: { 
+                ...context.metadata, 
+                selectedDate: dateStr,
+                selectedTime: requestedTime
+              }
+            });
           } else {
             // Find available times for that day
             const availableTimes = slots.slice(0, 4).map(slot => {
@@ -822,6 +838,10 @@ export async function processConversationState(
       break;
 
     case 'awaiting_confirm':
+      console.log('🔍 DEBUG: awaiting_confirm state - User message:', userMessage);
+      console.log('🔍 DEBUG: awaiting_confirm state - selectedSlot:', context.selectedSlot);
+      console.log('🔍 DEBUG: awaiting_confirm state - metadata:', context.metadata);
+      
       if (userConfirmed(userMessage)) {
         // Attempt to create booking
         try {
@@ -831,6 +851,12 @@ export async function processConversationState(
           const timeMatch = context.selectedSlot?.startLocal?.match(/(\d{1,2}:\d{2}\s*[AP]M)/i);
           const extractedTime = timeMatch ? timeMatch[1] : '10:00 AM';
           const selectedDate = (context.selectedSlot as any)?.date || context.metadata?.selectedDate || new Date().toISOString().split('T')[0];
+          
+          console.log('🔍 DEBUG: Booking request details:', {
+            extractedTime,
+            selectedDate,
+            selectedSlot: context.selectedSlot
+          });
           
           const bookingRequest = {
             detailerId: context.detailerId,
