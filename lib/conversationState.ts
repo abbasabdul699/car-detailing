@@ -657,13 +657,12 @@ export async function processConversationState(
         // Check if user is confirming (e.g., "yes", "confirm") and we have a selected slot
         const isConfirming = /^(yes|confirm|confirmed|book|book it|schedule)$/i.test(userMessage.trim());
         if (isConfirming && context.selectedSlot) {
-          // User is confirming their selected time
-          const timeMatch = context.selectedSlot.startLocal.match(/(\d{1,2}:\d{2}\s*[AP]M)/i);
-          const timeStr = timeMatch ? timeMatch[1] : context.selectedSlot.startLocal;
-          response = `Great! I have you down for ${timeStr}.\n\nPlease confirm by replying 'yes' or 'confirm' to book this appointment.`;
+          // User is confirming their selected time - move to awaiting_confirm state
+          // The actual booking creation will be handled by the 'awaiting_confirm' case
           newContext = await updateConversationContext(context, 'awaiting_confirm', {
             selectedSlot: context.selectedSlot
           });
+          // Don't set response here - let the awaiting_confirm case handle the booking creation
           break;
         }
         
