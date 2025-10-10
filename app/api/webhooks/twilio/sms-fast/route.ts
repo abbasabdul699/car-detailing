@@ -2298,19 +2298,21 @@ Be conversational and natural.`;
               const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://www.reevacar.com';
               
               // Extract booking details from the current AI response instead of old snapshot
-              const nameMatch = aiResponse.match(/Name:\s*([^\n]+)/);
-              const dateMatch = aiResponse.match(/Date:\s*([^\n]+)/);
-              const timeMatch = aiResponse.match(/Time:\s*([^\n]+)/);
-              const carMatch = aiResponse.match(/Car:\s*([^\n]+)/);
-              const serviceMatch = aiResponse.match(/Service:\s*([^\n]+)/);
-              const addressMatch = aiResponse.match(/Address:\s*([^\n]+)/);
+              // Handle both plain and markdown formatted responses
+              const nameMatch = aiResponse.match(/\*\*Name:\*\*\s*([^\n]+)/) || aiResponse.match(/Name:\s*([^\n]+)/);
+              const dateMatch = aiResponse.match(/\*\*Date:\*\*\s*([^\n]+)/) || aiResponse.match(/Date:\s*([^\n]+)/);
+              const timeMatch = aiResponse.match(/\*\*Time:\*\*\s*([^\n]+)/) || aiResponse.match(/Time:\s*([^\n]+)/);
+              const carMatch = aiResponse.match(/\*\*Car:\*\*\s*([^\n]+)/) || aiResponse.match(/Car:\s*([^\n]+)/);
+              const serviceMatch = aiResponse.match(/\*\*Service:\*\*\s*([^\n]+)/) || aiResponse.match(/Service:\s*([^\n]+)/);
+              const addressMatch = aiResponse.match(/\*\*Address:\*\*\s*([^\n]+)/) || aiResponse.match(/Address:\s*([^\n]+)/);
               
-              const name = nameMatch?.[1]?.trim() || 'Customer';
-              const date = dateMatch?.[1]?.trim() || 'Your scheduled date';
-              const time = timeMatch?.[1]?.trim() || 'Your scheduled time';
-              const car = carMatch?.[1]?.trim() || 'Your vehicle';
-              const service = serviceMatch?.[1]?.trim() || 'Car Detailing';
-              const address = addressMatch?.[1]?.trim() || 'Your address';
+              // Clean up any remaining markdown formatting
+              const name = nameMatch?.[1]?.trim().replace(/^\*\*|\*\*$/g, '') || 'Customer';
+              const date = dateMatch?.[1]?.trim().replace(/^\*\*|\*\*$/g, '') || 'Your scheduled date';
+              const time = timeMatch?.[1]?.trim().replace(/^\*\*|\*\*$/g, '') || 'Your scheduled time';
+              const car = carMatch?.[1]?.trim().replace(/^\*\*|\*\*$/g, '') || 'Your vehicle';
+              const service = serviceMatch?.[1]?.trim().replace(/^\*\*|\*\*$/g, '') || 'Car Detailing';
+              const address = addressMatch?.[1]?.trim().replace(/^\*\*|\*\*$/g, '') || 'Your address';
               
               // Create shorter URL with essential details only
               const params = new URLSearchParams({
@@ -2352,7 +2354,12 @@ Be conversational and natural.`;
              // Import the booking creation logic directly
              const { normalizeLocalSlotV2 } = await import('@/lib/timeUtilsV2');
              
-             const bookingTime = time !== 'Your scheduled time' ? time : '10:00 AM';
+             // Extract just the start time if it's a time range (e.g., "3:00 PM - 5:00 PM" -> "3:00 PM")
+             let bookingTime = time !== 'Your scheduled time' ? time : '10:00 AM';
+             if (bookingTime.includes(' - ') || bookingTime.includes(' – ')) {
+               // Split on either hyphen or en-dash and take the first part
+               bookingTime = bookingTime.split(/\s+[-–]\s+/)[0].trim();
+             }
              
              // Normalize the time input to ISO format
              const { startUtcISO, endUtcISO } = normalizeLocalSlotV2(
