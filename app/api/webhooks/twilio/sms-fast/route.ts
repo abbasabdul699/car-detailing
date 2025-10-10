@@ -1810,25 +1810,25 @@ WHEN CUSTOMER ASKS "what is my name?" or "what's my name?":
       const detailerTimezone = detailer.timezone || 'America/New_York';
       
       if (checkMultipleDays) {
-        // Check availability for the next 7 days when no specific date is requested
-        console.log(`🔍 [${traceId}] Checking availability for next 7 days (general availability query)`);
+        // Check availability for the next 2 days when no specific date is requested
+        console.log(`🔍 [${traceId}] Checking availability for next 2 days (general availability query)`);
         
         const allSlots: any[] = [];
         const today = new Date();
         
-        // Check each of the next 7 days
-        for (let i = 0; i < 7; i++) {
+        // Check each of the next 2 days (reduced from 7 to avoid overwhelming customers)
+        for (let i = 0; i < 2; i++) {
           const checkDate = new Date(today);
           checkDate.setDate(today.getDate() + i);
           const dateISO = checkDate.toISOString().split('T')[0];
           
-          console.log(`🔍 [${traceId}] Checking availability for ${dateISO} (day ${i + 1}/7)`);
+          console.log(`🔍 [${traceId}] Checking availability for ${dateISO} (day ${i + 1}/2)`);
           
           try {
             const daySlots = await getMergedFreeSlots(dateISO, googleCalendarId || 'primary', reevaBusyIntervals, detailer.id, 120, 30, detailerTimezone);
             
-            // Add slots for this day
-            const mappedSlots = daySlots.map(slot => ({
+            // Add slots for this day (limit to 4 per day to avoid overwhelming customers)
+            const mappedSlots = daySlots.slice(0, 4).map(slot => ({
               startLocal: slot.label,
               endLocal: slot.label.split(' – ')[1] || slot.label,
               startUtcISO: slot.startISO,
@@ -1837,14 +1837,14 @@ WHEN CUSTOMER ASKS "what is my name?" or "what's my name?":
             }));
             
             allSlots.push(...mappedSlots);
-            console.log(`🔍 [${traceId}] Found ${mappedSlots.length} slots for ${dateISO}`);
+            console.log(`🔍 [${traceId}] Added ${mappedSlots.length} slots for ${dateISO} (limited to 4 per day)`);
           } catch (error) {
             console.error(`❌ Error checking availability for ${dateISO}:`, error);
           }
         }
         
         availableSlots = allSlots;
-        console.log(`🔍 DEBUG: Generated ${availableSlots.length} total available slots across 7 days`);
+        console.log(`🔍 DEBUG: Generated ${availableSlots.length} total available slots across 2 days`);
         console.log(`🔍 DEBUG: User requested: general availability (no specific date/time)`);
         console.log('🔍 DEBUG: First 5 slots:', availableSlots.slice(0, 5).map(s => `${s.startLocal} – ${s.endLocal}`));
         

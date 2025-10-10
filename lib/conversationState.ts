@@ -671,14 +671,35 @@ export async function processConversationState(
         const isAskingForTimes = /what times?|don'?t see|show me|available|options/i.test(userMessage);
         
         if (isAskingForTimes && slotsToUse.length > 0) {
-          // Show the available times
-          const timeOptions = slotsToUse.map((slot, index) => {
-            const timeMatch = slot.startLocal.match(/(\d{1,2}:\d{2}\s*[AP]M)/i);
-            const timeStr = timeMatch ? timeMatch[1] : slot.startLocal;
-            return `${index + 1}. ${timeStr}`;
+          // Group slots by date and format nicely
+          const slotsByDate: { [date: string]: any[] } = {};
+          
+          slotsToUse.forEach(slot => {
+            const dateKey = (slot as any).date || (slot.startUtcISO ? new Date(slot.startUtcISO).toISOString().split('T')[0] : 'unknown');
+            if (!slotsByDate[dateKey]) {
+              slotsByDate[dateKey] = [];
+            }
+            slotsByDate[dateKey].push(slot);
+          });
+          
+          // Format each day with its times
+          const dayOptions = Object.keys(slotsByDate).map(dateKey => {
+            const daySlots = slotsByDate[dateKey];
+            const dayName = new Date(dateKey).toLocaleDateString('en-US', { 
+              weekday: 'long', 
+              month: 'short', 
+              day: 'numeric' 
+            });
+            
+            const times = daySlots.map(slot => {
+              const timeMatch = slot.startLocal.match(/(\d{1,2}:\d{2}\s*[AP]M)/i);
+              return timeMatch ? timeMatch[1] : slot.startLocal;
+            }).join(', ');
+            
+            return `${dayName}: ${times}`;
           }).join('\n');
           
-          response = `Here are our available times:\n\n${timeOptions}\n\nPlease reply with the time you'd like (e.g., "7:00 PM") or the number.`;
+          response = `Here are our available times:\n\n${dayOptions}\n\nWhich day and time works for you?`;
           newContext = await updateConversationContext(context, 'awaiting_time');
           break;
         }
@@ -691,14 +712,35 @@ export async function processConversationState(
         if (!selectedSlot) {
           // Show the available times to the user
           if (slotsToUse.length > 0) {
-            const timeOptions = slotsToUse.map((slot, index) => {
-              // Extract time from startLocal (e.g., "Thursday, Oct 9 7:00 PM – 9:00 PM America/New_York" -> "7:00 PM")
-              const timeMatch = slot.startLocal.match(/(\d{1,2}:\d{2}\s*[AP]M)/i);
-              const timeStr = timeMatch ? timeMatch[1] : slot.startLocal;
-              return `${index + 1}. ${timeStr}`;
+            // Group slots by date and format nicely
+            const slotsByDate: { [date: string]: any[] } = {};
+            
+            slotsToUse.forEach(slot => {
+              const dateKey = (slot as any).date || (slot.startUtcISO ? new Date(slot.startUtcISO).toISOString().split('T')[0] : 'unknown');
+              if (!slotsByDate[dateKey]) {
+                slotsByDate[dateKey] = [];
+              }
+              slotsByDate[dateKey].push(slot);
+            });
+            
+            // Format each day with its times
+            const dayOptions = Object.keys(slotsByDate).map(dateKey => {
+              const daySlots = slotsByDate[dateKey];
+              const dayName = new Date(dateKey).toLocaleDateString('en-US', { 
+                weekday: 'long', 
+                month: 'short', 
+                day: 'numeric' 
+              });
+              
+              const times = daySlots.map(slot => {
+                const timeMatch = slot.startLocal.match(/(\d{1,2}:\d{2}\s*[AP]M)/i);
+                return timeMatch ? timeMatch[1] : slot.startLocal;
+              }).join(', ');
+              
+              return `${dayName}: ${times}`;
             }).join('\n');
             
-            response = `Here are our available times:\n\n${timeOptions}\n\nPlease reply with the time you'd like (e.g., "7:00 PM") or the number.`;
+            response = `Here are our available times:\n\n${dayOptions}\n\nWhich day and time works for you?`;
           } else {
             response = "I don't have any available times right now. What day works for you?";
             newContext = await updateConversationContext(context, 'awaiting_date');
