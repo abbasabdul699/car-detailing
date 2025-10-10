@@ -657,12 +657,36 @@ export async function processConversationState(
         // Check if user is confirming (e.g., "yes", "confirm") and we have a selected slot
         const isConfirming = /^(yes|confirm|confirmed|book|book it|schedule)$/i.test(userMessage.trim());
         if (isConfirming && context.selectedSlot) {
-          // User is confirming their selected time - move to awaiting_confirm state
-          // The actual booking creation will be handled by the 'awaiting_confirm' case
-          newContext = await updateConversationContext(context, 'awaiting_confirm', {
-            selectedSlot: context.selectedSlot
-          });
-          // Don't set response here - let the awaiting_confirm case handle the booking creation
+          // User is confirming their selected time - CREATE THE BOOKING IMMEDIATELY
+          try {
+            const { createBookingWithRetry } = await import('./bookingClient');
+            
+            const bookingRequest = {
+              detailerId: context.detailerId,
+              date: context.metadata?.selectedDate || new Date().toISOString().split('T')[0],
+              time: context.selectedSlot?.startLocal || '10:00 AM',
+              durationMinutes: 240,
+              tz: 'America/New_York',
+              title: `Customer - Full Detail`,
+              customerPhone: context.customerPhone,
+              source: 'AI'
+            };
+            
+            const idempotencyKey = `${context.detailerId}:${context.customerPhone}:${context.messageSid}`;
+            const bookingResult = await createBookingWithRetry(bookingRequest, idempotencyKey);
+            
+            if (bookingResult.ok) {
+              response = "Perfect! 📅 Your appointment is confirmed. You'll receive a confirmation text shortly.";
+              newContext = await updateConversationContext(context, 'confirmed');
+            } else {
+              response = `Hit a snag creating the booking. ${bookingResult.message || 'Please try "confirm" again in a moment or text HELP.'}`;
+              newContext = await updateConversationContext(context, 'awaiting_confirm');
+            }
+          } catch (error) {
+            console.error('Error creating booking:', error);
+            response = "I'm having trouble creating your appointment right now. Please try again in a moment, or contact us directly for assistance.";
+            newContext = await updateConversationContext(context, 'error');
+          }
           break;
         }
         
