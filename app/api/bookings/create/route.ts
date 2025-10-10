@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
         time: conflict.scheduledTime || conflict.time || 'TBD'
       }));
 
-      const suggestions = suggestNextSlots(endUtcISO, durationMinutes, 3);
+      const suggestions = suggestNextSlotsV2(endUtcISO, durationMinutes, 3);
 
       console.log('CONFLICT DETECTED:', conflictDetails);
 
