@@ -1666,9 +1666,63 @@ WHEN CUSTOMER ASKS "what is my name?" or "what's my name?":
     try {
       const { getMergedFreeSlots } = await import('@/lib/slotComputationV2');
       
-      // Get concrete slots for next week using Google FreeBusy
+      // Parse user's date/time request first
+      const parseUserDateTime = (message: string): { date?: string; time?: string } | null => {
+        const msg = message.toLowerCase().trim();
+        
+        // Look for patterns like "sunday at 9 AM", "tomorrow at 2 PM", "friday at 10:30 AM"
+        const dayTimeMatch = msg.match(/(sunday|monday|tuesday|wednesday|thursday|friday|saturday|tomorrow|today)\s+(?:at\s+)?(\d{1,2}):?(\d{2})?\s*(am|pm)/i);
+        
+        if (dayTimeMatch) {
+          const [, day, hour, minute = '00', period] = dayTimeMatch;
+          
+          let targetDate: Date;
+          const today = new Date();
+          
+          if (day === 'today') {
+            targetDate = new Date(today);
+          } else if (day === 'tomorrow') {
+            targetDate = new Date(today);
+            targetDate.setDate(today.getDate() + 1);
+          } else {
+            // Map day names to day numbers (0 = Sunday, 1 = Monday, etc.)
+            const dayMap: { [key: string]: number } = {
+              'sunday': 0, 'monday': 1, 'tuesday': 2, 'wednesday': 3,
+              'thursday': 4, 'friday': 5, 'saturday': 6
+            };
+            
+            const targetDay = dayMap[day.toLowerCase()];
+            targetDate = new Date(today);
+            
+            // Find the next occurrence of that day
+            const daysUntilTarget = (targetDay - today.getDay() + 7) % 7;
+            targetDate.setDate(today.getDate() + (daysUntilTarget === 0 ? 7 : daysUntilTarget));
+          }
+          
+          // Format time
+          let hourNum = parseInt(hour);
+          if (period.toLowerCase() === 'pm' && hourNum !== 12) hourNum += 12;
+          if (period.toLowerCase() === 'am' && hourNum === 12) hourNum = 0;
+          
+          const timeStr = `${hourNum.toString().padStart(2, '0')}:${minute.padStart(2, '0')}`;
+          const fullTimeStr = `${hour}:${minute} ${period.toUpperCase()}`;
+          
+          return {
+            date: targetDate.toISOString().split('T')[0], // YYYY-MM-DD format
+            time: fullTimeStr
+          };
+        }
+        
+        return null;
+      };
+      
+      // Parse user's date/time request first
+      const userDateTime = parseUserDateTime(body);
       const today = new Date();
-      const dayISO = today.toISOString().split('T')[0];
+      const dayISO = userDateTime?.date || today.toISOString().split('T')[0];
+      
+      console.log(`🔍 [${traceId}] User date/time request:`, userDateTime);
+      console.log(`🔍 [${traceId}] Using date for availability: ${dayISO}`);
       
       // 6) MERGE REEVA CALENDAR INTO BUSY SET - COMPREHENSIVE AVAILABILITY
       console.log(`🔍 [${traceId}] Computing comprehensive availability including all Reeva calendar events`);
@@ -1702,7 +1756,7 @@ WHEN CUSTOMER ASKS "what is my name?" or "what's my name?":
       console.log(`🔍 [${traceId}] Found ${existingBookings.length} Reeva bookings and ${existingEvents.length} Reeva events`);
       
       // Convert ALL Reeva calendar items to busy intervals
-      const reevaBusyIntervals = [];
+      reevaBusyIntervals = [];
       
       // Add bookings
       existingBookings.forEach(booking => {
@@ -1761,7 +1815,8 @@ WHEN CUSTOMER ASKS "what is my name?" or "what's my name?":
         endUtcISO: slot.endISO
       }));
       
-      console.log(`🔍 DEBUG: Generated ${availableSlots.length} available slots for business hours compliance`);
+      console.log(`🔍 DEBUG: Generated ${availableSlots.length} available slots for ${dayISO}`);
+      console.log(`🔍 DEBUG: User requested: ${userDateTime ? `${userDateTime.date} at ${userDateTime.time}` : 'no specific date/time'}`);
       console.log('🔍 DEBUG: First 5 slots:', availableSlots.slice(0, 5).map(s => `${s.startLocal} – ${s.endLocal}`));
     } catch (error) {
       console.error('❌ ERROR in slot computation:', error);
