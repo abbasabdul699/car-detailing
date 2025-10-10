@@ -61,7 +61,7 @@ export async function getConversationContext(
         messageSid,
         slots: metadata.slots || [],
         selectedSlot: metadata.selectedSlot || undefined,
-        lastMessageTime: conversation.updatedAt,
+        lastMessageTime: conversation.updatedAt || new Date(),
         attempts: metadata.attempts || 0,
         metadata: metadata
       };
@@ -277,10 +277,10 @@ export async function processConversationState(
             const end = start.plus({ minutes: duration });
             
             return {
-              start: start.toUTC().toISO(),
-              end: end.toUTC().toISO()
+              start: start.toUTC().toISO() || '',
+              end: end.toUTC().toISO() || ''
             };
-          });
+          }).filter(booking => booking.start && booking.end);
           
           const slots = await getMergedFreeSlots(
             dateStr,
@@ -339,7 +339,8 @@ export async function processConversationState(
           }
         } catch (error) {
           console.error('Error processing date/time selection:', error);
-          response = "I had trouble processing that date and time. What date works for you? (We're open Mon–Fri 8a–6p)";
+          const businessHours = await formatBusinessHours(context.detailerId);
+          response = `I had trouble processing that date and time. What date works for you? (We're open ${businessHours})`;
           newContext = await updateConversationContext(context, 'awaiting_date');
         }
       } else {
@@ -392,10 +393,10 @@ export async function processConversationState(
             const end = start.plus({ minutes: duration });
             
             return {
-              start: start.toUTC().toISO(),
-              end: end.toUTC().toISO()
+              start: start.toUTC().toISO() || '',
+              end: end.toUTC().toISO() || ''
             };
-          });
+          }).filter(booking => booking.start && booking.end);
 
           console.log(`🔍 DEBUG: Found ${reevaBookings.length} existing bookings for ${dateStr}`);
           
@@ -450,7 +451,8 @@ export async function processConversationState(
           }
         } catch (error) {
           console.error('Error checking specific time availability:', error);
-          response = "I had trouble checking that specific time. What date works for you? (We're open Mon–Fri 8a–6p)";
+          const businessHours = await formatBusinessHours(context.detailerId);
+          response = `I had trouble checking that specific time. What date works for you? (We're open ${businessHours})`;
           newContext = await updateConversationContext(context, 'awaiting_date');
         }
       } else if (/available|times?|slots?|openings?|schedule/i.test(userMessage)) {
@@ -494,10 +496,10 @@ export async function processConversationState(
               const end = start.plus({ minutes: duration });
               
               return {
-                start: start.toUTC().toISO(),
-                end: end.toUTC().toISO()
+                start: start.toUTC().toISO() || '',
+                end: end.toUTC().toISO() || ''
               };
-            });
+            }).filter(booking => booking.start && booking.end);
             
             const slots = await getMergedFreeSlots(
               dateStr,
@@ -536,16 +538,25 @@ export async function processConversationState(
             response = `Here are our available times:\n\n${availableSlots.join('\n')}${calendarWarning}\n\nWhich day and time works for you?`;
             newContext = await updateConversationContext(context, 'awaiting_time');
           } else {
-            response = "I don't see any available slots in the next few days. What date works for you? (We're open Mon–Fri 8a–6p)";
+            const businessHours = await formatBusinessHours(context.detailerId);
+            response = `I don't see any available slots in the next few days. What date works for you? (We're open ${businessHours})`;
             newContext = await updateConversationContext(context, 'awaiting_date');
           }
         } catch (error) {
           console.error('Error getting availability:', error);
-          response = "What date works for you? (We're open Mon–Fri 8a–6p)";
+          const businessHours = await formatBusinessHours(context.detailerId);
+          response = `What date works for you? (We're open ${businessHours})`;
           newContext = await updateConversationContext(context, 'awaiting_date');
         }
+      } else if (userConfirmed(userMessage)) {
+        // User is trying to confirm something but we're in idle state
+        // This usually means they're responding to a previous message that got lost
+        const businessHours = await formatBusinessHours(context.detailerId);
+        response = `I don't have a specific appointment ready to confirm. What date works for you? (We're open ${businessHours})`;
+        newContext = await updateConversationContext(context, 'awaiting_date');
       } else {
-        response = "What date works for you? (We're open Mon–Fri 8a–6p)";
+        const businessHours = await formatBusinessHours(context.detailerId);
+        response = `What date works for you? (We're open ${businessHours})`;
         newContext = await updateConversationContext(context, 'awaiting_date');
       }
       }
@@ -561,13 +572,8 @@ export async function processConversationState(
         // Get available slots for this date
         const { getMergedFreeSlots } = await import('./slotComputationV2');
         
-        // Get detailer's calendar ID
-        const detailer = await prisma.detailer.findUnique({
-          where: { id: context.detailerId },
-          select: { googleCalendarId: true }
-        });
-        
-        const calendarId = detailer?.googleCalendarId || 'primary';
+        // Use primary calendar
+        const calendarId = 'primary';
         
         // Fetch existing bookings for this date
         const existingBookings = await prisma.booking.findMany({
@@ -596,10 +602,10 @@ export async function processConversationState(
           const end = start.plus({ minutes: duration });
           
           return {
-            start: start.toUTC().toISO(),
-            end: end.toUTC().toISO()
+            start: start.toUTC().toISO() || '',
+            end: end.toUTC().toISO() || ''
           };
-        });
+        }).filter(booking => booking.start && booking.end);
         
         const slots = await getMergedFreeSlots(
           dateStr,
@@ -954,6 +960,113 @@ function pickSlotFromMessage(
   }
   
   return null;
+}
+
+/**
+ * Format business hours from detailer profile
+ */
+async function formatBusinessHours(detailerId: string): Promise<string> {
+  try {
+    const detailer = await prisma.detailer.findUnique({
+      where: { id: detailerId },
+      select: { businessHours: true }
+    });
+    
+    if (!detailer?.businessHours) {
+      return "Mon–Fri 8a–6p"; // fallback
+    }
+    
+    const businessHours = detailer.businessHours as any;
+    if (typeof businessHours === 'object' && businessHours !== null) {
+      // Format the business hours object into a readable string
+      const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+      const dayAbbrevs = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      
+      let formattedHours = '';
+      let currentRange = '';
+      let startDay = '';
+      let endDay = '';
+      let startTime = '';
+      let endTime = '';
+      
+      for (let i = 0; i < days.length; i++) {
+        const day = days[i];
+        const dayAbbrev = dayAbbrevs[i];
+        const hours = businessHours[day.toLowerCase()];
+        
+        if (hours && hours.open && hours.close) {
+          const openTime = formatTime(hours.open);
+          const closeTime = formatTime(hours.close);
+          
+          if (!startTime) {
+            // Start of a range
+            startDay = dayAbbrev;
+            startTime = openTime;
+            endTime = closeTime;
+          } else if (startTime === openTime && endTime === closeTime) {
+            // Same hours, extend the range
+            endDay = dayAbbrev;
+          } else {
+            // Different hours, finish current range and start new one
+            if (currentRange) currentRange += ', ';
+            currentRange += formatRange(startDay, endDay, startTime, endTime);
+            
+            startDay = dayAbbrev;
+            endDay = dayAbbrev;
+            startTime = openTime;
+            endTime = closeTime;
+          }
+        } else if (startTime) {
+          // Closed day, finish current range
+          if (currentRange) currentRange += ', ';
+          currentRange += formatRange(startDay, endDay, startTime, endTime);
+          
+          startDay = '';
+          endDay = '';
+          startTime = '';
+          endTime = '';
+        }
+      }
+      
+      // Finish the last range
+      if (startTime) {
+        if (currentRange) currentRange += ', ';
+        currentRange += formatRange(startDay, endDay, startTime, endTime);
+      }
+      
+      return currentRange || "Mon–Fri 8a–6p";
+    }
+    
+    return "Mon–Fri 8a–6p"; // fallback
+  } catch (error) {
+    console.error('Error formatting business hours:', error);
+    return "Mon–Fri 8a–6p"; // fallback
+  }
+}
+
+/**
+ * Format time from 24-hour format to 12-hour format
+ */
+function formatTime(time: string): string {
+  if (!time) return '8a';
+  
+  const [hour, minute] = time.split(':').map(Number);
+  const period = hour >= 12 ? 'p' : 'a';
+  const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+  
+  if (minute === 0) {
+    return `${displayHour}${period}`;
+  } else {
+    return `${displayHour}:${minute.toString().padStart(2, '0')}${period}`;
+  }
+}
+
+/**
+ * Format day range and time
+ */
+function formatRange(startDay: string, endDay: string, startTime: string, endTime: string): string {
+  const dayRange = startDay === endDay ? startDay : `${startDay}–${endDay}`;
+  return `${dayRange} ${startTime}–${endTime}`;
 }
 
 /**
