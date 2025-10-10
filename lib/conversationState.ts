@@ -37,23 +37,28 @@ export async function getConversationContext(
   messageSid: string
 ): Promise<ConversationContext> {
   try {
-    // Try to find existing conversation
-    const conversation = await prisma.conversation.findFirst({
+    // Try to find existing conversation using unique constraint
+    const conversation = await prisma.conversation.findUnique({
       where: {
-        detailerId,
-        customerPhone,
-        // Only get recent conversations (within last 24 hours)
-        createdAt: {
-          gte: new Date(Date.now() - 24 * 60 * 60 * 1000)
+        detailerId_customerPhone: {
+          detailerId,
+          customerPhone
         }
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 1
+      }
     });
 
     if (conversation) {
       // Parse existing state from conversation metadata
       const metadata = conversation.metadata as any || {};
+      
+      console.log('🔍 DEBUG: Loaded conversation state from DB:', {
+        conversationId: conversation.id,
+        state: metadata.state || 'idle',
+        hasSlots: !!metadata.slots,
+        hasSelectedSlot: !!metadata.selectedSlot,
+        metadata: metadata
+      });
+      
       return {
         state: metadata.state || 'idle',
         detailerId,
@@ -68,6 +73,7 @@ export async function getConversationContext(
     }
 
     // Create new conversation context
+    console.log('🔍 DEBUG: No existing conversation found, creating new context');
     return {
       state: 'idle',
       detailerId,
@@ -110,8 +116,25 @@ export async function updateConversationContext(
       attempts: context.attempts + 1
     };
 
+    const metadataToSave = {
+      state: updatedContext.state,
+      slots: updatedContext.slots,
+      selectedSlot: updatedContext.selectedSlot,
+      attempts: updatedContext.attempts,
+      ...updatedContext.metadata
+    };
+
+    console.log('🔍 DEBUG: Saving conversation state to DB:', {
+      detailerId: context.detailerId,
+      customerPhone: context.customerPhone,
+      state: updatedContext.state,
+      hasSlots: !!updatedContext.slots && updatedContext.slots.length > 0,
+      hasSelectedSlot: !!updatedContext.selectedSlot,
+      metadataToSave: metadataToSave
+    });
+
     // Save to database
-    await prisma.conversation.upsert({
+    const savedConversation = await prisma.conversation.upsert({
       where: {
         detailerId_customerPhone: {
           detailerId: context.detailerId,
@@ -120,31 +143,26 @@ export async function updateConversationContext(
       },
       update: {
         updatedAt: new Date(),
-        metadata: {
-          state: updatedContext.state,
-          slots: updatedContext.slots,
-          selectedSlot: updatedContext.selectedSlot,
-          attempts: updatedContext.attempts,
-          ...updatedContext.metadata
-        }
+        metadata: metadataToSave
       },
       create: {
         detailerId: context.detailerId,
         customerPhone: context.customerPhone,
-        metadata: {
-          state: updatedContext.state,
-          slots: updatedContext.slots,
-          selectedSlot: updatedContext.selectedSlot,
-          attempts: updatedContext.attempts,
-          ...updatedContext.metadata
-        }
+        status: 'active',
+        lastMessageAt: new Date(),
+        metadata: metadataToSave
       }
+    });
+
+    console.log('✅ DEBUG: Conversation state saved successfully:', {
+      conversationId: savedConversation.id,
+      state: updatedContext.state
     });
 
     return updatedContext;
 
   } catch (error) {
-    console.error('Error updating conversation context:', error);
+    console.error('❌ Error updating conversation context:', error);
     return context; // Return original context on error
   }
 }
