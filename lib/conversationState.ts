@@ -661,10 +661,14 @@ export async function processConversationState(
           try {
             const { createBookingWithRetry } = await import('./bookingClient');
             
+            // Extract just the time portion from the slot description
+            const timeMatch = context.selectedSlot?.startLocal?.match(/(\d{1,2}:\d{2}\s*[AP]M)/i);
+            const extractedTime = timeMatch ? timeMatch[1] : '10:00 AM';
+            
             const bookingRequest = {
               detailerId: context.detailerId,
               date: context.metadata?.selectedDate || new Date().toISOString().split('T')[0],
-              time: context.selectedSlot?.startLocal || '10:00 AM',
+              time: extractedTime,
               durationMinutes: 240,
               tz: 'America/New_York',
               title: `Customer - Full Detail`,
