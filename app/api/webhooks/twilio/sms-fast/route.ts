@@ -1810,19 +1810,19 @@ WHEN CUSTOMER ASKS "what is my name?" or "what's my name?":
       const detailerTimezone = detailer.timezone || 'America/New_York';
       
       if (checkMultipleDays) {
-        // Check availability for the next 2 days when no specific date is requested
-        console.log(`🔍 [${traceId}] Checking availability for next 2 days (general availability query)`);
+        // Check availability for the next 5 days when no specific date is requested
+        console.log(`🔍 [${traceId}] Checking availability for next 5 days (general availability query)`);
         
         const allSlots: any[] = [];
         const today = new Date();
         
-        // Check each of the next 2 days (reduced from 7 to avoid overwhelming customers)
-        for (let i = 0; i < 2; i++) {
+        // Check each of the next 5 days to find available slots
+        for (let i = 0; i < 5; i++) {
           const checkDate = new Date(today);
           checkDate.setDate(today.getDate() + i);
           const dateISO = checkDate.toISOString().split('T')[0];
           
-          console.log(`🔍 [${traceId}] Checking availability for ${dateISO} (day ${i + 1}/2)`);
+          console.log(`🔍 [${traceId}] Checking availability for ${dateISO} (day ${i + 1}/5)`);
           
           try {
             const daySlots = await getMergedFreeSlots(dateISO, googleCalendarId || 'primary', reevaBusyIntervals, detailer.id, 120, 30, detailerTimezone);
@@ -1843,8 +1843,23 @@ WHEN CUSTOMER ASKS "what is my name?" or "what's my name?":
           }
         }
         
-        availableSlots = allSlots;
-        console.log(`🔍 DEBUG: Generated ${availableSlots.length} total available slots across 2 days`);
+        // Filter to show only first 2 days that have slots (to avoid overwhelming customers)
+        const slotsByDate: { [date: string]: any[] } = {};
+        allSlots.forEach(slot => {
+          const dateKey = (slot as any).date || (slot.startUtcISO ? new Date(slot.startUtcISO).toISOString().split('T')[0] : 'unknown');
+          if (!slotsByDate[dateKey]) {
+            slotsByDate[dateKey] = [];
+          }
+          slotsByDate[dateKey].push(slot);
+        });
+
+        // Get first 2 days that have slots
+        const availableDates = Object.keys(slotsByDate).sort().slice(0, 2);
+        availableSlots = availableDates.flatMap(dateKey => slotsByDate[dateKey]);
+
+        console.log(`🔍 DEBUG: Generated ${allSlots.length} total available slots across 5 days`);
+        console.log(`🔍 DEBUG: Showing slots for first 2 days with availability: ${availableDates.join(', ')}`);
+        console.log(`🔍 DEBUG: Displaying ${availableSlots.length} slots (limited to 2 days)`);
         console.log(`🔍 DEBUG: User requested: general availability (no specific date/time)`);
         console.log('🔍 DEBUG: First 5 slots:', availableSlots.slice(0, 5).map(s => `${s.startLocal} – ${s.endLocal}`));
         
