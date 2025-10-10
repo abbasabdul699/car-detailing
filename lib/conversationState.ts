@@ -599,6 +599,139 @@ export async function processConversationState(
 
     case 'awaiting_date':
       try {
+        // First check if user is selecting a specific date and time (e.g., "Oct 9 at 3 PM", "let's do October 10th at 9:30 AM")
+        const dateTimeSelectionMatch = userMessage.match(/(?:let'?s?\s+do|lets\s+do|ok,?\s+let'?s?\s+do|ok\s+lets\s+do|ok,?\s+lets\s+do|i'?ll\s+take|book|schedule)\s+(october|november|december|january|february|march|april|may|june|july|august|september|oct|nov|dec|jan|feb|mar|apr|may|jun|jul|aug|sep)\s+(\d{1,2})(?:st|nd|rd|th)?\s+(?:at\s+)?(\d{1,2}):?(\d{2})?\s*(am|pm)?/i);
+        
+        if (dateTimeSelectionMatch) {
+          // User is selecting a specific date and time for booking
+          try {
+            const [, month, day, hour, minute = '00', period] = dateTimeSelectionMatch;
+            const currentYear = new Date().getFullYear();
+            
+            // Handle abbreviated month names
+            const monthMap: { [key: string]: number } = {
+              'jan': 0, 'january': 0, 'feb': 1, 'february': 1, 'mar': 2, 'march': 2,
+              'apr': 3, 'april': 3, 'may': 4, 'jun': 5, 'june': 5, 'jul': 6, 'july': 6,
+              'aug': 7, 'august': 7, 'sep': 8, 'september': 8, 'oct': 9, 'october': 9,
+              'nov': 10, 'november': 10, 'dec': 11, 'december': 11
+            };
+            
+            const monthIndex = monthMap[month.toLowerCase()];
+            if (monthIndex === undefined) {
+              throw new Error(`Invalid month: ${month}`);
+            }
+            
+            const requestedDate = new Date(currentYear, monthIndex, parseInt(day));
+            
+            // Parse time
+            let hour24 = parseInt(hour);
+            if (period?.toLowerCase() === 'pm' && hour24 !== 12) hour24 += 12;
+            if (period?.toLowerCase() === 'am' && hour24 === 12) hour24 = 0;
+            
+            const requestedTime = `${hour24.toString().padStart(2, '0')}:${minute}`;
+            const dateStr = requestedDate.toISOString().split('T')[0];
+            
+            // Check availability for this specific time
+            const { getMergedFreeSlots } = await import('./slotComputationV2');
+            
+            // Fetch existing bookings for this date
+            const existingBookings = await prisma.booking.findMany({
+              where: {
+                detailerId: context.detailerId,
+                status: { in: ['confirmed', 'pending'] },
+                scheduledDate: {
+                  gte: new Date(requestedDate.toISOString().split('T')[0] + 'T00:00:00.000Z'),
+                  lt: new Date(requestedDate.toISOString().split('T')[0] + 'T23:59:59.999Z')
+                }
+              },
+              select: {
+                scheduledDate: true,
+                scheduledTime: true,
+                duration: true
+              }
+            });
+
+            // Convert bookings to the format expected by getMergedFreeSlots
+            const reevaBookings = existingBookings.map(booking => {
+              const bookingDate = booking.scheduledDate.toISOString().split('T')[0];
+              const startTime = booking.scheduledTime || '10:00';
+              const duration = booking.duration || 240;
+              
+              const start = DateTime.fromISO(`${bookingDate}T${startTime}`, { zone: 'America/New_York' });
+              const end = start.plus({ minutes: duration });
+              
+              return {
+                start: start.toUTC().toISO() || '',
+                end: end.toUTC().toISO() || ''
+              };
+            }).filter(booking => booking.start && booking.end);
+            
+            const slots = await getMergedFreeSlots(
+              dateStr,
+              'primary',
+              reevaBookings,
+              context.detailerId,
+              120,
+              30,
+              'America/New_York'
+            );
+            
+            // Check if the requested time is available
+            const isAvailable = slots.some(slot => {
+              const slotTime = slot.label.match(/(\d{1,2}:\d{2} [AP]M)/);
+              if (!slotTime) return false;
+              
+              const slotHour = slotTime[1];
+              const requestedTime12 = `${hour24 === 0 ? 12 : hour24 > 12 ? hour24 - 12 : hour24}:${minute} ${period?.toUpperCase() || (hour24 < 12 ? 'AM' : 'PM')}`;
+              
+              return slotHour === requestedTime12;
+            });
+            
+            console.log(`🔍 DEBUG: Date/time selection - ${month} ${day} at ${hour}:${minute} ${period?.toUpperCase() || ''} - Available: ${isAvailable}`);
+            
+            if (isAvailable) {
+              response = `Perfect! I have ${month} ${day} at ${hour}:${minute} ${period?.toUpperCase() || ''} available. Please confirm by replying 'yes' or 'confirm' to book this appointment.`;
+              
+              // Create a mock slot for the selected time with date field
+              const selectedSlot = {
+                startLocal: `${month} ${day} at ${hour}:${minute} ${period?.toUpperCase() || ''}`,
+                startISO: `${dateStr}T${requestedTime}:00.000Z`,
+                label: `${month} ${day} at ${hour}:${minute} ${period?.toUpperCase() || ''}`,
+                date: dateStr // Add date field for booking creation
+              };
+              
+              newContext = await updateConversationContext(context, 'awaiting_confirm', {
+                selectedSlot,
+                metadata: { 
+                  ...context.metadata, 
+                  selectedDate: dateStr,
+                  selectedTime: requestedTime
+                }
+              });
+            } else {
+              // Find available times for that day
+              const availableTimes = slots.slice(0, 4).map(slot => {
+                const timeMatch = slot.label.match(/(\d{1,2}:\d{2} [AP]M)/);
+                return timeMatch ? timeMatch[1] : 'time';
+              }).join(', ');
+              
+              if (availableTimes) {
+                response = `Sorry, ${month} ${day} at ${hour}:${minute} ${period?.toUpperCase() || ''} is not available. Here are the available times for ${month} ${day}: ${availableTimes}. Which time works for you?`;
+              } else {
+                response = `Sorry, ${month} ${day} at ${hour}:${minute} ${period?.toUpperCase() || ''} is not available. That day is fully booked. What other date works for you?`;
+              }
+              newContext = await updateConversationContext(context, 'awaiting_time');
+            }
+          } catch (error) {
+            console.error('Error processing date/time selection:', error);
+            const businessHours = await formatBusinessHours(context.detailerId);
+            response = `I had trouble processing that date and time. What date works for you? (We're open ${businessHours})`;
+            newContext = await updateConversationContext(context, 'awaiting_date');
+          }
+          break;
+        }
+
+        // If not a date+time selection, try to parse as just a date
         // Parse date from user message
         const { parseDateV2 } = await import('./timeUtilsV2');
         const parsedDate = parseDateV2(userMessage, 'America/New_York');
