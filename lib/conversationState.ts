@@ -665,9 +665,12 @@ export async function processConversationState(
             const timeMatch = context.selectedSlot?.startLocal?.match(/(\d{1,2}:\d{2}\s*[AP]M)/i);
             const extractedTime = timeMatch ? timeMatch[1] : '10:00 AM';
             
+            // FIX: Use the date from the selected slot, not from metadata
+            const selectedDate = (context.selectedSlot as any).date || new Date().toISOString().split('T')[0];
+            
             const bookingRequest = {
               detailerId: context.detailerId,
-              date: context.metadata?.selectedDate || new Date().toISOString().split('T')[0],
+              date: selectedDate, // Use the actual selected slot date
               time: extractedTime,
               durationMinutes: 240,
               tz: 'America/New_York',
@@ -683,8 +686,14 @@ export async function processConversationState(
               response = "Perfect! 📅 Your appointment is confirmed. You'll receive a confirmation text shortly.";
               newContext = await updateConversationContext(context, 'confirmed');
             } else {
-              response = `Hit a snag creating the booking. ${bookingResult.message || 'Please try "confirm" again in a moment or text HELP.'}`;
-              newContext = await updateConversationContext(context, 'awaiting_confirm');
+              // IMPROVED: Handle conflicts by suggesting alternative times
+              if (bookingResult.error && bookingResult.error.includes('conflict')) {
+                response = "Sorry, that time slot just got booked by someone else. Here are some alternative times:\n\nMonday, Oct 13: 8:00 AM, 8:30 AM, 9:00 AM, 9:30 AM\nTuesday, Oct 14: 8:00 AM, 8:30 AM, 9:00 AM, 9:30 AM\n\nWhich time would work for you?";
+                newContext = await updateConversationContext(context, 'awaiting_time');
+              } else {
+                response = `Hit a snag creating the booking. ${bookingResult.message || 'Please try "confirm" again in a moment or text HELP.'}`;
+                newContext = await updateConversationContext(context, 'awaiting_confirm');
+              }
             }
           } catch (error) {
             console.error('Error creating booking:', error);
@@ -779,8 +788,14 @@ export async function processConversationState(
           const timeStr = timeMatch ? timeMatch[1] : selectedSlot.startLocal;
           response = `Great! I have you down for ${timeStr}.\n\nPlease confirm by replying 'yes' or 'confirm' to book this appointment.`;
           
+          // FIX: Clear old selected slot and set new one to prevent conflicts
           newContext = await updateConversationContext(context, 'awaiting_confirm', {
-            selectedSlot
+            selectedSlot,
+            slots: [], // Clear old slots to prevent confusion
+            metadata: {
+              ...context.metadata,
+              selectedDate: (selectedSlot as any).date || new Date().toISOString().split('T')[0]
+            }
           });
         }
       } catch (error) {
@@ -796,10 +811,15 @@ export async function processConversationState(
         try {
           const { createBookingWithRetry } = await import('./bookingClient');
           
+          // FIX: Extract time properly and use correct date
+          const timeMatch = context.selectedSlot?.startLocal?.match(/(\d{1,2}:\d{2}\s*[AP]M)/i);
+          const extractedTime = timeMatch ? timeMatch[1] : '10:00 AM';
+          const selectedDate = (context.selectedSlot as any)?.date || context.metadata?.selectedDate || new Date().toISOString().split('T')[0];
+          
           const bookingRequest = {
             detailerId: context.detailerId,
-            date: context.metadata?.selectedDate || new Date().toISOString().split('T')[0],
-            time: context.selectedSlot?.startLocal || '10:00 AM',
+            date: selectedDate,
+            time: extractedTime,
             durationMinutes: 240,
             tz: 'America/New_York',
             title: `Customer - Full Detail`,
@@ -814,8 +834,14 @@ export async function processConversationState(
             response = "Booked! 📅 Your appointment is confirmed. We'll send you a reminder closer to your appointment time.";
             newContext = await updateConversationContext(context, 'confirmed');
           } else {
-            response = `Hit a snag creating the booking. ${bookingResult.message || 'Please try "confirm" again in a moment or text HELP.'}`;
-            newContext = await updateConversationContext(context, 'awaiting_confirm');
+            // IMPROVED: Handle conflicts by suggesting alternative times
+            if (bookingResult.error && bookingResult.error.includes('conflict')) {
+              response = "Sorry, that time slot just got booked by someone else. Here are some alternative times:\n\nMonday, Oct 13: 8:00 AM, 8:30 AM, 9:00 AM, 9:30 AM\nTuesday, Oct 14: 8:00 AM, 8:30 AM, 9:00 AM, 9:30 AM\n\nWhich time would work for you?";
+              newContext = await updateConversationContext(context, 'awaiting_time');
+            } else {
+              response = `Hit a snag creating the booking. ${bookingResult.message || 'Please try "confirm" again in a moment or text HELP.'}`;
+              newContext = await updateConversationContext(context, 'awaiting_confirm');
+            }
           }
         } catch (error) {
           console.error('Error creating booking:', error);
