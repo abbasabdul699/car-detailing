@@ -2233,9 +2233,8 @@ Be conversational and natural.`;
           console.log('✅ Using conversation state machine response:', aiResponse);
           
           // Update context in database
-          await import('@/lib/conversationState').then(({ updateConversationContext }) => 
-            updateConversationContext(newContext)
-          );
+          const { updateConversationContext } = await import('@/lib/conversationState');
+          await updateConversationContext(newContext);
         } else {
           console.log('❌ Conversation state machine returned shouldSend=false');
         }
