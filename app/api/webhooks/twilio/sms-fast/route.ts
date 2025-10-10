@@ -1720,9 +1720,11 @@ WHEN CUSTOMER ASKS "what is my name?" or "what's my name?":
       const userDateTime = parseUserDateTime(body);
       const today = new Date();
       const dayISO = userDateTime?.date || today.toISOString().split('T')[0];
+      const checkMultipleDays = !userDateTime?.date; // Check multiple days if no specific date requested
       
       console.log(`🔍 [${traceId}] User date/time request:`, userDateTime);
       console.log(`🔍 [${traceId}] Using date for availability: ${dayISO}`);
+      console.log(`🔍 [${traceId}] Check multiple days: ${checkMultipleDays}`);
       
       // 6) MERGE REEVA CALENDAR INTO BUSY SET - COMPREHENSIVE AVAILABILITY
       console.log(`🔍 [${traceId}] Computing comprehensive availability including all Reeva calendar events`);
@@ -1806,18 +1808,62 @@ WHEN CUSTOMER ASKS "what is my name?" or "what's my name?":
       
       const googleCalendarId = detailer.googleCalendarConnected ? 'primary' : undefined;
       const detailerTimezone = detailer.timezone || 'America/New_York';
-      const rawSlots = await getMergedFreeSlots(dayISO, googleCalendarId || 'primary', reevaBusyIntervals, detailer.id, 120, 30, detailerTimezone);
       
-      availableSlots = rawSlots.map(slot => ({
-        startLocal: slot.label,
-        endLocal: slot.label.split(' – ')[1] || slot.label,
-        startUtcISO: slot.startISO,
-        endUtcISO: slot.endISO
-      }));
-      
-      console.log(`🔍 DEBUG: Generated ${availableSlots.length} available slots for ${dayISO}`);
-      console.log(`🔍 DEBUG: User requested: ${userDateTime ? `${userDateTime.date} at ${userDateTime.time}` : 'no specific date/time'}`);
-      console.log('🔍 DEBUG: First 5 slots:', availableSlots.slice(0, 5).map(s => `${s.startLocal} – ${s.endLocal}`));
+      if (checkMultipleDays) {
+        // Check availability for the next 7 days when no specific date is requested
+        console.log(`🔍 [${traceId}] Checking availability for next 7 days (general availability query)`);
+        
+        const allSlots: any[] = [];
+        const today = new Date();
+        
+        // Check each of the next 7 days
+        for (let i = 0; i < 7; i++) {
+          const checkDate = new Date(today);
+          checkDate.setDate(today.getDate() + i);
+          const dateISO = checkDate.toISOString().split('T')[0];
+          
+          console.log(`🔍 [${traceId}] Checking availability for ${dateISO} (day ${i + 1}/7)`);
+          
+          try {
+            const daySlots = await getMergedFreeSlots(dateISO, googleCalendarId || 'primary', reevaBusyIntervals, detailer.id, 120, 30, detailerTimezone);
+            
+            // Add slots for this day
+            const mappedSlots = daySlots.map(slot => ({
+              startLocal: slot.label,
+              endLocal: slot.label.split(' – ')[1] || slot.label,
+              startUtcISO: slot.startISO,
+              endUtcISO: slot.endISO,
+              date: dateISO // Add date for grouping
+            }));
+            
+            allSlots.push(...mappedSlots);
+            console.log(`🔍 [${traceId}] Found ${mappedSlots.length} slots for ${dateISO}`);
+          } catch (error) {
+            console.error(`❌ Error checking availability for ${dateISO}:`, error);
+          }
+        }
+        
+        availableSlots = allSlots;
+        console.log(`🔍 DEBUG: Generated ${availableSlots.length} total available slots across 7 days`);
+        console.log(`🔍 DEBUG: User requested: general availability (no specific date/time)`);
+        console.log('🔍 DEBUG: First 5 slots:', availableSlots.slice(0, 5).map(s => `${s.startLocal} – ${s.endLocal}`));
+        
+      } else {
+        // Single day check for specific date requests
+        console.log(`🔍 [${traceId}] Checking availability for specific date: ${dayISO}`);
+        const rawSlots = await getMergedFreeSlots(dayISO, googleCalendarId || 'primary', reevaBusyIntervals, detailer.id, 120, 30, detailerTimezone);
+        
+        availableSlots = rawSlots.map(slot => ({
+          startLocal: slot.label,
+          endLocal: slot.label.split(' – ')[1] || slot.label,
+          startUtcISO: slot.startISO,
+          endUtcISO: slot.endISO
+        }));
+        
+        console.log(`🔍 DEBUG: Generated ${availableSlots.length} available slots for ${dayISO}`);
+        console.log(`🔍 DEBUG: User requested: ${userDateTime ? `${userDateTime.date} at ${userDateTime.time}` : 'no specific date/time'}`);
+        console.log('🔍 DEBUG: First 5 slots:', availableSlots.slice(0, 5).map(s => `${s.startLocal} – ${s.endLocal}`));
+      }
     } catch (error) {
       console.error('❌ ERROR in slot computation:', error);
       availableSlots = []; // Fallback to empty slots
