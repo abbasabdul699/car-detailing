@@ -849,7 +849,11 @@ export async function processConversationState(
               durationMinutes: 240,
               tz: 'America/New_York',
               title: `Customer - Full Detail`,
+              customerName: 'Customer',
               customerPhone: context.customerPhone,
+              vehicleType: 'Not specified',
+              vehicleLocation: 'Not provided',
+              services: ['Full Detail'],
               source: 'AI'
             };
             
@@ -1016,7 +1020,11 @@ export async function processConversationState(
             durationMinutes: 240,
             tz: 'America/New_York',
             title: `Customer - Full Detail`,
+            customerName: 'Customer',
             customerPhone: context.customerPhone,
+            vehicleType: 'Not specified',
+            vehicleLocation: 'Not provided',
+            services: ['Full Detail'],
             source: 'AI'
           };
           
