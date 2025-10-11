@@ -879,6 +879,83 @@ export async function processConversationState(
           break;
         }
 
+        // Check if user is suggesting a time only (e.g., "How about 8 AM?", "What about 3 PM?")
+        const timeOnlyMatch = userMessage.match(/(?:how\s+about|what\s+about|can\s+we\s+do|let'?s\s+do)\s+(\d{1,2}):?(\d{2})?\s*(am|pm)/i);
+        
+        if (timeOnlyMatch) {
+          // User is suggesting a time without a date - check if we have a selected date
+          const [, hour, minute = '00', period] = timeOnlyMatch;
+          
+          // Parse time
+          let hour24 = parseInt(hour);
+          if (period?.toLowerCase() === 'pm' && hour24 !== 12) hour24 += 12;
+          if (period?.toLowerCase() === 'am' && hour24 === 12) hour24 = 0;
+          
+          const requestedTime = `${hour24.toString().padStart(2, '0')}:${minute}`;
+          
+          // Check if we have a selected date from context
+          const selectedDate = context.metadata?.selectedDate;
+          if (selectedDate) {
+            // We have a date, check availability for this time on that date
+            const { getMergedFreeSlots } = await import('./slotComputationV2');
+            const slots = await getMergedFreeSlots(
+              selectedDate,
+              'primary',
+              [], // reevaBookings - empty for now, will be fetched inside the function
+              context.detailerId,
+              240, // durationMinutes
+              30, // stepMinutes
+              detailerTimezone
+            );
+            
+            // Check if the requested time is available
+            const matchingSlot = slots.find(slot => {
+              const slotTime = slot.label.match(/(\d{1,2}:\d{2} [AP]M)/);
+              if (!slotTime) return false;
+              
+              const slotHour = slotTime[1];
+              const requestedTime12 = `${hour24 === 0 ? 12 : hour24 > 12 ? hour24 - 12 : hour24}:${minute} ${period?.toUpperCase() || (hour24 < 12 ? 'AM' : 'PM')}`;
+              
+              return slotHour === requestedTime12;
+            });
+            
+            if (matchingSlot) {
+              response = `Yes! ${hour}:${minute} ${period?.toUpperCase() || (hour24 < 12 ? 'AM' : 'PM')} is available. Would you like to book it?`;
+              
+              newContext = await updateConversationContext(context, 'awaiting_confirm', {
+                selectedSlot: matchingSlot,
+                metadata: { 
+                  ...context.metadata, 
+                  selectedTime: requestedTime
+                }
+              });
+            } else {
+              // Find available times for that day
+              const availableTimes = slots.slice(0, 4).map(slot => {
+                const timeMatch = slot.label.match(/(\d{1,2}:\d{2} [AP]M)/);
+                return timeMatch ? timeMatch[1] : 'time';
+              }).join(', ');
+              
+              if (availableTimes) {
+                response = `Sorry, ${hour}:${minute} ${period?.toUpperCase() || (hour24 < 12 ? 'AM' : 'PM')} is not available. Here are the available times: ${availableTimes}. Which time works for you?`;
+              } else {
+                response = `Sorry, ${hour}:${minute} ${period?.toUpperCase() || (hour24 < 12 ? 'AM' : 'PM')} is not available. That day is fully booked. What other date works for you?`;
+              }
+              newContext = await updateConversationContext(context, 'awaiting_time');
+            }
+          } else {
+            // No selected date, ask for a date
+            response = `Great! ${hour}:${minute} ${period?.toUpperCase() || (hour24 < 12 ? 'AM' : 'PM')} sounds good. What date works for you?`;
+            newContext = await updateConversationContext(context, 'awaiting_date', {
+              metadata: { 
+                ...context.metadata, 
+                preferredTime: requestedTime
+              }
+            });
+          }
+          break;
+        }
+
         // If not a date+time selection, try to parse as just a date
         // Parse date from user message
         const { parseDateV2 } = await import('./timeUtilsV2');
