@@ -4,6 +4,7 @@ import { normalizeToE164 } from '@/lib/phone';
 import { getCustomerSnapshot, upsertCustomerSnapshot, extractSnapshotHintsSafe, safeUpsertSnapshot } from '@/lib/customerSnapshot';
 import { getOrCreateCustomer, extractCustomerDataFromSnapshot } from '@/lib/customer';
 import { synthesizeVoice, generateTwiMLResponse } from '@/lib/voiceAI';
+import { formatDuration } from '@/lib/utils';
 
 // Voice AI that uses the exact same workflow as SMS
 export async function POST(request: NextRequest) {
@@ -116,7 +117,7 @@ export async function POST(request: NextRequest) {
         details.push(`$${formattedBase}`)
       }
       if (typeof serviceAny?.duration === 'number' && serviceAny.duration > 0) {
-        details.push(`${serviceAny.duration} min`)
+        details.push(formatDuration(serviceAny.duration))
       }
       if (details.length) {
         serviceInfo += ` (${details.join(', ')})`

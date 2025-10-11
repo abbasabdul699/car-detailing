@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from "react";
 import IconUploader from '@/app/components/IconUploader';
 import AdminNavbar from '@/app/components/AdminNavbar';
+import { formatDuration } from '@/lib/utils';
 
 interface Category {
   id: string;
@@ -193,7 +194,7 @@ export default function AdminServicesPage() {
                               <div className="text-gray-400">No pricing set</div>
                             )}
                             {service.duration && (
-                              <div className="text-gray-500">{service.duration} min</div>
+                              <div className="text-gray-500">{formatDuration(service.duration)}</div>
                             )}
                           </div>
                           

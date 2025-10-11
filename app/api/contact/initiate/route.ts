@@ -113,6 +113,57 @@ Reply YES to continue or STOP to opt out.`;
       },
     });
 
+    // Send vCard to new customer (atomic transaction)
+    try {
+      const shouldSendVcard = await prisma.$transaction(async (tx) => {
+        // Check if snapshot exists
+        const existingSnap = await tx.customerSnapshot.findUnique({
+          where: { detailerId_customerPhone: { detailerId: detailer.id, customerPhone: formattedPhone } }
+        })
+        
+        if (!existingSnap) {
+          // New customer - create snapshot and send vCard
+          await tx.customerSnapshot.create({
+            data: { detailerId: detailer.id, customerPhone: formattedPhone, vcardSent: true }
+          })
+          return true // Send vCard for new customer
+        }
+        
+        if (!existingSnap.vcardSent) {
+          // Existing customer who hasn't received vCard yet
+          await tx.customerSnapshot.update({
+            where: { detailerId_customerPhone: { detailerId: detailer.id, customerPhone: formattedPhone } },
+            data: { vcardSent: true }
+          })
+          return true // Send vCard
+        }
+        
+        return false // Already sent vCard
+      })
+
+      if (shouldSendVcard) {
+        const vcardUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'https://www.reevacar.com'}/api/vcard?detailerId=${detailer.id}`
+        try {
+          console.log('📇 Sending MMS vCard via contact/initiate to:', formattedPhone, 'URL:', vcardUrl)
+          await client.messages.create({ 
+            to: formattedPhone, 
+            from: detailer.twilioPhoneNumber, 
+            body: `Save our contact! 📇`, 
+            mediaUrl: [vcardUrl] 
+          })
+        } catch (mmsError) {
+          console.error('MMS failed, falling back to SMS:', mmsError)
+          await client.messages.create({ 
+            to: formattedPhone, 
+            from: detailer.twilioPhoneNumber, 
+            body: `Save our contact: ${vcardUrl}` 
+          })
+        }
+      }
+    } catch (vcErr) {
+      console.error('vCard send-once flow failed in contact/initiate:', vcErr)
+    }
+
     console.log('Contact initiated successfully:', {
       detailerId: detailer.id,
       customerPhone: formattedPhone,

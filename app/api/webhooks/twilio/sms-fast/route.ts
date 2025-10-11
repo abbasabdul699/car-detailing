@@ -5,6 +5,7 @@ import { normalizeToE164 } from '@/lib/phone';
 import { getOrCreateCustomer, extractCustomerDataFromSnapshot } from '@/lib/customer';
 import { validateVehicle, normalizeModel, generateVehicleClarification } from '@/lib/vehicleValidation';
 import { validateAndNormalizeState } from '@/lib/stateValidation';
+import { formatDuration } from '@/lib/utils';
 import twilio from 'twilio';
 
 // Helper function to generate .ics calendar file content
@@ -1290,7 +1291,7 @@ This lead has been automatically processed and is ready for you to contact!`;
         details.push(`$${formattedBase}`)
       }
       if (typeof serviceAny?.duration === 'number' && serviceAny.duration > 0) {
-        details.push(`${serviceAny.duration} min`)
+        details.push(formatDuration(serviceAny.duration))
       }
       if (details.length) {
         serviceInfo += ` (${details.join(', ')})`
@@ -1990,17 +1991,18 @@ ${customerContext}
 Available Services: ${availableServices || 'Various car detailing services'}
 
 PRICING AND DURATION INFORMATION:
-- Services include pricing and typical duration in parentheses (e.g., "Interior Detail ($100-150, 120 min)")
+- Services include pricing and typical duration in parentheses (e.g., "Interior Detail ($100-150, 2 hours)")
 - When recommending or confirming services, include both the price range and time estimate
 - When customers ask about pricing, provide the price ranges from the service list above
 - For multiple services, explain that pricing and duration are additive (e.g., Interior + Exterior = total cost and time)
 - Always mention that final pricing depends on vehicle size and condition
 - If customers ask for quotes, provide estimated ranges and time based on the services they want
+- ALWAYS format durations in hours and minutes (e.g., "2 hours", "1 hour 30 minutes", "30 minutes") instead of just minutes
 
 PRICING RESPONSE EXAMPLES:
-- "How much for interior cleaning?" → "Interior Cleaning is $60-100 (about 90 min) depending on your vehicle size and condition"
-- "What does a full detail cost?" → "Full Detail is $200-300 (about 240 min), which includes both interior and exterior services"
-- "How much for ceramic coating?" → "Ceramic Coating is $400-700 (about 300 min) and provides long-lasting protection"
+- "How much for interior cleaning?" → "Interior Cleaning is $60-100 (about 1 hour 30 minutes) depending on your vehicle size and condition"
+- "What does a full detail cost?" → "Full Detail is $200-300 (about 4 hours), which includes both interior and exterior services"
+- "How much for ceramic coating?" → "Ceramic Coating is $400-700 (about 5 hours) and provides long-lasting protection"
 - "Can I get a quote?" → "Sure! What services are you interested in? I can give you an estimated range and time based on your vehicle"
 
 SERVICE CATEGORIZATION:
@@ -2910,19 +2912,36 @@ Which day and time would work best for you?`;
       
       // After sending the first AI message in a conversation, send vCard once if not sent (atomic flip)
       try {
-        const vcardCheck = await prisma.$transaction(async (tx) => {
-          const snap = await tx.customerSnapshot.upsert({
-            where: { detailerId_customerPhone: { detailerId: detailer.id, customerPhone: from } },
-            update: {},
-            create: { detailerId: detailer.id, customerPhone: from, vcardSent: true }
+        const shouldSendVcard = await prisma.$transaction(async (tx) => {
+          // First, check if snapshot exists
+          const existingSnap = await tx.customerSnapshot.findUnique({
+            where: { detailerId_customerPhone: { detailerId: detailer.id, customerPhone: from } }
           })
-          return !snap.vcardSent
+          
+          if (!existingSnap) {
+            // New customer - create snapshot and send vCard
+            await tx.customerSnapshot.create({
+              data: { detailerId: detailer.id, customerPhone: from, vcardSent: true }
+            })
+            return true // Send vCard for new customer
+          }
+          
+          if (!existingSnap.vcardSent) {
+            // Existing customer who hasn't received vCard yet
+            await tx.customerSnapshot.update({
+              where: { detailerId_customerPhone: { detailerId: detailer.id, customerPhone: from } },
+              data: { vcardSent: true }
+            })
+            return true // Send vCard
+          }
+          
+          return false // Already sent vCard
         })
 
-        if (vcardCheck) {
+        if (shouldSendVcard) {
           const vcardUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'https://www.reevacar.com'}/api/vcard?detailerId=${detailer.id}`
           try {
-            console.log('Sending MMS vCard to:', from, 'URL:', vcardUrl)
+            console.log('📇 Sending MMS vCard to new customer:', from, 'URL:', vcardUrl)
             await client.messages.create({ to: from, from: to, body: `Save our contact! 📇`, mediaUrl: [vcardUrl] })
           } catch (mmsError) {
             console.error('MMS failed, falling back to SMS:', mmsError)

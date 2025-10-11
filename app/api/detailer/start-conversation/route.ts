@@ -105,6 +105,57 @@ Just let me know what you need! 🚗✨`;
       }
     });
 
+    // Send vCard to new customer (atomic transaction)
+    try {
+      const shouldSendVcard = await prisma.$transaction(async (tx) => {
+        // Check if snapshot exists
+        const existingSnap = await tx.customerSnapshot.findUnique({
+          where: { detailerId_customerPhone: { detailerId: detailer.id, customerPhone: e164Phone } }
+        })
+        
+        if (!existingSnap) {
+          // New customer - create snapshot and send vCard
+          await tx.customerSnapshot.create({
+            data: { detailerId: detailer.id, customerPhone: e164Phone, vcardSent: true }
+          })
+          return true // Send vCard for new customer
+        }
+        
+        if (!existingSnap.vcardSent) {
+          // Existing customer who hasn't received vCard yet
+          await tx.customerSnapshot.update({
+            where: { detailerId_customerPhone: { detailerId: detailer.id, customerPhone: e164Phone } },
+            data: { vcardSent: true }
+          })
+          return true // Send vCard
+        }
+        
+        return false // Already sent vCard
+      })
+
+      if (shouldSendVcard) {
+        const vcardUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'https://www.reevacar.com'}/api/vcard?detailerId=${detailer.id}`
+        try {
+          console.log('📇 Sending MMS vCard via start-conversation to:', e164Phone, 'URL:', vcardUrl)
+          await client.messages.create({ 
+            to: e164Phone, 
+            from: detailer.twilioPhoneNumber, 
+            body: `Save our contact! 📇`, 
+            mediaUrl: [vcardUrl] 
+          })
+        } catch (mmsError) {
+          console.error('MMS failed, falling back to SMS:', mmsError)
+          await client.messages.create({ 
+            to: e164Phone, 
+            from: detailer.twilioPhoneNumber, 
+            body: `Save our contact: ${vcardUrl}` 
+          })
+        }
+      }
+    } catch (vcErr) {
+      console.error('vCard send-once flow failed in start-conversation:', vcErr)
+    }
+
     // Create customer record if name provided
     if (customerName) {
       await prisma.customer.upsert({
