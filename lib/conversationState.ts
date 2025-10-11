@@ -602,6 +602,7 @@ export async function processConversationState(
 
     case 'awaiting_date':
       try {
+        console.log('🔍 DEBUG: In awaiting_date case, userMessage:', userMessage);
         // First check if user is requesting a service (e.g., "I need a full detail", "Hey! I need an interior detail")
         const serviceRequestMatch = userMessage.match(/(?:i\s+need|i\s+want|hey|hi|hello|can\s+i\s+get|book|schedule|appointment|detail|service|cleaning|wash)/i);
         
@@ -615,7 +616,9 @@ export async function processConversationState(
         }
 
         // Check if user is asking for general availability (e.g., "What are your available times?", "Do you have any openings?")
-        const generalAvailabilityQueryMatch = userMessage.match(/(?:what\s+are\s+your\s+available\s+times|do\s+you\s+have\s+any\s+openings|show\s+me\s+your\s+availability|what\s+times\s+do\s+you\s+have|when\s+are\s+you\s+available)/i);
+        console.log('🔍 DEBUG: About to check general availability pattern for:', userMessage);
+        const generalAvailabilityQueryMatch = userMessage.match(/(?:what\s+are.*available\s+times|available\s+times|do\s+you\s+have\s+any\s+openings|show\s+me\s+your\s+availability|what\s+times\s+do\s+you\s+have|when\s+are\s+you\s+available)/i);
+        console.log('🔍 DEBUG: General availability pattern match result:', generalAvailabilityQueryMatch);
         
         if (generalAvailabilityQueryMatch) {
           console.log('🔍 DEBUG: General availability query detected:', userMessage);
