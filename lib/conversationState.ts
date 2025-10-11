@@ -613,6 +613,95 @@ export async function processConversationState(
           newContext = await updateConversationContext(context, 'idle');
           break;
         }
+
+        // Check if user is asking for general availability (e.g., "What are your available times?", "Do you have any openings?")
+        const generalAvailabilityQueryMatch = userMessage.match(/(?:what\s+are\s+your\s+available\s+times|do\s+you\s+have\s+any\s+openings|show\s+me\s+your\s+availability|what\s+times\s+do\s+you\s+have|when\s+are\s+you\s+available)/i);
+        
+        if (generalAvailabilityQueryMatch) {
+          console.log('🔍 DEBUG: General availability query detected:', userMessage);
+          
+          // Provide actual available times for next few days
+          try {
+            const { getMergedFreeSlots } = await import('./slotComputationV2');
+            const today = new Date();
+            const availableSlots = [];
+            
+            // Get slots for next 3 days
+            for (let i = 1; i <= 3; i++) {
+              const date = new Date(today);
+              date.setDate(today.getDate() + i);
+              const dateStr = date.toISOString().split('T')[0];
+              
+              // Fetch existing bookings for this date
+              const existingBookings = await prisma.booking.findMany({
+                where: {
+                  detailerId: context.detailerId,
+                  status: { in: ['confirmed', 'pending'] },
+                  scheduledDate: {
+                    gte: new Date(dateStr + 'T00:00:00.000Z'),
+                    lt: new Date(dateStr + 'T23:59:59.999Z')
+                  }
+                },
+                select: {
+                  scheduledDate: true,
+                  scheduledTime: true,
+                  duration: true
+                }
+              });
+
+              // Convert bookings to the format expected by getMergedFreeSlots
+              const reevaBookings = existingBookings.map(booking => {
+                const bookingDate = booking.scheduledDate.toISOString().split('T')[0];
+                const startTime = booking.scheduledTime || '10:00';
+                const duration = booking.duration || 240;
+                
+                const start = DateTime.fromISO(`${bookingDate}T${startTime}`, { zone: detailerTimezone });
+                const end = start.plus({ minutes: duration });
+                
+                return {
+                  start: start.toUTC().toISO() || '',
+                  end: end.toUTC().toISO() || ''
+                };
+              }).filter(booking => booking.start && booking.end);
+              
+              const slots = await getMergedFreeSlots(
+                dateStr,
+                'primary', // Use primary calendar for now
+                reevaBookings,
+                context.detailerId,
+                120, // 2 hour service
+                30, // 30 minute steps
+                detailerTimezone
+              );
+              
+              if (slots.length > 0) {
+                const dayName = date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+                const daySlots = slots.slice(0, 4).map(slot => {
+                  // Extract time from label like "Wed, Oct 8: 8:00 AM – 10:00 AM"
+                  const timeMatch = slot.label.match(/(\d{1,2}:\d{2} [AP]M)/);
+                  return timeMatch ? timeMatch[1] : slot.label.split(': ')[1]?.split(' –')[0] || 'time';
+                }).join(', ');
+                
+                availableSlots.push(`${dayName}: ${daySlots}`);
+              }
+            }
+            
+            if (availableSlots.length > 0) {
+              response = `Here's what I've got open:\n\n${availableSlots.join('\n')}\n\nWhich day and time works best for you?`;
+              newContext = await updateConversationContext(context, 'awaiting_time');
+            } else {
+              const businessHours = await formatBusinessHours(context.detailerId);
+              response = `Hmm, looks like we're pretty booked up for the next few days. What date works for you? (We're open ${businessHours})`;
+              newContext = await updateConversationContext(context, 'awaiting_date');
+            }
+          } catch (error) {
+            console.error('Error getting availability:', error);
+            const businessHours = await formatBusinessHours(context.detailerId);
+            response = `What date works for you? (We're open ${businessHours})`;
+            newContext = await updateConversationContext(context, 'awaiting_date');
+          }
+          break;
+        }
         
         // Check if user is asking about availability (e.g., "Is 11 AM available?", "Is 11 AM on October 13th available?", "Ok, is October 15th 1 PM available?")
         const availabilityQueryMatch = userMessage.match(/(?:is|ok,?\s+is)\s+(?:(\d{1,2}):?(\d{2})?\s*(am|pm)?\s*(?:on\s+)?)?(october|november|december|january|february|march|april|may|june|july|august|september|oct|nov|dec|jan|feb|mar|apr|may|jun|jul|aug|sep)?\s*(\d{1,2})?(?:st|nd|rd|th)?\s*(?:at\s+)?(\d{1,2}):?(\d{2})?\s*(am|pm)?\s*(?:available|free|open)?/i);
