@@ -573,11 +573,11 @@ export async function processConversationState(
               ? "\n\n⚠️ Note: My calendar sync is temporarily unavailable, so please confirm your preferred time is still open."
               : "";
             
-            response = `Here are our available times:\n\n${availableSlots.join('\n')}${calendarWarning}\n\nWhich day and time works for you?`;
+            response = `Here's what I've got open:\n\n${availableSlots.join('\n')}${calendarWarning}\n\nWhich day and time works best for you?`;
             newContext = await updateConversationContext(context, 'awaiting_time');
           } else {
             const businessHours = await formatBusinessHours(context.detailerId);
-            response = `I don't see any available slots in the next few days. What date works for you? (We're open ${businessHours})`;
+            response = `Hmm, looks like we're pretty booked up for the next few days. What date works for you? (We're open ${businessHours})`;
             newContext = await updateConversationContext(context, 'awaiting_date');
           }
         } catch (error) {
@@ -614,12 +614,17 @@ export async function processConversationState(
           break;
         }
         
-        // Check if user is asking about availability (e.g., "Is 11 AM available?", "Is 11 AM on October 13th available?")
-        const availabilityQueryMatch = userMessage.match(/is\s+(\d{1,2}):?(\d{2})?\s*(am|pm)?\s*(?:on\s+)?(october|november|december|january|february|march|april|may|june|july|august|september|oct|nov|dec|jan|feb|mar|apr|may|jun|jul|aug|sep)?\s*(\d{1,2})?(?:st|nd|rd|th)?\s*(?:available|free|open)?/i);
+        // Check if user is asking about availability (e.g., "Is 11 AM available?", "Is 11 AM on October 13th available?", "Ok, is October 15th 1 PM available?")
+        const availabilityQueryMatch = userMessage.match(/(?:is|ok,?\s+is)\s+(?:(\d{1,2}):?(\d{2})?\s*(am|pm)?\s*(?:on\s+)?)?(october|november|december|january|february|march|april|may|june|july|august|september|oct|nov|dec|jan|feb|mar|apr|may|jun|jul|aug|sep)?\s*(\d{1,2})?(?:st|nd|rd|th)?\s*(?:at\s+)?(\d{1,2}):?(\d{2})?\s*(am|pm)?\s*(?:available|free|open)?/i);
         
         if (availabilityQueryMatch) {
           // User is asking about availability for a specific time
-          const [, hour, minute = '00', period, month, day] = availabilityQueryMatch;
+          const [, hour1, minute1 = '00', period1, month, day, hour2, minute2 = '00', period2] = availabilityQueryMatch;
+          
+          // Determine which time format was used
+          const hour = hour2 || hour1;
+          const minute = hour2 ? minute2 : minute1;
+          const period = hour2 ? period2 : period1;
           
           // Parse time
           let hour24 = parseInt(hour);
@@ -670,7 +675,7 @@ export async function processConversationState(
                 return dateMatch ? `${dateMatch[1]} ${dateMatch[2]}` : 'date';
               }).join(', ');
               
-              response = `Yes! ${hour}:${minute} ${period?.toUpperCase() || (hour24 < 12 ? 'AM' : 'PM')} is available on ${availableDates}. Which date works for you?`;
+              response = `Great news! ${hour}:${minute} ${period?.toUpperCase() || (hour24 < 12 ? 'AM' : 'PM')} is open on ${availableDates}. Which date sounds good to you?`;
               newContext = await updateConversationContext(context, 'awaiting_date', {
                 metadata: { 
                   ...context.metadata, 
@@ -678,7 +683,7 @@ export async function processConversationState(
                 }
               });
             } else {
-              response = `Sorry, ${hour}:${minute} ${period?.toUpperCase() || (hour24 < 12 ? 'AM' : 'PM')} is not available in the next few days. What other time works for you?`;
+              response = `Unfortunately ${hour}:${minute} ${period?.toUpperCase() || (hour24 < 12 ? 'AM' : 'PM')} is pretty booked up for the next few days. What other time might work for you?`;
               newContext = await updateConversationContext(context, 'awaiting_date');
             }
           } else {
@@ -719,7 +724,7 @@ export async function processConversationState(
               });
               
               if (isAvailable) {
-                response = `Yes! ${hour}:${minute} ${period?.toUpperCase() || (hour24 < 12 ? 'AM' : 'PM')} on ${month} ${day} is available. Would you like to book it?`;
+                response = `Yes! ${hour}:${minute} ${period?.toUpperCase() || (hour24 < 12 ? 'AM' : 'PM')} on ${month} ${day} is wide open. Want me to book that for you?`;
                 
                 const selectedSlot = {
                   startLocal: `${month} ${day} at ${hour}:${minute} ${period?.toUpperCase() || (hour24 < 12 ? 'AM' : 'PM')}`,
@@ -744,9 +749,9 @@ export async function processConversationState(
                 }).join(', ');
                 
                 if (availableTimes) {
-                  response = `Sorry, ${hour}:${minute} ${period?.toUpperCase() || (hour24 < 12 ? 'AM' : 'PM')} on ${month} ${day} is not available. Here are the available times for ${month} ${day}: ${availableTimes}. Which time works for you?`;
+                  response = `Hmm, ${hour}:${minute} ${period?.toUpperCase() || (hour24 < 12 ? 'AM' : 'PM')} on ${month} ${day} is already taken. But I've got these times open that day: ${availableTimes}.\n\nAny of those work for you?`;
                 } else {
-                  response = `Sorry, ${hour}:${minute} ${period?.toUpperCase() || (hour24 < 12 ? 'AM' : 'PM')} on ${month} ${day} is not available. That day is fully booked. What other date works for you?`;
+                  response = `Sorry, ${hour}:${minute} ${period?.toUpperCase() || (hour24 < 12 ? 'AM' : 'PM')} on ${month} ${day} is booked and that day is pretty much full. What other day might work?`;
                 }
                 newContext = await updateConversationContext(context, 'awaiting_time');
               }
@@ -901,6 +906,83 @@ export async function processConversationState(
             const businessHours = await formatBusinessHours(context.detailerId);
             response = `I had trouble processing that date and time. What date works for you? (We're open ${businessHours})`;
             newContext = await updateConversationContext(context, 'awaiting_date');
+          }
+          break;
+        }
+
+        // Check if user is confirming a booking with a specific time (e.g., "Ok, lets book it at 4 PM then")
+        const bookingConfirmationMatch = userMessage.match(/(?:ok,?\s+lets?\s+book\s+it\s+at|ok,?\s+lets?\s+do\s+it\s+at|ok,?\s+book\s+it\s+at|ok,?\s+do\s+it\s+at|ok,?\s+lets?\s+book|ok,?\s+lets?\s+do)\s+(\d{1,2}):?(\d{2})?\s*(am|pm)/i);
+        
+        if (bookingConfirmationMatch) {
+          // User is confirming a booking with a specific time
+          const [, hour, minute = '00', period] = bookingConfirmationMatch;
+          
+          // Parse time
+          let hour24 = parseInt(hour);
+          if (period?.toLowerCase() === 'pm' && hour24 !== 12) hour24 += 12;
+          if (period?.toLowerCase() === 'am' && hour24 === 12) hour24 = 0;
+          
+          const requestedTime = `${hour24.toString().padStart(2, '0')}:${minute}`;
+          
+          // Check if we have a selected date from context
+          const selectedDate = context.metadata?.selectedDate;
+          if (selectedDate) {
+            // We have a date, check availability for this time on that date
+            const { getMergedFreeSlots } = await import('./slotComputationV2');
+            const slots = await getMergedFreeSlots(
+              selectedDate,
+              'primary',
+              [], // reevaBookings - empty for now, will be fetched inside the function
+              context.detailerId,
+              240, // durationMinutes
+              30, // stepMinutes
+              detailerTimezone
+            );
+            
+            // Check if the requested time is available
+            const matchingSlot = slots.find(slot => {
+              const slotTime = slot.label.match(/(\d{1,2}:\d{2} [AP]M)/);
+              if (!slotTime) return false;
+              
+              const slotHour = slotTime[1];
+              const requestedTime12 = `${hour24 === 0 ? 12 : hour24 > 12 ? hour24 - 12 : hour24}:${minute} ${period?.toUpperCase() || (hour24 < 12 ? 'AM' : 'PM')}`;
+              
+              return slotHour === requestedTime12;
+            });
+            
+            if (matchingSlot) {
+              response = `Perfect! I've got ${hour}:${minute} ${period?.toUpperCase() || (hour24 < 12 ? 'AM' : 'PM')} on ${new Date(selectedDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} available for you.\n\nJust reply with 'yes' to confirm and I'll get this booked!`;
+              
+              newContext = await updateConversationContext(context, 'awaiting_confirm', {
+                selectedSlot: matchingSlot,
+                metadata: { 
+                  ...context.metadata, 
+                  selectedTime: requestedTime
+                }
+              });
+            } else {
+              // Find available times for that day
+              const availableTimes = slots.slice(0, 4).map(slot => {
+                const timeMatch = slot.label.match(/(\d{1,2}:\d{2} [AP]M)/);
+                return timeMatch ? timeMatch[1] : 'time';
+              }).join(', ');
+              
+              if (availableTimes) {
+                response = `Ah, ${hour}:${minute} ${period?.toUpperCase() || (hour24 < 12 ? 'AM' : 'PM')} is actually taken on ${new Date(selectedDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}. But I have these times open: ${availableTimes}.\n\nAny of these work for you?`;
+              } else {
+                response = `Unfortunately ${hour}:${minute} ${period?.toUpperCase() || (hour24 < 12 ? 'AM' : 'PM')} is booked on ${new Date(selectedDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} and that day is pretty much full. What other day might work for you?`;
+              }
+              newContext = await updateConversationContext(context, 'awaiting_time');
+            }
+          } else {
+            // No selected date, ask for a date
+            response = `Great! ${hour}:${minute} ${period?.toUpperCase() || (hour24 < 12 ? 'AM' : 'PM')} sounds good. What date works for you?`;
+            newContext = await updateConversationContext(context, 'awaiting_date', {
+              metadata: { 
+                ...context.metadata, 
+                preferredTime: requestedTime
+              }
+            });
           }
           break;
         }
