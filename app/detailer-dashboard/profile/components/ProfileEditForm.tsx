@@ -32,6 +32,7 @@ interface Profile {
   syncAvailability?: boolean;
   instagramConnected?: boolean;
   instagramDmEnabled?: boolean;
+  timezone?: string;
 }
 
 interface ProfileEditFormProps {
@@ -262,6 +263,38 @@ export default function ProfileEditForm({ profile, onClose, onSave, section }: P
               value={formData.businessHours || {}}
               onChange={(hours) => setFormData(prev => ({ ...prev, businessHours: hours }))}
             />
+          </div>
+        );
+
+      case 'timezone':
+        return (
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Timezone</label>
+              <select
+                name="timezone"
+                value={formData.timezone || 'America/New_York'}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+              >
+                <option value="America/New_York">Eastern Time (ET)</option>
+                <option value="America/Chicago">Central Time (CT)</option>
+                <option value="America/Denver">Mountain Time (MT)</option>
+                <option value="America/Los_Angeles">Pacific Time (PT)</option>
+                <option value="America/Anchorage">Alaska Time (AKT)</option>
+                <option value="Pacific/Honolulu">Hawaii Time (HST)</option>
+                <option value="America/Phoenix">Arizona Time (MST)</option>
+                <option value="America/Toronto">Toronto Time</option>
+                <option value="America/Vancouver">Vancouver Time</option>
+                <option value="Europe/London">London Time (GMT)</option>
+                <option value="Europe/Paris">Paris Time (CET)</option>
+                <option value="Asia/Tokyo">Tokyo Time (JST)</option>
+                <option value="Australia/Sydney">Sydney Time (AEST)</option>
+              </select>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                This determines the timezone for your business hours and appointments.
+              </p>
+            </div>
           </div>
         );
 

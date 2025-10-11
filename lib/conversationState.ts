@@ -221,7 +221,8 @@ export async function processConversationState(
   context: ConversationContext,
   userMessage: string,
   detailerServices: any[],
-  availableSlots?: Array<{ startLocal: string; startISO?: string; label?: string; endLocal?: string; startUtcISO?: string; endUtcISO?: string }>
+  availableSlots?: Array<{ startLocal: string; startISO?: string; label?: string; endLocal?: string; startUtcISO?: string; endUtcISO?: string }>,
+  detailerTimezone: string = 'America/New_York'
 ): Promise<{
   response: string;
   newContext: ConversationContext;
@@ -292,7 +293,7 @@ export async function processConversationState(
             const startTime = booking.scheduledTime || '10:00';
             const duration = booking.duration || 240;
             
-            const start = DateTime.fromISO(`${bookingDate}T${startTime}`, { zone: 'America/New_York' });
+            const start = DateTime.fromISO(`${bookingDate}T${startTime}`, { zone: detailerTimezone });
             const end = start.plus({ minutes: duration });
             
             return {
@@ -308,7 +309,7 @@ export async function processConversationState(
             context.detailerId,
             120,
             30,
-            'America/New_York'
+            detailerTimezone
           );
           
           // Check if the requested time is available
@@ -410,7 +411,7 @@ export async function processConversationState(
             const startTime = booking.scheduledTime || '10:00';
             const duration = booking.duration || 240;
             
-            const start = DateTime.fromISO(`${bookingDate}T${startTime}`, { zone: 'America/New_York' });
+            const start = DateTime.fromISO(`${bookingDate}T${startTime}`, { zone: detailerTimezone });
             const end = start.plus({ minutes: duration });
             
             return {
@@ -428,7 +429,7 @@ export async function processConversationState(
             context.detailerId,
             240, // 4 hour service
             30,
-            'America/New_York'
+            detailerTimezone
           );
           
           // Check if the requested time is available
@@ -529,7 +530,7 @@ export async function processConversationState(
               const startTime = booking.scheduledTime || '10:00';
               const duration = booking.duration || 240;
               
-              const start = DateTime.fromISO(`${bookingDate}T${startTime}`, { zone: 'America/New_York' });
+              const start = DateTime.fromISO(`${bookingDate}T${startTime}`, { zone: detailerTimezone });
               const end = start.plus({ minutes: duration });
               
               return {
@@ -545,7 +546,7 @@ export async function processConversationState(
               context.detailerId,
               120, // 2 hour service
               30, // 30 minute steps
-              'America/New_York'
+              detailerTimezone
             );
             
             if (slots.length > 0) {
@@ -660,7 +661,7 @@ export async function processConversationState(
               const startTime = booking.scheduledTime || '10:00';
               const duration = booking.duration || 240;
               
-              const start = DateTime.fromISO(`${bookingDate}T${startTime}`, { zone: 'America/New_York' });
+              const start = DateTime.fromISO(`${bookingDate}T${startTime}`, { zone: detailerTimezone });
               const end = start.plus({ minutes: duration });
               
               return {
@@ -676,7 +677,7 @@ export async function processConversationState(
               context.detailerId,
               120,
               30,
-              'America/New_York'
+              detailerTimezone
             );
             
             // Check if the requested time is available
@@ -737,7 +738,7 @@ export async function processConversationState(
         // If not a date+time selection, try to parse as just a date
         // Parse date from user message
         const { parseDateV2 } = await import('./timeUtilsV2');
-        const parsedDate = parseDateV2(userMessage, 'America/New_York');
+        const parsedDate = parseDateV2(userMessage, detailerTimezone);
         const dateStr = parsedDate.toFormat('yyyy-MM-dd');
         
         // Get available slots for this date
@@ -769,7 +770,7 @@ export async function processConversationState(
           const startTime = booking.scheduledTime || '10:00';
           const duration = booking.duration || 240;
           
-          const start = DateTime.fromISO(`${bookingDate}T${startTime}`, { zone: 'America/New_York' });
+          const start = DateTime.fromISO(`${bookingDate}T${startTime}`, { zone: detailerTimezone });
           const end = start.plus({ minutes: duration });
           
           return {
@@ -785,7 +786,7 @@ export async function processConversationState(
           context.detailerId,
           240, // 4 hours for full detail
           30,  // 30-minute steps
-          'America/New_York'
+          detailerTimezone
         );
         
         if (slots.length === 0) {
@@ -850,7 +851,7 @@ export async function processConversationState(
               date: selectedDate, // Use the actual selected slot date
               time: extractedTime,
               durationMinutes: 240,
-              tz: 'America/New_York',
+              tz: detailerTimezone,
               title: `Customer - Full Detail`,
               customerName: 'Customer',
               customerPhone: context.customerPhone,
@@ -1021,7 +1022,7 @@ export async function processConversationState(
             date: selectedDate,
             time: extractedTime,
             durationMinutes: 240,
-            tz: 'America/New_York',
+            tz: detailerTimezone,
             title: `Customer - Full Detail`,
             customerName: 'Customer',
             customerPhone: context.customerPhone,

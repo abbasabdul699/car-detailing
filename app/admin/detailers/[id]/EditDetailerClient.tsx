@@ -38,6 +38,7 @@ interface Detailer {
   tiktok?: string;
   verified?: boolean;
   hidden?: boolean;
+  timezone?: string;
   // Subscription fields
   trialEndsAt?: Date | string;
   isFirstCohort?: boolean;
@@ -258,6 +259,26 @@ export default function EditDetailerClient({ detailer: initialDetailer }: { deta
                 <input type="checkbox" {...register('smsEnabled')} className="checkbox" />
                 <span className="text-sm">Enable SMS messaging for this detailer</span>
               </div>
+            </div>
+            <div>
+              <label className="block font-medium">Timezone</label>
+              <select {...register('timezone')} className="select select-bordered w-full">
+                <option value="America/New_York">Eastern Time (ET)</option>
+                <option value="America/Chicago">Central Time (CT)</option>
+                <option value="America/Denver">Mountain Time (MT)</option>
+                <option value="America/Los_Angeles">Pacific Time (PT)</option>
+                <option value="America/Anchorage">Alaska Time (AKT)</option>
+                <option value="Pacific/Honolulu">Hawaii Time (HST)</option>
+                <option value="America/Phoenix">Arizona Time (MST)</option>
+                <option value="America/Toronto">Toronto Time</option>
+                <option value="America/Vancouver">Vancouver Time</option>
+                <option value="Europe/London">London Time (GMT)</option>
+                <option value="Europe/Paris">Paris Time (CET)</option>
+                <option value="Asia/Tokyo">Tokyo Time (JST)</option>
+                <option value="Australia/Sydney">Sydney Time (AEST)</option>
+              </select>
+              <p className="text-sm text-gray-600 mt-1">Timezone for business hours and appointments</p>
+              {errors.timezone && <p className="text-red-500 text-sm">{errors.timezone.message}</p>}
             </div>
           </div>
         </div>

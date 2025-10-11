@@ -37,6 +37,7 @@ interface Profile {
   instagramConnected?: boolean;
   instagramDmEnabled?: boolean;
   personalPhoneNumber?: string;
+  timezone?: string;
 }
 
 async function getProfile() {
@@ -687,6 +688,20 @@ export default function DetailerProfilePage() {
             <button className="border border-gray-300 dark:border-gray-600 rounded-full px-4 py-1 text-sm flex items-center gap-2 text-gray-700 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800" onClick={() => setEditingSection('businessHours')}>✏️ Edit</button>
           </div>
           <BusinessHoursPicker value={profile.businessHours} onChange={() => {}} />
+        </div>
+
+        {/* Timezone Section */}
+        <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-6 mb-4">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Timezone</h2>
+            <button className="border border-gray-300 dark:border-gray-600 rounded-full px-4 py-1 text-sm flex items-center gap-2 text-gray-700 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800" onClick={() => setEditingSection('timezone')}>✏️ Edit</button>
+          </div>
+          <div className="text-gray-700 dark:text-gray-300">
+            {profile.timezone || 'America/New_York'} 
+            <span className="text-sm text-gray-500 dark:text-gray-400 ml-2">
+              (This determines the timezone for your business hours and appointments)
+            </span>
+          </div>
         </div>
 
         {/* Account Settings Section */}

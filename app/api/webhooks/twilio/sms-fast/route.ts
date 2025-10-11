@@ -2218,7 +2218,8 @@ Be conversational and natural.`;
           context,
           body,
           detailerServices.map(ds => ds.service),
-          availableSlots
+          availableSlots,
+          detailer.timezone || 'America/New_York'
         );
         
         console.log('🔍 DEBUG: Conversation state machine result:', {
@@ -2344,6 +2345,7 @@ Be conversational and natural.`;
                     const day = parseInt(dateMatch[2], 10);
                     const yearNum = dateMatch[3] ? parseInt(dateMatch[3], 10) : new Date().getFullYear();
                     const year = yearNum < 100 ? 2000 + yearNum : yearNum;
+                    // Create date in local timezone to preserve the intended date
                     scheduledDate = new Date(year, month, day);
                   }
                 }
@@ -2362,10 +2364,16 @@ Be conversational and natural.`;
              }
              
              // Normalize the time input to ISO format
+             // Create date string in YYYY-MM-DD format from the local date
+             const year = scheduledDate.getFullYear();
+             const month = String(scheduledDate.getMonth() + 1).padStart(2, '0');
+             const day = String(scheduledDate.getDate()).padStart(2, '0');
+             const dateString = `${year}-${month}-${day}`;
+             
              const { startUtcISO, endUtcISO } = normalizeLocalSlotV2(
-               scheduledDate.toISOString().split('T')[0], 
+               dateString, 
                bookingTime, 
-               'America/New_York', 
+               detailer.timezone || 'America/New_York', 
                120
              );
              
@@ -2440,7 +2448,7 @@ Be conversational and natural.`;
              });
 
              // Create corresponding calendar event
-             await prisma.event.create({
+             const event = await prisma.event.create({
                data: {
                  detailerId: detailer.id,
                  title: booking.notes || `${name} - ${service}`,
@@ -2452,6 +2460,144 @@ Be conversational and natural.`;
              });
 
              console.log('✅ Booking created successfully:', booking.id);
+             
+             // Sync to Google Calendar if connected
+             if (detailer.googleCalendarConnected && detailer.googleCalendarTokens) {
+               try {
+                 const tokens = JSON.parse(detailer.googleCalendarTokens);
+                 let accessToken = tokens.access_token;
+                 
+                 // Create Google Calendar event
+                 const googleEvent = {
+                   summary: `${name} - ${service}`,
+                   description: `Customer: ${name}\nPhone: ${from}\nVehicle: ${car}\nLocation: ${address}\nServices: ${service}`,
+                   start: {
+                     dateTime: startDateTime.toISOString(),
+                     timeZone: detailer.timezone || 'America/New_York'
+                   },
+                   end: {
+                     dateTime: endDateTime.toISOString(),
+                     timeZone: detailer.timezone || 'America/New_York'
+                   }
+                 };
+
+                 // Try to create Google Calendar event
+                 try {
+                   const response = await fetch(
+                     'https://www.googleapis.com/calendar/v3/calendars/primary/events',
+                     {
+                       method: 'POST',
+                       headers: {
+                         Authorization: `Bearer ${accessToken}`,
+                         'Content-Type': 'application/json',
+                       },
+                       body: JSON.stringify(googleEvent),
+                     }
+                   );
+
+                   if (response.ok) {
+                     const createdEvent = await response.json();
+                     const googleEventId = createdEvent.id;
+                     
+                     // Update booking with Google Calendar event ID
+                     await prisma.booking.update({
+                       where: { id: booking.id },
+                       data: { googleEventId }
+                     });
+                     
+                     // Update event with Google Calendar event ID
+                     await prisma.event.update({
+                       where: { id: event.id },
+                       data: { googleEventId }
+                     });
+                     
+                     console.log('✅ Google Calendar event created for AI booking:', googleEventId);
+                   } else {
+                     console.error('❌ Google Calendar event creation failed:', response.status, response.statusText);
+                   }
+                 } catch (error) {
+                   // If access token is expired, try to refresh it
+                   if (detailer.googleCalendarRefreshToken) {
+                     console.log('Access token expired, refreshing...');
+                     try {
+                       const refreshResponse = await fetch('https://oauth2.googleapis.com/token', {
+                         method: 'POST',
+                         headers: {
+                           'Content-Type': 'application/x-www-form-urlencoded',
+                         },
+                         body: new URLSearchParams({
+                           client_id: process.env.GOOGLE_CLIENT_ID!,
+                           client_secret: process.env.GOOGLE_CLIENT_SECRET!,
+                           refresh_token: detailer.googleCalendarRefreshToken,
+                           grant_type: 'refresh_token',
+                         }),
+                       });
+
+                       if (refreshResponse.ok) {
+                         const refreshData = await refreshResponse.json();
+                         accessToken = refreshData.access_token;
+                         
+                         // Update the stored tokens
+                         const updatedTokens = {
+                           ...tokens,
+                           access_token: accessToken,
+                         };
+                         
+                         await prisma.detailer.update({
+                           where: { id: detailer.id },
+                           data: {
+                             googleCalendarTokens: JSON.stringify(updatedTokens),
+                           },
+                         });
+
+                         // Retry creating Google Calendar event
+                         const retryResponse = await fetch(
+                           'https://www.googleapis.com/calendar/v3/calendars/primary/events',
+                           {
+                             method: 'POST',
+                             headers: {
+                               Authorization: `Bearer ${accessToken}`,
+                               'Content-Type': 'application/json',
+                             },
+                             body: JSON.stringify(googleEvent),
+                           }
+                         );
+
+                         if (retryResponse.ok) {
+                           const createdEvent = await retryResponse.json();
+                           const googleEventId = createdEvent.id;
+                           
+                           // Update booking with Google Calendar event ID
+                           await prisma.booking.update({
+                             where: { id: booking.id },
+                             data: { googleEventId }
+                           });
+                           
+                           // Update event with Google Calendar event ID
+                           await prisma.event.update({
+                             where: { id: event.id },
+                             data: { googleEventId }
+                           });
+                           
+                           console.log('✅ Google Calendar event created for AI booking (after refresh):', googleEventId);
+                         } else {
+                           console.error('❌ Google Calendar event creation failed after refresh:', retryResponse.status, retryResponse.statusText);
+                         }
+                       } else {
+                         console.error('❌ Failed to refresh Google Calendar token');
+                       }
+                     } catch (refreshError) {
+                       console.error('❌ Error refreshing Google Calendar token:', refreshError);
+                     }
+                   } else {
+                     console.error('❌ No refresh token available for Google Calendar');
+                   }
+                 }
+               } catch (error) {
+                 console.error('❌ Error syncing AI booking to Google Calendar:', error);
+                 // Don't fail the booking creation if Google Calendar sync fails
+               }
+             }
              
              const bookingResult = { ok: true, bookingId: booking.id };
              
@@ -2703,7 +2849,7 @@ Which day and time would work best for you?`;
               date: picked.date,
               time: picked.time,
               durationMinutes: 120,
-              tz: 'America/New_York',
+              tz: detailer.timezone || 'America/New_York',
               excludeCustomerPhone: from
             });
             
@@ -3066,7 +3212,7 @@ What time would work better for you?`;
           const { startUtcISO, endUtcISO } = normalizeLocalSlotV2(
             when.toISOString().split('T')[0], 
             parsed.time || '10:00 AM', 
-            'America/New_York', 
+            detailer.timezone || 'America/New_York', 
             120
           );
           
@@ -3296,11 +3442,11 @@ Notes: ${parsed.note || 'Auto-captured from SMS conversation'}
               `.trim(),
               start: {
                 dateTime: startDateTime.toISOString(),
-                timeZone: 'America/New_York',
+                timeZone: detailer.timezone || 'America/New_York',
               },
               end: {
                 dateTime: endDateTime.toISOString(),
-                timeZone: 'America/New_York',
+                timeZone: detailer.timezone || 'America/New_York',
               },
               location: snapForBooking?.address || undefined,
               reminders: {
