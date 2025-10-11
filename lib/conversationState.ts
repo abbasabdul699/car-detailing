@@ -255,7 +255,8 @@ export async function processConversationState(
             throw new Error(`Invalid month: ${month}`);
           }
           
-          const requestedDate = new Date(currentYear, monthIndex, parseInt(day));
+          // Create date in UTC to avoid timezone issues
+          const requestedDate = new Date(Date.UTC(currentYear, monthIndex, parseInt(day)));
           
           // Parse time
           let hour24 = parseInt(hour);
@@ -372,7 +373,8 @@ export async function processConversationState(
           const [, month, day, hour, minute = '00', period] = specificTimeMatch;
           const currentYear = new Date().getFullYear();
           const monthIndex = new Date(`${month} 1, ${currentYear}`).getMonth();
-          const requestedDate = new Date(currentYear, monthIndex, parseInt(day));
+          // Create date in UTC to avoid timezone issues
+          const requestedDate = new Date(Date.UTC(currentYear, monthIndex, parseInt(day)));
           
           // Parse time
           let hour24 = parseInt(hour);
@@ -621,7 +623,8 @@ export async function processConversationState(
               throw new Error(`Invalid month: ${month}`);
             }
             
-            const requestedDate = new Date(currentYear, monthIndex, parseInt(day));
+            // Create date in UTC to avoid timezone issues
+            const requestedDate = new Date(Date.UTC(currentYear, monthIndex, parseInt(day)));
             
             // Parse time
             let hour24 = parseInt(hour);
