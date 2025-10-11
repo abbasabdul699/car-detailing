@@ -602,7 +602,19 @@ export async function processConversationState(
 
     case 'awaiting_date':
       try {
-        // First check if user is asking about availability (e.g., "Is 11 AM available?", "Is 11 AM on October 13th available?")
+        // First check if user is requesting a service (e.g., "I need a full detail", "Hey! I need an interior detail")
+        const serviceRequestMatch = userMessage.match(/(?:i\s+need|i\s+want|hey|hi|hello|can\s+i\s+get|book|schedule|appointment|detail|service|cleaning|wash)/i);
+        
+        if (serviceRequestMatch) {
+          // User is requesting a service - reset to idle state to start fresh
+          console.log('🔍 DEBUG: Service request detected, resetting conversation state to idle');
+          const businessHours = await formatBusinessHours(context.detailerId);
+          response = `Hi! I'd be happy to help you schedule a car detail. What date works for you? (We're open ${businessHours})`;
+          newContext = await updateConversationContext(context, 'idle');
+          break;
+        }
+        
+        // Check if user is asking about availability (e.g., "Is 11 AM available?", "Is 11 AM on October 13th available?")
         const availabilityQueryMatch = userMessage.match(/is\s+(\d{1,2}):?(\d{2})?\s*(am|pm)?\s*(?:on\s+)?(october|november|december|january|february|march|april|may|june|july|august|september|oct|nov|dec|jan|feb|mar|apr|may|jun|jul|aug|sep)?\s*(\d{1,2})?(?:st|nd|rd|th)?\s*(?:available|free|open)?/i);
         
         if (availabilityQueryMatch) {
