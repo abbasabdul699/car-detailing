@@ -2688,24 +2688,30 @@ Which day and time would work best for you?`;
       if (picked) {
         console.log('Extracted time from AI response:', picked);
         
-        try {
-          // Use direct validation function
-          const { validateTime } = await import('@/lib/validation');
-          
-          const validationResult = await validateTime({
-            detailerId: detailer.id,
-            date: picked.date,
-            time: picked.time,
-            durationMinutes: 120,
-            tz: 'America/New_York',
-            excludeCustomerPhone: from
-          });
-          
-          // Check if AI is correctly stating unavailability vs trying to book unavailable time
-          const isStatingUnavailability = /not available|booked|unavailable|taken/i.test(aiResponse);
-          
-          if (!validationResult.available && !isStatingUnavailability) {
-            console.log('❌ CONFLICT DETECTED in AI response, overriding with safe message');
+        // Check if this is a booking confirmation response (skip conflict check for confirmations)
+        const isBookingConfirmation = /booking confirmation|here's your booking|appointment confirmed|you're all set/i.test(aiResponse);
+        
+        if (isBookingConfirmation) {
+          console.log('✅ Detected booking confirmation response, skipping conflict check');
+        } else {
+          try {
+            // Use direct validation function
+            const { validateTime } = await import('@/lib/validation');
+            
+            const validationResult = await validateTime({
+              detailerId: detailer.id,
+              date: picked.date,
+              time: picked.time,
+              durationMinutes: 120,
+              tz: 'America/New_York',
+              excludeCustomerPhone: from
+            });
+            
+            // Check if AI is correctly stating unavailability vs trying to book unavailable time
+            const isStatingUnavailability = /not available|booked|unavailable|taken/i.test(aiResponse);
+            
+            if (!validationResult.available && !isStatingUnavailability) {
+              console.log('❌ CONFLICT DETECTED in AI response, overriding with safe message');
             
             const alt = validationResult.suggestions?.[0];
             const safeText = alt
@@ -2714,16 +2720,17 @@ Which day and time would work best for you?`;
             
             aiResponse = safeText;
             console.log('✅ Overriding AI response with conflict-safe message');
-          } else if (!validationResult.available && isStatingUnavailability) {
-            console.log('✅ AI correctly stated unavailability, keeping response');
-          } else {
-            console.log('✅ AI suggested time is available, proceeding');
+            } else if (!validationResult.available && isStatingUnavailability) {
+              console.log('✅ AI correctly stated unavailability, keeping response');
+            } else {
+              console.log('✅ AI suggested time is available, proceeding');
+            }
+          } catch (validationError) {
+            console.error('Error validating AI response:', validationError);
+            // Fail-closed: avoid proposing a time we didn't validate
+            aiResponse = "Let me double-check availability—do mornings or afternoons work better?";
+            console.log('✅ Failing closed with neutral response due to validation error');
           }
-        } catch (validationError) {
-          console.error('Error validating AI response:', validationError);
-          // Fail-closed: avoid proposing a time we didn't validate
-          aiResponse = "Let me double-check availability—do mornings or afternoons work better?";
-          console.log('✅ Failing closed with neutral response due to validation error');
         }
       }
 
