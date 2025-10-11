@@ -758,14 +758,28 @@ export async function processConversationState(
           break;
         }
         
-        // Check if user is selecting a specific date and time (e.g., "Oct 9 at 3 PM", "let's do October 10th at 9:30 AM")
-        const dateTimeSelectionMatch = userMessage.match(/(?:let'?s?\s+do|lets\s+do|ok,?\s+let'?s?\s+do|ok\s+lets\s+do|ok,?\s+lets\s+do|i'?ll\s+take|book|schedule|i\s+said|i\s+want|i\s+need|how\s+about)\s+(october|november|december|january|february|march|april|may|june|july|august|september|oct|nov|dec|jan|feb|mar|apr|may|jun|jul|aug|sep)\s+(\d{1,2})(?:st|nd|rd|th)?\s+(?:at\s+)?(\d{1,2}):?(\d{2})?\s*(am|pm)?/i);
+        // Check if user is selecting a specific date and time (e.g., "Oct 9 at 3 PM", "let's do October 10th at 9:30 AM", "I am available on October 15th at 10 AM")
+        const dateTimeSelectionMatch = userMessage.match(/(?:let'?s?\s+do|lets\s+do|ok,?\s+let'?s?\s+do|ok\s+lets\s+do|ok,?\s+lets\s+do|i'?ll\s+take|book|schedule|i\s+said|i\s+want|i\s+need|how\s+about|i\s+am\s+available\s+on)\s+(october|november|december|january|february|march|april|may|june|july|august|september|oct|nov|dec|jan|feb|mar|apr|may|jun|jul|aug|sep)\s+(\d{1,2})(?:st|nd|rd|th)?\s+(?:at\s+)?(\d{1,2}):?(\d{2})?\s*(am|pm)?/i);
         
-        if (dateTimeSelectionMatch) {
+        // Also check for "I am available on [date] at [time]" pattern specifically
+        const availabilitySelectionMatch = userMessage.match(/i\s+am\s+available\s+on\s+(october|november|december|january|february|march|april|may|june|july|august|september|oct|nov|dec|jan|feb|mar|apr|may|jun|jul|aug|sep)\s+(\d{1,2})(?:st|nd|rd|th)?\s+at\s+(\d{1,2}):?(\d{2})?\s*(am|pm)/i);
+        
+        if (dateTimeSelectionMatch || availabilitySelectionMatch) {
           // User is selecting a specific date and time for booking
           try {
-            const [, month, day, hour, minute = '00', period] = dateTimeSelectionMatch;
+            const match = dateTimeSelectionMatch || availabilitySelectionMatch;
+            const [, month, day, hour, minute = '00', period] = match!;
             const currentYear = new Date().getFullYear();
+            
+            console.log('🔍 DEBUG: Date/time selection matched:', {
+              userMessage,
+              matchType: dateTimeSelectionMatch ? 'dateTimeSelectionMatch' : 'availabilitySelectionMatch',
+              month,
+              day,
+              hour,
+              minute,
+              period
+            });
             
             // Handle abbreviated month names
             const monthMap: { [key: string]: number } = {
