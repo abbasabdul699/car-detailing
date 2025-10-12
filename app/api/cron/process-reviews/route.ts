@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { processScheduledReviews } from '../../../lib/scheduledReviews';
+import { processScheduledReviews } from '@/lib/scheduledReviews';
 
 export async function POST(request: NextRequest) {
   try {
