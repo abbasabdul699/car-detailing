@@ -12,6 +12,7 @@ export type ConversationState =
   | 'idle' 
   | 'awaiting_date' 
   | 'awaiting_time' 
+  | 'awaiting_choice'
   | 'awaiting_confirm' 
   | 'confirmed' 
   | 'error';
@@ -603,22 +604,12 @@ export async function processConversationState(
     case 'awaiting_date':
       try {
         console.log('🔍 DEBUG: In awaiting_date case, userMessage:', userMessage);
-        // First check if user is requesting a service (e.g., "I need a full detail", "Hey! I need an interior detail")
-        const serviceRequestMatch = userMessage.match(/(?:i\s+need|i\s+want|hey|hi|hello|can\s+i\s+get|book|schedule|appointment|detail|service|cleaning|wash)/i);
         
-        if (serviceRequestMatch) {
-          // User is requesting a service - reset to idle state to start fresh
-          console.log('🔍 DEBUG: Service request detected, resetting conversation state to idle');
-          const businessHours = await formatBusinessHours(context.detailerId);
-          response = `Hi! I'd be happy to help you schedule a car detail. What date works for you? (We're open ${businessHours})`;
-          newContext = await updateConversationContext(context, 'idle');
-          break;
-        }
-
-       // Check if user is asking for general availability (e.g., "What are your available times?", "Do you have any openings?")
-       console.log('🔍 DEBUG: About to check general availability pattern for:', userMessage);
-       const generalAvailabilityQueryMatch = userMessage.match(/(?:what\s+are.*available\s+(?:times|dates)|available\s+(?:times|dates)|do\s+you\s+have\s+any\s+openings|show\s+me\s+your\s+availability|what\s+(?:times|dates)\s+do\s+you\s+have|when\s+are\s+you\s+available|yeah\s+what\s+are.*available)/i);
-       console.log('🔍 DEBUG: General availability pattern match result:', generalAvailabilityQueryMatch);
+        // FIRST: Check if user is asking for general availability (e.g., "What are your available times?", "Do you have any openings?")
+        // This should take priority over service requests to avoid false positives
+        console.log('🔍 DEBUG: About to check general availability pattern for:', userMessage);
+        const generalAvailabilityQueryMatch = userMessage.match(/(?:what\s+are.*available\s+(?:times|dates|appointments)|available\s+(?:times|dates|appointments)|do\s+you\s+have\s+any\s+openings|show\s+me\s+your\s+availability|what\s+(?:times|dates)\s+do\s+you\s+have|when\s+are\s+you\s+available|yeah\s+what\s+are.*available)/i);
+        console.log('🔍 DEBUG: General availability pattern match result:', generalAvailabilityQueryMatch);
         
         if (generalAvailabilityQueryMatch) {
           console.log('🔍 DEBUG: General availability query detected:', userMessage);
@@ -651,7 +642,23 @@ export async function processConversationState(
                   duration: true
                 }
               });
-
+              
+              // Get Google Calendar events for this date
+              const existingEvents = await prisma.event.findMany({
+                where: {
+                  detailerId: context.detailerId,
+                  date: {
+                    gte: new Date(dateStr + 'T00:00:00.000Z'),
+                    lt: new Date(dateStr + 'T23:59:59.999Z')
+                  }
+                },
+                select: {
+                  date: true,
+                  time: true,
+                  title: true
+                }
+              });
+              
               // Convert bookings to the format expected by getMergedFreeSlots
               const reevaBookings = existingBookings.map(booking => {
                 const bookingDate = booking.scheduledDate.toISOString().split('T')[0];
@@ -666,43 +673,45 @@ export async function processConversationState(
                   end: end.toUTC().toISO() || ''
                 };
               }).filter(booking => booking.start && booking.end);
-              
-              const slots = await getMergedFreeSlots(
-                dateStr,
-                'primary', // Use primary calendar for now
-                reevaBookings,
-                context.detailerId,
-                120, // 2 hour service
-                30, // 30 minute steps
-                detailerTimezone
-              );
-              
-              if (slots.length > 0) {
-                const dayName = date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
-                const daySlots = slots.slice(0, 4).map(slot => {
-                  // Extract time from label like "Wed, Oct 8: 8:00 AM – 10:00 AM"
-                  const timeMatch = slot.label.match(/(\d{1,2}:\d{2} [AP]M)/);
-                  return timeMatch ? timeMatch[1] : slot.label.split(': ')[1]?.split(' –')[0] || 'time';
-                }).join(', ');
-                
-                availableSlots.push(`${dayName}: ${daySlots}`);
+
+              // Get available slots for this date
+              const slots = await getMergedFreeSlots(dateStr, 'primary', reevaBookings, context.detailerId, 120, 30, detailerTimezone);
+              if (slots && slots.length > 0) {
+                availableSlots.push(...slots.slice(0, 3)); // Limit to 3 slots per day
               }
             }
             
             if (availableSlots.length > 0) {
-              response = `Here's what I've got open:\n\n${availableSlots.join('\n')}\n\nWhich day and time works best for you?`;
-              newContext = await updateConversationContext(context, 'awaiting_time');
+              const slotList = availableSlots.slice(0, 6).map((slot, index) => 
+                `${index + 1}. ${slot.startLocal}`
+              ).join('\n');
+              
+              response = `Here are our available appointments:\n\n${slotList}\n\nWhich one works for you? Just reply with the number (1, 2, 3, etc.)`;
+              newContext = await updateConversationContext(context, 'awaiting_choice', { slots: availableSlots.slice(0, 6) });
             } else {
               const businessHours = await formatBusinessHours(context.detailerId);
-              response = `Hmm, looks like we're pretty booked up for the next few days. What date works for you? (We're open ${businessHours})`;
+              response = `I don't have any immediate availability. What date works for you? (We're open ${businessHours})`;
               newContext = await updateConversationContext(context, 'awaiting_date');
             }
           } catch (error) {
-            console.error('Error getting availability:', error);
+            console.error('Error getting available slots:', error);
             const businessHours = await formatBusinessHours(context.detailerId);
-            response = `What date works for you? (We're open ${businessHours})`;
+            response = `I'd be happy to help you find a time! What date works for you? (We're open ${businessHours})`;
             newContext = await updateConversationContext(context, 'awaiting_date');
           }
+          break;
+        }
+        
+        // THEN: Check if user is requesting a service (e.g., "I need a full detail", "Hey! I need an interior detail")
+        // But exclude availability queries that might contain words like "appointment"
+        const serviceRequestMatch = userMessage.match(/(?:i\s+need|i\s+want|hey|hi|hello|can\s+i\s+get|book|schedule|detail|service|cleaning|wash)/i);
+        
+        if (serviceRequestMatch) {
+          // User is requesting a service - reset to idle state to start fresh
+          console.log('🔍 DEBUG: Service request detected, resetting conversation state to idle');
+          const businessHours = await formatBusinessHours(context.detailerId);
+          response = `Hi! I'd be happy to help you schedule a car detail. What date works for you? (We're open ${businessHours})`;
+          newContext = await updateConversationContext(context, 'idle');
           break;
         }
         
