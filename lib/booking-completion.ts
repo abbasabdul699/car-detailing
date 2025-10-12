@@ -1,11 +1,17 @@
 import { PrismaClient } from '@prisma/client';
+import twilio from 'twilio';
+import { generateShortReviewMessage } from './reviewLinks';
+import { scheduleReviewLink, sendReviewLinkImmediately } from './scheduledReviews';
 
 const prisma = new PrismaClient();
+const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
 
 export interface BookingCompletionService {
   markBookingAsCompleted(bookingId: string): Promise<void>;
   processCompletedBookings(): Promise<void>;
   chargeDetailerForBooking(bookingId: string, detailerId: string): Promise<void>;
+  sendReviewLink(bookingId: string): Promise<void>;
+  sendReviewLinkImmediately(bookingId: string): Promise<void>;
 }
 
 export class BookingCompletionServiceImpl implements BookingCompletionService {
@@ -45,7 +51,10 @@ export class BookingCompletionServiceImpl implements BookingCompletionService {
         // Charge the detailer for the booking
         await this.chargeDetailerForBooking(bookingId, booking.detailerId);
         
-        console.log(`✅ Booking ${bookingId} marked as completed and charged`);
+        // Send review link to customer
+        await this.sendReviewLink(bookingId);
+        
+        console.log(`✅ Booking ${bookingId} marked as completed, charged, and review link sent`);
       }
     } catch (error) {
       console.error(`❌ Error marking booking ${bookingId} as completed:`, error);
@@ -143,6 +152,64 @@ export class BookingCompletionServiceImpl implements BookingCompletionService {
       }
     } catch (error) {
       console.error(`❌ Error charging detailer for booking ${bookingId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Send a Google Review link to the customer after their appointment is completed
+   * Uses the scheduled review system for delayed sending
+   */
+  async sendReviewLink(bookingId: string): Promise<void> {
+    try {
+      const booking = await prisma.booking.findUnique({
+        where: { id: bookingId },
+        include: {
+          detailer: {
+            select: {
+              businessName: true,
+              twilioPhoneNumber: true,
+              smsEnabled: true,
+            }
+          }
+        },
+      });
+
+      if (!booking) {
+        throw new Error(`Booking ${bookingId} not found`);
+      }
+
+      if (!booking.detailer.smsEnabled || !booking.detailer.twilioPhoneNumber) {
+        console.log(`📱 Detailer ${booking.detailerId} has SMS disabled - skipping review link`);
+        return;
+      }
+
+      // Schedule the review link to be sent 30 minutes after the appointment time
+      // This gives customers time to experience the service
+      const appointmentDate = new Date(booking.scheduledDate);
+      const [hours, minutes] = booking.scheduledTime.split(':');
+      appointmentDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+      
+      const reviewSendTime = new Date(appointmentDate.getTime() + (30 * 60 * 1000)); // 30 minutes after appointment
+      
+      await scheduleReviewLink(bookingId, reviewSendTime);
+      
+      console.log(`⏰ Review link scheduled for booking ${bookingId} (30 minutes after appointment: ${reviewSendTime.toISOString()})`);
+    } catch (error) {
+      console.error(`❌ Error scheduling review link for booking ${bookingId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Send a review link immediately (for testing or immediate sending)
+   */
+  async sendReviewLinkImmediately(bookingId: string): Promise<void> {
+    try {
+      await sendReviewLinkImmediately(bookingId);
+      console.log(`📝 Review link sent immediately for booking ${bookingId}`);
+    } catch (error) {
+      console.error(`❌ Error sending immediate review link for booking ${bookingId}:`, error);
       throw error;
     }
   }

@@ -32,6 +32,7 @@ model Detailer {
   instagram    String?
   tiktok       String?
   facebook     String?
+  googleReviewLink String?
   businessHours Json
   images       Image[]
   detailerImages DetailerImage[]
@@ -82,6 +83,7 @@ model Detailer {
   customerSnapshots CustomerSnapshot[]
   events            Event[]
   charges           Charge[]
+  scheduledReviews  ScheduledReview[]
 }
 
 model Image {
@@ -299,6 +301,7 @@ model Booking {
   
   // Relations
   events            Event[]
+  scheduledReviews  ScheduledReview[]
   @@unique([detailerId, scheduledDate, customerPhone])
 }
 
@@ -393,4 +396,23 @@ model Charge {
   chargedAt   DateTime? // When the charge was processed
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+// Scheduled Review Links
+model ScheduledReview {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  bookingId     String   @db.ObjectId
+  booking       Booking  @relation(fields: [bookingId], references: [id])
+  customerPhone String   // Customer's phone number
+  detailerId    String   @db.ObjectId
+  detailer      Detailer @relation(fields: [detailerId], references: [id])
+  businessName  String   // Business name for the review link
+  customerName  String?  // Customer name (optional)
+  serviceType   String?  // Type of service (optional)
+  scheduledFor  DateTime // When to send the review link
+  sent          Boolean  @default(false) // Whether the review link has been sent
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@map("scheduledReviews")
 }

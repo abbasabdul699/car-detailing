@@ -44,6 +44,7 @@ export async function GET() {
         instagram: true,
         tiktok: true,
         facebook: true,
+        googleReviewLink: true,
         googleCalendarConnected: true,
         syncAppointments: true,
         syncAvailability: true,
@@ -85,7 +86,7 @@ export async function PATCH(request: Request) {
   const allowedFields = [
     'firstName', 'lastName', 'businessName', 'phone', 'address', 'city', 'state', 'zipCode',
     'description', 'latitude', 'longitude', 'priceRange', 'website', 'imageUrl', 'businessHours', 'verified',
-    'facebook', 'instagram', 'tiktok'
+    'facebook', 'instagram', 'tiktok', 'googleReviewLink'
   ];
   const updateData: Record<string, any> = {};
   for (const key of allowedFields) {
@@ -136,6 +137,7 @@ export async function PATCH(request: Request) {
         facebook: true,
         instagram: true,
         tiktok: true,
+        googleReviewLink: true,
       },
     });
 

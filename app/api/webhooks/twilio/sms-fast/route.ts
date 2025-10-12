@@ -2025,6 +2025,15 @@ ${availabilitySummary}
 
 IMPORTANT: Use the known information above. If you already know their name, vehicle, or address, don't ask for it again. Only ask for information you don't have yet.
 
+CRITICAL NAME HANDLING:
+- If the customer's name is provided (even if it looks like a greeting like "Hello", "Hi", "Hey"), use it EXACTLY as provided
+- DO NOT change "Hello" to "Hey" or any other variation
+- DO NOT assume a name is a greeting - use whatever name is in the customer information
+- When creating booking confirmations, use the exact name from the customer information above
+- If customer name is "Hello", use "Hello" - do NOT change it to "Hey"
+- If customer name is "Hi", use "Hi" - do NOT change it to anything else
+- The name field in booking confirmations must match the customer information exactly
+
 When customers ask about services:
 - Be enthusiastic and helpful
 - Ask follow-up questions

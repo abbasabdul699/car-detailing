@@ -33,6 +33,7 @@ interface Profile {
   instagramConnected?: boolean;
   instagramDmEnabled?: boolean;
   timezone?: string;
+  googleReviewLink?: string;
 }
 
 interface ProfileEditFormProps {
@@ -82,7 +83,7 @@ export default function ProfileEditForm({ profile, onClose, onSave, section }: P
     }
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
@@ -252,6 +253,26 @@ export default function ProfileEditForm({ profile, onClose, onSave, section }: P
                 onChange={handleChange}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
               />
+            </div>
+          </div>
+        );
+
+      case 'googleReview':
+        return (
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Google Review Link</label>
+              <input
+                type="url"
+                name="googleReviewLink"
+                value={formData.googleReviewLink || ''}
+                onChange={handleChange}
+                placeholder="https://g.page/r/your-business/review"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+              />
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Add your Google Reviews link to make it easier for customers to leave reviews. You can find this link in your Google My Business profile.
+              </p>
             </div>
           </div>
         );

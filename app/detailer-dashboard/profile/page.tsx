@@ -38,6 +38,7 @@ interface Profile {
   instagramDmEnabled?: boolean;
   personalPhoneNumber?: string;
   timezone?: string;
+  googleReviewLink?: string;
 }
 
 async function getProfile() {
@@ -501,6 +502,45 @@ export default function DetailerProfilePage() {
             </div>
           </div>
         </div>
+
+        {/* Google Review Section */}
+        <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-6 mb-4">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Google Review Link</h2>
+            <button className="border border-gray-300 dark:border-gray-600 rounded-full px-4 py-1 text-sm flex items-center gap-2 text-gray-700 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800" onClick={() => setEditingSection('googleReview')}>✏️ Edit</button>
+          </div>
+          <div className="space-y-2">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+              Add your Google Reviews link to make it easier for customers to leave reviews after their service.
+            </p>
+            <div>
+              <label className="block text-xs text-gray-700 dark:text-gray-200">Google Review Link</label>
+              <input 
+                type="url" 
+                value={profile.googleReviewLink || ''} 
+                disabled 
+                className="w-full border rounded p-2 bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-100" 
+                placeholder="https://g.page/r/your-business/review"
+              />
+            </div>
+            {profile.googleReviewLink && (
+              <div className="mt-2">
+                <a 
+                  href={profile.googleReviewLink} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800 text-sm"
+                >
+                  🔗 View Google Reviews
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                </a>
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* Calendar Integration Section */}
         <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-6 mb-4">
           <div className="flex items-center justify-between mb-4">

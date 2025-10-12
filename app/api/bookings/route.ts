@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
+import { bookingCompletionService } from '../../../lib/booking-completion';
 
 const prisma = new PrismaClient();
 
@@ -313,6 +314,11 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Booking ID is required' }, { status: 400 });
     }
 
+    // Get the current booking to check if status is changing to completed
+    const currentBooking = await prisma.booking.findUnique({
+      where: { id: bookingId }
+    });
+
     const booking = await prisma.booking.update({
       where: { id: bookingId },
       data: {
@@ -322,6 +328,17 @@ export async function PUT(request: NextRequest) {
         updatedAt: new Date()
       }
     });
+
+    // If booking was just marked as completed, send review link
+    if (status === 'completed' && currentBooking?.status !== 'completed') {
+      try {
+        await bookingCompletionService.sendReviewLink(bookingId);
+        console.log(`📝 Review link sent for manually completed booking ${bookingId}`);
+      } catch (error) {
+        console.error(`❌ Error sending review link for booking ${bookingId}:`, error);
+        // Don't fail the request if review link sending fails
+      }
+    }
 
     return NextResponse.json({ success: true, booking });
   } catch (error) {
