@@ -608,7 +608,7 @@ export async function processConversationState(
         // FIRST: Check if user is asking for general availability (e.g., "What are your available times?", "Do you have any openings?")
         // This should take priority over service requests to avoid false positives
         console.log('🔍 DEBUG: About to check general availability pattern for:', userMessage);
-        const generalAvailabilityQueryMatch = userMessage.match(/(?:what\s+are.*available\s+(?:times|dates|appointments)|available\s+(?:times|dates|appointments)|do\s+you\s+have\s+any\s+openings|show\s+me\s+your\s+availability|what\s+(?:times|dates)\s+do\s+you\s+have|when\s+are\s+you\s+available|yeah\s+what\s+are.*available)/i);
+        const generalAvailabilityQueryMatch = userMessage.match(/(?:what\s+are.*available\s+(?:times|dates|appointments)|available\s+(?:times|dates|appointments)|do\s+you\s+have\s+any\s+openings|show\s+me\s+your\s+availability|what\s+(?:times|dates)\s+do\s+you\s+have|when\s+are\s+you\s+available|yeah\s+what\s+are.*available|what\s+services\s+do\s+you\s+provide)/i);
         console.log('🔍 DEBUG: General availability pattern match result:', generalAvailabilityQueryMatch);
         
         if (generalAvailabilityQueryMatch) {
@@ -686,25 +686,36 @@ export async function processConversationState(
                 `${index + 1}. ${slot.startLocal}`
               ).join('\n');
               
-              response = `Here are our available appointments:\n\n${slotList}\n\nWhich one works for you? Just reply with the number (1, 2, 3, etc.)`;
+              // Check if user also asked about services
+              const asksAboutServices = userMessage.toLowerCase().includes('services') || userMessage.toLowerCase().includes('provide');
+              const servicesInfo = asksAboutServices ? 
+                '\n\nOur services include:\n• Full Detail (exterior + interior)\n• Interior Detail\n• Exterior Detail\n• Ceramic Coating\n• Custom packages available\n\n' : '';
+              
+              response = `Here are our available appointments:\n\n${slotList}${servicesInfo}\nWhich one works for you? Just reply with the number (1, 2, 3, etc.)`;
               newContext = await updateConversationContext(context, 'awaiting_choice', { slots: availableSlots.slice(0, 6) });
             } else {
               const businessHours = await formatBusinessHours(context.detailerId);
-              response = `I don't have any immediate availability. What date works for you? (We're open ${businessHours})`;
+              const asksAboutServices = userMessage.toLowerCase().includes('services') || userMessage.toLowerCase().includes('provide');
+              const servicesInfo = asksAboutServices ? 
+                '\n\nOur services include:\n• Full Detail (exterior + interior)\n• Interior Detail\n• Exterior Detail\n• Ceramic Coating\n• Custom packages available\n\n' : '';
+              response = `I don't have any immediate availability. What date works for you? (We're open ${businessHours})${servicesInfo}`;
               newContext = await updateConversationContext(context, 'awaiting_date');
             }
           } catch (error) {
             console.error('Error getting available slots:', error);
             const businessHours = await formatBusinessHours(context.detailerId);
-            response = `I'd be happy to help you find a time! What date works for you? (We're open ${businessHours})`;
+            const asksAboutServices = userMessage.toLowerCase().includes('services') || userMessage.toLowerCase().includes('provide');
+            const servicesInfo = asksAboutServices ? 
+              '\n\nOur services include:\n• Full Detail (exterior + interior)\n• Interior Detail\n• Exterior Detail\n• Ceramic Coating\n• Custom packages available\n\n' : '';
+            response = `I'd be happy to help you find a time! What date works for you? (We're open ${businessHours})${servicesInfo}`;
             newContext = await updateConversationContext(context, 'awaiting_date');
           }
           break;
         }
         
         // THEN: Check if user is requesting a service (e.g., "I need a full detail", "Hey! I need an interior detail")
-        // But exclude availability queries that might contain words like "appointment"
-        const serviceRequestMatch = userMessage.match(/(?:i\s+need|i\s+want|hey|hi|hello|can\s+i\s+get|book|schedule|detail|service|cleaning|wash)/i);
+        // But exclude availability queries that might contain words like "appointment" or "services"
+        const serviceRequestMatch = userMessage.match(/(?:i\s+need|i\s+want|hey|hi|hello|can\s+i\s+get|book|schedule|detail|cleaning|wash)(?!.*(?:available|times|appointments|services|provide))/i);
         
         if (serviceRequestMatch) {
           // User is requesting a service - reset to idle state to start fresh
