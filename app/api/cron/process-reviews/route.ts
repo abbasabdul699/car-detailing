@@ -5,6 +5,8 @@ export async function POST(request: NextRequest) {
   try {
     // Verify the cron secret for security
     const authHeader = request.headers.get('authorization');
+    const url = new URL(request.url);
+    const tokenParam = url.searchParams.get('token');
     const cronSecret = process.env.CRON_SECRET;
     
     if (!cronSecret) {
@@ -12,7 +14,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Cron secret not configured' }, { status: 500 });
     }
     
-    if (authHeader !== `Bearer ${cronSecret}`) {
+    if (authHeader !== `Bearer ${cronSecret}` && tokenParam !== cronSecret) {
       console.error('❌ Invalid cron secret provided');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -39,6 +41,8 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     const authHeader = request.headers.get('authorization');
+    const url = new URL(request.url);
+    const tokenParam = url.searchParams.get('token');
     const cronSecret = process.env.CRON_SECRET;
 
     if (!cronSecret) {
@@ -46,7 +50,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Cron secret not configured' }, { status: 500 });
     }
 
-    if (authHeader !== `Bearer ${cronSecret}`) {
+    if (authHeader !== `Bearer ${cronSecret}` && tokenParam !== cronSecret) {
       console.error('❌ Invalid cron secret provided');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
