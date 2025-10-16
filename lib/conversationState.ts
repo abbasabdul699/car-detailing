@@ -235,6 +235,129 @@ export async function processConversationState(
 
   switch (context.state) {
     case 'idle':
+      // FIRST: Check if user is asking for general availability (e.g., "Hey! I want my car detailed", "What are your available times?")
+      const generalAvailabilityMatch = userMessage.match(/(?:hey|hi|hello|what\s+are.*(?:avai?lable|available|avaiable)\s+(?:times|dates|appointments)|(?:avai?lable|available|avaiable)\s+(?:times|dates|appointments)|do\s+you\s+have\s+any\s+openings|show\s+me\s+your\s+availability|what\s+(?:times|dates)\s+do\s+you\s+have|when\s+are\s+you\s+(?:avai?lable|available|avaiable)|i\s+want.*detail|i\s+need.*detail|can\s+i\s+get.*detail)/i);
+      
+      if (generalAvailabilityMatch) {
+        console.log('🔍 DEBUG: General availability request detected in idle state:', userMessage);
+        
+        // Provide actual available times for next few days
+        try {
+          const { getMergedFreeSlots } = await import('./slotComputationV2');
+          const today = new Date();
+          const availableSlots = [];
+          
+          // Get slots for next 3 days
+          for (let i = 1; i <= 3; i++) {
+            const date = new Date(today);
+            date.setDate(today.getDate() + i);
+            const dateStr = date.toISOString().split('T')[0];
+            
+            // Fetch existing bookings for this date
+            const existingBookings = await prisma.booking.findMany({
+              where: {
+                detailerId: context.detailerId,
+                status: { in: ['confirmed', 'pending'] },
+                scheduledDate: {
+                  gte: new Date(dateStr + 'T00:00:00.000Z'),
+                  lt: new Date(dateStr + 'T23:59:59.999Z')
+                }
+              },
+              select: {
+                scheduledDate: true,
+                scheduledTime: true,
+                duration: true
+              }
+            });
+            
+            // Get Google Calendar events for this date
+            const existingEvents = await prisma.event.findMany({
+              where: {
+                detailerId: context.detailerId,
+                date: {
+                  gte: new Date(dateStr + 'T00:00:00.000Z'),
+                  lt: new Date(dateStr + 'T23:59:59.999Z')
+                }
+              },
+              select: {
+                date: true,
+                time: true,
+                title: true
+              }
+            });
+            
+            const slots = await getMergedFreeSlots(
+              dateStr,
+              'primary',
+              existingBookings.map(b => ({
+                start: new Date(b.scheduledDate).toISOString(),
+                end: new Date(new Date(b.scheduledDate).getTime() + (b.duration || 120) * 60000).toISOString()
+              })),
+              context.detailerId,
+              240, // durationMinutes
+              30, // stepMinutes
+              detailerTimezone
+            );
+            
+            availableSlots.push(...slots);
+          }
+          
+          if (availableSlots.length > 0) {
+            // Group slots by date and format response
+            const grouped: { [date: string]: string[] } = {};
+            availableSlots.forEach(slot => {
+              const dateKey = new Date(slot.startISO).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+              if (!grouped[dateKey]) grouped[dateKey] = [];
+              const timeStr = slot.startLocal.split(' – ')[0];
+              grouped[dateKey].push(timeStr);
+            });
+            
+            // Build a concise, ordered message: up to 2 dates, up to 3 times each
+            const lines: string[] = ['Here are some available time slots:'];
+            const datesToShow = Object.keys(grouped).slice(0, 2);
+            for (const dateLabel of datesToShow) {
+              lines.push(`\n- ${dateLabel}:`);
+              const times = grouped[dateLabel].slice(0, 3);
+              for (const t of times) lines.push(`  - ${t}`);
+            }
+            
+            lines.push('\nLet me know which time works best for you!');
+            
+            // Check if user also asked about services
+            const asksAboutServices = userMessage.toLowerCase().includes('services') || userMessage.toLowerCase().includes('provide');
+            if (asksAboutServices) {
+              lines.splice(1, 0, '');
+            }
+            
+            response = lines.join('\n');
+            // Keep only the slots corresponding to the dates shown (for next-step selection)
+            const kept = availableSlots.filter(s => {
+              const cleaned = String(s.startLocal).replace(/\s+America\/.+$/, '');
+              const m = cleaned.match(/^(.*?\d{1,2})\s+/);
+              const dateLabel = m ? m[1] : cleaned;
+              return datesToShow.includes(dateLabel);
+            });
+            newContext = await updateConversationContext(context, 'awaiting_choice', { slots: kept });
+          } else {
+            const businessHours = await formatBusinessHours(context.detailerId);
+            const asksAboutServices = userMessage.toLowerCase().includes('services') || userMessage.toLowerCase().includes('provide');
+            const servicesInfo = asksAboutServices ? 
+              '\n\nOur services include:\n• Full Detail (exterior + interior)\n• Interior Detail\n• Exterior Detail\n• Ceramic Coating\n• Custom packages available\n\n' : '';
+            response = `I don't have any immediate availability. What date works for you? (We're open ${businessHours})${servicesInfo}`;
+            newContext = await updateConversationContext(context, 'awaiting_date');
+          }
+        } catch (error) {
+          console.error('Error getting available slots:', error);
+          const businessHours = await formatBusinessHours(context.detailerId);
+          const asksAboutServices = userMessage.toLowerCase().includes('services') || userMessage.toLowerCase().includes('provide');
+          const servicesInfo = asksAboutServices ? 
+            '\n\nOur services include:\n• Full Detail (exterior + interior)\n• Interior Detail\n• Exterior Detail\n• Ceramic Coating\n• Custom packages available\n\n' : '';
+          response = `I'd be happy to help you find a time! What date works for you? (We're open ${businessHours})${servicesInfo}`;
+          newContext = await updateConversationContext(context, 'awaiting_date');
+        }
+        break;
+      }
+      
       // Check if user is selecting a specific date and time (e.g., "Oct 9 at 3 PM", "let's do October 10th at 9:30 AM")
       const dateTimeSelectionMatch = userMessage.match(/(?:let'?s?\s+do|lets\s+do|ok,?\s+let'?s?\s+do|ok\s+lets\s+do|ok,?\s+lets\s+do|i'?ll\s+take|book|schedule)\s+(october|november|december|january|february|march|april|may|june|july|august|september|oct|nov|dec|jan|feb|mar|apr|may|jun|jul|aug|sep)\s+(\d{1,2})(?:st|nd|rd|th)?\s+(?:at\s+)?(\d{1,2}):?(\d{2})?\s*(am|pm)?/i);
       
