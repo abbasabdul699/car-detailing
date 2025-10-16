@@ -608,7 +608,7 @@ export async function processConversationState(
         // FIRST: Check if user is asking for general availability (e.g., "What are your available times?", "Do you have any openings?")
         // This should take priority over service requests to avoid false positives
         console.log('🔍 DEBUG: About to check general availability pattern for:', userMessage);
-        const generalAvailabilityQueryMatch = userMessage.match(/(?:what\s+are.*available\s+(?:times|dates|appointments)|available\s+(?:times|dates|appointments)|do\s+you\s+have\s+any\s+openings|show\s+me\s+your\s+availability|what\s+(?:times|dates)\s+do\s+you\s+have|when\s+are\s+you\s+available|yeah\s+what\s+are.*available|what\s+services\s+do\s+you\s+provide)/i);
+        const generalAvailabilityQueryMatch = userMessage.match(/(?:what\s+are.*avai?lable\s+(?:times|dates|appointments)|avai?lable\s+(?:times|dates|appointments)|do\s+you\s+have\s+any\s+openings|show\s+me\s+your\s+availability|what\s+(?:times|dates)\s+do\s+you\s+have|when\s+are\s+you\s+avai?lable|yeah\s+what\s+are.*avai?lable|what\s+services\s+do\s+you\s+provide)/i);
         console.log('🔍 DEBUG: General availability pattern match result:', generalAvailabilityQueryMatch);
         
         if (generalAvailabilityQueryMatch) {
