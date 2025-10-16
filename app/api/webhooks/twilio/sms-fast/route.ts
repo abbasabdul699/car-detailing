@@ -1824,7 +1824,8 @@ WHEN CUSTOMER ASKS "what is my name?" or "what's my name?":
       
       console.log(`🔍 [${traceId}] Total Reeva busy intervals: ${reevaBusyIntervals.length}`);
       
-      const googleCalendarId = detailer.googleCalendarConnected ? 'primary' : undefined;
+      const useGoogleAvailability = !!(detailer.googleCalendarConnected && detailer.syncAvailability && detailer.googleCalendarRefreshToken);
+      const googleCalendarId = useGoogleAvailability ? 'primary' : undefined;
       const detailerTimezone = detailer.timezone || 'America/New_York';
       
       if (checkMultipleDays) {
@@ -1843,7 +1844,8 @@ WHEN CUSTOMER ASKS "what is my name?" or "what's my name?":
           console.log(`🔍 [${traceId}] Checking availability for ${dateISO} (day ${i + 1}/5)`);
           
           try {
-            const daySlots = await getMergedFreeSlots(dateISO, googleCalendarId || 'primary', reevaBusyIntervals, detailer.id, 120, 30, detailerTimezone);
+            const calendarId = googleCalendarId ?? 'primary';
+            const daySlots = await getMergedFreeSlots(dateISO, calendarId, reevaBusyIntervals, detailer.id, 120, 30, detailerTimezone);
             
             // Add slots for this day (limit to 4 per day to avoid overwhelming customers)
             const mappedSlots = daySlots.slice(0, 4).map(slot => ({
@@ -1884,7 +1886,8 @@ WHEN CUSTOMER ASKS "what is my name?" or "what's my name?":
       } else {
         // Single day check for specific date requests
         console.log(`🔍 [${traceId}] Checking availability for specific date: ${dayISO}`);
-        const rawSlots = await getMergedFreeSlots(dayISO, googleCalendarId || 'primary', reevaBusyIntervals, detailer.id, 120, 30, detailerTimezone);
+        const calendarId = googleCalendarId ?? 'primary';
+        const rawSlots = await getMergedFreeSlots(dayISO, calendarId, reevaBusyIntervals, detailer.id, 120, 30, detailerTimezone);
         
         availableSlots = rawSlots.map(slot => ({
           startLocal: slot.label,
@@ -2838,9 +2841,11 @@ Which day and time would work best for you?`;
           end: new Date(new Date(b.scheduledDate).getTime() + 120 * 60000).toISOString()
         }));
         
-        const googleCalendarId = detailer.googleCalendarConnected ? 'primary' : undefined;
+        const useGoogleAvailability = !!(detailer.googleCalendarConnected && detailer.syncAvailability && detailer.googleCalendarRefreshToken);
+        const googleCalendarId = useGoogleAvailability ? 'primary' : undefined;
         const detailerTimezone = detailer.timezone || 'America/New_York';
-        const rawSlots = await getMergedFreeSlots(dayISO, googleCalendarId || 'primary', reevaBookings, detailer.id, 120, 30, detailerTimezone);
+        const calendarId2 = googleCalendarId ?? 'primary';
+        const rawSlots = await getMergedFreeSlots(dayISO, calendarId2, reevaBookings, detailer.id, 120, 30, detailerTimezone);
         
         const slots = rawSlots.map(slot => ({
           startLocal: slot.label,
