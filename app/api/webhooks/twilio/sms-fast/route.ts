@@ -2824,15 +2824,36 @@ Be conversational and natural.`;
              localDate.setHours(0, 0, 0, 0); // Set to start of day in local timezone
              
              // Calculate end time for calendar event display
-             const endTime = new Date(startDateTime.getTime() + serviceDuration * 60000);
-             const endTimeStr = endTime.toLocaleTimeString('en-US', { 
-               hour: 'numeric', 
-               minute: '2-digit', 
-               hour12: true 
-             });
-             
-             // Format time range for calendar event
-             const timeRange = `${bookingTime} to ${endTimeStr}`;
+             // Parse the booking time to get the hour and minute
+             let timeRange = bookingTime; // Default fallback
+             const timeMatch = bookingTime.match(/(\d{1,2}):?(\d{0,2})\s*(AM|PM)/i);
+             if (timeMatch) {
+               let hour = parseInt(timeMatch[1]);
+               const minute = parseInt(timeMatch[2] || '0');
+               const period = timeMatch[3].toUpperCase();
+               
+               // Convert to 24-hour format
+               if (period === 'PM' && hour !== 12) hour += 12;
+               if (period === 'AM' && hour === 12) hour = 0;
+               
+               // Calculate end time
+               const endHour = hour + Math.floor(serviceDuration / 60);
+               const endMinute = minute + (serviceDuration % 60);
+               
+               // Format end time
+               let endHour12 = endHour > 12 ? endHour - 12 : endHour;
+               if (endHour12 === 0) endHour12 = 12;
+               const endPeriod = endHour >= 12 ? 'PM' : 'AM';
+               const endTimeStr = `${endHour12}:${String(endMinute).padStart(2, '0')} ${endPeriod}`;
+               
+               // Format time range for calendar event
+               timeRange = `${bookingTime} to ${endTimeStr}`;
+               
+               console.log(`📅 Calendar event time range: ${timeRange} (duration: ${serviceDuration} minutes)`);
+             } else {
+               // Fallback to original logic if parsing fails
+               console.log(`⚠️ Could not parse booking time, using: ${timeRange}`);
+             }
              
              const event = await prisma.event.create({
                data: {
