@@ -682,18 +682,47 @@ export async function processConversationState(
             }
             
             if (availableSlots.length > 0) {
-              // Show only first 4 slots to keep message shorter
-              const slotList = availableSlots.slice(0, 4).map((slot, index) => 
-                `${index + 1}. ${slot.startLocal}`
-              ).join('\n');
-              
+              // Group slots by date label to avoid ambiguity (e.g., Oct 16 vs Oct 17)
+              type Grouped = Record<string, string[]>;
+              const grouped: Grouped = {};
+              const order: string[] = [];
+
+              for (const slot of availableSlots) {
+                // Example label: "Thursday, Oct 16 8:00 AM – 10:00 AM America/New_York"
+                const cleaned = String(slot.startLocal).replace(/\s+America\/.+$/, '');
+                const m = cleaned.match(/^(.*?\d{1,2})\s+(.*)$/); // [dateLabel, timeRange]
+                const dateLabel = m ? m[1] : cleaned;
+                const timePart = m ? m[2] : '';
+                if (!grouped[dateLabel]) { grouped[dateLabel] = []; order.push(dateLabel); }
+                if (timePart) grouped[dateLabel].push(timePart);
+              }
+
+              // Build a concise, ordered message: up to 2 dates, up to 3 times each
+              const lines: string[] = ['Here are some available time slots:'];
+              const datesToShow = order.slice(0, 2);
+              for (const dateLabel of datesToShow) {
+                lines.push(`\n- ${dateLabel}:`);
+                const times = grouped[dateLabel].slice(0, 3);
+                for (const t of times) lines.push(`  - ${t}`);
+              }
+
+              lines.push('\nLet me know which time works best for you!');
+
               // Check if user also asked about services
               const asksAboutServices = userMessage.toLowerCase().includes('services') || userMessage.toLowerCase().includes('provide');
-              const servicesInfo = asksAboutServices ? 
-                '\n\nServices: Full Detail, Interior, Exterior, Ceramic Coating' : '';
-              
-              response = `Available times:\n\n${slotList}${servicesInfo}\n\nWhich works for you? Reply with number (1-4)`;
-              newContext = await updateConversationContext(context, 'awaiting_choice', { slots: availableSlots.slice(0, 4) });
+              if (asksAboutServices) {
+                lines.splice(1, 0, '');
+              }
+
+              response = lines.join('\n');
+              // Keep only the slots corresponding to the dates shown (for next-step selection)
+              const kept = availableSlots.filter(s => {
+                const cleaned = String(s.startLocal).replace(/\s+America\/.+$/, '');
+                const m = cleaned.match(/^(.*?\d{1,2})\s+/);
+                const dateLabel = m ? m[1] : cleaned;
+                return datesToShow.includes(dateLabel);
+              });
+              newContext = await updateConversationContext(context, 'awaiting_choice', { slots: kept });
             } else {
               const businessHours = await formatBusinessHours(context.detailerId);
               const asksAboutServices = userMessage.toLowerCase().includes('services') || userMessage.toLowerCase().includes('provide');
