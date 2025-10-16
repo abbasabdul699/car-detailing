@@ -188,6 +188,45 @@ function normalizeCaps(s: string) {
   return s.trim().replace(/\b[a-z]/g, c => c.toUpperCase())
 }
 
+// Calculate total duration for multiple services
+function calculateServiceDuration(services: string[], detailerServices: any[]): number {
+  let totalDuration = 0;
+  
+  for (const serviceName of services) {
+    const service = detailerServices.find(ds => 
+      ds.service.name.toLowerCase().includes(serviceName.toLowerCase()) ||
+      serviceName.toLowerCase().includes(ds.service.name.toLowerCase())
+    );
+    
+    if (service?.service?.duration) {
+      totalDuration += service.service.duration;
+    } else {
+      // Default duration for unknown services
+      totalDuration += 120; // 2 hours default
+    }
+  }
+  
+  // Minimum 2 hours, maximum 8 hours
+  return Math.max(120, Math.min(480, totalDuration));
+}
+
+// Validate and format address
+function validateAddress(address: string | null | undefined): string {
+  if (!address || address.trim().length < 5) {
+    return 'Address needed - please provide complete address';
+  }
+  
+  // Check if address looks complete (has street number and name)
+  const hasNumber = /\d/.test(address);
+  const hasStreet = /\b(street|st|avenue|ave|road|rd|drive|dr|lane|ln|way|blvd|boulevard|circle|cir|court|ct|place|pl)\b/i.test(address);
+  
+  if (!hasNumber || !hasStreet) {
+    return 'Address needed - please provide complete address with street number and name';
+  }
+  
+  return address.trim();
+}
+
 type NameHit = { name: string; confidence: number; reason: string }
 
 const NON_NAMES = new Set([
@@ -1408,7 +1447,7 @@ This lead has been automatically processed and is ready for you to contact!`;
      }
 
     // If the user explicitly asks for services, answer deterministically
-    const asksForServices = /\b(what\s+services|services\s*\?|do\s+you\s+(offer|provide)\s+.*services?|want\s+.*detail|need\s+.*detail|get\s+.*detail|car\s+detail|vehicle\s+detail)\b/i.test((body || '').toLowerCase())
+    const asksForServices = /\b(what\s+services|services\s*\?|do\s+you\s+(offer|provide)\s+.*services?|want\s+.*detail|need\s+.*detail|get\s+.*detail|car\s+detail|vehicle\s+detail|add\s+.*service|add\s+.*detail|can\s+i\s+add|add\s+.*to)\b/i.test((body || '').toLowerCase())
 
     // isFirstTimeCustomer is already determined above, before storing the inbound message
 
@@ -2060,20 +2099,24 @@ IMPORTANT: You MUST follow the business hours exactly as specified above. Do not
 
 CRITICAL AVAILABILITY CHECK: ${availabilityInfo}
 
-IMPORTANT: Before saying a time is "booked" or "unavailable", you MUST check the EXISTING APPOINTMENTS list above. If the list shows "No existing appointments in the next 30 days. All time slots are available.", then the time slot IS available and you should proceed with booking.
+🚨 AVAILABILITY RULES - FOLLOW THESE EXACTLY:
+1. ONLY use the AVAILABLE_SLOTS provided above - do NOT make up times
+2. If a time is listed in AVAILABLE_SLOTS, it IS available - do NOT say it's booked
+3. If a time is NOT in AVAILABLE_SLOTS, it is NOT available - suggest alternatives
+4. NEVER contradict the AVAILABLE_SLOTS list - if you show 8:00 AM as available, it IS available
+5. If you see "No existing appointments" in the data, ALL listed times are available
+6. Do NOT say "earliest available time is X" if that contradicts the AVAILABLE_SLOTS list
+7. If a customer requests a time that's in AVAILABLE_SLOTS, proceed with booking
+8. If a customer requests a time that's NOT in AVAILABLE_SLOTS, suggest the closest available time from the list
 
-CRITICAL: IGNORE any previous conversation history about availability. Only trust the REAL-TIME AVAILABILITY data provided above. If the data shows no existing appointments, then the time slot IS available regardless of what was said in previous messages.
+CRITICAL: The AVAILABLE_SLOTS list is the ONLY source of truth for availability. Do NOT generate conflicting availability information.
 
-🚨 OVERRIDE INSTRUCTION: If you see "CRITICAL OVERRIDE" in the availability data above, you MUST ignore ALL previous conversation history and proceed with booking. The previous responses were incorrect.
-
-🚨 CONFLICT DETECTION: If the availability data shows "⚠️ CONFLICT ON [DATE]" or lists specific existing appointments/events, you MUST NOT book those times. Instead, suggest alternative available times or dates. If a customer specifically requests a conflicting time, politely explain that time is already booked and offer alternatives.
-
-    🚨 CRITICAL CONFLICT DETECTION:
-    - The server will automatically check for conflicts when creating bookings
-    - If you see "⚠️ CONFLICT ON [DATE]" in the availability data above, you MUST NOT proceed with booking
-    - Instead, explain that the requested time is already booked and suggest available alternatives
-    - DO NOT ask for email or other details if there's a conflict
-    - The system will provide alternative time suggestions when conflicts are detected
+🚨 CONVERSATION STATE RULES:
+1. If a customer has already confirmed a time slot, do NOT ask for confirmation again
+2. If a customer says "yes", "yeah", "sure", or "ok" to a time, proceed with booking
+3. Do NOT ask "Would you like to book that time?" if they already agreed
+4. Once a customer confirms a time, move directly to final booking confirmation
+5. Avoid redundant questions - if they've already provided information, use it
 
 ${customerContext}
 
@@ -2531,6 +2574,9 @@ Be conversational and natural.`;
                throw new Error('Time conflict with existing appointment');
              }
 
+             // Calculate duration for the service
+             const serviceDuration = calculateServiceDuration([service], detailerServices);
+             
              // Create the booking directly
              booking = await prisma.booking.create({
                data: {
@@ -2542,6 +2588,7 @@ Be conversational and natural.`;
                  services: [service],
                  scheduledDate: startDateTime,
                  scheduledTime: bookingTime,
+                 duration: serviceDuration,
                  status: 'confirmed',
                  notes: `${name} - ${service}`
                }
@@ -3401,6 +3448,9 @@ What time would work better for you?`;
             throw new Error('Time conflict with existing appointment');
           }
 
+          // Calculate duration for the services
+          const serviceDuration = calculateServiceDuration(services.length ? services : ['Detailing'], detailerServices);
+          
           // Create the booking directly
           booking = await prisma.booking.create({
             data: {
@@ -3408,10 +3458,11 @@ What time would work better for you?`;
               customerName: snapForBooking?.customerName || 'Customer',
               customerPhone: from,
               vehicleType: snapForBooking?.vehicle || [snapForBooking?.vehicleYear, snapForBooking?.vehicleMake, snapForBooking?.vehicleModel].filter(Boolean).join(' ') || '',
-              vehicleLocation: snapForBooking?.address || '',
+              vehicleLocation: validateAddress(snapForBooking?.address),
               services: services.length ? services : ['Detailing'],
               scheduledDate: startDateTime,
               scheduledTime: parsed.time || '10:00 AM',
+              duration: serviceDuration,
               status: 'confirmed',
               notes: `${snapForBooking?.customerName || 'Customer'} - ${services.length ? services.join(', ') : 'Detailing'}`
             }

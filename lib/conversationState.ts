@@ -663,12 +663,15 @@ export async function processConversationState(
               };
             }).filter(booking => booking.start && booking.end);
             
+            // Calculate duration based on services (default 2 hours if no services specified)
+            const serviceDuration = 120; // Default 2 hours for general availability
+            
             const slots = await getMergedFreeSlots(
               dateStr,
               'primary', // Use primary calendar for now
               reevaBookings,
               context.detailerId,
-              120, // 2 hour service
+              serviceDuration, // Use calculated duration
               30, // 30 minute steps
               detailerTimezone
             );
