@@ -1795,6 +1795,74 @@ WHEN CUSTOMER ASKS "what is my name?" or "what's my name?":
       const parseUserDateTime = (message: string): { date?: string; time?: string } | null => {
         const msg = message.toLowerCase().trim();
         
+        // First, try to parse standalone dates like "October 16th", "Oct 16", etc.
+        // Define parseDateFromText locally since it's not in scope here
+        const parseDateFromText = (text: string): Date | null => {
+          const lower = text.toLowerCase()
+          const today = new Date()
+
+          if (/(^|\b)today(\b|$)/i.test(lower)) return today
+          if (/(^|\b)tomorrow(\b|$)/i.test(lower)) { const d = new Date(today); d.setDate(today.getDate() + 1); return d }
+
+          const weekdays = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'] as const
+          for (let i = 0; i < weekdays.length; i++) {
+            const day = weekdays[i]
+            const re = new RegExp(`\\b${day}\\b`, 'i')
+            if (re.test(lower)) {
+              const d = new Date(today)
+              const current = d.getDay()
+              const target = i
+              
+              const hasNext = /\bnext\b/i.test(lower)
+              let diff = target - current
+              
+              if (hasNext) {
+                if (diff <= 0) diff += 7
+              } else {
+                if (diff < 0) diff += 7
+              }
+              
+              d.setDate(d.getDate() + diff)
+              return d
+            }
+          }
+
+          // Month name with day: "Oct 10", "October 10", "Oct 10th"
+          const monthNames = ['january', 'february', 'march', 'april', 'may', 'june',
+                             'july', 'august', 'september', 'october', 'november', 'december']
+          const monthAbbrevs = ['jan', 'feb', 'mar', 'apr', 'may', 'jun',
+                               'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
+          
+          const monthDay = text.match(/\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s+(\d{1,2})(?:st|nd|rd|th)?\b/i)
+          if (monthDay) {
+            const monthName = monthDay[1].toLowerCase()
+            const day = parseInt(monthDay[2], 10)
+            
+            let monthIndex = monthNames.indexOf(monthName)
+            if (monthIndex === -1) {
+              monthIndex = monthAbbrevs.indexOf(monthName)
+            }
+            
+            if (monthIndex !== -1) {
+              const d = new Date(today.getFullYear(), monthIndex, day)
+              if (d < today) {
+                d.setFullYear(today.getFullYear() + 1)
+              }
+              return d
+            }
+          }
+
+          return null
+        };
+        
+        const standaloneDate = parseDateFromText(message);
+        if (standaloneDate) {
+          return {
+            date: standaloneDate.toISOString().split('T')[0], // YYYY-MM-DD format
+            time: undefined
+          };
+        }
+        
         // Look for patterns like "sunday at 9 AM", "tomorrow at 2 PM", "friday at 10:30 AM"
         const dayTimeMatch = msg.match(/(sunday|monday|tuesday|wednesday|thursday|friday|saturday|tomorrow|today)\s+(?:at\s+)?(\d{1,2}):?(\d{2})?\s*(am|pm)/i);
         
@@ -2349,6 +2417,140 @@ Be conversational and natural.`;
       }
     }
     
+    // Check for reschedule requests before processing other logic
+    const isRescheduleRequest = /\b(reschedule|change|move|different time|different date)\b/i.test(body || '');
+    const isRescheduleResponse = /\b(reschedule|1)\b/i.test(body || '');
+    
+    if (isRescheduleRequest || isRescheduleResponse) {
+      console.log('🔄 Reschedule request detected');
+      
+      // Initialize Twilio client for reschedule responses
+      const hasTwilioCreds = !!process.env.TWILIO_ACCOUNT_SID && !!process.env.TWILIO_AUTH_TOKEN;
+      let client: any = null;
+      if (hasTwilioCreds) {
+        client = twilio(process.env.TWILIO_ACCOUNT_SID!, process.env.TWILIO_AUTH_TOKEN!);
+      }
+      
+      // Find existing booking for this customer
+      const existingBooking = await prisma.booking.findFirst({
+        where: {
+          detailerId: detailer.id,
+          customerPhone: from,
+          status: { in: ['confirmed', 'pending'] }
+        },
+        orderBy: { scheduledDate: 'desc' }
+      });
+      
+      if (existingBooking) {
+        // Define parseDateFromText and parseTimeFromText locally
+        const parseDateFromText = (text: string): Date | null => {
+          const lower = text.toLowerCase()
+          const today = new Date()
+
+          if (/(^|\b)today(\b|$)/i.test(lower)) return today
+          if (/(^|\b)tomorrow(\b|$)/i.test(lower)) { const d = new Date(today); d.setDate(today.getDate() + 1); return d }
+
+          const weekdays = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'] as const
+          for (let i = 0; i < weekdays.length; i++) {
+            const day = weekdays[i]
+            const re = new RegExp(`\\b${day}\\b`, 'i')
+            if (re.test(lower)) {
+              const d = new Date(today)
+              const current = d.getDay()
+              const target = i
+              
+              const hasNext = /\bnext\b/i.test(lower)
+              let diff = target - current
+              
+              if (hasNext) {
+                if (diff <= 0) diff += 7
+              } else {
+                if (diff < 0) diff += 7
+              }
+              
+              d.setDate(d.getDate() + diff)
+              return d
+            }
+          }
+
+          // Month name with day: "Oct 10", "October 10", "Oct 10th"
+          const monthNames = ['january', 'february', 'march', 'april', 'may', 'june',
+                             'july', 'august', 'september', 'october', 'november', 'december']
+          const monthAbbrevs = ['jan', 'feb', 'mar', 'apr', 'may', 'jun',
+                               'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
+          
+          const monthDay = text.match(/\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s+(\d{1,2})(?:st|nd|rd|th)?\b/i)
+          if (monthDay) {
+            const monthName = monthDay[1].toLowerCase()
+            const day = parseInt(monthDay[2], 10)
+            
+            let monthIndex = monthNames.indexOf(monthName)
+            if (monthIndex === -1) {
+              monthIndex = monthAbbrevs.indexOf(monthName)
+            }
+            
+            if (monthIndex !== -1) {
+              const d = new Date(today.getFullYear(), monthIndex, day)
+              if (d < today) {
+                d.setFullYear(today.getFullYear() + 1)
+              }
+              return d
+            }
+          }
+
+          return null
+        };
+
+        const parseTimeFromText = (text: string): { time?: string, note?: string } => {
+          const timeMatch = text.match(/\b(\d{1,2}):?(\d{2})?\s*(am|pm)\b/i);
+          if (timeMatch) {
+            const [, hour, minute = '00', period] = timeMatch;
+            return { time: `${hour}:${minute} ${period.toUpperCase()}` };
+          }
+          return {};
+        };
+
+        // Check if they provided a new date/time
+        const newDate = parseDateFromText(body);
+        const newTime = parseTimeFromText(body);
+        
+        if (newDate && newTime?.time) {
+          // Update the existing booking
+          await prisma.booking.update({
+            where: { id: existingBooking.id },
+            data: {
+              scheduledDate: newDate,
+              scheduledTime: newTime.time,
+              updatedAt: new Date()
+            }
+          });
+          
+          aiResponse = `Perfect! I've rescheduled your appointment to ${newDate.toLocaleDateString()} at ${newTime.time}. You'll receive a confirmation shortly.`;
+          
+          console.log('✅ Rescheduled existing booking');
+          await safeSend(client, from, detailer.phone, aiResponse);
+          return NextResponse.json({ success: true });
+        } else if (newDate) {
+          // They provided a date but no time, ask for time
+          aiResponse = `Great! I can reschedule your appointment to ${newDate.toLocaleDateString()}. What time would work best for you?`;
+          
+          console.log('📝 Asking for reschedule time');
+          await safeSend(client, from, detailer.phone, aiResponse);
+          return NextResponse.json({ success: true });
+        } else {
+          // They want to reschedule but didn't provide new date/time
+          aiResponse = `I can help you reschedule your appointment. What new date and time would work better for you?`;
+          
+          console.log('📝 Asking for new reschedule date/time');
+          await safeSend(client, from, detailer.phone, aiResponse);
+          return NextResponse.json({ success: true });
+        }
+      } else {
+        // No existing booking found, proceed with new booking
+        console.log('🔄 Reschedule requested but no existing booking found, proceeding with new booking');
+      }
+    }
+
     if (isBookingRelated && !asksForServices) {
       try {
         console.log('🔍 DEBUG: Attempting to use conversation state machine...');
