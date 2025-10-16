@@ -908,16 +908,33 @@ async function sendAsMmsIfLong(client: any, to: string, from: string, body: stri
 // 🔒 HOTFIX: Extract first time/date from AI response for validation
 function parseFirstTime(aiResponse: string) {
   if (!aiResponse) return null;
-  
-  // Look for time patterns in the AI response
-  const timeMatch = aiResponse.match(/(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)/i) || 
-                   aiResponse.match(/(\d{1,2})\s*(AM|PM|am|pm)/i) ||
-                   aiResponse.match(/(\d{1,2}):(\d{2})/i) ||
-                   aiResponse.match(/(\d{1,2})/i);
-  
-  if (!timeMatch) return null;
-  
-  let time = timeMatch[0];
+
+  // Normalize for safer regex checks
+  const text = aiResponse.replace(/\s+/g, ' ').trim();
+
+  // Strict time patterns only. Avoid matching prices (e.g., "$70-110").
+  // 1) Explicit HH:MM with am/pm
+  // 2) "at HH am/pm" or "at HH:MM"
+  // 3) HH:MM without am/pm (avoid when adjacent to price markers or ranges)
+  const patterns: RegExp[] = [
+    /\b(?:at\s*)?((?:1[0-2]|0?[1-9]):[0-5]\d)\s*(am|pm)\b/i,
+    /\b(?:at\s*)?((?:1[0-2]|0?[1-9]))\s*(am|pm)\b/i,
+    /\b(?:at\s*)?((?:1[0-2]|0?[1-9]):[0-5]\d)\b(?!\s*-)/i, // disallow ranges like 10:00-12:00
+  ];
+
+  let time: string | null = null;
+  for (const re of patterns) {
+    const m = text.match(re);
+    if (m) {
+      // Compose time string with am/pm if present
+      time = m[2] ? `${m[1]} ${m[2]}` : m[1];
+      break;
+    }
+  }
+
+  // If still no time, do not attempt to infer from bare numbers to avoid prices like "$70"
+  if (!time) return null;
+
   let date = null;
   
   // Look for date patterns
