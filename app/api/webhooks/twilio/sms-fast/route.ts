@@ -882,7 +882,8 @@ async function safeSendMms(client: any, to: string, from: string, body: string, 
 }
 
 async function sendAsMmsIfLong(client: any, to: string, from: string, body: string): Promise<string | undefined> {
-  const longThreshold = 320
+  // Use MMS for anything over a single-SMS length to avoid out-of-order chunk delivery
+  const longThreshold = 160
   const forceSms = process.env.TWILIO_FORCE_SMS === '1'
   if (body.length <= longThreshold || forceSms) {
     console.log('SMS mode selected', { forceSms, length: body.length })
@@ -909,6 +910,9 @@ async function sendAsMmsIfLong(client: any, to: string, from: string, body: stri
   for (const [i, part] of chunkForSms(body).entries()) {
     const sid = await safeSend(client, to, from, part)
     if (i === 0) firstSid = sid
+    if (i < chunkForSms(body).length - 1) {
+      await new Promise(resolve => setTimeout(resolve, 300)) // slightly larger delay for ordering
+    }
   }
   return firstSid
 }
@@ -2933,25 +2937,25 @@ Which day and time would work best for you?`;
         twilioSid = await safeSend(client, from, to, messageWithoutCalendar);
         await safeSend(client, from, to, `📅 Add to calendar: ${calendarLinkMatch[1]}`);
       } else {
-        // Use SMS chunking for long messages instead of MMS
-        const chunks = chunkForSms(aiResponse)
-        if (chunks.length === 1) {
-          // Single SMS
-          twilioSid = await safeSend(client, from, to, aiResponse)
+        // Prefer MMS for longer, structured messages to preserve order
+        const mmsSidTry = await safeSendMms(client, from, to, aiResponse, [`${process.env.NEXT_PUBLIC_BASE_URL || 'https://www.reevacar.com'}/icon.png`])
+        if (mmsSidTry) {
+          twilioSid = mmsSidTry
         } else {
-          // Multiple SMS chunks - add small delays to ensure proper ordering
-          console.log(`Sending ${chunks.length} SMS chunks for long message`)
-          let firstSid: string | undefined
-          for (const [i, chunk] of chunks.entries()) {
-            const sid = await safeSend(client, from, to, chunk)
-            if (i === 0) firstSid = sid
-            
-            // Add small delay between chunks to ensure proper ordering
-            if (i < chunks.length - 1) {
-              await new Promise(resolve => setTimeout(resolve, 100)) // 100ms delay
+          // Fallback to SMS chunking with ordering delays
+          const chunks = chunkForSms(aiResponse)
+          if (chunks.length === 1) {
+            twilioSid = await safeSend(client, from, to, aiResponse)
+          } else {
+            console.log(`Sending ${chunks.length} SMS chunks (fallback)`)
+            let firstSid: string | undefined
+            for (const [i, chunk] of chunks.entries()) {
+              const sid = await safeSend(client, from, to, chunk)
+              if (i === 0) firstSid = sid
+              if (i < chunks.length - 1) await new Promise(r => setTimeout(r, 300))
             }
+            twilioSid = firstSid
           }
-          twilioSid = firstSid
         }
       }
       
