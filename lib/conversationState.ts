@@ -682,17 +682,18 @@ export async function processConversationState(
             }
             
             if (availableSlots.length > 0) {
-              const slotList = availableSlots.slice(0, 6).map((slot, index) => 
+              // Show only first 4 slots to keep message shorter
+              const slotList = availableSlots.slice(0, 4).map((slot, index) => 
                 `${index + 1}. ${slot.startLocal}`
               ).join('\n');
               
               // Check if user also asked about services
               const asksAboutServices = userMessage.toLowerCase().includes('services') || userMessage.toLowerCase().includes('provide');
               const servicesInfo = asksAboutServices ? 
-                '\n\nOur services include:\n• Full Detail (exterior + interior)\n• Interior Detail\n• Exterior Detail\n• Ceramic Coating\n• Custom packages available\n\n' : '';
+                '\n\nServices: Full Detail, Interior, Exterior, Ceramic Coating' : '';
               
-              response = `Here are our available appointments:\n\n${slotList}${servicesInfo}\nWhich one works for you? Just reply with the number (1, 2, 3, etc.)`;
-              newContext = await updateConversationContext(context, 'awaiting_choice', { slots: availableSlots.slice(0, 6) });
+              response = `Available times:\n\n${slotList}${servicesInfo}\n\nWhich works for you? Reply with number (1-4)`;
+              newContext = await updateConversationContext(context, 'awaiting_choice', { slots: availableSlots.slice(0, 4) });
             } else {
               const businessHours = await formatBusinessHours(context.detailerId);
               const asksAboutServices = userMessage.toLowerCase().includes('services') || userMessage.toLowerCase().includes('provide');

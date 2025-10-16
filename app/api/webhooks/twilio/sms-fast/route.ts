@@ -595,6 +595,14 @@ function chunkForSms(text: string) {
           bestCut = cutExact + 1 // Include the punctuation
         }
       }
+      
+      // For availability messages, try to break at numbered list items
+      if (bestCut === 0) {
+        const numberedListMatch = remaining.slice(0, limit).match(/\d+\.\s[^0-9]*$/);
+        if (numberedListMatch) {
+          bestCut = numberedListMatch.index! + numberedListMatch[0].length;
+        }
+      }
     }
     
     // If no good sentence break, try line breaks
@@ -2931,12 +2939,17 @@ Which day and time would work best for you?`;
           // Single SMS
           twilioSid = await safeSend(client, from, to, aiResponse)
         } else {
-          // Multiple SMS chunks
+          // Multiple SMS chunks - add small delays to ensure proper ordering
           console.log(`Sending ${chunks.length} SMS chunks for long message`)
           let firstSid: string | undefined
           for (const [i, chunk] of chunks.entries()) {
             const sid = await safeSend(client, from, to, chunk)
             if (i === 0) firstSid = sid
+            
+            // Add small delay between chunks to ensure proper ordering
+            if (i < chunks.length - 1) {
+              await new Promise(resolve => setTimeout(resolve, 100)) // 100ms delay
+            }
           }
           twilioSid = firstSid
         }
