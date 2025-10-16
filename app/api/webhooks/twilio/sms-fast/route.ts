@@ -874,6 +874,15 @@ async function safeSend(client: any, to: string, from: string, body: string): Pr
 async function safeSendMms(client: any, to: string, from: string, body: string, mediaUrl: string[]): Promise<string | undefined> {
   try {
     console.log('Attempting MMS send:', { to, from, bodyLength: body.length, mediaUrl })
+    
+    // If no media URLs, send as regular SMS to avoid MMS issues
+    if (!mediaUrl || mediaUrl.length === 0) {
+      console.log('No media URLs provided, sending as SMS instead of MMS')
+      const message = await client.messages.create({ to, from, body })
+      console.log('✅ SMS sent successfully:', message.sid)
+      return message.sid
+    }
+    
     const message = await client.messages.create({ to, from, body, mediaUrl })
     console.log('✅ MMS sent successfully:', message.sid)
     return message.sid
@@ -2942,8 +2951,9 @@ Which day and time would work best for you?`;
         // Prefer MMS for longer or structured messages to preserve order
         const looksStructured = /\n\s*[-•]|\n\d+\.|:\n\s*[-•]/.test(aiResponse) || aiResponse.length > 160
         if (looksStructured) {
-          console.log('Attempting MMS for structured message')
-          const mmsSidTry = await safeSendMms(client, from, to, aiResponse, [`${process.env.NEXT_PUBLIC_BASE_URL || 'https://www.reevacar.com'}/icon.png`])
+          console.log('Attempting MMS for structured message (without media to avoid delivery issues)')
+          // Send MMS without media to avoid the empty icon.png issue
+          const mmsSidTry = await safeSendMms(client, from, to, aiResponse, [])
           if (mmsSidTry) {
             twilioSid = mmsSidTry
             console.log('✅ MMS sent successfully to preserve ordering and formatting')
