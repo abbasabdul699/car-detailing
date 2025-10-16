@@ -2550,8 +2550,9 @@ Be conversational and natural.`;
              });
 
              // Check for conflicts (simplified version of the booking API logic)
-             const startDateTime = new Date(startUtcISO);
-             const endDateTime = new Date(endUtcISO);
+             // Use the local date for booking storage to avoid timezone issues
+             const startDateTime = new Date(scheduledDate);
+             const endDateTime = new Date(scheduledDate.getTime() + 120 * 60000); // 2 hours
              
              const bookingConflicts = existingBookings.filter(booking => {
                const bookingStart = new Date(booking.scheduledDate);
@@ -2594,12 +2595,16 @@ Be conversational and natural.`;
                }
              });
 
-             // Create corresponding calendar event
+             // Create corresponding calendar event with proper timezone handling
+             // Use the local date (not UTC) for the calendar event
+             const localDate = new Date(startDateTime);
+             localDate.setHours(0, 0, 0, 0); // Set to start of day in local timezone
+             
              const event = await prisma.event.create({
                data: {
                  detailerId: detailer.id,
                  title: booking.notes || `${name} - ${service}`,
-                 date: scheduledDate,
+                 date: localDate,
                  time: bookingTime,
                  bookingId: booking?.id,
                  color: '#10B981' // Green color for confirmed bookings
@@ -3468,12 +3473,16 @@ What time would work better for you?`;
             }
           });
 
-          // Create corresponding calendar event
+          // Create corresponding calendar event with proper timezone handling
+          // Use the local date (not UTC) for the calendar event
+          const localDate = new Date(startDateTime);
+          localDate.setHours(0, 0, 0, 0); // Set to start of day in local timezone
+          
           await prisma.event.create({
             data: {
               detailerId: detailer.id,
               title: booking.notes || `${snapForBooking?.customerName || 'Customer'} - ${services.length ? services.join(', ') : 'Detailing'}`,
-              date: when,
+              date: localDate,
               time: parsed.time || '10:00 AM',
               bookingId: booking?.id,
               color: '#10B981' // Green color for confirmed bookings
