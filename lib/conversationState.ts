@@ -823,6 +823,38 @@ export async function processConversationState(
                 };
               }).filter(booking => booking.start && booking.end);
 
+              // Also add events to busy intervals
+              const reevaEvents = existingEvents.map(event => {
+                const eventDate = event.date.toISOString().split('T')[0];
+                const timeMatch = event.time?.match(/(\d{1,2}):(\d{2})\s*(AM|PM)\s*to\s*(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+                
+                if (timeMatch) {
+                  let startHour = parseInt(timeMatch[1]);
+                  const startMin = parseInt(timeMatch[2]);
+                  const startPeriod = timeMatch[3].toUpperCase();
+                  let endHour = parseInt(timeMatch[4]);
+                  const endMin = parseInt(timeMatch[5]);
+                  const endPeriod = timeMatch[6].toUpperCase();
+                  
+                  if (startPeriod === 'PM' && startHour !== 12) startHour += 12;
+                  if (startPeriod === 'AM' && startHour === 12) startHour = 0;
+                  if (endPeriod === 'PM' && endHour !== 12) endHour += 12;
+                  if (endPeriod === 'AM' && endHour === 12) endHour = 0;
+                  
+                  const start = DateTime.fromISO(`${eventDate}T${String(startHour).padStart(2, '0')}:${String(startMin).padStart(2, '0')}`, { zone: detailerTimezone });
+                  const end = DateTime.fromISO(`${eventDate}T${String(endHour).padStart(2, '0')}:${String(endMin).padStart(2, '0')}`, { zone: detailerTimezone });
+                  
+                  return {
+                    start: start.toUTC().toISO() || '',
+                    end: end.toUTC().toISO() || ''
+                  };
+                }
+                return null;
+              }).filter(event => event && event.start && event.end);
+
+              // Combine bookings and events
+              const allBusyIntervals = [...reevaBookings, ...reevaEvents];
+
             // Use the already-computed availability data instead of recalculating
             if (availableSlots && availableSlots.length > 0) {
               // Filter slots for this specific date
@@ -835,7 +867,7 @@ export async function processConversationState(
               }
             } else {
               // Fallback: Get available slots for this date if no data provided
-              const slots = await getMergedFreeSlots(dateStr, 'primary', reevaBookings, context.detailerId, 120, 30, detailerTimezone);
+              const slots = await getMergedFreeSlots(dateStr, 'primary', allBusyIntervals, context.detailerId, 120, 30, detailerTimezone);
               if (slots && slots.length > 0) {
                 availableSlots.push(...slots.slice(0, 3)); // Limit to 3 slots per day
               }
