@@ -829,7 +829,8 @@ export async function processConversationState(
               for (const slot of availableSlots) {
                 // Example label: "Thursday, Oct 16 8:00 AM – 10:00 AM America/New_York"
                 const cleaned = String(slot.startLocal).replace(/\s+America\/.+$/, '');
-                const m = cleaned.match(/^(.*?\d{1,2})\s+(.*)$/); // [dateLabel, timeRange]
+                // Match: "Thursday, Oct 16" and "8:00 AM – 10:00 AM"
+                const m = cleaned.match(/^([A-Za-z]+,\s+[A-Za-z]+\s+\d{1,2})\s+(.*)$/);
                 const dateLabel = m ? m[1] : cleaned;
                 const timePart = m ? m[2] : '';
                 if (!grouped[dateLabel]) { grouped[dateLabel] = []; order.push(dateLabel); }

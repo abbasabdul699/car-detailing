@@ -6,6 +6,7 @@ import { getOrCreateCustomer, extractCustomerDataFromSnapshot } from '@/lib/cust
 import { validateVehicle, normalizeModel, generateVehicleClarification } from '@/lib/vehicleValidation';
 import { validateAndNormalizeState } from '@/lib/stateValidation';
 import { formatDuration } from '@/lib/utils';
+import { processConversationState } from '@/lib/conversationState';
 import twilio from 'twilio';
 
 // Helper function to generate .ics calendar file content
