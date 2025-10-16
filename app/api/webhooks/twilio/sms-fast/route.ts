@@ -909,10 +909,9 @@ async function sendAsMmsIfLong(client: any, to: string, from: string, body: stri
     }
     return safeSend(client, to, from, body)
   }
-  // Use an existing public asset to force MMS; avoids 404s
-  const mediaUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'https://www.reevacar.com'}/icon.png`
+  // Send MMS without media to avoid the empty icon.png issue
   console.log('Attempting MMS send due to long message', { length: body.length })
-  const mmsSid = await safeSendMms(client, to, from, body, [mediaUrl])
+  const mmsSid = await safeSendMms(client, to, from, body, [])
   if (mmsSid) return mmsSid
 
   // fallback to SMS chunks
