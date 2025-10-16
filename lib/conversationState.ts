@@ -753,6 +753,16 @@ export async function processConversationState(
         if (generalAvailabilityQueryMatch) {
           console.log('🔍 DEBUG: General availability query detected:', userMessage);
           
+          // Clear stale slots and selected slot when user asks for fresh availability
+          context.slots = [];
+          context.selectedSlot = undefined;
+          if (context.metadata) {
+            context.metadata.slots = [];
+            context.metadata.selectedSlot = undefined;
+            context.metadata.selectedDate = undefined;
+            context.metadata.selectedTime = undefined;
+          }
+          
           // Provide actual available times for next few days
           try {
             const { getMergedFreeSlots } = await import('./slotComputationV2');
@@ -813,11 +823,23 @@ export async function processConversationState(
                 };
               }).filter(booking => booking.start && booking.end);
 
-              // Get available slots for this date
+            // Use the already-computed availability data instead of recalculating
+            if (availableSlots && availableSlots.length > 0) {
+              // Filter slots for this specific date
+              const slotsForDate = availableSlots.filter(slot => {
+                const slotDate = slot.date || slot.startUtcISO?.split('T')[0];
+                return slotDate === dateStr;
+              });
+              if (slotsForDate.length > 0) {
+                availableSlots.push(...slotsForDate.slice(0, 3)); // Limit to 3 slots per day
+              }
+            } else {
+              // Fallback: Get available slots for this date if no data provided
               const slots = await getMergedFreeSlots(dateStr, 'primary', reevaBookings, context.detailerId, 120, 30, detailerTimezone);
               if (slots && slots.length > 0) {
                 availableSlots.push(...slots.slice(0, 3)); // Limit to 3 slots per day
               }
+            }
             }
             
             if (availableSlots.length > 0) {
