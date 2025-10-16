@@ -679,9 +679,19 @@ export async function processConversationState(
             if (slots.length > 0) {
               const dayName = date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
               const daySlots = slots.slice(0, 4).map(slot => {
-                // Extract time from label like "Wed, Oct 8: 8:00 AM – 10:00 AM"
+                // Extract time from label like "Thursday, Oct 16 4:00 PM – 6:00 PM America/New_York"
                 const timeMatch = slot.label.match(/(\d{1,2}:\d{2} [AP]M)/);
-                return timeMatch ? timeMatch[1] : slot.label.split(': ')[1]?.split(' –')[0] || 'time';
+                if (timeMatch) {
+                  return timeMatch[1];
+                }
+                // Fallback: try to extract time from the middle of the label
+                const parts = slot.label.split(' ');
+                for (let i = 0; i < parts.length; i++) {
+                  if (parts[i].match(/\d{1,2}:\d{2}/) && parts[i + 1] && parts[i + 1].match(/[AP]M/)) {
+                    return `${parts[i]} ${parts[i + 1]}`;
+                  }
+                }
+                return 'time';
               }).join(', ');
               
               availableSlots.push(`${dayName}: ${daySlots}`);
