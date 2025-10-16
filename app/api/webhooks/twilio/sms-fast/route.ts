@@ -2937,11 +2937,18 @@ Which day and time would work best for you?`;
         twilioSid = await safeSend(client, from, to, messageWithoutCalendar);
         await safeSend(client, from, to, `📅 Add to calendar: ${calendarLinkMatch[1]}`);
       } else {
-        // Prefer MMS for longer, structured messages to preserve order
-        const mmsSidTry = await safeSendMms(client, from, to, aiResponse, [`${process.env.NEXT_PUBLIC_BASE_URL || 'https://www.reevacar.com'}/icon.png`])
-        if (mmsSidTry) {
-          twilioSid = mmsSidTry
-        } else {
+        // Prefer MMS for longer or structured messages to preserve order
+        const looksStructured = /\n\s*[-•]|\n\d+\.|:\n\s*[-•]/.test(aiResponse) || aiResponse.length > 160
+        if (looksStructured) {
+          const mmsSidTry = await safeSendMms(client, from, to, aiResponse, [`${process.env.NEXT_PUBLIC_BASE_URL || 'https://www.reevacar.com'}/icon.png`])
+          if (mmsSidTry) {
+            twilioSid = mmsSidTry
+            console.log('MMS sent to preserve ordering and formatting')
+            return NextResponse.json({ success: true, aiResponse, twilioSid })
+          }
+        }
+
+        {
           // Fallback to SMS chunking with ordering delays
           const chunks = chunkForSms(aiResponse)
           if (chunks.length === 1) {
