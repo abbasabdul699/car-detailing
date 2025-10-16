@@ -309,7 +309,10 @@ export async function processConversationState(
               const dateKey = new Date(slot.startISO).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
               if (!grouped[dateKey]) grouped[dateKey] = [];
               const timeStr = slot.startLocal.split(' – ')[0];
-              grouped[dateKey].push(timeStr);
+              // Extract just the time part (e.g., "4:00 PM" from "Thursday, Oct 16 4:00 PM")
+              const timeMatch = timeStr.match(/(\d{1,2}:\d{2} [AP]M)/);
+              const time = timeMatch ? timeMatch[1] : timeStr;
+              grouped[dateKey].push(time);
             });
             
             // Build a concise, ordered message: up to 2 dates, up to 3 times each
@@ -830,7 +833,12 @@ export async function processConversationState(
                 const dateLabel = m ? m[1] : cleaned;
                 const timePart = m ? m[2] : '';
                 if (!grouped[dateLabel]) { grouped[dateLabel] = []; order.push(dateLabel); }
-                if (timePart) grouped[dateLabel].push(timePart);
+                if (timePart) {
+                  // Extract just the start time (e.g., "8:00 AM" from "8:00 AM – 10:00 AM")
+                  const timeMatch = timePart.match(/(\d{1,2}:\d{2} [AP]M)/);
+                  const time = timeMatch ? timeMatch[1] : timePart;
+                  grouped[dateLabel].push(time);
+                }
               }
 
               // Build a concise, ordered message: up to 2 dates, up to 3 times each
