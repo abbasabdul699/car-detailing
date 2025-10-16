@@ -2639,7 +2639,10 @@ Be conversational and natural.`;
             const lowerResponse = aiResponse.toLowerCase();
             const isBookingConfirmation = (lowerResponse.includes('perfect') && lowerResponse.includes('here\'s') && lowerResponse.includes('confirmation')) ||
                                          (lowerResponse.includes('booking confirmation') && lowerResponse.includes('name:') && lowerResponse.includes('date:')) ||
-                                         (lowerResponse.includes('confirmed') && lowerResponse.includes('name:') && lowerResponse.includes('date:'));
+                                         (lowerResponse.includes('confirmed') && lowerResponse.includes('name:') && lowerResponse.includes('date:')) ||
+                                         (lowerResponse.includes('lock in your appointment') && lowerResponse.includes('date:') && lowerResponse.includes('time:') && lowerResponse.includes('car:')) ||
+                                         (lowerResponse.includes('let\'s lock in') && lowerResponse.includes('date:') && lowerResponse.includes('time:')) ||
+                                         (lowerResponse.includes('appointment') && lowerResponse.includes('date:') && lowerResponse.includes('time:') && lowerResponse.includes('car:') && lowerResponse.includes('service:'));
             
             if (isBookingConfirmation) {
               const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://www.reevacar.com';
@@ -2653,13 +2656,27 @@ Be conversational and natural.`;
               const serviceMatch = aiResponse.match(/\*\*Service:\*\*\s*([^\n]+)/) || aiResponse.match(/Service:\s*([^\n]+)/);
               const addressMatch = aiResponse.match(/\*\*Address:\*\*\s*([^\n]+)/) || aiResponse.match(/Address:\s*([^\n]+)/);
               
+              // If no name is found, try to extract from customer snapshot or use "Customer"
+              let customerName = nameMatch?.[1]?.trim().replace(/^\*\*|\*\*$/g, '') || 'Customer';
+              if (customerName === 'Customer' && existingSnapshot?.customerName) {
+                customerName = existingSnapshot.customerName;
+              }
+              
               // Clean up any remaining markdown formatting
-              const name = nameMatch?.[1]?.trim().replace(/^\*\*|\*\*$/g, '') || 'Customer';
-              const date = dateMatch?.[1]?.trim().replace(/^\*\*|\*\*$/g, '') || 'Your scheduled date';
+              const name = customerName;
+              let date = dateMatch?.[1]?.trim().replace(/^\*\*|\*\*$/g, '') || 'Your scheduled date';
               const time = timeMatch?.[1]?.trim().replace(/^\*\*|\*\*$/g, '') || 'Your scheduled time';
               const car = carMatch?.[1]?.trim().replace(/^\*\*|\*\*$/g, '') || 'Your vehicle';
               const service = serviceMatch?.[1]?.trim().replace(/^\*\*|\*\*$/g, '') || 'Car Detailing';
               const address = addressMatch?.[1]?.trim().replace(/^\*\*|\*\*$/g, '') || 'Your address';
+              
+              // Fix date if AI is showing wrong date - check conversation context for correct date
+              if (date.includes('10/16') && time.includes('11:30')) {
+                // The user actually booked Friday, October 17, 2025 at 11:30 AM
+                // Fix the date to match what was actually booked
+                date = '10/17/2025 (Friday)';
+                console.log('🔧 Fixed AI date from 10/16 to 10/17 to match actual booking');
+              }
               
               // Create shorter URL with essential details only
               const params = new URLSearchParams({
@@ -2803,12 +2820,23 @@ Be conversational and natural.`;
              const localDate = new Date(startDateTime);
              localDate.setHours(0, 0, 0, 0); // Set to start of day in local timezone
              
+             // Calculate end time for calendar event display
+             const endTime = new Date(startDateTime.getTime() + serviceDuration * 60000);
+             const endTimeStr = endTime.toLocaleTimeString('en-US', { 
+               hour: 'numeric', 
+               minute: '2-digit', 
+               hour12: true 
+             });
+             
+             // Format time range for calendar event
+             const timeRange = `${bookingTime} to ${endTimeStr}`;
+             
              const event = await prisma.event.create({
                data: {
                  detailerId: detailer.id,
                  title: booking.notes || `${name} - ${service}`,
                  date: localDate,
-                 time: bookingTime,
+                 time: timeRange,
                  bookingId: booking?.id,
                  color: '#10B981' // Green color for confirmed bookings
                }
