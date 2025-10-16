@@ -1408,7 +1408,7 @@ This lead has been automatically processed and is ready for you to contact!`;
      }
 
     // If the user explicitly asks for services, answer deterministically
-    const asksForServices = /\b(what\s+services|services\s*\?|do\s+you\s+(offer|provide)\s+.*services?)\b/i.test((body || '').toLowerCase())
+    const asksForServices = /\b(what\s+services|services\s*\?|do\s+you\s+(offer|provide)\s+.*services?|want\s+.*detail|need\s+.*detail|get\s+.*detail|car\s+detail|vehicle\s+detail)\b/i.test((body || '').toLowerCase())
 
     // isFirstTimeCustomer is already determined above, before storing the inbound message
 
