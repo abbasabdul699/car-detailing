@@ -821,6 +821,8 @@ export async function processConversationState(
             }
             
             if (availableSlots.length > 0) {
+              console.log('🔍 DEBUG: Processing availableSlots:', availableSlots.map(s => s.label || s.startLocal));
+              
               // Group slots by date label to avoid ambiguity (e.g., Oct 16 vs Oct 17)
               type Grouped = Record<string, string[]>;
               const grouped: Grouped = {};
@@ -828,11 +830,17 @@ export async function processConversationState(
 
               for (const slot of availableSlots) {
                 // Example label: "Thursday, Oct 16 8:00 AM – 10:00 AM America/New_York"
-                const cleaned = String(slot.startLocal).replace(/\s+America\/.+$/, '');
+                const cleaned = String(slot.label || slot.startLocal).replace(/\s+America\/.+$/, '');
+                console.log('🔍 DEBUG: Processing slot, cleaned:', cleaned);
+                
                 // Match: "Thursday, Oct 16" and "8:00 AM – 10:00 AM"
                 const m = cleaned.match(/^([A-Za-z]+,\s+[A-Za-z]+\s+\d{1,2})\s+(.*)$/);
+                console.log('🔍 DEBUG: Regex match result:', m);
+                
                 const dateLabel = m ? m[1] : cleaned;
                 const timePart = m ? m[2] : '';
+                console.log('🔍 DEBUG: dateLabel:', dateLabel, 'timePart:', timePart);
+                
                 if (!grouped[dateLabel]) { grouped[dateLabel] = []; order.push(dateLabel); }
                 if (timePart) {
                   // Extract just the start time (e.g., "8:00 AM" from "8:00 AM – 10:00 AM")
@@ -841,6 +849,9 @@ export async function processConversationState(
                   grouped[dateLabel].push(time);
                 }
               }
+              
+              console.log('🔍 DEBUG: Final grouped:', JSON.stringify(grouped, null, 2));
+              console.log('🔍 DEBUG: Final order:', order);
 
               // Build a concise, ordered message: up to 2 dates, up to 3 times each
               const lines: string[] = ['Here are some available time slots:'];

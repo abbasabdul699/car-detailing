@@ -3194,8 +3194,13 @@ Which day and time would work best for you?`;
         // Check if this is a booking confirmation response (skip conflict check for confirmations)
         const isBookingConfirmation = /booking confirmation|here's your booking|appointment confirmed|you're all set/i.test(aiResponse);
         
+        // Check if this is a state machine availability list (skip conflict check for availability lists)
+        const isAvailabilityList = usedStateMachine && /here are some available time slots/i.test(aiResponse);
+        
         if (isBookingConfirmation) {
           console.log('✅ Detected booking confirmation response, skipping conflict check');
+        } else if (isAvailabilityList) {
+          console.log('✅ Detected state machine availability list, skipping conflict check');
         } else {
           try {
             // Use direct validation function
