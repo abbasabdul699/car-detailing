@@ -873,10 +873,12 @@ async function safeSend(client: any, to: string, from: string, body: string): Pr
 
 async function safeSendMms(client: any, to: string, from: string, body: string, mediaUrl: string[]): Promise<string | undefined> {
   try {
+    console.log('Attempting MMS send:', { to, from, bodyLength: body.length, mediaUrl })
     const message = await client.messages.create({ to, from, body, mediaUrl })
+    console.log('✅ MMS sent successfully:', message.sid)
     return message.sid
   } catch (error) {
-    console.warn('Twilio MMS failed:', error)
+    console.error('❌ Twilio MMS failed:', error)
     return undefined
   }
 }
@@ -2940,29 +2942,31 @@ Which day and time would work best for you?`;
         // Prefer MMS for longer or structured messages to preserve order
         const looksStructured = /\n\s*[-•]|\n\d+\.|:\n\s*[-•]/.test(aiResponse) || aiResponse.length > 160
         if (looksStructured) {
+          console.log('Attempting MMS for structured message')
           const mmsSidTry = await safeSendMms(client, from, to, aiResponse, [`${process.env.NEXT_PUBLIC_BASE_URL || 'https://www.reevacar.com'}/icon.png`])
           if (mmsSidTry) {
             twilioSid = mmsSidTry
-            console.log('MMS sent to preserve ordering and formatting')
+            console.log('✅ MMS sent successfully to preserve ordering and formatting')
             return NextResponse.json({ success: true, aiResponse, twilioSid })
+          } else {
+            console.log('❌ MMS failed, falling back to SMS')
           }
         }
 
-        {
-          // Fallback to SMS chunking with ordering delays
-          const chunks = chunkForSms(aiResponse)
-          if (chunks.length === 1) {
-            twilioSid = await safeSend(client, from, to, aiResponse)
-          } else {
-            console.log(`Sending ${chunks.length} SMS chunks (fallback)`)
-            let firstSid: string | undefined
-            for (const [i, chunk] of chunks.entries()) {
-              const sid = await safeSend(client, from, to, chunk)
-              if (i === 0) firstSid = sid
-              if (i < chunks.length - 1) await new Promise(r => setTimeout(r, 300))
-            }
-            twilioSid = firstSid
+        // Fallback to SMS chunking with ordering delays
+        const chunks = chunkForSms(aiResponse)
+        if (chunks.length === 1) {
+          console.log('Sending single SMS')
+          twilioSid = await safeSend(client, from, to, aiResponse)
+        } else {
+          console.log(`Sending ${chunks.length} SMS chunks (fallback)`)
+          let firstSid: string | undefined
+          for (const [i, chunk] of chunks.entries()) {
+            const sid = await safeSend(client, from, to, chunk)
+            if (i === 0) firstSid = sid
+            if (i < chunks.length - 1) await new Promise(r => setTimeout(r, 300))
           }
+          twilioSid = firstSid
         }
       }
       
