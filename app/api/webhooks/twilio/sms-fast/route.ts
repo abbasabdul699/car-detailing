@@ -1344,22 +1344,68 @@ This lead has been automatically processed and is ready for you to contact!`;
       .map(([category, services]) => `${category}: ${services.join(', ')}`)
       .join(' | ')
 
-    // Nicely format services for SMS/MMS
-    function renderServices(byCat: Record<string,string[]>) {
-      const order = ['Interior','Exterior','Bundle','Additional','Other']
-      const parts: string[] = []
-      for (const key of order) {
-        const list = byCat[key]
-        if (list && list.length) parts.push(`${key}: ${list.join(', ')}`)
-      }
-      // include any leftover categories
-      for (const [k,v] of Object.entries(byCat)) {
-        if (!order.includes(k) && v.length) parts.push(`${k}: ${v.join(', ')}`)
-      }
-      const text = `Here’s what we offer — ${parts.join(' | ')}`
-      // keep it readable; the sender later decides SMS vs MMS
-      return text
-    }
+     // Nicely format services as customer-focused packages for SMS/MMS
+     async function renderServices(byCat: Record<string,string[]>) {
+       // Fetch the detailer's actual bundles from the database
+       const bundles = await prisma.bundle.findMany({
+         where: { detailerId: detailer?.id },
+         select: {
+           name: true,
+           description: true,
+           price: true,
+           services: {
+             select: {
+               service: {
+                 select: {
+                   name: true
+                 }
+               }
+             }
+           }
+         },
+         orderBy: { price: 'asc' }
+       })
+       
+       if (bundles.length === 0) {
+         // Fallback to generic packages if no bundles are configured
+         const packages = [
+           {
+             name: "Basic Detail",
+             description: "Perfect for regular maintenance - interior cleaning, vacuuming, and exterior wash",
+             price: "$80-120"
+           },
+           {
+             name: "Premium Detail", 
+             description: "Complete interior & exterior deep clean with waxing and protection",
+             price: "$150-250"
+           },
+           {
+             name: "Full Service Detail",
+             description: "Comprehensive detailing including engine bay, headlight restoration, and ceramic coating",
+             price: "$300-500"
+           }
+         ]
+         
+         let text = "Here are our main packages:\n\n"
+         packages.forEach((pkg, index) => {
+           text += `${index + 1}. ${pkg.name} - ${pkg.description}\n   ${pkg.price}\n\n`
+         })
+         
+         text += "Need something specific? Just ask! I can customize any package or add individual services."
+         return text
+       }
+       
+       // Use the detailer's actual bundles
+       let text = "Here are our main packages:\n\n"
+       bundles.forEach((bundle, index) => {
+         const serviceNames = bundle.services.map(bs => bs.service.name).slice(0, 3).join(', ')
+         const moreServices = bundle.services.length > 3 ? ` +${bundle.services.length - 3} more` : ''
+         text += `${index + 1}. ${bundle.name} - ${bundle.description || 'Complete detailing package'}\n   $${bundle.price} • Includes: ${serviceNames}${moreServices}\n\n`
+       })
+       
+       text += "Need something specific? Just ask! I can customize any package or add individual services."
+       return text
+     }
 
     // If the user explicitly asks for services, answer deterministically
     const asksForServices = /\b(what\s+services|services\s*\?|do\s+you\s+(offer|provide)\s+.*services?)\b/i.test((body || '').toLowerCase())
@@ -2301,7 +2347,7 @@ Be conversational and natural.`;
     
     // If user intent is clearly "what services", skip the LLM and send catalog
     if (asksForServices) {
-      aiResponse = renderServices(servicesByCategory)
+      aiResponse = await renderServices(servicesByCategory)
       console.log('INTENT: Services catalog requested. Bypassing LLM.')
     } else if (!useStateMachine) {
       try {
