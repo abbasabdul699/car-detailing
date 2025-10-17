@@ -89,6 +89,11 @@ export default function DetailerProfilePage() {
   const [phoneSuccess, setPhoneSuccess] = useState('');
   const [phoneError, setPhoneError] = useState('');
 
+  // Calendar sync state
+  const [syncLoading, setSyncLoading] = useState(false);
+  const [syncSuccess, setSyncSuccess] = useState('');
+  const [syncError, setSyncError] = useState('');
+
   React.useEffect(() => {
     getProfile()
       .then((data) => {
@@ -207,6 +212,37 @@ export default function DetailerProfilePage() {
       }
     } catch (error) {
       console.error(`Error updating ${setting} sync setting:`, error);
+    }
+  };
+
+  const handleSyncCalendar = async () => {
+    setSyncLoading(true);
+    setSyncSuccess('');
+    setSyncError('');
+
+    try {
+      const response = await fetch('/api/detailer/calendar/sync', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setSyncSuccess(`Successfully synced ${data.synced} events to Google Calendar!`);
+        if (data.failed > 0) {
+          setSyncError(`${data.failed} events failed to sync. Please try again.`);
+        }
+      } else {
+        setSyncError(data.error || 'Failed to sync calendar');
+      }
+    } catch (error) {
+      console.error('Error syncing calendar:', error);
+      setSyncError('Failed to sync calendar. Please try again.');
+    } finally {
+      setSyncLoading(false);
     }
   };
 
@@ -633,6 +669,55 @@ export default function DetailerProfilePage() {
                 </label>
               </div>
             </div>
+
+            {/* Sync Existing Events Button */}
+            {profile?.googleCalendarConnected && (
+              <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="font-medium text-gray-900 dark:text-gray-100">Sync Existing Events</h4>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                      Transfer all your existing Reeva calendar events to Google Calendar
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleSyncCalendar}
+                    disabled={syncLoading}
+                    className="bg-blue-600 text-white px-4 py-2 rounded-xl hover:bg-blue-700 transition-colors flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {syncLoading ? (
+                      <>
+                        <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                        </svg>
+                        <span>Syncing...</span>
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                        </svg>
+                        <span>Sync Now</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+                
+                {/* Sync Status Messages */}
+                {syncSuccess && (
+                  <div className="mt-3 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                    <p className="text-sm text-green-800 dark:text-green-200">{syncSuccess}</p>
+                  </div>
+                )}
+                
+                {syncError && (
+                  <div className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                    <p className="text-sm text-red-800 dark:text-red-200">{syncError}</p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 

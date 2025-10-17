@@ -21,7 +21,7 @@ const PrivacyPage: React.FC = () => {
           <span style={{ color: 'rgb(127, 127, 127)' }}>
             <strong>
               <span style={{ fontSize: '15px' }}>
-                <span data-custom-class="subtitle">Last updated January 17, 2025</span>
+                <span data-custom-class="subtitle">Last updated September 15, 2025</span>
               </span>
             </strong>
           </span>
