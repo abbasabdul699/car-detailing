@@ -2180,6 +2180,8 @@ CRITICAL AVAILABILITY CHECK: ${availabilityInfo}
 6. Do NOT say "earliest available time is X" if that contradicts the AVAILABLE_SLOTS list
 7. If a customer requests a time that's in AVAILABLE_SLOTS, proceed with booking
 8. If a customer requests a time that's NOT in AVAILABLE_SLOTS, suggest the closest available time from the list
+9. NEVER mention existing bookings as "unavailable" - this sounds like a cancellation
+10. If someone already has a booking and asks for availability, show them NEW available times without referencing their existing booking
 
 CRITICAL: The AVAILABLE_SLOTS list is the ONLY source of truth for availability. Do NOT generate conflicting availability information.
 
