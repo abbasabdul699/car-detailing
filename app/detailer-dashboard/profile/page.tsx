@@ -231,7 +231,11 @@ export default function DetailerProfilePage() {
       const data = await response.json();
 
       if (response.ok) {
-        setSyncSuccess(`Successfully synced ${data.synced} events to Google Calendar!`);
+        if (data.newlySynced > 0) {
+          setSyncSuccess(`Successfully synced ${data.newlySynced} new events to Google Calendar! (${data.synced} total events verified)`);
+        } else {
+          setSyncSuccess(`All events are already synced! (${data.synced} total events verified)`);
+        }
         if (data.failed > 0) {
           setSyncError(`${data.failed} events failed to sync. Please try again.`);
         }

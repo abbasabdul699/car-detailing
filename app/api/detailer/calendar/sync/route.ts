@@ -141,11 +141,11 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Fetch all existing Reeva events that don't have Google Calendar IDs
+    // Fetch ALL existing Reeva events for full sync
+    // We'll sync all events and update their Google Calendar IDs
     const existingEvents = await prisma.event.findMany({
       where: {
         detailerId: detailer.id,
-        googleEventId: null, // Only sync events that haven't been synced yet
       },
       orderBy: {
         date: 'asc'
@@ -160,6 +160,13 @@ export async function POST(request: NextRequest) {
     // Sync each event to Google Calendar
     for (const event of existingEvents) {
       try {
+        // Check if event already has a Google Calendar ID
+        if (event.googleEventId) {
+          console.log(`⏭️ Event "${event.title}" already has Google Calendar ID: ${event.googleEventId}`);
+          syncedCount++;
+          continue;
+        }
+        
         const googleEventId = await createGoogleCalendarEvent(accessToken, event, detailer);
         
         if (googleEventId) {
@@ -187,10 +194,13 @@ export async function POST(request: NextRequest) {
 
     console.log(`🎉 Sync complete! Synced: ${syncedCount}, Failed: ${failedCount}`);
     
+    const newlySynced = syncedCount - existingEvents.filter(e => e.googleEventId).length;
+    
     return NextResponse.json({ 
       success: true,
-      message: `Calendar sync completed successfully`,
+      message: `Calendar sync completed! ${newlySynced} new events synced, ${syncedCount} total events verified`,
       synced: syncedCount,
+      newlySynced: newlySynced,
       failed: failedCount,
       total: existingEvents.length,
       lastSync: new Date().toISOString()
