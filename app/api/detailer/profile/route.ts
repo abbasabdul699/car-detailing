@@ -36,6 +36,7 @@ export async function GET() {
         description: true,
         latitude: true,
         longitude: true,
+        serviceRadius: true,
         priceRange: true,
         website: true,
         imageUrl: true,
@@ -85,7 +86,7 @@ export async function PATCH(request: Request) {
   // Only allow updating these fields
   const allowedFields = [
     'firstName', 'lastName', 'businessName', 'phone', 'address', 'city', 'state', 'zipCode',
-    'description', 'latitude', 'longitude', 'priceRange', 'website', 'imageUrl', 'businessHours', 'verified',
+    'description', 'latitude', 'longitude', 'serviceRadius', 'priceRange', 'website', 'imageUrl', 'businessHours', 'verified',
     'facebook', 'instagram', 'tiktok', 'googleReviewLink'
   ];
   const updateData: Record<string, any> = {};
@@ -127,6 +128,7 @@ export async function PATCH(request: Request) {
         description: true,
         latitude: true,
         longitude: true,
+        serviceRadius: true,
         priceRange: true,
         website: true,
         imageUrl: true,

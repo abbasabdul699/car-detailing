@@ -7,6 +7,7 @@ import { validateVehicle, normalizeModel, generateVehicleClarification } from '@
 import { validateAndNormalizeState } from '@/lib/stateValidation';
 import { formatDuration } from '@/lib/utils';
 import { processConversationState } from '@/lib/conversationState';
+import { validateServiceRadius } from '@/lib/distance';
 import twilio from 'twilio';
 
 // Helper function to generate .ics calendar file content
@@ -2183,6 +2184,13 @@ CRITICAL AVAILABILITY CHECK: ${availabilityInfo}
 9. NEVER mention existing bookings as "unavailable" - this sounds like a cancellation
 10. If someone already has a booking and asks for availability, show them NEW available times without referencing their existing booking
 
+🚨 SERVICE RADIUS RULES:
+1. ALWAYS ask for the customer's complete address (street, city, state, zip) before booking
+2. If a customer provides an incomplete address, ask for the full address
+3. The system will automatically check if the address is within our service radius
+4. If the address is too far, politely explain we can't service that area
+5. If the address is within range, confirm the booking and proceed
+
 CRITICAL: The AVAILABLE_SLOTS list is the ONLY source of truth for availability. Do NOT generate conflicting availability information.
 
 🚨 CONVERSATION STATE RULES:
@@ -2800,6 +2808,24 @@ Be conversational and natural.`;
                throw new Error('Time conflict with existing appointment');
              }
 
+             // Validate service radius before creating booking
+             const distanceValidation = await validateServiceRadius(
+               { latitude: detailer.latitude, longitude: detailer.longitude, serviceRadius: detailer.serviceRadius || 25 },
+               address
+             );
+             
+             if (!distanceValidation.isValid) {
+               console.log(`❌ Booking rejected: ${distanceValidation.message}`);
+               await twilioClient.messages.create({
+                 body: distanceValidation.message,
+                 from: process.env.TWILIO_PHONE_NUMBER,
+                 to: from
+               });
+               return NextResponse.json({ message: 'Booking rejected - outside service radius' });
+             }
+             
+             console.log(`✅ Distance validation passed: ${distanceValidation.message}`);
+             
              // Calculate duration for the service
              const serviceDuration = calculateServiceDuration([service], detailerServices);
              
@@ -3715,6 +3741,24 @@ What time would work better for you?`;
             throw new Error('Time conflict with existing appointment');
           }
 
+          // Validate service radius before creating booking
+          const distanceValidation = await validateServiceRadius(
+            { latitude: detailer.latitude, longitude: detailer.longitude, serviceRadius: detailer.serviceRadius || 25 },
+            snapForBooking?.address || 'Unknown address'
+          );
+          
+          if (!distanceValidation.isValid) {
+            console.log(`❌ Booking rejected: ${distanceValidation.message}`);
+            await twilioClient.messages.create({
+              body: distanceValidation.message,
+              from: process.env.TWILIO_PHONE_NUMBER,
+              to: from
+            });
+            return NextResponse.json({ message: 'Booking rejected - outside service radius' });
+          }
+          
+          console.log(`✅ Distance validation passed: ${distanceValidation.message}`);
+          
           // Calculate duration for the services
           const serviceDuration = calculateServiceDuration(services.length ? services : ['Detailing'], detailerServices);
           

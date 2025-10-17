@@ -18,6 +18,7 @@ interface Profile {
   description: string;
   latitude: number;
   longitude: number;
+  serviceRadius?: number;
   priceRange: string;
   website?: string;
   imageUrl?: string;
@@ -106,6 +107,20 @@ export default function ProfileEditForm({ profile, onClose, onSave, section }: P
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                 required
               />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Service Radius (miles)</label>
+              <input
+                type="number"
+                name="serviceRadius"
+                value={formData.serviceRadius || 25}
+                onChange={handleChange}
+                min="1"
+                max="100"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                placeholder="25"
+              />
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Maximum distance you're willing to travel for service</p>
             </div>
           </div>
         );

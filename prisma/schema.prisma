@@ -24,6 +24,7 @@ model Detailer {
   description  String
   latitude     Float
   longitude    Float
+  serviceRadius Int?   @default(25) // Service radius in miles (default 25 miles)
   priceRange   String
   website      String?
   imageUrl     String?
