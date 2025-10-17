@@ -335,6 +335,9 @@ export async function GET(request: NextRequest) {
     });
     
     // Then, add Google Calendar events only if they don't have a corresponding local event
+    let skippedByGoogleId = 0;
+    let skippedByTitleTime = 0;
+    
     events.forEach(event => {
       // First, check if any local event has this Google Calendar event ID
       const hasLocalEventWithGoogleId = localEvents.some(localEvent => {
@@ -342,6 +345,7 @@ export async function GET(request: NextRequest) {
       });
       
       if (hasLocalEventWithGoogleId) {
+        skippedByGoogleId++;
         console.log(`🔄 Skipping Google Calendar event (has local counterpart): "${event.title}" at ${event.start}`);
         return;
       }
@@ -349,13 +353,21 @@ export async function GET(request: NextRequest) {
       // Fallback: Check by title and time for events without proper googleEventId linkage
       const isDuplicate = localEvents.some(localEvent => {
         const sameTitle = localEvent.title === event.title;
-        const sameStartTime = localEvent.start === event.start;
-        return sameTitle && sameStartTime;
+        
+        // More flexible time comparison - normalize both times to compare just the date part
+        const localTime = new Date(localEvent.start);
+        const googleTime = new Date(event.start);
+        const sameDate = localTime.toDateString() === googleTime.toDateString();
+        const sameHour = localTime.getHours() === googleTime.getHours();
+        const sameMinute = localTime.getMinutes() === googleTime.getMinutes();
+        
+        return sameTitle && sameDate && sameHour && sameMinute;
       });
       
       if (!isDuplicate) {
         eventMap.set(event.id, event);
       } else {
+        skippedByTitleTime++;
         console.log(`🔄 Skipping duplicate Google Calendar event: "${event.title}" at ${event.start}`);
       }
     });
@@ -367,7 +379,9 @@ export async function GET(request: NextRequest) {
     console.log('Calendar Events API Response:');
     console.log('- Local events:', localEvents.length);
     console.log('- Google events:', events.length);
-    console.log('- Duplicates removed:', duplicateCount);
+    console.log('- Skipped by Google ID:', skippedByGoogleId);
+    console.log('- Skipped by title/time:', skippedByTitleTime);
+    console.log('- Total duplicates removed:', duplicateCount);
     console.log('- Total unique events:', allEvents.length);
     console.log('- Google Calendar connected:', detailer.googleCalendarConnected);
     console.log('- Sync appointments:', detailer.syncAppointments);
