@@ -21,7 +21,7 @@ const PrivacyPage: React.FC = () => {
           <span style={{ color: 'rgb(127, 127, 127)' }}>
             <strong>
               <span style={{ fontSize: '15px' }}>
-                <span data-custom-class="subtitle">Last updated September 15, 2025</span>
+                <span data-custom-class="subtitle">Last updated January 17, 2025</span>
               </span>
             </strong>
           </span>
@@ -76,6 +76,37 @@ const PrivacyPage: React.FC = () => {
             </p>
             <p>
               Use of our SMS services is also subject to this Privacy Policy and our Terms of Service.
+            </p>
+
+            <h2 className="text-xl font-bold mb-4 mt-8">Google Calendar Integration</h2>
+            <p>
+              Our platform offers optional integration with Google Calendar to provide enhanced scheduling and appointment management features. When you choose to connect your Google Calendar account, we will:
+            </p>
+            <ul className="list-disc list-inside ml-4 mb-4">
+              <li>Access your calendar to check availability and prevent scheduling conflicts</li>
+              <li>Create calendar events for confirmed appointments</li>
+              <li>Update or cancel calendar events when appointments are modified</li>
+              <li>Sync appointment information between our platform and your Google Calendar</li>
+            </ul>
+            <p>
+              <strong>Data Collection and Use:</strong> We will only access calendar information necessary to provide these scheduling services. This includes:
+            </p>
+            <ul className="list-disc list-inside ml-4 mb-4">
+              <li>Calendar events and their details (title, date, time, description)</li>
+              <li>Calendar availability information</li>
+              <li>Basic calendar metadata (calendar names, permissions)</li>
+            </ul>
+            <p>
+              <strong>Data Sharing:</strong> Your calendar information is not shared with third parties except as required to provide the service. We use Google's APIs in accordance with Google's API Services User Data Policy and Terms of Service.
+            </p>
+            <p>
+              <strong>Your Control:</strong> You can disconnect your Google Calendar integration at any time through your account settings. Disconnecting will remove our access to your calendar data, but will not affect any existing appointments that have already been created.
+            </p>
+            <p>
+              <strong>Security:</strong> All calendar data is transmitted securely and stored with appropriate encryption. We follow Google's security best practices and maintain strict access controls.
+            </p>
+            <p>
+              <strong>Third-Party Services:</strong> This integration is provided through Google Calendar API. By using this feature, you also agree to Google's Terms of Service and Privacy Policy. We are not responsible for Google's data practices.
             </p>
 
             <h2 className="text-xl font-bold mb-4 mt-8">Your Rights</h2>

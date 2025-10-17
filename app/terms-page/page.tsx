@@ -21,7 +21,7 @@ const TermsPage: React.FC = () => {
           <span style={{ color: 'rgb(127, 127, 127)' }}>
             <strong>
               <span style={{ fontSize: '15px' }}>
-                <span data-custom-class="subtitle">Last updated February 20, 2025</span>
+                <span data-custom-class="subtitle">Last updated January 17, 2025</span>
               </span>
             </strong>
           </span>
@@ -68,6 +68,53 @@ const TermsPage: React.FC = () => {
             <h2 className="text-xl font-bold mb-4 mt-8">Removal of links from our website</h2>
             <p>
               If you find any link on our Website that is offensive for any reason, you are free to contact and inform us any moment. We will consider requests to remove links but we are not obligated to or so or to respond to you directly.
+            </p>
+
+            <h2 className="text-xl font-bold mb-4 mt-8">Google Calendar Integration</h2>
+            <p>
+              Our platform offers optional integration with Google Calendar services to enhance your appointment scheduling experience. By choosing to connect your Google Calendar account, you agree to the following terms:
+            </p>
+            
+            <h3 className="text-lg font-semibold mb-3 mt-6">Service Features</h3>
+            <ul className="list-disc list-inside ml-4 mb-4">
+              <li>Automatic availability checking to prevent double-booking</li>
+              <li>Creation of calendar events for confirmed appointments</li>
+              <li>Automatic updates when appointments are modified or cancelled</li>
+              <li>Synchronization of appointment data between our platform and your Google Calendar</li>
+            </ul>
+
+            <h3 className="text-lg font-semibold mb-3 mt-6">User Responsibilities</h3>
+            <ul className="list-disc list-inside ml-4 mb-4">
+              <li>You must have a valid Google account to use this feature</li>
+              <li>You are responsible for maintaining the security of your Google account credentials</li>
+              <li>You grant us permission to access your calendar data only for the purposes described above</li>
+              <li>You can revoke access at any time through your account settings or Google account settings</li>
+            </ul>
+
+            <h3 className="text-lg font-semibold mb-3 mt-6">Third-Party Services</h3>
+            <p>
+              This integration is provided through Google Calendar API and is subject to Google's Terms of Service and Privacy Policy. By using this feature, you also agree to Google's terms. We are not responsible for Google's services, availability, or data practices.
+            </p>
+
+            <h3 className="text-lg font-semibold mb-3 mt-6">Limitation of Liability</h3>
+            <p>
+              We are not liable for any issues arising from your use of Google Calendar integration, including but not limited to:
+            </p>
+            <ul className="list-disc list-inside ml-4 mb-4">
+              <li>Data loss or corruption in your Google Calendar</li>
+              <li>Incorrect appointment scheduling due to calendar sync issues</li>
+              <li>Unauthorized access to your Google account</li>
+              <li>Google service outages or changes to Google's API</li>
+            </ul>
+
+            <h3 className="text-lg font-semibold mb-3 mt-6">Service Availability</h3>
+            <p>
+              Google Calendar integration may be temporarily unavailable due to maintenance, Google service outages, or changes to Google's API. We will make reasonable efforts to restore service but cannot guarantee continuous availability.
+            </p>
+
+            <h3 className="text-lg font-semibold mb-3 mt-6">Termination</h3>
+            <p>
+              You may disconnect your Google Calendar integration at any time. We may also suspend or terminate this service if you violate these terms or if Google revokes our access to their API services.
             </p>
           </div>
         </div>
