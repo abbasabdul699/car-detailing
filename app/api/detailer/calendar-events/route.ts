@@ -325,13 +325,50 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Combine local and Google Calendar events
-    const allEvents = [...localEvents, ...events];
+    // Deduplicate events - prioritize local events over Google Calendar events
+    // This prevents showing the same event twice when it exists in both calendars
+    const eventMap = new Map();
+    
+    // First, add all local events
+    localEvents.forEach(event => {
+      eventMap.set(event.id, event);
+    });
+    
+    // Then, add Google Calendar events only if they don't have a corresponding local event
+    events.forEach(event => {
+      // First, check if any local event has this Google Calendar event ID
+      const hasLocalEventWithGoogleId = localEvents.some(localEvent => {
+        return localEvent.googleEventId === event.id;
+      });
+      
+      if (hasLocalEventWithGoogleId) {
+        console.log(`🔄 Skipping Google Calendar event (has local counterpart): "${event.title}" at ${event.start}`);
+        return;
+      }
+      
+      // Fallback: Check by title and time for events without proper googleEventId linkage
+      const isDuplicate = localEvents.some(localEvent => {
+        const sameTitle = localEvent.title === event.title;
+        const sameStartTime = localEvent.start === event.start;
+        return sameTitle && sameStartTime;
+      });
+      
+      if (!isDuplicate) {
+        eventMap.set(event.id, event);
+      } else {
+        console.log(`🔄 Skipping duplicate Google Calendar event: "${event.title}" at ${event.start}`);
+      }
+    });
+    
+    const allEvents = Array.from(eventMap.values());
 
+    const duplicateCount = localEvents.length + events.length - allEvents.length;
+    
     console.log('Calendar Events API Response:');
     console.log('- Local events:', localEvents.length);
     console.log('- Google events:', events.length);
-    console.log('- Total events:', allEvents.length);
+    console.log('- Duplicates removed:', duplicateCount);
+    console.log('- Total unique events:', allEvents.length);
     console.log('- Google Calendar connected:', detailer.googleCalendarConnected);
     console.log('- Sync appointments:', detailer.syncAppointments);
 
