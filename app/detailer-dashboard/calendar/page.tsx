@@ -1928,7 +1928,18 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
                     if (!isEventClick && (target === e.currentTarget || target.classList.contains('time-slot-cell'))) {
                       const rect = e.currentTarget.getBoundingClientRect();
                       const x = e.clientX - rect.left;
-                      const clickedSlotIndex = Math.floor(x / 120);
+                      
+                      // Calculate which column was clicked based on actual column widths
+                      let clickedSlotIndex = -1;
+                      let cumulativeWidth = 0;
+                      for (let i = 0; i < columnWidths.length; i++) {
+                        const columnWidth = columnWidths[i] * scale;
+                        if (x >= cumulativeWidth && x < cumulativeWidth + columnWidth) {
+                          clickedSlotIndex = i;
+                          break;
+                        }
+                        cumulativeWidth += columnWidth;
+                      }
                       
                       if (clickedSlotIndex >= 0 && clickedSlotIndex < timeSlots.length) {
                         const slot = timeSlots[clickedSlotIndex];

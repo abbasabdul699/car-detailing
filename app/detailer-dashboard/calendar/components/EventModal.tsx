@@ -621,6 +621,34 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
             setShowCustomerDetailsPopup(false);
         }
     }, [isOpen]);
+    
+    // Reset all form fields when modal opens (unless there's a draftEvent)
+    React.useEffect(() => {
+        if (isOpen && !draftEvent) {
+            // Reset all form fields to ensure clean state
+            setSelectedEmployeeId('');
+            setStartDate('');
+            setEndDate('');
+            setStartTime('');
+            setEndTime('');
+            setIsAllDay(false);
+            setIsMultiDay(false);
+            setSelectedResourceId(preSelectedResource?.id || '');
+            setCustomerName('');
+            setCustomerPhone('');
+            setCustomerEmail('');
+            setCustomerAddress('');
+            setLocationType('');
+            setVehicles([]);
+            setSelectedServices([]);
+            setServiceSearch('');
+            setDescription('');
+            setShowCustomerSuggestions(false);
+            setSelectedCustomerIndex(-1);
+            setSelectedCustomer(null);
+            setCustomerSearch('');
+        }
+    }, [isOpen, draftEvent, preSelectedResource?.id]);
 
     // Get the selected resource name for display
     const selectedResource = preSelectedResource || resources.find(r => r.id === selectedResourceId);
