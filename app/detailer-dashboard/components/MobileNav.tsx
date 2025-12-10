@@ -3,17 +3,19 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  HomeIcon,
+  UsersIcon,
   ChatBubbleLeftRightIcon,
   CalendarDaysIcon,
   UserIcon,
   PlusIcon,
   ClipboardDocumentListIcon,
   PhotoIcon,
-  CubeIcon
+  CubeIcon,
+  UserGroupIcon,
+  CreditCardIcon
 } from "@heroicons/react/24/outline";
 import {
-  HomeIcon as HomeIconSolid,
+  UsersIcon as UsersIconSolid,
   ChatBubbleLeftRightIcon as ChatBubbleLeftRightIconSolid,
   CalendarDaysIcon as CalendarDaysIconSolid,
   UserIcon as UserIconSolid,
@@ -29,10 +31,10 @@ type NavItem = {
 
 const items: NavItem[] = [
   { 
-    name: "Home", 
-    href: "/detailer-dashboard", 
-    icon: HomeIcon,
-    iconSolid: HomeIconSolid
+    name: "Resources", 
+    href: "/detailer-dashboard/resources", 
+    icon: UsersIcon,
+    iconSolid: UsersIconSolid
   },
   { 
     name: "Messages", 
@@ -60,22 +62,13 @@ export default function MobileNav() {
   const [sheetOpen, setSheetOpen] = useState(false);
 
   const actions = useMemo(() => {
-    if (pathname?.startsWith("/detailer-dashboard/services")) {
-      return [
-        { label: "Add Service", onClick: () => router.push("/detailer-dashboard/services?add=1"), icon: CubeIcon },
-      ];
-    }
-    if (pathname?.startsWith("/detailer-dashboard/images")) {
-      return [
-        { label: "Upload Images", onClick: () => router.push("/detailer-dashboard/images?upload=1"), icon: PhotoIcon },
-      ];
-    }
     return [
-      { label: "View Bookings", onClick: () => router.push("/detailer-dashboard/bookings?new=1"), icon: ClipboardDocumentListIcon },
-      { label: "Services & Bundles", onClick: () => router.push("/detailer-dashboard/services"), icon: CubeIcon },
+      { label: "Customers", onClick: () => router.push("/detailer-dashboard/customers"), icon: UserGroupIcon },
+      { label: "Services", onClick: () => router.push("/detailer-dashboard/services"), icon: CubeIcon },
       { label: "Manage Images", onClick: () => router.push("/detailer-dashboard/images?upload=1"), icon: PhotoIcon },
+      { label: "Subscription", onClick: () => router.push("/detailer-dashboard/subscription"), icon: CreditCardIcon },
     ];
-  }, [pathname, router]);
+  }, [router]);
 
   return (
     <nav
@@ -125,7 +118,7 @@ export default function MobileNav() {
                 key={item.name}
                 href={item.href}
                 className={`flex flex-col items-center justify-center py-2 transition-all duration-200 ${
-                  active ? "text-blue-600 dark:text-blue-400" : "text-gray-500 dark:text-gray-400"
+                  active ? "text-gray-900 dark:text-white" : "text-gray-500 dark:text-gray-400"
                 }`}
               >
                 <IconComponent className={`h-6 w-6 ${active ? "scale-110" : "scale-100"}`} />
@@ -139,7 +132,7 @@ export default function MobileNav() {
             <button
               aria-label="Create"
               onClick={() => setSheetOpen((o) => !o)}
-              className="relative -mt-6 h-12 w-12 rounded-full bg-blue-600 text-white shadow-xl active:scale-95 transition transform"
+              className="relative -mt-6 h-12 w-12 rounded-full bg-black dark:bg-gray-800 text-white shadow-xl active:scale-95 transition transform"
             >
               <PlusIcon className="h-7 w-7 mx-auto" />
             </button>
@@ -154,7 +147,7 @@ export default function MobileNav() {
                 key={item.name}
                 href={item.href}
                 className={`flex flex-col items-center justify-center py-2 transition-all duration-200 ${
-                  active ? "text-blue-600 dark:text-blue-400" : "text-gray-500 dark:text-gray-400"
+                  active ? "text-gray-900 dark:text-white" : "text-gray-500 dark:text-gray-400"
                 }`}
               >
                 <IconComponent className={`h-6 w-6 ${active ? "scale-110" : "scale-100"}`} />

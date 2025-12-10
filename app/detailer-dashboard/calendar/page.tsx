@@ -18,7 +18,7 @@ import {
   startOfMonth,
   getDay
 } from 'date-fns';
-import { ChevronDownIcon } from '@heroicons/react/24/outline';
+import { ChevronDownIcon, Cog8ToothIcon } from '@heroicons/react/24/outline';
 import { XMarkIcon, PencilIcon, CheckIcon } from '@heroicons/react/24/solid';
 import EventModal from './components/EventModal';
 import AddressAutocompleteInput from './components/AddressAutocompleteInput';
@@ -2090,7 +2090,10 @@ export default function CalendarPage() {
   const [viewMode, setViewMode] = useState<'month' | 'week' | 'day'>('day');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [currentTime, setCurrentTime] = useState(new Date());
   const [selectedResource, setSelectedResource] = useState<{ id: string; name: string; type: 'bay' | 'van' } | null>(null);
+  const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
   const [draftEvent, setDraftEvent] = useState<{ resourceId: string; startTime: string; endTime: string } | null>(null);
 
   const today = new Date();
@@ -2205,6 +2208,102 @@ export default function CalendarPage() {
     };
     fetchEmployees();
   }, [detailerId]);
+
+  // Mobile detection and current time updates
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
+    // Update current time every second
+    const timeInterval = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    
+    return () => {
+      window.removeEventListener('resize', checkMobile);
+      clearInterval(timeInterval);
+    };
+  }, []);
+
+  // Swipe gesture handlers for mobile - swipe down from week to month, swipe up from month to week
+  useEffect(() => {
+    if (!isMobile) return;
+
+    const handleTouchStart = (e: TouchEvent) => {
+      // Only track if starting from the top area (week header/navigation) or if in week/month view
+      const touch = e.touches[0];
+      touchStartRef.current = {
+        x: touch.clientX,
+        y: touch.clientY,
+        time: Date.now()
+      };
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      // Optional: prevent default scrolling if we detect a clear vertical swipe
+      if (!touchStartRef.current) return;
+      
+      const touch = e.touches[0];
+      const deltaY = touch.clientY - touchStartRef.current.y;
+      const deltaX = Math.abs(touch.clientX - touchStartRef.current.x);
+      
+      // If it's a clear vertical swipe (more vertical than horizontal), allow it
+      // But don't prevent default unless we're sure it's a swipe gesture
+      if (Math.abs(deltaY) > 30 && deltaY > deltaX * 2) {
+        // This is likely a swipe, but we'll let it pass to not interfere with scrolling
+      }
+    };
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      if (!touchStartRef.current) return;
+
+      const touch = e.changedTouches[0];
+      const deltaX = touch.clientX - touchStartRef.current.x;
+      const deltaY = touch.clientY - touchStartRef.current.y;
+      const deltaTime = Date.now() - touchStartRef.current.time;
+
+      // Check for swipe gesture (vertical swipe, minimal horizontal movement)
+      const minSwipeDistance = 80; // Minimum pixels to register as swipe (increased to avoid accidental triggers)
+      const maxHorizontalMovement = 100; // Maximum horizontal movement allowed
+      const maxSwipeTime = 500; // Maximum time in ms for a swipe
+
+      if (
+        Math.abs(deltaY) > minSwipeDistance &&
+        Math.abs(deltaX) < maxHorizontalMovement &&
+        deltaTime < maxSwipeTime
+      ) {
+        // Swipe down: week -> month
+        if (deltaY > 0 && viewMode === 'week') {
+          e.preventDefault();
+          setViewMode('month');
+        }
+        // Swipe up: month -> week  
+        else if (deltaY < 0 && viewMode === 'month') {
+          e.preventDefault();
+          setViewMode('week');
+        }
+      }
+
+      touchStartRef.current = null;
+    };
+
+    // Add listeners on mobile for view transitions
+    if (isMobile && (viewMode === 'week' || viewMode === 'month')) {
+      const calendarContainer = document.getElementById('calendar-scroll-container') || document.body;
+      calendarContainer.addEventListener('touchstart', handleTouchStart, { passive: true });
+      calendarContainer.addEventListener('touchmove', handleTouchMove, { passive: true });
+      calendarContainer.addEventListener('touchend', handleTouchEnd, { passive: false });
+
+      return () => {
+        calendarContainer.removeEventListener('touchstart', handleTouchStart);
+        calendarContainer.removeEventListener('touchmove', handleTouchMove);
+        calendarContainer.removeEventListener('touchend', handleTouchEnd);
+      };
+    }
+  }, [isMobile, viewMode]);
 
   // Close date picker when clicking outside
   useEffect(() => {
@@ -2661,6 +2760,276 @@ export default function CalendarPage() {
     // Day view: Show day of week, month, day of month, and year (e.g., "Friday, December 5, 2025")
     return format(currentDate, 'EEEE, MMMM d, yyyy');
   };
+
+  // Mobile calendar view render function
+  const renderMobileCalendar = () => {
+    const weekStart = startOfWeek(currentDate);
+    const weekDays = eachDayOfInterval({ start: weekStart, end: endOfWeek(currentDate) });
+    const hours = Array.from({ length: 16 }, (_, i) => i + 6); // 6 AM to 9 PM
+    
+    // Filter events for the current day
+    const dayEvents = bookings.filter((event: any) => {
+      let eventDate;
+      if (event.start) {
+        eventDate = event.start.includes('T') ? event.start.split('T')[0] : event.start;
+      } else if (event.date) {
+        eventDate = typeof event.date === 'string' ? event.date : format(new Date(event.date), 'yyyy-MM-dd');
+      } else {
+        return false;
+      }
+      return eventDate === format(currentDate, 'yyyy-MM-dd');
+    });
+
+    // Get current hour and minute for the time line
+    const now = currentTime;
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
+    const currentTop = ((currentHour - 6) * 60 + currentMinute) * 2; // 2px per minute, starting from 6 AM
+
+    // Event colors mapping
+    const eventColors: Record<string, { bg: string; text: string }> = {
+      blue: { bg: 'bg-blue-100', text: 'text-blue-900' },
+      green: { bg: 'bg-green-100', text: 'text-green-900' },
+      yellow: { bg: 'bg-yellow-100', text: 'text-yellow-900' },
+      orange: { bg: 'bg-orange-100', text: 'text-orange-900' },
+      red: { bg: 'bg-red-100', text: 'text-red-900' },
+      purple: { bg: 'bg-purple-100', text: 'text-purple-900' },
+    };
+
+    const getEventPosition = (event: any) => {
+      let startHour = 6;
+      let startMinute = 0;
+      let endHour = 7;
+      let endMinute = 0;
+      
+      if (event.start && event.start.includes('T')) {
+        const eventStart = new Date(event.start);
+        startHour = eventStart.getHours();
+        startMinute = eventStart.getMinutes();
+        
+        if (event.end && event.end.includes('T')) {
+          const eventEnd = new Date(event.end);
+          endHour = eventEnd.getHours();
+          endMinute = eventEnd.getMinutes();
+        } else {
+          endHour = startHour + 1;
+        }
+      } else if (event.time) {
+        const [time, period] = event.time.split(' ');
+        const [hours, minutes] = time.split(':');
+        startHour = parseInt(hours);
+        if (period === 'PM' && startHour !== 12) startHour += 12;
+        if (period === 'AM' && startHour === 12) startHour = 0;
+        startMinute = parseInt(minutes || '0');
+        endHour = startHour + 1;
+      }
+
+      // Calculate duration in minutes
+      const startMinutes = startHour * 60 + startMinute;
+      const endMinutes = endHour * 60 + endMinute;
+      const duration = Math.max(endMinutes - startMinutes, 30); // Minimum 30 minutes
+      
+      const top = ((startHour - 6) * 60 + startMinute) * 2;
+      const height = duration * 2;
+      
+      return { top, height };
+    };
+
+    return (
+      <div className="h-full flex flex-col pb-16 md:pb-0" style={{ backgroundColor: '#f9f7fa' }}>
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 pt-3 pb-2">
+          <h1 className="text-2xl font-bold text-gray-900">Calendar</h1>
+          <div className="flex items-center gap-3">
+            <div className="text-xs font-medium text-gray-600">
+              {format(currentTime, 'H:mm:ss')}
+            </div>
+            <button className="p-2">
+              <Cog8ToothIcon className="w-6 h-6 text-gray-600" />
+            </button>
+          </div>
+        </div>
+
+        {/* Current Day */}
+        <div className="px-4 pb-2">
+          <div className="text-sm font-semibold text-gray-900">
+            {format(currentDate, 'EEEE, MMM d')}
+          </div>
+        </div>
+
+        {/* Week Navigation */}
+        <div className="px-4 pb-3">
+          <div className="flex justify-between">
+            {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day, idx) => (
+              <button
+                key={idx}
+                onClick={() => setCurrentDate(weekDays[idx])}
+                className="flex flex-col items-center"
+              >
+                <div className="text-xs font-medium text-gray-500 mb-1">{day}</div>
+                <div
+                  className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                    isSameDay(weekDays[idx], currentDate)
+                      ? 'bg-purple-200 text-purple-900'
+                      : 'text-gray-700'
+                  }`}
+                >
+                  {format(weekDays[idx], 'd')}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Calendar Grid */}
+        <div className="flex-1 overflow-y-auto px-4">
+          <div className="relative" style={{ minHeight: '960px' }}>
+            {/* Time slots */}
+            {hours.map((hour) => (
+              <div key={hour} className="relative" style={{ height: '120px' }}>
+                <div className="absolute left-0 top-0 text-xs font-medium text-gray-500" style={{ width: '60px' }}>
+                  {hour === 12 ? '12:00 PM' : hour > 12 ? `${hour - 12}:00 PM` : `${hour}:00 AM`}
+                </div>
+                <div
+                  className="absolute left-14 right-0 border-t border-gray-200"
+                  style={{ top: '0px' }}
+                />
+              </div>
+            ))}
+
+            {/* Current time indicator */}
+            {isSameDay(currentTime, currentDate) && currentHour >= 6 && currentHour < 22 && (
+              <div
+                className="absolute left-14 right-0 z-10"
+                style={{ top: `${currentTop}px` }}
+              >
+                <div className="relative">
+                  <div className="absolute left-0 w-2 h-2 rounded-full bg-purple-500" style={{ top: '-4px' }} />
+                  <div className="absolute left-0 right-0 border-t-2 border-dotted border-purple-500" />
+                </div>
+              </div>
+            )}
+
+            {/* Events */}
+            <div className="absolute left-14 right-0 top-0 bottom-0">
+              {dayEvents.map((event: any) => {
+                const { top, height } = getEventPosition(event);
+                const color = event.color || 'blue';
+                const eventColor = eventColors[color] || eventColors.blue;
+                
+                return (
+                  <div
+                    key={event.id}
+                    onClick={() => handleEventClick(event)}
+                    className={`absolute left-0 right-4 rounded-lg p-2 cursor-pointer ${eventColor.bg} ${eventColor.text} border-l-4`}
+                    style={{
+                      top: `${top}px`,
+                      height: `${height}px`,
+                      minHeight: '40px',
+                      borderLeftColor: color === 'blue' ? '#3b82f6' : color === 'green' ? '#10b981' : color === 'yellow' ? '#eab308' : '#6366f1',
+                    }}
+                  >
+                    <div className="font-semibold text-sm truncate">
+                      {event.title || event.eventName || (Array.isArray(event.services) ? event.services.join(', ') : event.services) || 'Event'}
+                    </div>
+                    {event.description && (
+                      <div className="text-xs mt-1 opacity-75 truncate">{event.description}</div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Navigation buttons */}
+        <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200">
+          <button
+            onClick={handlePrev}
+            className="p-2 rounded-lg hover:bg-gray-200"
+          >
+            <ChevronLeftIcon className="w-5 h-5 text-gray-600" />
+          </button>
+          <button
+            onClick={() => setCurrentDate(new Date())}
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg"
+          >
+            Today
+          </button>
+          <button
+            onClick={handleNext}
+            className="p-2 rounded-lg hover:bg-gray-200"
+          >
+            <ChevronRightIcon className="w-5 h-5 text-gray-600" />
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  // Render mobile view if on mobile
+  if (isMobile && viewMode === 'day') {
+    return (
+      <>
+        {renderMobileCalendar()}
+        {/* Keep modals and sidebars */}
+        <EventModal 
+            isOpen={isModalOpen}
+            onClose={() => {
+              setIsModalOpen(false);
+              setSelectedResource(null);
+              setDraftEvent(null);
+              setNewCustomerData(null);
+            }}
+            onAddEvent={handleAddEvent}
+            preSelectedResource={selectedResource}
+            resources={resources.length > 0 ? resources : []}
+            draftEvent={draftEvent}
+            onOpenNewCustomerModal={(initialName) => {
+              setNewCustomerModalInitialName(initialName);
+              setIsNewCustomerModalOpen(true);
+            }}
+            newCustomerData={newCustomerData}
+        />
+        {eventDetailsOpen && selectedEventData && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4">
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                    {selectedEventData.title || selectedEventData.eventName}
+                  </h3>
+                  <button
+                    onClick={handleCloseEventDetails}
+                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  >
+                    <XMarkIcon className="w-6 h-6" />
+                  </button>
+                </div>
+                <div className="mt-6 flex justify-end space-x-3">
+                  <button
+                    onClick={handleCloseEventDetails}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        <NewCustomerModal
+          isOpen={isNewCustomerModalOpen}
+          onClose={() => setIsNewCustomerModalOpen(false)}
+          initialName={newCustomerModalInitialName}
+          onSuccess={(customerData: any) => {
+            setNewCustomerData(customerData);
+            setIsNewCustomerModalOpen(false);
+          }}
+        />
+      </>
+    );
+  }
 
   return (
     <div className="bg-white dark:bg-gray-900 h-full flex flex-col overflow-hidden w-full max-w-full min-w-0" style={{ position: 'relative' }}>
