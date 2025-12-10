@@ -115,7 +115,7 @@ export async function POST(req: NextRequest) {
 
     // Check if email already exists, if provided
     if (data.email) {
-      const existingDetailer = await prisma.detailer.findUnique({
+      const existingDetailer = await prisma.detailer.findFirst({
         where: { email: data.email }
       });
       if (existingDetailer) {

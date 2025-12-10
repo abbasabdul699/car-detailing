@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const month = searchParams.get('month'); // Format: YYYY-MM
 
-    // Get detailer with Google Calendar tokens
+    // Get detailer with Google Calendar tokens and business hours
     const detailer = await prisma.detailer.findUnique({
       where: { id: detailerId },
       select: { 
@@ -87,7 +87,8 @@ export async function GET(request: NextRequest) {
         googleCalendarTokens: true,
         googleCalendarRefreshToken: true,
         syncAppointments: true,
-        syncAvailability: true
+        syncAvailability: true,
+        businessHours: true
       }
     });
 
@@ -98,28 +99,146 @@ export async function GET(request: NextRequest) {
     let events = [];
     let localEvents = [];
 
-    // First, fetch local events and bookings from our database
-    try {
-      const [events, bookings] = await Promise.all([
-        prisma.event.findMany({
-          where: { detailerId },
-          orderBy: { date: 'asc' }
-        }),
-        prisma.booking.findMany({
-          where: { detailerId },
-          orderBy: { scheduledDate: 'asc' }
-        })
-      ]);
+      // First, fetch local events and bookings from our database
+      try {
+        const [events, bookings, employees] = await Promise.all([
+          prisma.event.findMany({
+            where: { detailerId },
+            orderBy: { date: 'asc' }
+          }),
+          prisma.booking.findMany({
+            where: { detailerId },
+            include: {
+              resource: {
+                select: {
+                  id: true,
+                  name: true,
+                  type: true
+                }
+              }
+            },
+            orderBy: { scheduledDate: 'asc' }
+          }),
+          prisma.employee.findMany({
+            where: { detailerId },
+            select: { id: true, name: true, color: true, imageUrl: true }
+          })
+        ]);
+        
+        // Create employee map for quick lookup
+        const employeeMap = new Map(employees.map((emp: any) => [emp.id, emp]));
+
+      // Helper function to get day of week name from date (using UTC to avoid timezone issues)
+      const getDayOfWeek = (date: Date): string => {
+        const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+        return days[date.getUTCDay()]; // Use UTC day to avoid timezone shifts
+      };
 
       // Transform local events to match calendar format
       const transformedEvents = events.map((event: any) => {
-        const eventDate = new Date(event.date);
+        // Handle date - MongoDB returns Date objects, extract UTC date immediately
+        const eventDateRaw = event.date;
+        let eventDate: Date;
+        if (eventDateRaw instanceof Date) {
+          eventDate = eventDateRaw;
+        } else if (typeof eventDateRaw === 'string') {
+          eventDate = new Date(eventDateRaw);
+        } else {
+          eventDate = new Date(eventDateRaw);
+        }
+        
+        // Extract UTC date string immediately to avoid any timezone issues
+        const utcYear = eventDate.getUTCFullYear();
+        const utcMonth = eventDate.getUTCMonth();
+        const utcDay = eventDate.getUTCDate();
+        const dateStr = `${utcYear}-${String(utcMonth + 1).padStart(2, '0')}-${String(utcDay).padStart(2, '0')}`;
         
         // Handle time parsing more safely
         let startDateTime, endDateTime;
         
-        if (event.time) {
-          // Parse time more carefully - convert 12-hour to 24-hour format
+        // For all-day events, use the full day (or business hours if time is set)
+        if (event.allDay) {
+          // dateStr is already extracted above using UTC
+          if (event.time && detailer?.businessHours) {
+            // All-day event with business hours - parse the start time and get end time from business hours
+            let startTimeStr = event.time;
+            
+            // Convert 12-hour format to 24-hour format if needed
+            if (startTimeStr.includes('PM') || startTimeStr.includes('AM')) {
+              const isPM = startTimeStr.includes('PM');
+              const timeOnly = startTimeStr.replace(/\s*(AM|PM)/i, '').trim();
+              const [hours, minutes] = timeOnly.split(':').map(Number);
+              
+              let hour24 = hours;
+              if (isPM && hours !== 12) {
+                hour24 = hours + 12;
+              } else if (!isPM && hours === 12) {
+                hour24 = 0;
+              }
+              
+              startTimeStr = `${hour24.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
+            } else if (startTimeStr.includes(':')) {
+              // Already in HH:MM format, add seconds
+              if (startTimeStr.split(':').length === 2) {
+                startTimeStr = `${startTimeStr}:00`;
+              }
+            }
+            
+            startDateTime = new Date(`${dateStr}T${startTimeStr}`);
+            
+            // Get end time from business hours for this day
+            // Use the UTC date string to get day of week correctly
+            const [year, month, day] = dateStr.split('-').map(Number);
+            const dateForDayOfWeek = new Date(Date.UTC(year, month - 1, day));
+            const dayOfWeek = getDayOfWeek(dateForDayOfWeek);
+            const businessHours = detailer.businessHours as any;
+            let endTimeStr = null;
+            
+            if (businessHours && businessHours[dayOfWeek]) {
+              const dayHours = businessHours[dayOfWeek];
+              // Handle both array format [open, close] and object format {open, close}
+              if (Array.isArray(dayHours) && dayHours.length >= 2) {
+                endTimeStr = dayHours[1];
+              } else if (typeof dayHours === 'object' && dayHours !== null) {
+                endTimeStr = (dayHours as any).close || (dayHours as any)[1];
+              }
+              
+              // Format end time
+              if (endTimeStr) {
+                if (endTimeStr.includes('PM') || endTimeStr.includes('AM')) {
+                  const isPM = endTimeStr.includes('PM');
+                  const timeOnly = endTimeStr.replace(/\s*(AM|PM)/i, '').trim();
+                  const [hours, minutes] = timeOnly.split(':').map(Number);
+                  
+                  let hour24 = hours;
+                  if (isPM && hours !== 12) {
+                    hour24 = hours + 12;
+                  } else if (!isPM && hours === 12) {
+                    hour24 = 0;
+                  }
+                  
+                  endTimeStr = `${hour24.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
+                } else if (endTimeStr.includes(':')) {
+                  if (endTimeStr.split(':').length === 2) {
+                    endTimeStr = `${endTimeStr}:00`;
+                  }
+                }
+              }
+            }
+            
+            // Use business hours end time if available, otherwise default to 2 hours later
+            if (endTimeStr) {
+              endDateTime = new Date(`${dateStr}T${endTimeStr}`);
+            } else {
+              endDateTime = new Date(startDateTime.getTime() + 2 * 60 * 60 * 1000);
+            }
+          } else {
+            // All-day event without specific time - use full day
+            startDateTime = new Date(`${dateStr}T00:00:00`);
+            endDateTime = new Date(`${dateStr}T23:59:59`);
+          }
+        } else if (event.time) {
+          // Timed event - parse time
           let timeStr = event.time;
           
           // Convert 12-hour format to 24-hour format
@@ -138,42 +257,79 @@ export async function GET(request: NextRequest) {
             timeStr = `${hour24.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
           } else if (!timeStr.includes(':')) {
             timeStr = `${timeStr}:00`;
+          } else if (timeStr.split(':').length === 2) {
+            timeStr = `${timeStr}:00`;
           }
           
-          // Use UTC date string to avoid timezone issues
-          const dateStr = eventDate.getUTCFullYear() + '-' + 
-            String(eventDate.getUTCMonth() + 1).padStart(2, '0') + '-' + 
-            String(eventDate.getUTCDate()).padStart(2, '0');
+          // dateStr is already extracted above using UTC
           startDateTime = new Date(`${dateStr}T${timeStr}`);
           
           // If time parsing fails, fall back to event date
           if (isNaN(startDateTime.getTime())) {
             startDateTime = eventDate;
           }
+          
+          // Default to 2 hours duration for timed events
+          endDateTime = new Date(startDateTime.getTime() + 2 * 60 * 60 * 1000);
         } else {
-          startDateTime = eventDate;
-        }
-        
-        // Calculate end time
-        if (event.time && !isNaN(startDateTime.getTime())) {
-          endDateTime = new Date(startDateTime.getTime() + 2 * 60 * 60 * 1000); // 2 hours later
-        } else {
-          endDateTime = new Date(eventDate.getTime() + 24 * 60 * 60 * 1000); // 24 hours later for all-day
+          // No time specified - use event date
+          // dateStr is already extracted above using UTC
+          startDateTime = new Date(`${dateStr}T00:00:00`);
+          endDateTime = new Date(`${dateStr}T23:59:59`);
         }
 
+        // dateStr is already extracted above using UTC methods
+
+        // Parse metadata from description if present
+        let cleanDescription = event.description || '';
+        let customerName: string | null = null;
+        let customerPhone: string | null = null;
+        let customerAddress: string | null = null;
+        let vehicleModel: string | null = null;
+        let services: string[] | null = null;
+        
+        if (event.description && event.description.includes('__METADATA__:')) {
+          const parts = event.description.split('__METADATA__:');
+          cleanDescription = parts[0].trim();
+          try {
+            const metadata = JSON.parse(parts[1] || '{}');
+            customerName = metadata.customerName || null;
+            customerPhone = metadata.customerPhone || null;
+            customerAddress = metadata.customerAddress || null;
+            vehicleModel = metadata.vehicleModel || null;
+            services = metadata.services || null;
+          } catch (e) {
+            // Ignore parse errors, use original description
+          }
+        }
+
+        // Get employee color if employee is assigned
+        const employee = event.employeeId ? employeeMap.get(event.employeeId) : null;
+        const eventColor = employee && employee.color ? employee.color : (event.color || 'blue');
+        
         return {
           id: event.id,
           title: event.title,
           start: startDateTime.toISOString(),
           end: endDateTime.toISOString(),
-          date: event.date.toISOString().split('T')[0],
+          date: dateStr, // Use UTC-extracted date string
           time: event.time,
           allDay: event.allDay,
-          color: event.color,
-          description: event.description || '',
+          color: eventColor, // Use employee's color if assigned, otherwise use event color
+          employeeId: event.employeeId || null,
+          employeeName: employee ? employee.name : null,
+          employeeImageUrl: employee ? employee.imageUrl : null,
+          description: cleanDescription,
           location: event.location || '',
           source: 'local',
-          bookingId: event.bookingId
+          bookingId: event.bookingId,
+          resourceId: event.resourceId || null,
+          customerName,
+          customerPhone,
+          customerAddress,
+          vehicleType: vehicleModel, // Use vehicleType for consistency with bookings
+          vehicleModel,
+          services
         };
       });
 
@@ -240,7 +396,20 @@ export async function GET(request: NextRequest) {
           location: booking.vehicleLocation || '',
           source: 'local-google-synced',
           bookingId: booking.id,
-          status: booking.status
+          status: booking.status,
+          // Include resource information
+          resourceId: booking.resourceId,
+          resource: booking.resource ? {
+            id: booking.resource.id,
+            name: booking.resource.name,
+            type: booking.resource.type
+          } : null,
+          // Include booking details for the calendar view
+          customerName: booking.customerName,
+          customerPhone: booking.customerPhone,
+          vehicleType: booking.vehicleType,
+          services: booking.services,
+          duration: booking.duration
         };
       });
 

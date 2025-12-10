@@ -145,7 +145,7 @@ export const authOptions: NextAuthOptions = {
       
       // Check token role to determine default redirect
       if (token?.role === 'detailer') {
-        return `${baseUrl}/detailer-dashboard`;
+        return `${baseUrl}/detailer-dashboard/calendar`;
       }
       
       // Default to admin for admin users

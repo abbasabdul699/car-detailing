@@ -73,7 +73,7 @@ export default function BusinessHoursPicker({ value = {}, onChange }: BusinessHo
         <button
           type="button"
           onClick={copyHoursToAllDays}
-          className="bg-green-700 text-white font-bold rounded-lg shadow px-3 py-1.5 text-sm transition-all duration-200 transform hover:bg-green-800 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-offset-2"
+          className="bg-black text-white font-bold rounded-full shadow px-3 py-1.5 text-sm transition-all duration-200 transform hover:bg-gray-800 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2"
           disabled={!value[sourceDay]}
         >
           Copy Hours to All Days
@@ -105,9 +105,9 @@ export default function BusinessHoursPicker({ value = {}, onChange }: BusinessHo
                     className="sr-only peer"
                   />
                 <div className={classNames(
-                  "w-11 h-6 rounded-full peer peer-focus:ring-4 peer-focus:ring-green-300 dark:peer-focus:ring-green-800 transition-all duration-200",
+                  "w-11 h-6 rounded-full peer peer-focus:ring-4 peer-focus:ring-gray-300 dark:peer-focus:ring-gray-800 transition-all duration-200",
                   {
-                    "bg-green-600": !isClosed,
+                    "bg-black": !isClosed,
                     "bg-gray-200 dark:bg-gray-700": isClosed,
                   }
                 )}></div>

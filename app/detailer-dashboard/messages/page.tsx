@@ -9,6 +9,8 @@ interface Message {
   content: string;
   twilioSid?: string;
   status: string;
+  channel?: string;
+  vapiCallId?: string;
   createdAt: string;
 }
 
@@ -25,6 +27,8 @@ interface Conversation {
   customerName?: string;
   status: string;
   lastMessageAt: string;
+  channel?: string;
+  metadata?: any;
   messages: Message[];
   customer?: Customer;
 }
@@ -49,6 +53,7 @@ export default function MessagesPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFilter, setDateFilter] = useState('');
   const [showDateFilter, setShowDateFilter] = useState(false);
+  const [channelFilter, setChannelFilter] = useState<'all' | 'sms' | 'phone'>('all');
 
   useEffect(() => {
     if (session?.user?.id) {
@@ -254,8 +259,11 @@ export default function MessagesPage() {
       : lastMessage.content;
   };
 
-  // Filter conversations based on search query and date
+  // Filter conversations based on search query, date, and channel
   const filteredConversations = conversations.filter(conversation => {
+    // Channel filter
+    const channelMatch = channelFilter === 'all' || conversation.channel === channelFilter;
+
     // Text search filter
     const textMatch = !searchQuery.trim() || (() => {
       const query = searchQuery.toLowerCase();
@@ -287,7 +295,7 @@ export default function MessagesPage() {
              conversationDay === filterDay;
     })();
 
-    return textMatch && dateMatch;
+    return channelMatch && textMatch && dateMatch;
   });
 
   const createNewConversation = async () => {
@@ -313,9 +321,9 @@ export default function MessagesPage() {
         // Refresh conversations to show the new one
         await fetchConversations();
         
-        // Select the new conversation
+        // Select the conversation (either new or re-initialized)
         if (data.conversation) {
-          setSelectedConversation(data.conversation);
+          await fetchConversationMessages(data.conversation.id);
         }
         
         // Close modal and reset form
@@ -326,7 +334,17 @@ export default function MessagesPage() {
         alert('Conversation started! The AI will reach out to the customer.');
       } else {
         const errorData = await response.json();
-        alert(`Failed to start conversation: ${errorData.error || 'Unknown error'}`);
+        // Check if it's the "already exists" error
+        if (response.status === 409 && errorData.conversation) {
+          // Conversation exists with messages - select it instead
+          await fetchConversationMessages(errorData.conversation.id);
+          setShowNewConversationModal(false);
+          setNewCustomerPhone('');
+          setNewCustomerName('');
+          alert('Conversation already exists with this customer. Opening existing conversation.');
+        } else {
+          alert(`Failed to start conversation: ${errorData.error || 'Unknown error'}`);
+        }
       }
     } catch (error) {
       console.error('Error creating conversation:', error);
@@ -339,7 +357,7 @@ export default function MessagesPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
       </div>
     );
   }
@@ -356,7 +374,7 @@ export default function MessagesPage() {
     <div className="h-screen flex relative">
       {/* New Messages Notification */}
       {hasNewMessages && (
-        <div className="absolute top-4 right-4 z-50 bg-green-600 text-white px-4 py-2 rounded-xl shadow-lg animate-bounce">
+        <div className="absolute top-4 right-4 z-50 bg-blue-600 text-white px-4 py-2 rounded-xl shadow-lg animate-bounce">
           <div className="flex items-center gap-2">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
@@ -374,7 +392,7 @@ export default function MessagesPage() {
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                 {searchQuery ? `${filteredConversations.length} of ${conversations.length}` : conversations.length} conversation{conversations.length !== 1 ? 's' : ''}
                 {isRefreshing && (
-                  <span className="ml-2 text-green-600 dark:text-green-400">
+                  <span className="ml-2 text-blue-600 dark:text-blue-400">
                     <svg className="inline w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                       <path className="opacity-75" fill="currentColor" d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -390,7 +408,7 @@ export default function MessagesPage() {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setShowNewConversationModal(true)}
-                className="bg-green-600 text-white px-3 py-2 rounded-xl text-sm hover:bg-green-700 transition-colors flex items-center gap-2"
+                className="bg-black text-white px-3 py-2 rounded-xl text-sm hover:bg-gray-800 transition-colors flex items-center gap-2"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -423,7 +441,7 @@ export default function MessagesPage() {
                 placeholder="Search conversations..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent dark:bg-gray-700 dark:text-white text-sm"
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white text-sm"
               />
               {searchQuery && (
                 <button
@@ -437,13 +455,47 @@ export default function MessagesPage() {
               )}
             </div>
 
+            {/* Channel Filter Tabs */}
+            <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-700 rounded-xl p-1">
+              <button
+                onClick={() => setChannelFilter('all')}
+                className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  channelFilter === 'all'
+                    ? 'bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-400 shadow-sm'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                }`}
+              >
+                All
+              </button>
+              <button
+                onClick={() => setChannelFilter('sms')}
+                className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  channelFilter === 'sms'
+                    ? 'bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-400 shadow-sm'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                }`}
+              >
+                📱 SMS
+              </button>
+              <button
+                onClick={() => setChannelFilter('phone')}
+                className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  channelFilter === 'phone'
+                    ? 'bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-400 shadow-sm'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                }`}
+              >
+                📞 Calls
+              </button>
+            </div>
+
             {/* Date Filter */}
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setShowDateFilter(!showDateFilter)}
                 className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm border transition-colors ${
                   dateFilter 
-                    ? 'bg-green-100 dark:bg-green-900/20 border-green-300 dark:border-green-700 text-green-700 dark:text-green-300' 
+                    ? 'bg-blue-100 dark:bg-blue-900/20 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300' 
                     : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                 }`}
               >
@@ -475,7 +527,7 @@ export default function MessagesPage() {
                     type="date"
                     value={dateFilter}
                     onChange={(e) => setDateFilter(e.target.value)}
-                    className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent dark:bg-gray-700 dark:text-white text-sm"
+                    className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white text-sm"
                   />
                   <button
                     onClick={() => setShowDateFilter(false)}
@@ -548,14 +600,37 @@ export default function MessagesPage() {
                 key={conversation.id}
                 onClick={() => fetchConversationMessages(conversation.id)}
                 className={`p-4 border-b border-gray-100 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
-                  selectedConversation?.id === conversation.id ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' : ''
+                  selectedConversation?.id === conversation.id ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800' : ''
                 }`}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      {conversation.channel === 'phone' && (
+                        <span className="flex items-center gap-1 text-xs bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                          </svg>
+                          Call
+                        </span>
+                      )}
+                      {conversation.channel === 'sms' && (
+                        <span className="flex items-center gap-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 px-2 py-0.5 rounded-full">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                          </svg>
+                          SMS
+                        </span>
+                      )}
+                      {conversation.metadata?.lastCallDuration && (
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                          {Math.floor(conversation.metadata.lastCallDuration / 60)}m {conversation.metadata.lastCallDuration % 60}s
+                        </span>
+                      )}
+                    </div>
                     {conversation.customerName ? (
                       <>
-                        <h3 className="font-semibold text-gray-900 dark:text-gray-100 truncate text-base">
+                        <h3 className="font-semibold text-gray-900 dark:text-gray-100 truncate text-base mt-1">
                           {conversation.customerName}
                         </h3>
                         <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">
@@ -564,7 +639,7 @@ export default function MessagesPage() {
                       </>
                     ) : (
                       <>
-                        <h3 className="font-semibold text-gray-900 dark:text-gray-100 truncate text-base">
+                        <h3 className="font-semibold text-gray-900 dark:text-gray-100 truncate text-base mt-1">
                           {formatPhoneNumber(conversation.customerPhone)}
                         </h3>
                         <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">
@@ -583,7 +658,7 @@ export default function MessagesPage() {
                 <div className="mt-2 flex items-center justify-between">
                   <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
                     conversation.status === 'active' 
-                      ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300' 
+                      ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300' 
                       : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
                   }`}>
                     {conversation.status}
@@ -669,13 +744,13 @@ export default function MessagesPage() {
                     <div
                       className={`max-w-xs lg:max-w-md px-4 py-2 rounded-xl ${
                         message.direction === 'outbound'
-                          ? 'bg-green-600 text-white'
+                          ? 'bg-blue-600 text-white'
                           : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100'
                       }`}
                     >
                       <p className="text-sm">{message.content}</p>
                       <div className={`text-xs mt-1 ${
-                        message.direction === 'outbound' ? 'text-green-100' : 'text-gray-500 dark:text-gray-400'
+                        message.direction === 'outbound' ? 'text-blue-100' : 'text-gray-500 dark:text-gray-400'
                       }`}>
                         {formatMessageTime(message.createdAt)}
                         {message.direction === 'outbound' && (
@@ -704,14 +779,14 @@ export default function MessagesPage() {
                   onChange={(e) => setNewMessage(e.target.value)}
                   onKeyPress={handleKeyPress}
                   placeholder="Type your message..."
-                  className="flex-1 resize-none border border-gray-300 dark:border-gray-600 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  className="flex-1 resize-none border border-gray-300 dark:border-gray-600 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
                   rows={1}
                   disabled={sendingMessage}
                 />
                 <button
                   onClick={sendMessage}
                   disabled={!newMessage.trim() || sendingMessage}
-                  className="px-4 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
                 >
                   {sendingMessage ? (
                     <>
@@ -762,7 +837,7 @@ export default function MessagesPage() {
                   value={newCustomerPhone}
                   onChange={(e) => setNewCustomerPhone(e.target.value)}
                   placeholder="+1 (555) 123-4567"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent dark:bg-gray-700 dark:text-gray-100"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-gray-100"
                 />
               </div>
               
@@ -775,7 +850,7 @@ export default function MessagesPage() {
                   value={newCustomerName}
                   onChange={(e) => setNewCustomerName(e.target.value)}
                   placeholder="John Doe"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent dark:bg-gray-700 dark:text-gray-100"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-gray-100"
                 />
               </div>
             </div>
@@ -790,7 +865,7 @@ export default function MessagesPage() {
               <button
                 onClick={createNewConversation}
                 disabled={!newCustomerPhone.trim() || creatingConversation}
-                className="px-4 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                className="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
               >
                 {creatingConversation && (
                   <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">

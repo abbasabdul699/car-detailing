@@ -11,17 +11,96 @@
 body {
   color: rgb(var(--foreground-rgb));
   background: rgb(var(--background-start-rgb));
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
 }
+
+html {
+  overflow-x: hidden;
+}
+
+/* Remove body padding/margin for detailer dashboard */
+body:has(.detailer-dashboard-border) {
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow-x: hidden;
+}
+
+html:has(.detailer-dashboard-border) {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* Remove spacing from root layout wrappers for detailer dashboard */
 
 /* Hide scrollbar for Chrome, Safari and Opera */
 .hide-scrollbar::-webkit-scrollbar {
   display: none;
 }
 
+/* Service Radius Slider Styles */
+.slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 8px;
+  border-radius: 4px;
+  outline: none;
+}
+
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #3b82f6;
+  cursor: pointer;
+  border: 2px solid #ffffff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.slider::-webkit-slider-thumb:hover {
+  background: #2563eb;
+  transform: scale(1.1);
+}
+
+.slider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #3b82f6;
+  cursor: pointer;
+  border: 2px solid #ffffff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.slider::-moz-range-thumb:hover {
+  background: #2563eb;
+  transform: scale(1.1);
+}
+
 /* Hide scrollbar for IE, Edge and Firefox */
 .hide-scrollbar {
   -ms-overflow-style: none;  /* IE and Edge */
   scrollbar-width: none;  /* Firefox */
+}
+
+/* Blue border wrapper for detailer dashboard */
+/* Blue border overlay for detailer dashboard - fixed position so it doesn't affect layout */
+.detailer-dashboard-border-overlay {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  border-top: 1px solid rgb(16, 76, 255) !important;
+  border-right: 1px solid rgb(16, 76, 255) !important;
+  border-bottom: 1px solid rgb(16, 76, 255) !important;
+  border-left: 1px solid rgb(16, 76, 255) !important;
+  pointer-events: none !important;
+  z-index: 9999 !important;
+  box-sizing: border-box !important;
 }
 
 .rdp-root {
@@ -90,5 +169,14 @@ body {
   @keyframes float {
     0%, 100% { transform: translateY(0px); }
     50% { transform: translateY(-10px); }
+  }
+  
+  /* Calendar dropdown fix - ensure dropdowns escape overflow containers */
+  #calendar-scroll-container [role="menu"],
+  #calendar-scroll-container [role="listbox"],
+  #calendar-scroll-container .dropdown-menu,
+  #calendar-scroll-container [data-dropdown] {
+    position: fixed !important;
+    z-index: 9999 !important;
   }
 }

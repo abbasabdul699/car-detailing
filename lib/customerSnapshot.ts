@@ -34,6 +34,7 @@ export async function upsertCustomerSnapshot(
   if (update.vehicleYear !== undefined) cleaned.vehicleYear = update.vehicleYear
   if (update.vehicleMake !== undefined) cleaned.vehicleMake = update.vehicleMake
   if (update.vehicleModel !== undefined) cleaned.vehicleModel = update.vehicleModel
+  if (update.services !== undefined) cleaned.services = update.services || []
   if (update.data !== undefined) cleaned.data = update.data
 
   return prisma.customerSnapshot.upsert({

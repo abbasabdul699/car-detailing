@@ -107,7 +107,7 @@ export default function NotificationBell({ detailerId }: NotificationBellProps) 
       case 'booking':
         return 'text-blue-600 bg-blue-50 border-blue-200';
       case 'visitor':
-        return 'text-green-600 bg-green-50 border-green-200';
+        return 'text-blue-600 bg-blue-50 border-blue-200';
       case 'review':
         return 'text-yellow-600 bg-yellow-50 border-yellow-200';
       case 'sms':

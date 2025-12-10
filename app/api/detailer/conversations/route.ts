@@ -90,6 +90,19 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
       }
 
+      console.log('🔍 [DEBUG] Fetched conversation messages:', {
+        conversationId: conversation.id,
+        messageCount: conversation.messages.length,
+        messages: conversation.messages.map(m => ({
+          id: m.id,
+          direction: m.direction,
+          contentLength: m.content?.length || 0,
+          twilioSid: m.twilioSid,
+          status: m.status,
+          createdAt: m.createdAt
+        }))
+      });
+
       // Only extract name from messages if not already set and no customer snapshot name
       if (!conversation.customerName && (!conversation.customer || !conversation.customer.firstName)) {
         const extractedName = extractCustomerNameFromMessages(conversation.messages);

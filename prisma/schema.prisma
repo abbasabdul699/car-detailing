@@ -11,72 +11,72 @@ datasource db {
 }
 
 model Detailer {
-  id           String   @id @default(auto()) @map("_id") @db.ObjectId
-  businessName String
-  email        String?
-  firstName    String?
-  lastName     String?
-  phone        String
-  address      String
-  city         String
-  state        String
-  zipCode      String
-  description  String
-  latitude     Float
-  longitude    Float
-  serviceRadius Int?   @default(25) // Service radius in miles (default 25 miles)
-  priceRange   String
-  website      String?
-  imageUrl     String?
-  password     String?
-  googlePlaceId String?
-  instagram    String?
-  tiktok       String?
-  facebook     String?
+  id               String            @id @default(auto()) @map("_id") @db.ObjectId
+  businessName     String
+  email            String?
+  firstName        String?
+  lastName         String?
+  phone            String
+  address          String
+  city             String
+  state            String
+  zipCode          String
+  description      String
+  latitude         Float
+  longitude        Float
+  serviceRadius    Int?              @default(25) // Service radius in miles (default 25 miles)
+  priceRange       String
+  website          String?
+  imageUrl         String?
+  password         String?
+  googlePlaceId    String?
+  instagram        String?
+  tiktok           String?
+  facebook         String?
   googleReviewLink String?
-  businessHours Json
-  images       Image[]
-  detailerImages DetailerImage[]
-  createdAt    DateTime? @default(now())
-  services     DetailerService[]
-  bundles      Bundle[]
-  reviews      Review[]
-  notifications Notification[]
-  verified     Boolean @default(false)
-  hidden       Boolean @default(false)
-  
+  businessHours    Json
+  images           Image[]
+  detailerImages   DetailerImage[]
+  createdAt        DateTime?         @default(now())
+  services         DetailerService[]
+  bundles          Bundle[]
+  reviews          Review[]
+  notifications    Notification[]
+  verified         Boolean           @default(false)
+  hidden           Boolean           @default(false)
+
   // SMS Integration
-  twilioPhoneNumber String?  // Twilio phone number for customer-facing AI concierge
+  twilioPhoneNumber            String? // Twilio phone number for customer-facing AI concierge
   personalAssistantPhoneNumber String? // Twilio phone number for Personal Assistant AI
-  smsEnabled        Boolean  @default(false)
-  personalPhoneNumber String? // Detailer's personal phone number for AI assistant
-  timezone          String   @default("America/New_York") // IANA timezone for accurate slot generation
-  
+  smsEnabled                   Boolean @default(false)
+  personalPhoneNumber          String? // Detailer's personal phone number for AI assistant
+  timezone                     String  @default("America/New_York") // IANA timezone for accurate slot generation
+
   // Google Calendar Integration
-  googleCalendarConnected   Boolean @default(false)
-  googleCalendarTokens      String? // JSON string of OAuth tokens
+  googleCalendarConnected    Boolean @default(false)
+  googleCalendarTokens       String? // JSON string of OAuth tokens
   googleCalendarRefreshToken String?
-  syncAppointments         Boolean @default(false)
-  syncAvailability         Boolean @default(false)
-  
+  syncAppointments           Boolean @default(false)
+  syncAvailability           Boolean @default(false)
+
   // Instagram Integration
-  instagramConnected       Boolean @default(false)
-  instagramTokens          String? // JSON string of OAuth tokens
-  instagramRefreshToken    String?
+  instagramConnected         Boolean @default(false)
+  instagramTokens            String? // JSON string of OAuth tokens
+  instagramRefreshToken      String?
   instagramBusinessAccountId String? // Instagram Business Account ID
-  instagramPageId          String? // Connected Facebook Page ID
-  instagramDmEnabled       Boolean @default(false) // Enable AI to respond to DMs
-  
+  instagramPageId            String? // Connected Facebook Page ID
+  instagramDmEnabled         Boolean @default(false) // Enable AI to respond to DMs
+
   // Password Reset
-  resetToken        String?
-  resetTokenExpiry  DateTime?
-  
+  resetToken       String?
+  resetTokenExpiry DateTime?
+
   // Subscription & Billing
-  subscription      Subscription?
-  stripeCustomerId  String?        // Stripe customer ID
-  trialEndsAt       DateTime?      // 14-day trial end date
-  isFirstCohort     Boolean        @default(false) // For discounted rate
-  
+  subscription     Subscription?
+  stripeCustomerId String? // Stripe customer ID
+  trialEndsAt      DateTime? // 14-day trial end date
+  isFirstCohort    Boolean       @default(false) // For discounted rate
+
   // Relations
   conversations     Conversation[]
   bookings          Booking[]
@@ -85,6 +85,8 @@ model Detailer {
   events            Event[]
   charges           Charge[]
   scheduledReviews  ScheduledReview[]
+  resources         Resource[]
+  employees         Employee[]
 }
 
 model Image {
@@ -93,7 +95,7 @@ model Image {
   alt        String
   detailer   Detailer @relation(fields: [detailerId], references: [id])
   detailerId String   @db.ObjectId
-  type       String   // 'profile' or 'portfolio'
+  type       String // 'profile' or 'portfolio'
 }
 
 model DetailerImage {
@@ -116,20 +118,20 @@ model Category {
 }
 
 model Service {
-  id          String     @id @default(auto()) @map("_id") @db.ObjectId
-  name        String     @unique
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  name        String    @unique
   description String?
   icon        String?
-  categoryId  String?    @db.ObjectId
-  category    Category?  @relation(fields: [categoryId], references: [id])
-  
+  categoryId  String?   @db.ObjectId
+  category    Category? @relation(fields: [categoryId], references: [id])
+
   // Pricing fields
-  basePrice    Float?     // Base price for the service
-  priceRange   String?    // Price range (e.g., "$50-75", "Starting at $40")
-  duration     Int?       // Estimated duration in minutes
-  
-  detailers   DetailerService[]
-  bundles     BundleService[]
+  basePrice  Float? // Base price for the service
+  priceRange String? // Price range (e.g., "$50-75", "Starting at $40")
+  duration   Int? // Estimated duration in minutes
+
+  detailers DetailerService[]
+  bundles   BundleService[]
 }
 
 model DetailerService {
@@ -141,30 +143,30 @@ model DetailerService {
 }
 
 model Bundle {
-  id         String   @id @default(auto()) @map("_id") @db.ObjectId
-  name       String
+  id          String          @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
   description String?
-  price      Float
-  imageUrl   String?
-  detailer   Detailer @relation(fields: [detailerId], references: [id])
-  detailerId String   @db.ObjectId
-  services   BundleService[]
-  createdAt  DateTime? @default(now())
-  updatedAt  DateTime? @updatedAt
+  price       Float
+  imageUrl    String?
+  detailer    Detailer        @relation(fields: [detailerId], references: [id])
+  detailerId  String          @db.ObjectId
+  services    BundleService[]
+  createdAt   DateTime?       @default(now())
+  updatedAt   DateTime?       @updatedAt
 }
 
 model BundleService {
-  id       String  @id @default(auto()) @map("_id") @db.ObjectId
-  bundle   Bundle  @relation(fields: [bundleId], references: [id])
-  bundleId String  @db.ObjectId
-  service  Service @relation(fields: [serviceId], references: [id])
-  serviceId String @db.ObjectId
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  bundle    Bundle  @relation(fields: [bundleId], references: [id])
+  bundleId  String  @db.ObjectId
+  service   Service @relation(fields: [serviceId], references: [id])
+  serviceId String  @db.ObjectId
 }
 
 model Review {
-  id         String   @id @default(auto()) @map("_id") @db.ObjectId
-  detailer   Detailer @relation(fields: [detailerId], references: [id])
-  detailerId String   @db.ObjectId
+  id         String    @id @default(auto()) @map("_id") @db.ObjectId
+  detailer   Detailer  @relation(fields: [detailerId], references: [id])
+  detailerId String    @db.ObjectId
   authorName String
   rating     Int
   comment    String
@@ -174,34 +176,35 @@ model Review {
 }
 
 model Notification {
-  id         String   @id @default(auto()) @map("_id") @db.ObjectId
-  detailer   Detailer @relation(fields: [detailerId], references: [id])
-  detailerId String   @db.ObjectId
+  id         String    @id @default(auto()) @map("_id") @db.ObjectId
+  detailer   Detailer  @relation(fields: [detailerId], references: [id])
+  detailerId String    @db.ObjectId
   message    String
   type       String
   link       String?
-  read       Boolean  @default(false)
+  read       Boolean   @default(false)
   createdAt  DateTime? @default(now())
 }
 
 model Conversation {
-  id           String    @id @default(auto()) @map("_id") @db.ObjectId
-  detailer     Detailer  @relation(fields: [detailerId], references: [id])
-  detailerId   String    @db.ObjectId
-  customerPhone String   // Customer's phone number
-  customerName  String?  // Customer's name (if provided)
-  status       String    @default("active") // active, completed, cancelled
-  metadata     Json?     // Conversation state machine data
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  detailer      Detailer  @relation(fields: [detailerId], references: [id])
+  detailerId    String    @db.ObjectId
+  customerPhone String // Customer's phone number
+  customerName  String? // Customer's name (if provided)
+  status        String    @default("active") // active, completed, cancelled
+  metadata      Json? // Conversation state machine data
   lastMessageAt DateTime? @default(now())
-  createdAt    DateTime? @default(now())
-  updatedAt    DateTime? @updatedAt
-  
+  createdAt     DateTime? @default(now())
+  updatedAt     DateTime? @updatedAt
+  channel       String?   @default("sms") // "sms" or "phone" - tracks primary channel for this conversation
+
   // Relations
-  messages     Message[]
-  bookings     Booking[]
-  customer     Customer? @relation(fields: [customerId], references: [id])
-  customerId   String?   @db.ObjectId
-  
+  messages   Message[]
+  bookings   Booking[]
+  customer   Customer? @relation(fields: [customerId], references: [id])
+  customerId String?   @db.ObjectId
+
   // Index for quick lookups
   @@unique([detailerId, customerPhone])
 }
@@ -210,64 +213,66 @@ model Message {
   id             String       @id @default(auto()) @map("_id") @db.ObjectId
   conversation   Conversation @relation(fields: [conversationId], references: [id])
   conversationId String       @db.ObjectId
-  direction      String       // "inbound" or "outbound"
-  content        String       // Message content
+  direction      String // "inbound" or "outbound"
+  content        String // Message content
   twilioSid      String?      @unique // Twilio message SID for tracking (unique to prevent duplicates)
   status         String       @default("sent") // sent, delivered, failed
+  channel        String?      @default("sms") // "sms" or "phone" to distinguish message type
+  vapiCallId     String? // Vapi call ID for phone calls
   createdAt      DateTime?    @default(now())
 }
 
 /// Stores persistent, per-customer information inferred across conversations
 model CustomerSnapshot {
-  id             String    @id @default(auto()) @map("_id") @db.ObjectId
-  detailer       Detailer  @relation(fields: [detailerId], references: [id])
-  detailerId     String    @db.ObjectId
-  customerPhone  String
-  customerName   String?
-  customerEmail  String?
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  detailer      Detailer  @relation(fields: [detailerId], references: [id])
+  detailerId    String    @db.ObjectId
+  customerPhone String
+  customerName  String?
+  customerEmail String?
   // Latest known address for service location
-  address        String?
+  address       String?
   // Type of location (home, work, other)
-  locationType   String?
+  locationType  String?
   // Simple vehicle description string (e.g., "Toyota RAV4 2023")
-  vehicle        String?
+  vehicle       String?
   // Structured vehicle fields for better filtering
-  vehicleYear    Int?
-  vehicleMake    String?
-  vehicleModel   String?
+  vehicleYear   Int?
+  vehicleMake   String?
+  vehicleModel  String?
   // Services requested by customer
-  services       String[]
+  services      String[]
   // Additional structured data as JSON for flexibility
-  data           Json?
-  vcardSent      Boolean? @default(false)
-  customer       Customer? @relation(fields: [customerId], references: [id])
-  customerId     String?   @db.ObjectId
-  createdAt      DateTime? @default(now())
-  updatedAt      DateTime? @updatedAt
+  data          Json?
+  vcardSent     Boolean?  @default(false)
+  customer      Customer? @relation(fields: [customerId], references: [id])
+  customerId    String?   @db.ObjectId
+  createdAt     DateTime? @default(now())
+  updatedAt     DateTime? @updatedAt
 
   @@unique([detailerId, customerPhone])
 }
 
 /// Persistent customer records with contact information and preferences
 model Customer {
-  id                String    @id @default(auto()) @map("_id") @db.ObjectId
-  detailer          Detailer  @relation(fields: [detailerId], references: [id])
-  detailerId        String    @db.ObjectId
-  name              String    // Customer's full name
-  phone             String    // Primary phone number
-  email             String?   // Email address (optional)
-  address           String?   // Primary address
-  locationType      String?   // "home", "office", or "other"
-  vehicleInfo       Json?     // Array of vehicle objects with year, make, model, luxury flag, notes
-  lastDetailId      String?   @db.ObjectId // Reference to last appointment
-  preferredTime     String?   // "morning", "afternoon", or "evening"
-  flexibility       String?   // "urgent", "this_week", or "whenever"
-  avgResponseTime   String?   // Mean reply speed (e.g., "00:04:00")
+  id                    String   @id @default(auto()) @map("_id") @db.ObjectId
+  detailer              Detailer @relation(fields: [detailerId], references: [id])
+  detailerId            String   @db.ObjectId
+  name                  String // Customer's full name
+  phone                 String // Primary phone number
+  email                 String? // Email address (optional)
+  address               String? // Primary address
+  locationType          String? // "home", "office", or "other"
+  vehicleInfo           Json? // Array of vehicle objects with year, make, model, luxury flag, notes
+  lastDetailId          String?  @db.ObjectId // Reference to last appointment
+  preferredTime         String? // "morning", "afternoon", or "evening"
+  flexibility           String? // "urgent", "this_week", or "whenever"
+  avgResponseTime       String? // Mean reply speed (e.g., "00:04:00")
   avgGapBetweenMessages String? // Avg time between texts
-  tags              String[]  // Tags like "VIP", "no show risk"
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-  
+  tags                  String[] // Tags like "VIP", "no show risk"
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
   // Relations
   bookings          Booking[]
   conversations     Conversation[]
@@ -277,126 +282,169 @@ model Customer {
 }
 
 model Booking {
-  id             String       @id @default(auto()) @map("_id") @db.ObjectId
-  detailer       Detailer     @relation(fields: [detailerId], references: [id])
-  detailerId     String       @db.ObjectId
-  customer       Customer?    @relation(fields: [customerId], references: [id])
-  customerId     String?      @db.ObjectId
-  conversation   Conversation? @relation(fields: [conversationId], references: [id])
-  conversationId String?      @db.ObjectId
-  customerPhone  String       // Customer's phone number
-  customerName   String?      // Customer's name
-  customerEmail  String?      // Customer's email
-  vehicleType    String?      // Car type, model, year, etc.
-  vehicleLocation String?     // Where the vehicle is located
-  services       String[]     // Array of service names
-  totalPrice     Float?       // Total price for the booking
-  scheduledDate  DateTime     // When the service is scheduled
-  scheduledTime  String?      // Specific time slot
-  duration       Int?         // Duration in minutes
-  status         String       @default("pending") // pending, confirmed, completed, cancelled
-  notes          String?      // Additional notes from customer or detailer
-  googleEventId  String?      // Google Calendar event ID if synced
-  createdAt      DateTime?    @default(now())
-  updatedAt      DateTime?    @updatedAt
-  
+  id              String        @id @default(auto()) @map("_id") @db.ObjectId
+  detailer        Detailer      @relation(fields: [detailerId], references: [id])
+  detailerId      String        @db.ObjectId
+  customer        Customer?     @relation(fields: [customerId], references: [id])
+  customerId      String?       @db.ObjectId
+  conversation    Conversation? @relation(fields: [conversationId], references: [id])
+  conversationId  String?       @db.ObjectId
+  resource        Resource?     @relation(fields: [resourceId], references: [id])
+  resourceId      String?       @db.ObjectId
+  customerPhone   String // Customer's phone number
+  customerName    String? // Customer's name
+  customerEmail   String? // Customer's email
+  vehicleType     String? // Car type, model, year, etc.
+  vehicleLocation String? // Where the vehicle is located
+  services        String[] // Array of service names
+  totalPrice      Float? // Total price for the booking
+  scheduledDate   DateTime // When the service is scheduled
+  scheduledTime   String? // Specific time slot
+  duration        Int? // Duration in minutes
+  status          String        @default("pending") // pending, confirmed, completed, cancelled
+  notes           String? // Additional notes from customer or detailer
+  googleEventId   String? // Google Calendar event ID if synced
+  createdAt       DateTime?     @default(now())
+  updatedAt       DateTime?     @updatedAt
+
   // Relations
-  events            Event[]
-  scheduledReviews  ScheduledReview[]
+  events           Event[]
+  scheduledReviews ScheduledReview[]
+
   @@unique([detailerId, scheduledDate, customerPhone])
 }
 
 model Event {
-  id             String    @id @default(auto()) @map("_id") @db.ObjectId
-  detailer       Detailer  @relation(fields: [detailerId], references: [id])
-  detailerId     String    @db.ObjectId
-  title          String
-  date           DateTime
-  time           String?
-  allDay         Boolean   @default(false)
-  color          String    @default("blue")
-  description    String?
-  location       String?
-  googleEventId  String?
-  bookingId      String?   @db.ObjectId
-  booking        Booking?  @relation(fields: [bookingId], references: [id])
-  createdAt      DateTime? @default(now())
-  updatedAt      DateTime? @updatedAt
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  detailer      Detailer  @relation(fields: [detailerId], references: [id])
+  detailerId    String    @db.ObjectId
+  title         String
+  date          DateTime
+  time          String?
+  allDay        Boolean   @default(false)
+  color         String    @default("blue") // Kept for backward compatibility, but will be derived from employee
+  employeeId    String?   @db.ObjectId // Employee assigned to this event
+  employee      Employee? @relation(fields: [employeeId], references: [id])
+  description   String?
+  location      String?
+  googleEventId String?
+  bookingId     String?   @db.ObjectId
+  booking       Booking?  @relation(fields: [bookingId], references: [id])
+  resourceId    String?   @db.ObjectId
+  resource      Resource? @relation(fields: [resourceId], references: [id])
+  createdAt     DateTime? @default(now())
+  updatedAt     DateTime? @updatedAt
 
   @@map("events")
 }
 
+// Resources (Bays and Vans) for scheduling appointments
+model Resource {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  detailer   Detailer @relation(fields: [detailerId], references: [id])
+  detailerId String   @db.ObjectId
+  name       String   // "Bay 1", "Bay 2", "Van 1", etc.
+  type       String   // "bay" or "van"
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations
+  bookings Booking[]
+  events   Event[]
+
+  @@unique([detailerId, name])
+}
+
+// Employees for scheduling and job assignment
+model Employee {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  detailer   Detailer @relation(fields: [detailerId], references: [id])
+  detailerId String   @db.ObjectId
+  name       String   // Employee name
+  email      String?  // Optional email
+  phone      String?  // Optional phone
+  imageUrl   String?  // Employee profile image URL
+  workHours  Json?    // Work hours schedule (e.g., { "monday": { "start": "09:00", "end": "17:00" }, ... })
+  isActive   Boolean  @default(true)
+  color      String   @default("blue") // Color for calendar events (blue, green, orange, red, gray, etc.)
+  events     Event[]  // Events assigned to this employee
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([detailerId, name])
+}
+
 // Subscription Plans
 model SubscriptionPlan {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  name        String   @unique // "Detailer Starter" or "Detailer Pro"
-  type        String   // "pay_per_booking" or "monthly"
-  price       Float    // $3 for starter, $200 for pro
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  name          String   @unique // "Detailer Starter" or "Detailer Pro"
+  type          String // "pay_per_booking" or "monthly"
+  price         Float // $3 for starter, $200 for pro
   stripePriceId String? // Stripe price ID
-  description String
-  features    String[] // Array of feature descriptions
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
+  description   String
+  features      String[] // Array of feature descriptions
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
   // Relations
   subscriptions Subscription[]
 }
 
 // Detailer Subscriptions
 model Subscription {
-  id                String           @id @default(auto()) @map("_id") @db.ObjectId
-  detailer          Detailer         @relation(fields: [detailerId], references: [id])
-  detailerId        String           @db.ObjectId
-  plan              SubscriptionPlan @relation(fields: [planId], references: [id])
-  planId            String           @db.ObjectId
-  status            String           @default("trial") // trial, active, past_due, canceled, incomplete
-  stripeSubscriptionId String?       // Stripe subscription ID
-  stripeCustomerId  String?         // Stripe customer ID
-  currentPeriodStart DateTime?       // Current billing period start
-  currentPeriodEnd   DateTime?       // Current billing period end
-  trialStart        DateTime?        // Trial start date
-  trialEnd          DateTime?        // Trial end date
-  canceledAt        DateTime?        // When subscription was canceled
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
-  
+  id                   String           @id @default(auto()) @map("_id") @db.ObjectId
+  detailer             Detailer         @relation(fields: [detailerId], references: [id])
+  detailerId           String           @db.ObjectId
+  plan                 SubscriptionPlan @relation(fields: [planId], references: [id])
+  planId               String           @db.ObjectId
+  status               String           @default("trial") // trial, active, past_due, canceled, incomplete
+  stripeSubscriptionId String? // Stripe subscription ID
+  stripeCustomerId     String? // Stripe customer ID
+  currentPeriodStart   DateTime? // Current billing period start
+  currentPeriodEnd     DateTime? // Current billing period end
+  trialStart           DateTime? // Trial start date
+  trialEnd             DateTime? // Trial end date
+  canceledAt           DateTime? // When subscription was canceled
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+
   // Relations
-  invoices          Invoice[]
-  
+  invoices Invoice[]
+
   @@unique([detailerId])
 }
 
 // Invoices
 model Invoice {
-  id                String       @id @default(auto()) @map("_id") @db.ObjectId
-  subscription      Subscription @relation(fields: [subscriptionId], references: [id])
-  subscriptionId    String       @db.ObjectId
-  stripeInvoiceId   String?      // Stripe invoice ID
-  amount            Float        // Invoice amount
-  currency          String       @default("usd")
-  status            String       @default("draft") // draft, open, paid, void, uncollectible
-  periodStart       DateTime     // Billing period start
-  periodEnd         DateTime     // Billing period end
-  dueDate           DateTime?    // Invoice due date
-  paidAt            DateTime?    // When invoice was paid
-  createdAt         DateTime     @default(now())
-  updatedAt         DateTime     @updatedAt
+  id              String       @id @default(auto()) @map("_id") @db.ObjectId
+  subscription    Subscription @relation(fields: [subscriptionId], references: [id])
+  subscriptionId  String       @db.ObjectId
+  stripeInvoiceId String? // Stripe invoice ID
+  amount          Float // Invoice amount
+  currency        String       @default("usd")
+  status          String       @default("draft") // draft, open, paid, void, uncollectible
+  periodStart     DateTime // Billing period start
+  periodEnd       DateTime // Billing period end
+  dueDate         DateTime? // Invoice due date
+  paidAt          DateTime? // When invoice was paid
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
 }
 
 // Pay-per-booking charges
 model Charge {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  detailer    Detailer @relation(fields: [detailerId], references: [id])
-  detailerId  String   @db.ObjectId
-  bookingId   String?  // Reference to the booking that triggered this charge
-  amount      Int      // Amount in cents ($3.00 = 300 cents)
-  currency    String   @default("usd")
-  status      String   @default("pending") // pending, completed, failed, refunded
-  description String   // "Pay-per-booking fee"
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  detailer    Detailer  @relation(fields: [detailerId], references: [id])
+  detailerId  String    @db.ObjectId
+  bookingId   String? // Reference to the booking that triggered this charge
+  amount      Int // Amount in cents ($3.00 = 300 cents)
+  currency    String    @default("usd")
+  status      String    @default("pending") // pending, completed, failed, refunded
+  description String // "Pay-per-booking fee"
   chargedAt   DateTime? // When the charge was processed
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 }
 
 // Scheduled Review Links
@@ -404,16 +452,16 @@ model ScheduledReview {
   id            String   @id @default(auto()) @map("_id") @db.ObjectId
   bookingId     String   @db.ObjectId
   booking       Booking  @relation(fields: [bookingId], references: [id])
-  customerPhone String   // Customer's phone number
+  customerPhone String // Customer's phone number
   detailerId    String   @db.ObjectId
   detailer      Detailer @relation(fields: [detailerId], references: [id])
-  businessName  String   // Business name for the review link
-  customerName  String?  // Customer name (optional)
-  serviceType   String?  // Type of service (optional)
+  businessName  String // Business name for the review link
+  customerName  String? // Customer name (optional)
+  serviceType   String? // Type of service (optional)
   scheduledFor  DateTime // When to send the review link
   sent          Boolean  @default(false) // Whether the review link has been sent
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
-  
+
   @@map("scheduledReviews")
 }

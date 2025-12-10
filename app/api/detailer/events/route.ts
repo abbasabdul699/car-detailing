@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { PrismaClient } from '@prisma/client';
+import { normalizeToE164 } from '@/lib/phone';
+import { upsertCustomerSnapshot } from '@/lib/customerSnapshot';
 
 const prisma = new PrismaClient();
 
@@ -15,7 +17,7 @@ export async function POST(request: NextRequest) {
 
     const detailerId = session.user.id;
     const body = await request.json();
-    const { title, color, startDate, endDate, isAllDay, description } = body;
+    const { title, color, employeeId, startDate, endDate, isAllDay, description, resourceId, time, customerName, customerPhone, customerEmail, customerAddress, locationType, vehicleModel, services } = body;
 
     if (!title || !startDate) {
       return NextResponse.json({ error: 'Title and start date are required' }, { status: 400 });
@@ -35,21 +37,121 @@ export async function POST(request: NextRequest) {
     const startDateTime = new Date(startDate);
     const endDateTime = new Date(endDate || startDate);
     
-    // Extract time from datetime
-    const startTime = startDateTime.toTimeString().slice(0, 5); // HH:MM format
+    // Extract time from datetime or use provided time
+    // For all-day events with business hours, use the provided time
+    // For timed events, extract from datetime
+    let startTime: string | null = null;
+    if (time) {
+      // Use provided time (for all-day events with business hours)
+      startTime = time;
+    } else if (!isAllDay) {
+      // For timed events, extract time from datetime
+      startTime = startDateTime.toTimeString().slice(0, 5); // HH:MM format
+    }
+    // For all-day events without time, leave it null
+    
+    // Verify resource exists and belongs to this detailer if resourceId is provided
+    if (resourceId) {
+      const resource = await prisma.resource.findFirst({
+        where: {
+          id: resourceId,
+          detailerId
+        }
+      });
+      
+      if (!resource) {
+        return NextResponse.json({ error: 'Resource not found or does not belong to this detailer' }, { status: 404 });
+      }
+    }
+
+    // Verify employee exists and belongs to this detailer if employeeId is provided
+    let employeeColor = color || 'blue';
+    if (employeeId) {
+      const employee = await prisma.employee.findFirst({
+        where: {
+          id: employeeId,
+          detailerId
+        }
+      });
+      
+      if (!employee) {
+        return NextResponse.json({ error: 'Employee not found or does not belong to this detailer' }, { status: 404 });
+      }
+      // Use employee's color
+      employeeColor = employee.color || 'blue';
+    }
+    
+    // Store customer, vehicle, and services info in description as JSON (for backward compatibility)
+    const eventMetadata = {
+      customerName: customerName || null,
+      customerPhone: customerPhone || null,
+      customerAddress: customerAddress || null,
+      vehicleModel: vehicleModel || null,
+      services: services || null
+    };
+    
+    // Combine description with metadata
+    const fullDescription = description || '';
+    const metadataJson = JSON.stringify(eventMetadata);
+    const combinedDescription = fullDescription 
+      ? `${fullDescription}\n\n__METADATA__:${metadataJson}`
+      : `__METADATA__:${metadataJson}`;
     
     // Create the event in the database
     const event = await prisma.event.create({
       data: {
         detailerId,
         title,
-        description: description || '',
+        description: combinedDescription,
         date: startDateTime,
-        time: startTime,
+        time: startTime || null, // Store time for all-day events with business hours, null otherwise
         allDay: isAllDay || false,
-        color: color || '#3B82F6'
+        color: employeeColor, // Use employee's color or provided color
+        employeeId: employeeId || null,
+        resourceId: resourceId || null
       }
     });
+
+    // Upsert CustomerSnapshot if customerPhone is provided
+    if (customerPhone) {
+      try {
+        const normalizedPhone = normalizeToE164(customerPhone) || customerPhone;
+        
+        // Get existing customer snapshot to merge notes
+        const existingSnapshot = await prisma.customerSnapshot.findUnique({
+          where: { 
+            detailerId_customerPhone: { 
+              detailerId, 
+              customerPhone: normalizedPhone 
+            } 
+          }
+        });
+        
+        // Prepare customer notes - merge with existing data if present
+        const customerNotes = description || null;
+        let snapshotData: any = existingSnapshot?.data ? (typeof existingSnapshot.data === 'object' ? existingSnapshot.data : {}) : {};
+        if (customerNotes) {
+          snapshotData.notes = customerNotes;
+        }
+        
+        // Upsert CustomerSnapshot - store vehicleModel as-is (detailers only care about model)
+        await upsertCustomerSnapshot(detailerId, normalizedPhone, {
+          customerName: customerName || null,
+          customerEmail: customerEmail || null,
+          address: customerAddress || null,
+          locationType: locationType || null,
+          vehicle: vehicleModel || null,
+          vehicleModel: vehicleModel || null,
+          services: services || null,
+          data: Object.keys(snapshotData).length > 0 ? snapshotData : null
+        });
+        
+        console.log('✅ CustomerSnapshot updated for phone:', normalizedPhone);
+      } catch (snapshotError) {
+        console.error('❌ Error updating CustomerSnapshot:', snapshotError);
+        // Don't fail event creation if snapshot update fails
+      }
+    }
 
     // Get detailer's Google Calendar info for sync
     const detailerWithCalendar = await prisma.detailer.findUnique({
@@ -83,7 +185,7 @@ export async function POST(request: NextRequest) {
             dateTime: endDateTime.toISOString(),
             timeZone: 'America/New_York'
           },
-          colorId: color === 'red' ? '11' : color === 'green' ? '10' : color === 'orange' ? '6' : '1'
+          colorId: employeeColor === 'red' ? '11' : employeeColor === 'green' ? '10' : employeeColor === 'orange' ? '6' : '1'
         };
 
         const response = await fetch(

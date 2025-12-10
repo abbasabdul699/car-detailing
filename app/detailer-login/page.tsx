@@ -31,7 +31,7 @@ export default function DetailerLogin() {
       const result = await signIn("detailer", {
         email: form.email,
         password: form.password,
-        callbackUrl: "/detailer-dashboard",
+        callbackUrl: "/detailer-dashboard/calendar",
         redirect: false // Handle redirect manually
       });
       
@@ -39,8 +39,8 @@ export default function DetailerLogin() {
         setError("Invalid email or password");
       } else if (result?.ok) {
         setSuccess("Login successful! Redirecting...");
-        // Redirect manually to detailer dashboard
-        router.push("/detailer-dashboard");
+        // Redirect manually to detailer calendar
+        router.push("/detailer-dashboard/calendar");
       }
     } catch (error) {
       setError("An error occurred during login");

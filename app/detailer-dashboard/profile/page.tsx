@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { useSession } from 'next-auth/react';
 import ProfileEditForm from './components/ProfileEditForm';
+import ServiceRadiusEditForm from './components/ServiceRadiusEditForm';
 import ImageUploader from '../../components/ImageUploader';
 import BusinessHoursPicker, { BusinessHours } from "@/app/components/BusinessHoursPicker";
 import zxcvbn from 'zxcvbn';
@@ -39,6 +40,7 @@ interface Profile {
   personalPhoneNumber?: string;
   timezone?: string;
   googleReviewLink?: string;
+  serviceRadius?: number;
 }
 
 async function getProfile() {
@@ -67,6 +69,7 @@ export default function DetailerProfilePage() {
   const [error, setError] = React.useState<string | null>(null);
   const [editingSection, setEditingSection] = React.useState<string | null>(null);
   const [showProfileImageModal, setShowProfileImageModal] = React.useState(false);
+  const [showServiceRadiusModal, setShowServiceRadiusModal] = React.useState(false);
 
   // Settings state
   const [newEmail, setNewEmail] = useState('');
@@ -407,11 +410,11 @@ export default function DetailerProfilePage() {
   // Password strength
   const passwordStrength = zxcvbn(newPassword);
   const strengthLabels = ['Very Weak', 'Weak', 'Fair', 'Good', 'Strong'];
-  const strengthColor = ['bg-red-500', 'bg-orange-500', 'bg-yellow-500', 'bg-blue-500', 'bg-green-600'];
+  const strengthColor = ['bg-red-500', 'bg-orange-500', 'bg-yellow-500', 'bg-blue-500', 'bg-black'];
 
   if (loading) return <div className="min-h-screen bg-gray-50 dark:bg-gray-950 p-6 flex items-center justify-center">
     <div className="text-center">
-      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto mb-4"></div>
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
       <p className="text-gray-600 dark:text-gray-400">Loading profile...</p>
     </div>
   </div>;
@@ -423,7 +426,7 @@ export default function DetailerProfilePage() {
       </div>
       <button 
         onClick={() => window.location.reload()} 
-        className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+        className="bg-black text-white px-4 py-2 rounded hover:bg-gray-800"
       >
         Retry
       </button>
@@ -517,6 +520,53 @@ export default function DetailerProfilePage() {
             </div>
           </div>
         </div>
+        {/* Service Radius Section */}
+        <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-6 mb-4">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Service Radius</h2>
+            <button className="border border-gray-300 dark:border-gray-600 rounded-full px-4 py-1 text-sm flex items-center gap-2 text-gray-700 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800" onClick={() => setShowServiceRadiusModal(true)}>✏️ Edit</button>
+          </div>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Service Coverage Area</label>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Maximum distance you're willing to travel for service</p>
+              </div>
+              <div className="text-right">
+                <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{profile.serviceRadius || 25} miles</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">Current setting</div>
+              </div>
+            </div>
+            <div className="w-full">
+              <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mb-2">
+                <span>1 mile</span>
+                <span>100 miles</span>
+              </div>
+              <div className="relative">
+                <input
+                  type="range"
+                  min="1"
+                  max="100"
+                  value={profile.serviceRadius || 25}
+                  disabled
+                  className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-not-allowed slider"
+                  style={{
+                    background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${((profile.serviceRadius || 25) - 1) / 99 * 100}%, #e5e7eb ${((profile.serviceRadius || 25) - 1) / 99 * 100}%, #e5e7eb 100%)`
+                  }}
+                />
+                <div className="absolute top-0 left-0 w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg pointer-events-none"></div>
+              </div>
+            </div>
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+              <div className="flex items-start gap-2">
+                <div className="text-blue-600 dark:text-blue-400 mt-0.5">ℹ️</div>
+                <div className="text-sm text-blue-800 dark:text-blue-200">
+                  <strong>How it works:</strong> When customers book appointments, the system automatically checks if their address is within your service radius. Customers outside this area will be politely informed that you don't service their location.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
         {/* Social Media Section */}
         <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-6 mb-4">
           <div className="flex items-center justify-between mb-4">
@@ -607,7 +657,7 @@ export default function DetailerProfilePage() {
               <div className="flex items-center space-x-2">
                 {profile?.googleCalendarConnected ? (
                   <>
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200">
                       ✓ Connected
                     </span>
                     <button
@@ -633,12 +683,12 @@ export default function DetailerProfilePage() {
 
             {/* Calendar Sync Status */}
             {profile?.googleCalendarConnected && (
-              <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-4">
+              <div className="bg-gray-50 dark:bg-gray-900/20 border border-gray-200 dark:border-gray-800 rounded-xl p-4">
                 <div className="flex items-center space-x-2">
-                  <svg className="w-5 h-5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5 text-black dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <p className="text-sm text-green-800 dark:text-green-200">
+                  <p className="text-sm text-gray-800 dark:text-gray-200">
                     Your Google Calendar is synced. Appointments will automatically appear in your detailer dashboard calendar.
                   </p>
                 </div>
@@ -710,8 +760,8 @@ export default function DetailerProfilePage() {
                 
                 {/* Sync Status Messages */}
                 {syncSuccess && (
-                  <div className="mt-3 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-                    <p className="text-sm text-green-800 dark:text-green-200">{syncSuccess}</p>
+                  <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-900/20 border border-gray-200 dark:border-gray-800 rounded-lg">
+                    <p className="text-sm text-gray-800 dark:text-gray-200">{syncSuccess}</p>
                   </div>
                 )}
                 
@@ -751,7 +801,7 @@ export default function DetailerProfilePage() {
               <div className="flex items-center space-x-2">
                 {profile?.instagramConnected ? (
                   <>
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200">
                       ✓ Connected
                     </span>
                     <button
@@ -774,12 +824,12 @@ export default function DetailerProfilePage() {
 
             {/* Instagram DM Settings */}
             {profile?.instagramConnected && (
-              <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl">
+              <div className="p-4 bg-gray-50 dark:bg-gray-900/20 border border-gray-200 dark:border-gray-800 rounded-xl">
                 <div className="flex items-center space-x-2">
-                  <svg className="w-5 h-5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5 text-black dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <p className="text-sm text-green-800 dark:text-green-200">
+                  <p className="text-sm text-gray-800 dark:text-gray-200">
                     Your Instagram Business account is connected. Enable AI to automatically respond to direct messages.
                   </p>
                 </div>
@@ -862,8 +912,8 @@ export default function DetailerProfilePage() {
                 />
               </div>
               {emailError && <div className="text-red-600 font-semibold">{emailError}</div>}
-              {emailSuccess && <div className="text-green-600 font-semibold">{emailSuccess}</div>}
-              <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded-xl font-semibold hover:bg-green-700 transition" disabled={emailLoading}>
+              {emailSuccess && <div className="text-black font-semibold">{emailSuccess}</div>}
+              <button type="submit" className="bg-black text-white px-4 py-2 rounded-xl font-semibold hover:bg-gray-800 transition" disabled={emailLoading}>
                 {emailLoading ? 'Saving...' : 'Save Changes'}
               </button>
             </form>
@@ -961,8 +1011,8 @@ export default function DetailerProfilePage() {
                 </div>
               </div>
               {passwordError && <div className="text-red-600 font-semibold">{passwordError}</div>}
-              {passwordSuccess && <div className="text-green-600 font-semibold">{passwordSuccess}</div>}
-              <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded-xl font-semibold hover:bg-green-700 transition" disabled={passwordLoading}>
+              {passwordSuccess && <div className="text-black font-semibold">{passwordSuccess}</div>}
+              <button type="submit" className="bg-black text-white px-4 py-2 rounded-xl font-semibold hover:bg-gray-800 transition" disabled={passwordLoading}>
                 {passwordLoading ? 'Saving...' : 'Save Changes'}
               </button>
             </form>
@@ -1013,7 +1063,7 @@ export default function DetailerProfilePage() {
                   </p>
                 </div>
                 {phoneError && <div className="text-red-600 font-semibold">{phoneError}</div>}
-                {phoneSuccess && <div className="text-green-600 font-semibold">{phoneSuccess}</div>}
+                {phoneSuccess && <div className="text-black font-semibold">{phoneSuccess}</div>}
                 <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded-xl font-semibold hover:bg-blue-700 transition" disabled={phoneLoading}>
                   {phoneLoading ? 'Saving...' : 'Save Phone Number'}
                 </button>
@@ -1021,9 +1071,9 @@ export default function DetailerProfilePage() {
             </div>
 
             {/* AI Assistant Features */}
-            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-4">
-              <h4 className="font-medium text-green-800 dark:text-green-200 mb-3">AI Assistant Features</h4>
-              <div className="space-y-2 text-sm text-green-700 dark:text-green-300">
+            <div className="bg-gray-50 dark:bg-gray-900/20 border border-gray-200 dark:border-gray-800 rounded-xl p-4">
+              <h4 className="font-medium text-gray-800 dark:text-gray-200 mb-3">AI Assistant Features</h4>
+              <div className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
                 <div className="flex items-center">
                   <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
@@ -1056,6 +1106,24 @@ export default function DetailerProfilePage() {
         {/* Edit Modal */}
         {editingSection && (
           <ProfileEditForm profile={profile} onClose={() => setEditingSection(null)} onSave={(updated: Profile) => { setProfile(updated); setEditingSection(null); }} section={editingSection} />
+        )}
+        
+        {/* Service Radius Edit Modal */}
+        {showServiceRadiusModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+            <div className="bg-white dark:bg-gray-900 rounded-2xl shadow p-8 w-full max-w-md relative">
+              <button className="absolute top-2 right-2 text-gray-500 hover:text-gray-700" onClick={() => setShowServiceRadiusModal(false)}>&times;</button>
+              <h2 className="text-xl font-bold mb-6">Edit Service Radius</h2>
+              <ServiceRadiusEditForm 
+                profile={profile} 
+                onClose={() => setShowServiceRadiusModal(false)} 
+                onSave={(updated: Profile) => { 
+                  setProfile(updated); 
+                  setShowServiceRadiusModal(false); 
+                }} 
+              />
+            </div>
+          </div>
         )}
         {/* Profile Image Modal */}
         {showProfileImageModal && (

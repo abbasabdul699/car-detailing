@@ -6,6 +6,64 @@
 import { PrismaClient } from '@prisma/client';
 import { DateTime } from 'luxon';
 
+// 🤖 AI-based date/time extraction with confirmation
+async function extractDateTimeWithAI(userMessage: string, openai: any): Promise<{date?: string, time?: string, confidence: 'high' | 'medium' | 'low'}> {
+  try {
+    const extractionPrompt = `
+Extract the date and time from this customer message: "${userMessage}"
+
+Respond in this EXACT JSON format:
+{
+  "date": "extracted date or null",
+  "time": "extracted time or null", 
+  "confidence": "high/medium/low"
+}
+
+Examples:
+- "October 23rd at 9 AM" → {"date": "October 23rd", "time": "9 AM", "confidence": "high"}
+- "Next Thursday" → {"date": "Next Thursday", "time": null, "confidence": "medium"}
+- "9 AM tomorrow" → {"date": "tomorrow", "time": "9 AM", "confidence": "high"}
+- "Thursday morning" → {"date": "Thursday", "time": "morning", "confidence": "medium"}
+- "I need a car wash" → {"date": null, "time": null, "confidence": "low"}
+
+Only respond with valid JSON, no other text.`;
+
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'user', content: extractionPrompt }],
+      max_tokens: 150,
+      temperature: 0.1
+    });
+
+    const extracted = JSON.parse(response.choices[0].message.content);
+    return extracted;
+  } catch (error) {
+    console.error('AI date/time extraction failed:', error);
+    return { date: undefined, time: undefined, confidence: 'low' };
+  }
+}
+
+// 🔄 Generate confirmation message for extracted date/time
+function generateConfirmationMessage(extracted: {date?: string, time?: string, confidence: string}): string {
+  if (!extracted.date && !extracted.time) {
+    return "I didn't catch a specific date or time. Could you please tell me when you'd like your service? (e.g., 'Thursday at 2 PM' or 'October 23rd at 9 AM')";
+  }
+  
+  if (extracted.date && extracted.time) {
+    return `I understood you want: ${extracted.date} at ${extracted.time}. Is this correct? Reply "YES" to confirm or "NO" to try again.`;
+  }
+  
+  if (extracted.date && !extracted.time) {
+    return `I understood you want: ${extracted.date}. What time would work best for you?`;
+  }
+  
+  if (!extracted.date && extracted.time) {
+    return `I understood you want: ${extracted.time}. What day would work best for you?`;
+  }
+  
+  return "Could you please clarify your preferred date and time?";
+}
+
 const prisma = new PrismaClient();
 
 export type ConversationState = 
@@ -223,11 +281,16 @@ export async function processConversationState(
   userMessage: string,
   detailerServices: any[],
   availableSlots?: Array<{ startLocal: string; startISO?: string; label?: string; endLocal?: string; startUtcISO?: string; endUtcISO?: string }>,
-  detailerTimezone: string = 'America/New_York'
+  detailerTimezone: string = 'America/New_York',
+  conversationId?: string,
+  twilioClient?: any,
+  from?: string,
+  to?: string
 ): Promise<{
   response: string;
   newContext: ConversationContext;
   shouldSend: boolean;
+  twilioSid?: string;
 }> {
   let response = '';
   let newContext = { ...context };
@@ -235,6 +298,55 @@ export async function processConversationState(
 
   switch (context.state) {
     case 'idle':
+      // 🤖 AI Hybrid Date/Time Extraction for better understanding
+      console.log('🔍 DEBUG: Using AI hybrid approach to understand user intent');
+      
+      try {
+        // Extract date/time using AI for better understanding
+        const extracted = await extractDateTimeWithAI(userMessage, { chat: { completions: { create: async (params: any) => {
+          const response = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              model: 'gpt-4o-mini',
+              messages: params.messages,
+              max_tokens: params.max_tokens || 150,
+              temperature: params.temperature || 0.1,
+            }),
+          });
+          const data = await response.json();
+          return { choices: [{ message: { content: data.choices[0].message.content } }] };
+        }}}});
+        
+        console.log('🔍 DEBUG: AI extracted date/time:', extracted);
+        
+        // If AI found specific date/time, store it in context and move to appropriate state
+        if (extracted.confidence === 'high' && extracted.date && extracted.time) {
+          console.log('🔍 DEBUG: High confidence date/time found, storing in context');
+          newContext.metadata = {
+            ...newContext.metadata,
+            extractedDate: extracted.date,
+            extractedTime: extracted.time,
+            aiConfidence: extracted.confidence
+          };
+          newContext.state = 'awaiting_confirm';
+          
+          // Generate confirmation message
+          response = `Perfect! I understood you want: ${extracted.date} at ${extracted.time}. Is this correct? Reply "YES" to confirm or "NO" to try again.`;
+          return { response, newContext, shouldSend: true };
+        } else if (extracted.confidence === 'medium' || extracted.date || extracted.time) {
+          console.log('🔍 DEBUG: Medium confidence or partial info, asking for clarification');
+          response = generateConfirmationMessage(extracted);
+          return { response, newContext, shouldSend: true };
+        }
+      } catch (error) {
+        console.error('❌ AI hybrid extraction failed:', error);
+        // Fall back to regex-based detection
+      }
+      
       // FIRST: Check if user is asking for general availability (e.g., "Hey! I want my car detailed", "What are your available times?")
       const generalAvailabilityMatch = userMessage.match(/(?:hey|hi|hello|what\s+are.*(?:avai?lable|available|avaiable)\s+(?:times|dates|appointments)|(?:avai?lable|available|avaiable)\s+(?:times|dates|appointments)|do\s+you\s+have\s+any\s+openings|show\s+me\s+your\s+availability|what\s+(?:times|dates)\s+do\s+you\s+have|when\s+are\s+you\s+(?:avai?lable|available|avaiable)|i\s+want.*detail|i\s+need.*detail|can\s+i\s+get.*detail)/i);
       
@@ -1687,10 +1799,54 @@ export async function processConversationState(
         try {
           const { createBookingWithRetry } = await import('./bookingClient');
           
-          // FIX: Extract time properly and use correct date
-          const timeMatch = context.selectedSlot?.startLocal?.match(/(\d{1,2}:\d{2}\s*[AP]M)/i);
-          const extractedTime = timeMatch ? timeMatch[1] : '10:00 AM';
-          const selectedDate = (context.selectedSlot as any)?.date || context.metadata?.selectedDate || new Date().toISOString().split('T')[0];
+          // Use AI-extracted date/time if available, otherwise fall back to selected slot
+          let extractedTime = '10:00 AM';
+          let selectedDate = new Date().toISOString().split('T')[0];
+          
+          if (context.metadata?.extractedDate && context.metadata?.extractedTime) {
+            // Use AI-extracted date/time
+            console.log('🔍 DEBUG: Using AI-extracted date/time:', {
+              date: context.metadata.extractedDate,
+              time: context.metadata.extractedTime
+            });
+            
+            // Convert AI-extracted date to ISO format
+            const aiDate = context.metadata.extractedDate;
+            const aiTime = context.metadata.extractedTime;
+            
+            // Parse the AI date (could be "October 23rd", "tomorrow", etc.)
+            let parsedDate: Date;
+            if (aiDate.toLowerCase() === 'tomorrow') {
+              parsedDate = new Date();
+              parsedDate.setDate(parsedDate.getDate() + 1);
+            } else if (aiDate.toLowerCase() === 'today') {
+              parsedDate = new Date();
+            } else {
+              // Try to parse month/day format
+              const monthMatch = aiDate.match(/(october|oct)\s+(\d{1,2})(?:st|nd|rd|th)?/i);
+              if (monthMatch) {
+                const month = monthMatch[1].toLowerCase().includes('oct') ? 9 : 9; // October is month 9 (0-indexed)
+                const day = parseInt(monthMatch[2]);
+                const currentYear = new Date().getFullYear();
+                parsedDate = new Date(currentYear, month, day);
+              } else {
+                parsedDate = new Date(); // Fallback to today
+              }
+            }
+            
+            selectedDate = parsedDate.toISOString().split('T')[0];
+            extractedTime = aiTime;
+            
+            console.log('🔍 DEBUG: Parsed AI date/time:', {
+              selectedDate,
+              extractedTime
+            });
+          } else {
+            // Fall back to selected slot
+            const timeMatch = context.selectedSlot?.startLocal?.match(/(\d{1,2}:\d{2}\s*[AP]M)/i);
+            extractedTime = timeMatch ? timeMatch[1] : '10:00 AM';
+            selectedDate = (context.selectedSlot as any)?.date || context.metadata?.selectedDate || new Date().toISOString().split('T')[0];
+          }
           
           console.log('🔍 DEBUG: Booking request details:', {
             extractedTime,
@@ -1770,7 +1926,41 @@ export async function processConversationState(
     response = "Please wait a moment before sending another message.";
   }
 
-  return { response, newContext, shouldSend };
+  // Send SMS and save to database if we have the necessary parameters
+  let twilioSid: string | undefined;
+  if (shouldSend && twilioClient && from && to && conversationId) {
+    try {
+      console.log('🔍 DEBUG: Sending SMS via conversation state machine:', response);
+      
+      // Send SMS
+      twilioSid = await twilioClient.messages.create({
+        to: from,
+        from: to,
+        body: response
+      });
+      
+      console.log('🔍 DEBUG: SMS sent successfully:', twilioSid);
+      
+      // Save message to database
+      await prisma.message.create({
+        data: {
+          conversationId: conversationId,
+          direction: 'outbound',
+          content: response,
+          twilioSid: twilioSid,
+          status: twilioSid ? 'sent' : 'simulated',
+        },
+      });
+      
+      console.log('🔍 DEBUG: Message saved to database successfully');
+      
+    } catch (error) {
+      console.error('❌ Error sending SMS or saving message:', error);
+      // Don't fail the state machine if SMS/database fails
+    }
+  }
+
+  return { response, newContext, shouldSend, twilioSid };
 }
 
 /**

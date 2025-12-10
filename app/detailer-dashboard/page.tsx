@@ -28,7 +28,7 @@ const ProfileCompletionCard = ({ percentage, message }: { percentage: number, me
         <span className="text-sm font-bold text-gray-900 dark:text-gray-100">{percentage}%</span>
       </div>
       <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
-        <div className="bg-green-600 h-2.5 rounded-full" style={{ width: `${percentage}%` }}></div>
+        <div className="bg-blue-600 h-2.5 rounded-full" style={{ width: `${percentage}%` }}></div>
       </div>
       <Link href="/detailer-dashboard/profile" className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline mt-3 inline-block">
         Edit Profile
@@ -83,11 +83,11 @@ export default function DetailerDashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Dark Green Header Section */}
-      <div className="bg-gradient-to-r from-green-800 to-green-900 text-white rounded-b-3xl shadow-lg">
+      {/* Dark blue Header Section */}
+      <div className="bg-gradient-to-r from-blue-800 to-blue-900 text-white rounded-b-3xl shadow-lg">
         <div className="p-6">
           {/* Detailer ID */}
-          <div className="text-green-100 text-sm mb-2">Detailer ID: {user.id}</div>
+          <div className="text-blue-100 text-sm mb-2">Detailer ID: {user.id}</div>
           
           {/* Welcome Message */}
           <h1 className="text-2xl md:text-3xl font-bold mb-6">
@@ -100,9 +100,9 @@ export default function DetailerDashboardPage() {
             <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-green-100 text-sm">Messages this month</p>
+                  <p className="text-blue-100 text-sm">Messages this month</p>
                   <p className="text-2xl font-bold">{monthlyMessages}</p>
-                  <p className="text-green-100 text-xs">
+                  <p className="text-blue-100 text-xs">
                     {messagesPercentageChange > 0 ? '+' : ''}{messagesPercentageChange}% from last month
                   </p>
                 </div>
@@ -118,9 +118,9 @@ export default function DetailerDashboardPage() {
             <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-green-100 text-sm">Total Bookings</p>
+                  <p className="text-blue-100 text-sm">Total Bookings</p>
                   <p className="text-2xl font-bold">0</p>
-                  <p className="text-green-100 text-xs">Coming soon</p>
+                  <p className="text-blue-100 text-xs">Coming soon</p>
                 </div>
                 <div className="p-2 bg-white/20 rounded-lg">
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -134,9 +134,9 @@ export default function DetailerDashboardPage() {
             <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-green-100 text-sm">Profile Complete</p>
+                  <p className="text-blue-100 text-sm">Profile Complete</p>
                   <p className="text-2xl font-bold">{profileCompletion.percentage}%</p>
-                  <Link href="/detailer-dashboard/profile" className="text-green-100 text-xs hover:text-white">
+                  <Link href="/detailer-dashboard/profile" className="text-blue-100 text-xs hover:text-white">
                     Edit Profile →
                   </Link>
                 </div>
@@ -163,7 +163,7 @@ export default function DetailerDashboardPage() {
             </div>
             <div className="w-full bg-gray-200 rounded-full h-3 dark:bg-gray-700">
               <div 
-                className="bg-gradient-to-r from-green-500 to-green-600 h-3 rounded-full transition-all duration-500" 
+                className="bg-gradient-to-r from-blue-500 to-blue-600 h-3 rounded-full transition-all duration-500" 
                 style={{ width: `${profileCompletion.percentage}%` }}
               ></div>
             </div>
@@ -175,17 +175,17 @@ export default function DetailerDashboardPage() {
           <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">Client Contact Information</h2>
           <div className="space-y-4">
             {detailer?.twilioPhoneNumber && detailer?.smsEnabled ? (
-              <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-4">
+              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
                 <div className="flex items-center">
                   <div className="flex-shrink-0">
-                    <svg className="h-6 w-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="h-6 w-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                     </svg>
                   </div>
                   <div className="ml-3">
-                    <h3 className="text-sm font-medium text-green-800 dark:text-green-200">SMS & Phone Number for Clients</h3>
-                    <p className="text-lg font-bold text-green-900 dark:text-green-100">{detailer.twilioPhoneNumber}</p>
-                    <p className="text-sm text-green-700 dark:text-green-300">Give this number to clients for SMS communication and Phone Calls</p>
+                    <h3 className="text-sm font-medium text-blue-800 dark:text-blue-200">SMS & Phone Number for Clients</h3>
+                    <p className="text-lg font-bold text-blue-900 dark:text-blue-100">{detailer.twilioPhoneNumber}</p>
+                    <p className="text-sm text-blue-700 dark:text-blue-300">Give this number to clients for SMS communication and Phone Calls</p>
                   </div>
                 </div>
               </div>

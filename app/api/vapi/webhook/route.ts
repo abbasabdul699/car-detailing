@@ -31,25 +31,40 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     console.log('Vapi webhook received:', JSON.stringify(body, null, 2));
 
-    const { type, call } = body;
+    // Vapi can send type at top level OR inside message object
+    const { type, call, message } = body;
+    const messageType = message?.type || type;
 
-    if (type === 'assistant-request') {
+    console.log('🔍 Webhook type detection:', { 
+      topLevelType: type, 
+      messageType: message?.type, 
+      finalType: messageType 
+    });
+
+    if (messageType === 'assistant-request') {
       return handleAssistantRequest(body);
     }
 
-    if (type === 'function-call') {
+    if (messageType === 'function-call') {
       return handleFunctionCall(body);
     }
 
-    if (type === 'status-update') {
+    if (messageType === 'status-update') {
       return handleStatusUpdate(body);
     }
 
-    if (type === 'end-of-call-report') {
+    if (messageType === 'end-of-call-report') {
+      console.log('📞 Routing to handleEndOfCallReport');
       return handleEndOfCallReport(body);
     }
 
+    if (messageType === 'conversation-update') {
+      console.log('📞 Routing to handleConversationUpdate');
+      return handleConversationUpdate(body);
+    }
+
     // Default response for unknown types
+    console.log('⚠️ Unknown webhook type:', messageType);
     return NextResponse.json({ success: true });
 
   } catch (error) {
@@ -509,13 +524,542 @@ async function createBooking(parameters: any, call: any) {
 }
 
 async function handleStatusUpdate(body: any) {
-  console.log('Vapi status update:', body);
-  return NextResponse.json({ success: true });
+  try {
+    const { call } = body;
+    console.log('Vapi status update:', JSON.stringify(body, null, 2));
+
+    // Vapi may send transcript updates during the call in status-update events
+    // Store them if available
+    if (call?.messages && Array.isArray(call.messages)) {
+      const customerPhone = call?.customer?.number;
+      const assistantPhone = call?.assistant?.phoneNumber || call?.assistant?.number;
+      const callId = call?.id;
+
+      if (!customerPhone || !assistantPhone || !callId) {
+        return NextResponse.json({ success: true });
+      }
+
+      const detailer = await prisma.detailer.findFirst({
+        where: {
+          twilioPhoneNumber: assistantPhone
+        }
+      });
+
+      if (!detailer) {
+        return NextResponse.json({ success: true });
+      }
+
+      const { normalizeToE164 } = await import('@/lib/phone');
+      const normalizedCustomerPhone = normalizeToE164(customerPhone) || customerPhone;
+
+      // Find or create conversation
+      let conversation = await prisma.conversation.findUnique({
+        where: {
+          detailerId_customerPhone: {
+            detailerId: detailer.id,
+            customerPhone: normalizedCustomerPhone
+          }
+        }
+      });
+
+      if (!conversation) {
+        conversation = await prisma.conversation.create({
+          data: {
+            detailerId: detailer.id,
+            customerPhone: normalizedCustomerPhone,
+            status: 'active',
+            channel: 'phone',
+            lastMessageAt: new Date(),
+          }
+        });
+      }
+
+      // Store new messages from the transcript
+      for (const message of call.messages) {
+        const role = message.role;
+        const content = message.content || message.message || '';
+        
+        if (!content.trim()) continue;
+
+        const direction = role === 'user' ? 'inbound' : 'outbound';
+
+        // Check if already exists
+        const existing = await prisma.message.findFirst({
+          where: {
+            conversationId: conversation.id,
+            vapiCallId: callId,
+            content: content,
+            direction: direction,
+            channel: 'phone'
+          }
+        });
+
+        if (!existing) {
+          await prisma.message.create({
+            data: {
+              conversationId: conversation.id,
+              direction: direction,
+              content: content,
+              channel: 'phone',
+              vapiCallId: callId,
+              status: direction === 'inbound' ? 'received' : 'sent',
+            }
+          });
+        }
+      }
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Error handling Vapi status update:', error);
+    return NextResponse.json({ success: true });
+  }
 }
 
 async function handleEndOfCallReport(body: any) {
-  console.log('Vapi end of call report:', body);
-  return NextResponse.json({ success: true });
+  try {
+    const { message } = body;
+    console.log('📞 Vapi end of call report received:', JSON.stringify(body, null, 2));
+
+    // Extract call information from message structure
+    const callData = message?.call || {};
+    const callId = callData?.id || message?.artifact?.variables?.call?.id;
+    const customerPhone = callData?.customer?.number || message?.customer?.number || message?.artifact?.variables?.customer?.number;
+    const assistantPhone = message?.phoneNumber?.number || callData?.assistant?.phoneNumber || message?.artifact?.variables?.phoneNumber?.number;
+    
+    // Get transcript from artifact.messages or artifact.messagesOpenAIFormatted
+    const artifact = message?.artifact || {};
+    const transcriptArray = artifact.messagesOpenAIFormatted || artifact.messages || [];
+    
+    // Also check for transcript string format
+    const transcriptString = artifact.transcript || message?.transcript;
+    
+    const endedReason = message?.endedReason || callData?.endedReason;
+    const startedAt = message?.startedAt || callData?.startedAt;
+    const endedAt = message?.endedAt || callData?.endedAt;
+    const duration = endedAt && startedAt 
+      ? Math.floor((new Date(endedAt).getTime() - new Date(startedAt).getTime()) / 1000)
+      : message?.durationSeconds || null;
+
+    console.log('📞 Extracted end-of-call-report data:', {
+      callId,
+      customerPhone,
+      assistantPhone,
+      transcriptArrayLength: Array.isArray(transcriptArray) ? transcriptArray.length : 0,
+      hasTranscriptString: !!transcriptString,
+      duration,
+      endedReason
+    });
+
+    if (!customerPhone || !assistantPhone) {
+      console.error('❌ Missing phone numbers in Vapi end of call report:', { customerPhone, assistantPhone });
+      return NextResponse.json({ success: true });
+    }
+
+    // Normalize phone numbers for matching (handle format differences)
+    const { normalizeToE164 } = await import('@/lib/phone');
+    const normalizedAssistantPhone = normalizeToE164(assistantPhone) || assistantPhone;
+    
+    // Try to find detailer with flexible phone number matching
+    // Remove +1 prefix and compare last 10 digits
+    const assistantDigits = normalizedAssistantPhone.replace(/\D/g, '').slice(-10);
+    
+    // Find all detailers and check phone numbers flexibly
+    const detailers = await prisma.detailer.findMany({
+      where: {
+        twilioPhoneNumber: { not: null }
+      }
+    });
+    
+    let detailer = detailers.find(d => {
+      if (!d.twilioPhoneNumber) return false;
+      const detailerDigits = d.twilioPhoneNumber.replace(/\D/g, '').slice(-10);
+      return detailerDigits === assistantDigits;
+    });
+
+    if (!detailer) {
+      console.error('❌ Detailer not found for phone:', assistantPhone);
+      console.log('🔍 Searched for:', assistantDigits, 'in detailers:', detailers.map(d => ({
+        id: d.id,
+        businessName: d.businessName,
+        twilioPhoneNumber: d.twilioPhoneNumber
+      })));
+      return NextResponse.json({ success: true });
+    }
+
+    console.log('✅ Found detailer:', { id: detailer.id, businessName: detailer.businessName, phone: detailer.twilioPhoneNumber });
+
+    // Normalize customer phone number to E164 format for consistent lookup
+    const normalizedCustomerPhone = normalizeToE164(customerPhone) || customerPhone;
+
+    // Find or create conversation for this phone call
+    let conversation = await prisma.conversation.findUnique({
+      where: {
+        detailerId_customerPhone: {
+          detailerId: detailer.id,
+          customerPhone: normalizedCustomerPhone
+        }
+      }
+    });
+
+    if (!conversation) {
+      console.log('📞 Creating new conversation for phone call');
+      conversation = await prisma.conversation.create({
+        data: {
+          detailerId: detailer.id,
+          customerPhone: normalizedCustomerPhone,
+          status: 'active',
+          channel: 'phone',
+          lastMessageAt: new Date(),
+        }
+      });
+      console.log('✅ Created conversation:', conversation.id);
+    } else {
+      // Update conversation channel if it's primarily phone
+      if (conversation.channel !== 'phone') {
+        await prisma.conversation.update({
+          where: { id: conversation.id },
+          data: { channel: 'phone', lastMessageAt: new Date() }
+        });
+      }
+    }
+
+    // Store transcript messages from artifact.messagesOpenAIFormatted or artifact.messages
+    console.log('📝 Processing transcript from end-of-call-report:', {
+      transcriptArrayLength: transcriptArray.length,
+      hasTranscriptString: !!transcriptString,
+      sample: transcriptArray.length > 0 ? transcriptArray[0] : 'N/A'
+    });
+
+    let messagesToStore: any[] = [];
+    
+    // Prefer messagesOpenAIFormatted (cleaner format)
+    if (transcriptArray && Array.isArray(transcriptArray) && transcriptArray.length > 0) {
+      messagesToStore = transcriptArray;
+      console.log('📝 Using artifact.messagesOpenAIFormatted');
+    } else if (transcriptString) {
+      // If we only have a transcript string, try to parse it
+      console.log('📝 Only transcript string available, will parse it');
+      // For now, we'll create a placeholder - in future we could parse the string
+    }
+
+    if (messagesToStore.length > 0) {
+      console.log(`📝 Storing ${messagesToStore.length} messages from end-of-call-report`);
+      
+      let storedCount = 0;
+      for (const msg of messagesToStore) {
+        // Skip system messages and tool calls
+        const role = msg.role;
+        if (role === 'system' || role === 'tool' || role === 'tool_call_result' || role === 'tool_calls') {
+          continue;
+        }
+        
+        const content = msg.content || msg.message || '';
+        
+        // Handle timestamp - Vapi may send milliseconds or ISO string
+        let timestamp = msg.timestamp || msg.time || msg.createdAt;
+        if (typeof timestamp === 'number') {
+          // If it's a number, assume milliseconds and convert to Date
+          timestamp = new Date(timestamp);
+        } else if (typeof timestamp === 'string') {
+          // Try to parse ISO string
+          timestamp = new Date(timestamp);
+        } else if (!timestamp) {
+          timestamp = new Date();
+        }
+
+        if (!content || !content.trim()) {
+          continue;
+        }
+
+        // Map role to direction
+        let direction: 'inbound' | 'outbound';
+        if (role === 'user') {
+          direction = 'inbound';
+        } else if (role === 'assistant' || role === 'bot') {
+          direction = 'outbound';
+        } else {
+          continue; // Skip unknown roles
+        }
+
+        // Check if message already exists (avoid duplicates)
+        const existingMessage = await prisma.message.findFirst({
+          where: {
+            conversationId: conversation.id,
+            vapiCallId: callId,
+            content: content,
+            direction: direction,
+            channel: 'phone'
+          }
+        });
+
+        if (!existingMessage) {
+          await prisma.message.create({
+            data: {
+              conversationId: conversation.id,
+              direction: direction,
+              content: content,
+              channel: 'phone',
+              vapiCallId: callId,
+              status: direction === 'inbound' ? 'received' : 'sent',
+              createdAt: timestamp instanceof Date ? timestamp : new Date(timestamp || Date.now())
+            }
+          });
+          storedCount++;
+        }
+      }
+
+      console.log(`✅ Stored ${storedCount} new messages from end-of-call-report for call ${callId}`);
+    } else {
+      console.warn('⚠️ No transcript messages found in end-of-call-report. Checked:', {
+        transcriptArrayLength: transcriptArray.length,
+        hasTranscriptString: !!transcriptString,
+        artifactKeys: Object.keys(artifact || {})
+      });
+      
+      // Still create a placeholder message so conversation appears in dashboard
+      if (conversation) {
+        const placeholderMessage = `Phone call from ${normalizedCustomerPhone}${duration ? ` (Duration: ${Math.floor(duration / 60)}m ${duration % 60}s)` : ''}`;
+        
+        // Check if placeholder already exists
+        const existingPlaceholder = await prisma.message.findFirst({
+          where: {
+            conversationId: conversation.id,
+            vapiCallId: callId,
+            channel: 'phone'
+          }
+        });
+
+        if (!existingPlaceholder) {
+          await prisma.message.create({
+            data: {
+              conversationId: conversation.id,
+              direction: 'inbound',
+              content: placeholderMessage,
+              channel: 'phone',
+              vapiCallId: callId,
+              status: 'received',
+            }
+          });
+          console.log('✅ Created placeholder message for phone call without transcript');
+        }
+      }
+    }
+
+    // Update conversation metadata with call info
+    const metadata = (conversation.metadata as any) || {};
+    metadata.lastCallId = callId;
+    metadata.lastCallDuration = duration;
+    metadata.lastCallEndedReason = endedReason;
+    metadata.lastCallEndedAt = endedAt || new Date().toISOString();
+
+    await prisma.conversation.update({
+      where: { id: conversation.id },
+      data: {
+        metadata: metadata,
+        lastMessageAt: new Date()
+      }
+    });
+
+    // Create notification for new phone call
+    try {
+      await prisma.notification.create({
+        data: {
+          detailerId: detailer.id,
+          message: `📞 Phone call ended with ${normalizedCustomerPhone}${duration ? ` (${Math.floor(duration / 60)}m ${duration % 60}s)` : ''}`,
+          type: 'phone_call',
+          link: `/detailer-dashboard/messages?conversationId=${conversation.id}`,
+        },
+      });
+      console.log('✅ Created notification for phone call');
+    } catch (notifError) {
+      console.error('❌ Error creating notification:', notifError);
+      // Don't fail the webhook if notification fails
+    }
+
+    console.log(`✅ Successfully processed end-of-call-report for call ${callId}`);
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Error handling Vapi end of call report:', error);
+    return NextResponse.json({ success: true }); // Don't fail the webhook
+  }
+}
+
+async function handleConversationUpdate(body: any) {
+  try {
+    const { message } = body;
+    console.log('📞 Vapi conversation-update received:', JSON.stringify(body, null, 2));
+
+    if (!message || !message.call) {
+      console.log('⚠️ No call data in conversation-update');
+      return NextResponse.json({ success: true });
+    }
+
+    const callData = message.call;
+    const callId = callData?.id || callData?.phoneCallProviderId;
+    const customerPhone = callData?.customer?.number || message.customer?.number;
+    const assistantPhone = message.phoneNumber?.number || callData?.assistant?.phoneNumber;
+    
+    // Get transcript from conversation array or messages array
+    const conversationTranscript = message.conversation || [];
+    const messagesTranscript = message.messages || [];
+    const transcript = conversationTranscript.length > 0 ? conversationTranscript : messagesTranscript;
+
+    console.log('📞 Extracted conversation-update data:', {
+      callId,
+      customerPhone,
+      assistantPhone,
+      conversationLength: conversationTranscript.length,
+      messagesLength: messagesTranscript.length,
+      transcriptLength: transcript.length
+    });
+
+    if (!customerPhone || !assistantPhone) {
+      console.error('❌ Missing phone numbers in conversation-update');
+      return NextResponse.json({ success: true });
+    }
+
+    // Normalize phone numbers for matching (handle format differences)
+    // Extract last 10 digits from both numbers for flexible matching
+    const assistantDigits = assistantPhone.replace(/\D/g, '').slice(-10);
+    
+    // Find all detailers and check phone numbers flexibly
+    const detailers = await prisma.detailer.findMany({
+      where: {
+        twilioPhoneNumber: { not: null }
+      }
+    });
+    
+    let detailer = detailers.find(d => {
+      if (!d.twilioPhoneNumber) return false;
+      const detailerDigits = d.twilioPhoneNumber.replace(/\D/g, '').slice(-10);
+      return detailerDigits === assistantDigits;
+    });
+
+    if (!detailer) {
+      console.error('❌ Detailer not found for phone:', assistantPhone);
+      console.log('🔍 Searched for last 10 digits:', assistantDigits);
+      console.log('🔍 Available detailers:', detailers.map(d => ({
+        id: d.id,
+        businessName: d.businessName,
+        twilioPhoneNumber: d.twilioPhoneNumber,
+        last10Digits: d.twilioPhoneNumber?.replace(/\D/g, '').slice(-10)
+      })));
+      return NextResponse.json({ success: true });
+    }
+
+    console.log('✅ Found detailer:', { id: detailer.id, businessName: detailer.businessName, phone: detailer.twilioPhoneNumber });
+
+    // Normalize phone number
+    const { normalizeToE164 } = await import('@/lib/phone');
+    const normalizedCustomerPhone = normalizeToE164(customerPhone) || customerPhone;
+
+    // Find or create conversation
+    let conversation = await prisma.conversation.findUnique({
+      where: {
+        detailerId_customerPhone: {
+          detailerId: detailer.id,
+          customerPhone: normalizedCustomerPhone
+        }
+      }
+    });
+
+    if (!conversation) {
+      console.log('📞 Creating new conversation for phone call');
+      conversation = await prisma.conversation.create({
+        data: {
+          detailerId: detailer.id,
+          customerPhone: normalizedCustomerPhone,
+          status: 'active',
+          channel: 'phone',
+          lastMessageAt: new Date(),
+        }
+      });
+      console.log('✅ Created conversation:', conversation.id);
+    } else {
+      // Update conversation channel if it's primarily phone
+      if (conversation.channel !== 'phone') {
+        await prisma.conversation.update({
+          where: { id: conversation.id },
+          data: { channel: 'phone', lastMessageAt: new Date() }
+        });
+      }
+    }
+
+    // Store transcript messages
+    if (transcript && Array.isArray(transcript) && transcript.length > 0) {
+      console.log(`📝 Processing ${transcript.length} transcript messages from conversation-update`);
+      
+      let storedCount = 0;
+      for (const msg of transcript) {
+        // Handle different message formats
+        const role = msg.role; // 'user', 'assistant', 'bot', 'system'
+        let content = msg.content || msg.message || '';
+        const timestamp = msg.timestamp || msg.time || msg.createdAt || new Date();
+
+        // Skip system messages
+        if (role === 'system' || !content || !content.trim()) {
+          continue;
+        }
+
+        // Map role to direction
+        let direction: 'inbound' | 'outbound';
+        if (role === 'user') {
+          direction = 'inbound';
+        } else if (role === 'assistant' || role === 'bot') {
+          direction = 'outbound';
+        } else {
+          continue; // Skip other roles
+        }
+
+        // Check if message already exists
+        const existingMessage = await prisma.message.findFirst({
+          where: {
+            conversationId: conversation.id,
+            vapiCallId: callId,
+            content: content.trim(),
+            direction: direction,
+            channel: 'phone'
+          }
+        });
+
+        if (!existingMessage) {
+          await prisma.message.create({
+            data: {
+              conversationId: conversation.id,
+              direction: direction,
+              content: content.trim(),
+              channel: 'phone',
+              vapiCallId: callId,
+              status: direction === 'inbound' ? 'received' : 'sent',
+              createdAt: timestamp instanceof Date ? timestamp : new Date(timestamp || Date.now())
+            }
+          });
+          storedCount++;
+        }
+      }
+
+      console.log(`✅ Stored ${storedCount} new messages from conversation-update for call ${callId}`);
+      
+      // Update conversation metadata
+      const metadata = (conversation.metadata as any) || {};
+      metadata.lastCallId = callId;
+      metadata.lastConversationUpdate = new Date().toISOString();
+
+      await prisma.conversation.update({
+        where: { id: conversation.id },
+        data: {
+          metadata: metadata,
+          lastMessageAt: new Date()
+        }
+      });
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Error handling Vapi conversation-update:', error);
+    return NextResponse.json({ success: true });
+  }
 }
 
 function convertTo12Hour(time24: string): string {

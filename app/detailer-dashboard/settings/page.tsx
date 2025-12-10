@@ -25,7 +25,7 @@ export default function DetailerSettingsPage() {
   // Password strength
   const passwordStrength = zxcvbn(newPassword);
   const strengthLabels = ['Very Weak', 'Weak', 'Fair', 'Good', 'Strong'];
-  const strengthColor = ['bg-red-500', 'bg-orange-500', 'bg-yellow-500', 'bg-blue-500', 'bg-green-600'];
+  const strengthColor = ['bg-red-500', 'bg-orange-500', 'bg-yellow-500', 'bg-blue-500', 'bg-black'];
 
   const handleEmailChange = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,7 +80,7 @@ export default function DetailerSettingsPage() {
   };
 
   return (
-    <div>
+    <div className="p-6">
       <div className="max-w-2xl mx-auto space-y-8">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">Settings</h1>
 
@@ -109,8 +109,8 @@ export default function DetailerSettingsPage() {
               />
             </div>
             {emailError && <div className="text-red-600 font-semibold">{emailError}</div>}
-            {emailSuccess && <div className="text-green-600 font-semibold">{emailSuccess}</div>}
-            <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-green-700 transition" disabled={emailLoading}>
+            {emailSuccess && <div className="text-black font-semibold">{emailSuccess}</div>}
+            <button type="submit" className="bg-black text-white px-4 py-2 rounded-lg font-semibold hover:bg-gray-800 transition" disabled={emailLoading}>
               {emailLoading ? 'Saving...' : 'Save Changes'}
             </button>
           </form>
@@ -208,8 +208,8 @@ export default function DetailerSettingsPage() {
               </div>
             </div>
             {error && <div className="text-red-600 font-semibold">{error}</div>}
-            {success && <div className="text-green-600 font-semibold">{success}</div>}
-            <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-green-700 transition" disabled={loading}>
+            {success && <div className="text-black font-semibold">{success}</div>}
+            <button type="submit" className="bg-black text-white px-4 py-2 rounded-lg font-semibold hover:bg-gray-800 transition" disabled={loading}>
               {loading ? 'Saving...' : 'Save Changes'}
             </button>
           </form>

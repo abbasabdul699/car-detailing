@@ -86,11 +86,23 @@ export async function PATCH(
     const allowedFields = [
       'businessName', 'email', 'phone', 'address', 'city', 'state', 'zipCode',
       'description', 'latitude', 'longitude', 'priceRange', 'website', 'businessHours', 'imageUrl', 'verified', 'hidden', 'googlePlaceId',
-      'firstName', 'lastName', 'instagram', 'tiktok', 'facebook', 'password', 'twilioPhoneNumber', 'personalAssistantPhoneNumber', 'personalPhoneNumber', 'smsEnabled'
+      'firstName', 'lastName', 'instagram', 'tiktok', 'facebook', 'password', 'twilioPhoneNumber', 'personalAssistantPhoneNumber', 'personalPhoneNumber', 'smsEnabled',
+      'trialEndsAt', 'isFirstCohort', 'stripeCustomerId', 'timezone'  // Subscription fields
     ];
     const updateData: Record<string, any> = {};
     for (const key of allowedFields) {
-      if (key in data) updateData[key] = data[key];
+      if (key in data) {
+        // Handle trialEndsAt: convert ISO string to Date object, or null if empty
+        if (key === 'trialEndsAt') {
+          if (data[key] === null || data[key] === '' || data[key] === undefined) {
+            updateData[key] = null;
+          } else {
+            updateData[key] = new Date(data[key]);
+          }
+        } else {
+          updateData[key] = data[key];
+        }
+      }
     }
     // Coerce latitude and longitude to numbers if present
     if (typeof updateData.latitude === 'string') {

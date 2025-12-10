@@ -129,12 +129,20 @@ export async function getMergedFreeSlots(
 
     // Generate candidate slots
     const slots: TimeSlot[] = [];
+    const now = DateTime.now().setZone(tz);
+    
     for (const freeInterval of free) {
       let cursor = freeInterval.start;
       
       while (cursor.plus({ minutes: durationMinutes }).endOf('minute') <= freeInterval.end) {
         const start = cursor;
         const end = cursor.plus({ minutes: durationMinutes });
+        
+        // Skip past times - only show future times
+        if (start <= now) {
+          cursor = cursor.plus({ minutes: stepMinutes });
+          continue;
+        }
         
         // Create human-readable label in the detailer's timezone
         const label = `${start.toFormat('cccc, LLL d')} ${start.toFormat('h:mm a')} – ${end.toFormat('h:mm a')} ${tz}`;
@@ -160,6 +168,8 @@ export async function getMergedFreeSlots(
         startISO: slot.startISO,
         endISO: slot.endISO
       })));
+    } else {
+      console.log(`🔍 DEBUG: No available slots for ${dayISO} - all times may be in the past or busy`);
     }
     
     return slots;

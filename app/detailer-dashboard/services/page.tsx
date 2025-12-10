@@ -169,12 +169,12 @@ export default function ManageServicesPage() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Services & Bundles</h1>
           <div className="flex gap-2">
             {activeTab === 'services' && (
-              <button className="bg-green-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-green-700 transition">+ Add Service</button>
+              <button className="bg-black text-white px-4 py-2 rounded-full font-semibold hover:bg-gray-800 transition">+ Add Service</button>
             )}
             {activeTab === 'bundles' && (
               <button
                 onClick={() => handleOpenBundleModal()}
-                className="bg-green-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-green-700 transition flex items-center gap-2"
+                className="bg-black text-white px-4 py-2 rounded-lg font-semibold hover:bg-gray-800 transition flex items-center gap-2"
               >
                 <FaPlus /> Create Bundle
               </button>

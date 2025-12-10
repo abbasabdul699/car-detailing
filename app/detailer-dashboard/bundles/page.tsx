@@ -131,7 +131,7 @@ export default function ManageBundlesPage() {
           <h1 className="text-2xl font-bold text-gray-900">Manage Bundles</h1>
           <button
             onClick={() => handleOpenModal()}
-            className="bg-green-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-green-700 transition flex items-center gap-2"
+            className="bg-black text-white px-4 py-2 rounded-lg font-semibold hover:bg-gray-800 transition flex items-center gap-2"
           >
             <FaPlus /> Create Bundle
           </button>

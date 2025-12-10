@@ -34,6 +34,7 @@ interface Detailer {
   profileImage?: { url: string; alt: string; type?: string };
   portfolioImages?: { id?: string; url: string; alt: string; type?: string }[];
   services?: { service: { id: string; name: string; category?: string } }[];
+  bundles?: { id: string; name: string; price: number; services?: any[] }[];
   instagram?: string;
   tiktok?: string;
   verified?: boolean;
@@ -46,6 +47,24 @@ interface Detailer {
 }
 
 export default function EditDetailerClient({ detailer: initialDetailer }: { detailer: Detailer }) {
+  // Format trialEndsAt for datetime-local input (needs YYYY-MM-DDTHH:mm format)
+  const formatDateForInput = (date: Date | string | undefined): string => {
+    if (!date) return '';
+    try {
+      const d = typeof date === 'string' ? new Date(date) : date;
+      if (isNaN(d.getTime())) return '';
+      // Convert to local time and format as YYYY-MM-DDTHH:mm
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      const hours = String(d.getHours()).padStart(2, '0');
+      const minutes = String(d.getMinutes()).padStart(2, '0');
+      return `${year}-${month}-${day}T${hours}:${minutes}`;
+    } catch {
+      return '';
+    }
+  };
+
   const { register, setValue, handleSubmit, watch, formState: { errors } } = useForm<Detailer>({
     defaultValues: {
       ...initialDetailer,
@@ -53,6 +72,7 @@ export default function EditDetailerClient({ detailer: initialDetailer }: { deta
       longitude: typeof initialDetailer.longitude === 'string' ? parseFloat(initialDetailer.longitude) : initialDetailer.longitude,
       verified: initialDetailer.verified ?? false,
       hidden: initialDetailer.hidden ?? false,
+      trialEndsAt: formatDateForInput(initialDetailer.trialEndsAt) as any, // Format for datetime-local input
     }
   });
   const [saving, setSaving] = useState(false);
@@ -78,8 +98,8 @@ export default function EditDetailerClient({ detailer: initialDetailer }: { deta
       services,
       businessHours,
       hidden: data.hidden ?? false,
-      // Handle trial end date conversion
-      trialEndsAt: data.trialEndsAt ? new Date(data.trialEndsAt).toISOString() : null,
+      // Handle trial end date conversion - convert datetime-local format to ISO string
+      trialEndsAt: (data.trialEndsAt && data.trialEndsAt.trim() !== '') ? new Date(data.trialEndsAt).toISOString() : null,
     };
     try {
       const res = await fetch(`/api/detailers/${data.id}`, {
@@ -314,6 +334,7 @@ export default function EditDetailerClient({ detailer: initialDetailer }: { deta
                 {...register('trialEndsAt')} 
                 className="input input-bordered w-full" 
                 placeholder="Set trial end date"
+                defaultValue={formatDateForInput(initialDetailer.trialEndsAt)}
               />
               <p className="text-sm text-gray-600 mt-1">
                 Set when the detailer's trial period ends. Leave empty for no trial.

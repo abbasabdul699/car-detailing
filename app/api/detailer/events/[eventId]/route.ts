@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { PrismaClient } from '@prisma/client';
+import { normalizeToE164 } from '@/lib/phone';
+import { upsertCustomerSnapshot } from '@/lib/customerSnapshot';
 
 const prisma = new PrismaClient();
 
@@ -251,6 +253,268 @@ export async function DELETE(
     });
   } catch (error) {
     console.error('Error deleting event:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ eventId: string }> }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    
+    if (!session || !session.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { eventId } = await params;
+    const detailerId = session.user.id;
+    const body = await request.json();
+    const { title, color, employeeId, startDate, endDate, isAllDay, description, resourceId, time, customerName, customerPhone, customerEmail, customerAddress, locationType, vehicleModel, services } = body;
+
+    if (!eventId) {
+      return NextResponse.json({ error: 'Event ID is required' }, { status: 400 });
+    }
+
+    // Find the event
+    const event = await prisma.event.findFirst({
+      where: {
+        id: eventId,
+        detailerId: detailerId
+      }
+    });
+
+    if (!event) {
+      return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+    }
+
+    // Verify resource exists if provided
+    if (resourceId) {
+      const resource = await prisma.resource.findFirst({
+        where: {
+          id: resourceId,
+          detailerId
+        }
+      });
+      
+      if (!resource) {
+        return NextResponse.json({ error: 'Resource not found or does not belong to this detailer' }, { status: 404 });
+      }
+    }
+
+    // Verify employee exists if provided and get their color
+    let employeeColor = color || event.color || 'blue';
+    if (employeeId !== undefined) {
+      if (employeeId) {
+        const employee = await prisma.employee.findFirst({
+          where: {
+            id: employeeId,
+            detailerId
+          }
+        });
+        
+        if (!employee) {
+          return NextResponse.json({ error: 'Employee not found or does not belong to this detailer' }, { status: 404 });
+        }
+        // Use employee's color
+        employeeColor = employee.color || 'blue';
+      } else {
+        // employeeId is null, clear it
+        employeeColor = color || 'blue';
+      }
+    } else if (event.employeeId) {
+      // Keep existing employee's color if employeeId not provided
+      const existingEmployee = await prisma.employee.findFirst({
+        where: {
+          id: event.employeeId,
+          detailerId
+        }
+      });
+      if (existingEmployee) {
+        employeeColor = existingEmployee.color || 'blue';
+      }
+    }
+
+    // Parse dates
+    const startDateTime = startDate ? new Date(startDate) : event.date;
+    const endDateTime = endDate ? new Date(endDate) : startDateTime;
+    
+    // Extract time from datetime or use provided time
+    let startTime: string | null = null;
+    if (time !== undefined) {
+      startTime = time;
+    } else if (!isAllDay && startDate) {
+      startTime = startDateTime.toTimeString().slice(0, 5);
+    } else if (event.time) {
+      startTime = event.time;
+    }
+
+    // Handle description and metadata
+    let finalDescription = description !== undefined ? description : event.description || '';
+    
+    // Extract existing metadata if present
+    let existingMetadata: any = {};
+    if (event.description && event.description.includes('__METADATA__:')) {
+      const parts = event.description.split('__METADATA__:');
+      finalDescription = parts[0].trim();
+      try {
+        existingMetadata = JSON.parse(parts[1] || '{}');
+      } catch (e) {
+        // Ignore parse errors
+      }
+    }
+    
+    // Update metadata with new values
+    const eventMetadata = {
+      customerName: customerName !== undefined ? (customerName || null) : existingMetadata.customerName,
+      customerPhone: customerPhone !== undefined ? (customerPhone || null) : existingMetadata.customerPhone,
+      customerEmail: customerEmail !== undefined ? (customerEmail || null) : existingMetadata.customerEmail,
+      customerAddress: customerAddress !== undefined ? (customerAddress || null) : existingMetadata.customerAddress,
+      locationType: locationType !== undefined ? (locationType || null) : existingMetadata.locationType,
+      vehicleModel: vehicleModel !== undefined ? (vehicleModel || null) : existingMetadata.vehicleModel,
+      services: services !== undefined ? (services || null) : existingMetadata.services
+    };
+    
+    // Combine description with metadata
+    const metadataJson = JSON.stringify(eventMetadata);
+    const combinedDescription = finalDescription 
+      ? `${finalDescription}\n\n__METADATA__:${metadataJson}`
+      : `__METADATA__:${metadataJson}`;
+    
+    // Update the event
+    const updatedEvent = await prisma.event.update({
+      where: { id: eventId },
+      data: {
+        ...(title !== undefined && { title }),
+        ...(employeeId !== undefined && { employeeId: employeeId || null }),
+        color: employeeColor, // Always update color based on employee
+        ...(startDate && { date: startDateTime }),
+        ...(time !== undefined && { time: startTime }),
+        ...(isAllDay !== undefined && { allDay: isAllDay }),
+        ...(description !== undefined && { description: combinedDescription }),
+        ...(resourceId !== undefined && { resourceId: resourceId || null })
+      }
+    });
+
+    // Upsert CustomerSnapshot if customerPhone is provided or updated
+    const phoneToUse = customerPhone !== undefined ? customerPhone : existingMetadata.customerPhone;
+    if (phoneToUse) {
+      try {
+        const normalizedPhone = normalizeToE164(phoneToUse) || phoneToUse;
+        
+        // Get the final values (use new values if provided, otherwise keep existing)
+        const finalCustomerName = customerName !== undefined ? customerName : existingMetadata.customerName;
+        const finalCustomerAddress = customerAddress !== undefined ? customerAddress : existingMetadata.customerAddress;
+        const finalVehicleModel = vehicleModel !== undefined ? vehicleModel : existingMetadata.vehicleModel;
+        const finalServices = services !== undefined ? services : existingMetadata.services;
+        const finalDescription = description !== undefined ? description : (event.description && event.description.includes('__METADATA__:') ? event.description.split('__METADATA__:')[0].trim() : event.description || '');
+        
+        // Get existing customer snapshot to merge notes
+        const existingSnapshot = await prisma.customerSnapshot.findUnique({
+          where: { 
+            detailerId_customerPhone: { 
+              detailerId, 
+              customerPhone: normalizedPhone 
+            } 
+          }
+        });
+        
+        // Prepare customer notes - merge with existing data if present
+        const customerNotes = finalDescription || null;
+        let snapshotData: any = existingSnapshot?.data ? (typeof existingSnapshot.data === 'object' ? existingSnapshot.data : {}) : {};
+        if (customerNotes) {
+          snapshotData.notes = customerNotes;
+        }
+        
+        const finalCustomerEmail = customerEmail !== undefined ? customerEmail : existingMetadata.customerEmail;
+        const finalLocationType = locationType !== undefined ? locationType : existingMetadata.locationType;
+        
+        // Upsert CustomerSnapshot - store vehicleModel as-is (detailers only care about model)
+        await upsertCustomerSnapshot(detailerId, normalizedPhone, {
+          customerName: finalCustomerName || null,
+          customerEmail: finalCustomerEmail || null,
+          address: finalCustomerAddress || null,
+          locationType: finalLocationType || null,
+          vehicle: finalVehicleModel || null,
+          vehicleModel: finalVehicleModel || null,
+          services: finalServices || null,
+          data: Object.keys(snapshotData).length > 0 ? snapshotData : null
+        });
+        
+        console.log('✅ CustomerSnapshot updated for phone:', normalizedPhone);
+      } catch (snapshotError) {
+        console.error('❌ Error updating CustomerSnapshot:', snapshotError);
+        // Don't fail event update if snapshot update fails
+      }
+    }
+
+    // Update Google Calendar if connected
+    if (event.googleEventId) {
+      try {
+        const detailerWithCalendar = await prisma.detailer.findUnique({
+          where: { id: detailerId },
+          select: {
+            googleCalendarConnected: true,
+            googleCalendarTokens: true,
+            googleCalendarRefreshToken: true,
+            syncAppointments: true
+          }
+        });
+
+        if (detailerWithCalendar?.googleCalendarConnected && 
+            detailerWithCalendar.syncAppointments && 
+            detailerWithCalendar.googleCalendarTokens) {
+          
+          const tokens = JSON.parse(detailerWithCalendar.googleCalendarTokens);
+          
+          const googleEvent = {
+            summary: title || event.title,
+            description: description !== undefined ? description : event.description || '',
+            start: {
+              dateTime: startDateTime.toISOString(),
+              timeZone: 'America/New_York'
+            },
+            end: {
+              dateTime: endDateTime.toISOString(),
+              timeZone: 'America/New_York'
+            },
+            colorId: employeeColor === 'red' ? '11' : employeeColor === 'green' ? '10' : employeeColor === 'orange' ? '6' : '1'
+          };
+
+          const response = await fetch(
+            `https://www.googleapis.com/calendar/v3/calendars/primary/events/${event.googleEventId}`,
+            {
+              method: 'PATCH',
+              headers: {
+                Authorization: `Bearer ${tokens.access_token}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(googleEvent),
+            }
+          );
+
+          if (!response.ok) {
+            console.error('Google Calendar update failed:', response.status, response.statusText);
+          } else {
+            console.log('✅ Event updated in Google Calendar');
+          }
+        }
+      } catch (error) {
+        console.error('❌ Error syncing to Google Calendar:', error);
+        // Don't fail the update if Google Calendar sync fails
+      }
+    }
+
+    return NextResponse.json({ 
+      success: true,
+      event: updatedEvent
+    });
+  } catch (error) {
+    console.error('Error updating event:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

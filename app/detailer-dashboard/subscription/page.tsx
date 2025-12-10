@@ -131,7 +131,7 @@ export default function SubscriptionPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-96">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black"></div>
       </div>
     );
   }
@@ -168,10 +168,10 @@ export default function SubscriptionPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="flex items-center space-x-3">
               <div className={`p-2 rounded-full ${
-                status.isActive ? 'bg-green-100' : 'bg-yellow-100'
+                status.isActive ? 'bg-gray-100' : 'bg-yellow-100'
               }`}>
                 <CheckCircleIcon className={`h-5 w-5 ${
-                  status.isActive ? 'text-green-600' : 'text-yellow-600'
+                  status.isActive ? 'text-black' : 'text-yellow-600'
                 }`} />
               </div>
               <div>
@@ -216,7 +216,7 @@ export default function SubscriptionPage() {
           <div className="mt-6">
         <button
           onClick={handleManageSubscription}
-          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-xl text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-xl text-white bg-black hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-black"
         >
               <CreditCardIcon className="h-4 w-4 mr-2" />
               Manage Subscription
@@ -238,12 +238,12 @@ export default function SubscriptionPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {plans.map((plan) => (
             <div key={plan.id} className={`border rounded-xl p-6 relative ${
-              plan.name === 'Detailer Pro' ? 'border-green-500 shadow-lg' : ''
+                  plan.name === 'Detailer Pro' ? 'border-black shadow-lg' : ''
             }`}>
               {/* Recommended Badge for Detailer Pro */}
               {plan.name === 'Detailer Pro' && (
                 <div className="absolute -top-2 right-6">
-                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800 border border-gray-200">
                     <CheckCircleIcon className="h-3 w-3 mr-1" />
                     Recommended
                   </span>
@@ -268,7 +268,7 @@ export default function SubscriptionPage() {
               <ul className="space-y-2 mb-6">
                 {plan.features.map((feature, index) => (
                   <li key={index} className="flex items-start">
-                    <CheckCircleIcon className="h-5 w-5 text-green-500 mr-2 mt-0.5 flex-shrink-0" />
+                    <CheckCircleIcon className="h-5 w-5 text-black mr-2 mt-0.5 flex-shrink-0" />
                     <span className="text-sm text-gray-700 dark:text-gray-200">{feature}</span>
                   </li>
                 ))}
@@ -276,7 +276,7 @@ export default function SubscriptionPage() {
 
               <div className="space-y-2">
                 {status?.currentPlan?.id === plan.id ? (
-                  <div className="text-center py-2 px-4 bg-green-100 text-green-800 rounded-md">
+                  <div className="text-center py-2 px-4 bg-gray-100 text-gray-800 rounded-md">
                     Current Plan
                   </div>
                 ) : (
@@ -284,7 +284,7 @@ export default function SubscriptionPage() {
                     {status?.canUpgrade && plan.type === 'monthly' && (
                       <button
                         onClick={() => handleUpgrade(plan.id)}
-                        className="w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-xl text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                        className="w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-xl text-white bg-black hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-black"
                       >
                         <ArrowUpIcon className="h-4 w-4 mr-2" />
                         Upgrade to Pro

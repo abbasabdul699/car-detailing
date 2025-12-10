@@ -912,6 +912,42 @@ async function safeSend(client: any, to: string, from: string, body: string): Pr
   }
 }
 
+// Helper function to save error messages to database
+async function saveErrorMessageToDatabase(conversationId: string, aiResponse: string, twilioSid?: string) {
+  try {
+    console.log('🚨🚨🚨 SAVING ERROR MESSAGE TO DATABASE 🚨🚨🚨');
+    console.log('🚨 CONVERSATION ID:', conversationId);
+    console.log('🚨 AI RESPONSE LENGTH:', aiResponse?.length || 0);
+    console.log('🚨 FIRST 200 CHARS:', aiResponse?.substring(0, 200) || 'N/A');
+    console.log('🚨 TWILIO SID:', twilioSid);
+    console.log('🚨 STATUS:', twilioSid ? 'sent' : 'simulated');
+    console.log('🚨🚨🚨 END SAVING ERROR MESSAGE TO DATABASE 🚨🚨🚨');
+    
+    const savedMessage = await prisma.message.create({
+      data: {
+        conversationId: conversationId,
+        direction: 'outbound',
+        content: aiResponse,
+        twilioSid: twilioSid,
+        status: twilioSid ? 'sent' : 'simulated',
+      },
+    });
+    
+    console.log('🚨🚨🚨 SAVED ERROR MESSAGE TO DATABASE SUCCESS 🚨🚨🚨');
+    console.log('🚨 MESSAGE ID:', savedMessage.id);
+    console.log('🚨 TWILIO SID:', savedMessage.twilioSid);
+    console.log('🚨 STATUS:', savedMessage.status);
+    console.log('🚨 SAVED CONTENT LENGTH:', savedMessage.content?.length || 0);
+    console.log('🚨 SAVED FIRST 200 CHARS:', savedMessage.content?.substring(0, 200) || 'N/A');
+    console.log('🚨🚨🚨 END SAVED ERROR MESSAGE TO DATABASE 🚨🚨🚨');
+    
+    return savedMessage;
+  } catch (error) {
+    console.error('❌ ERROR SAVING ERROR MESSAGE TO DATABASE:', error);
+    throw error;
+  }
+}
+
 async function safeSendMms(client: any, to: string, from: string, body: string, mediaUrl: string[]): Promise<string | undefined> {
   try {
     console.log('Attempting MMS send:', { to, from, bodyLength: body.length, mediaUrl })
@@ -968,10 +1004,80 @@ async function sendAsMmsIfLong(client: any, to: string, from: string, body: stri
   return firstSid
 }
 
+// 🤖 AI-based date/time extraction with confirmation
+async function extractDateTimeWithAI(userMessage: string, openai: any): Promise<{date?: string, time?: string, confidence: 'high' | 'medium' | 'low'}> {
+  try {
+    const extractionPrompt = `
+Extract the date and time from this customer message: "${userMessage}"
+
+Respond in this EXACT JSON format:
+{
+  "date": "extracted date or null",
+  "time": "extracted time or null", 
+  "confidence": "high/medium/low"
+}
+
+Examples:
+- "October 23rd at 9 AM" → {"date": "October 23rd", "time": "9 AM", "confidence": "high"}
+- "Next Thursday" → {"date": "Next Thursday", "time": null, "confidence": "medium"}
+- "9 AM tomorrow" → {"date": "tomorrow", "time": "9 AM", "confidence": "high"}
+- "Thursday morning" → {"date": "Thursday", "time": "morning", "confidence": "medium"}
+- "I need a car wash" → {"date": null, "time": null, "confidence": "low"}
+
+Only respond with valid JSON, no other text.`;
+
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'user', content: extractionPrompt }],
+      max_tokens: 150,
+      temperature: 0.1
+    });
+
+    const extracted = JSON.parse(response.choices[0].message.content);
+    return extracted;
+  } catch (error) {
+    console.error('AI date/time extraction failed:', error);
+    return { date: undefined, time: undefined, confidence: 'low' };
+  }
+}
+
+// 🔄 Generate confirmation message for extracted date/time
+function generateConfirmationMessage(extracted: {date?: string, time?: string, confidence: string}): string {
+  if (!extracted.date && !extracted.time) {
+    return "I didn't catch a specific date or time. Could you please tell me when you'd like your service? (e.g., 'Thursday at 2 PM' or 'October 23rd at 9 AM')";
+  }
+  
+  if (extracted.date && extracted.time) {
+    return `I understood you want: ${extracted.date} at ${extracted.time}. Is this correct? Reply "YES" to confirm or "NO" to try again.`;
+  }
+  
+  if (extracted.date && !extracted.time) {
+    return `I understood you want: ${extracted.date}. What time would work best for you?`;
+  }
+  
+  if (!extracted.date && extracted.time) {
+    return `I understood you want: ${extracted.time}. What day would work best for you?`;
+  }
+  
+  return "Could you please clarify your preferred date and time?";
+}
+
+// 🔄 Check if user response is a confirmation
+function isConfirmationResponse(userMessage: string): boolean {
+  const msg = userMessage.toLowerCase().trim();
+  return msg === 'yes' || msg === 'y' || msg === 'correct' || msg === 'right' || msg === 'that\'s right';
+}
+
+// 🔄 Check if user response is a rejection
+function isRejectionResponse(userMessage: string): boolean {
+  const msg = userMessage.toLowerCase().trim();
+  return msg === 'no' || msg === 'n' || msg === 'wrong' || msg === 'incorrect' || msg === 'that\'s wrong';
+}
+
 // 🔒 HOTFIX: Extract first time/date from AI response for validation
 function parseFirstTime(aiResponse: string) {
   if (!aiResponse) return null;
-
+  
   // Normalize for safer regex checks
   const text = aiResponse.replace(/\s+/g, ' ').trim();
 
@@ -1105,10 +1211,15 @@ export async function POST(request: NextRequest) {
     // Check for conversation lock to prevent concurrent processing
     const { acquireLock, releaseLock: releaseLockFn } = await import('@/lib/conversationLock');
     releaseLock = releaseLockFn;
-    if (!acquireLock(conversationId, 15000)) { // 15 second lock
-      console.log('Conversation is locked, skipping processing:', conversationId);
-      return NextResponse.json({ success: true, locked: true });
+    
+    // Acquire lock to prevent concurrent processing of the same conversation
+    const lockAcquired = acquireLock(conversationId, 30000); // 30 second timeout
+    if (!lockAcquired) {
+      console.log(`🚫 CONVERSATION LOCKED - Another process is handling this conversation: ${conversationId}`);
+      return NextResponse.json({ success: true, deduped: true, reason: 'conversation_locked' });
     }
+    
+    console.log(`🔒 Lock acquired for conversation: ${conversationId}`);
     
     // 2) PHASE-DRIVEN STATE MACHINE - PREVENT RE-OFFERING SLOTS
     type ConversationPhase = 'collecting_info' | 'offering_slots' | 'awaiting_choice' | 'confirming' | 'completed';
@@ -1323,7 +1434,18 @@ This lead has been automatically processed and is ready for you to contact!`;
     // Check if this is a first-time customer BEFORE storing the inbound message
     const existingSnapshot = await getCustomerSnapshot(detailer.id, from)
     const hasPreviousMessages = conversation && conversation.messages && conversation.messages.length > 0
-    const isFirstTimeCustomer = !existingSnapshot && !hasPreviousMessages
+    
+    // Also check if customer exists in customer table (fallback for manually started conversations)
+    const existingCustomer = await prisma.customer.findUnique({
+      where: {
+        detailerId_phone: {
+          detailerId: detailer.id,
+          phone: from
+        }
+      }
+    })
+    
+    const isFirstTimeCustomer = !existingSnapshot && !hasPreviousMessages && !existingCustomer
     
     console.log('DEBUG: isFirstTimeCustomer:', isFirstTimeCustomer)
     console.log('DEBUG: existingSnapshot:', existingSnapshot)
@@ -1445,8 +1567,8 @@ This lead has been automatically processed and is ready for you to contact!`;
        })
        
        text += "Need something specific? Just ask! I can customize any package or add individual services."
-       return text
-     }
+      return text
+    }
 
     // If the user explicitly asks for services, answer deterministically
     const asksForServices = /\b(what\s+services|services\s*\?|do\s+you\s+(offer|provide)\s+.*services?|want\s+.*detail|need\s+.*detail|get\s+.*detail|car\s+detail|vehicle\s+detail|add\s+.*service|add\s+.*detail|can\s+i\s+add|add\s+.*to)\b/i.test((body || '').toLowerCase())
@@ -1542,35 +1664,41 @@ This lead has been automatically processed and is ready for you to contact!`;
     
     // Build customer context for returning customers
     let customerContext = '';
-    if (!isFirstTimeCustomer && existingSnapshot) {
-      const hasName = existingSnapshot.customerName && existingSnapshot.customerName.trim() !== ''
-      const hasAddress = existingSnapshot.address && existingSnapshot.address.trim() !== ''
-      const hasVehicle = existingSnapshot.vehicle && existingSnapshot.vehicle.trim() !== ''
-      const hasEmail = existingSnapshot.customerEmail && existingSnapshot.customerEmail.trim() !== ''
+    if (!isFirstTimeCustomer && (existingSnapshot || existingCustomer)) {
+      // Use snapshot data first, fallback to customer table
+      const customerName = existingSnapshot?.customerName || existingCustomer?.name || ''
+      const customerEmail = existingSnapshot?.customerEmail || existingCustomer?.email || ''
+      const address = existingSnapshot?.address || existingCustomer?.address || ''
+      const vehicle = existingSnapshot?.vehicle || (existingCustomer?.vehicleInfo ? JSON.stringify(existingCustomer.vehicleInfo) : '') || ''
+      
+      const hasName = customerName && customerName.trim() !== ''
+      const hasAddress = address && address.trim() !== ''
+      const hasVehicle = vehicle && vehicle.trim() !== ''
+      const hasEmail = customerEmail && customerEmail.trim() !== ''
       
       customerContext = `\n\nRETURNING CUSTOMER - USE EXISTING INFORMATION:
-${hasName ? `Name: ${existingSnapshot.customerName}` : 'Name: Not provided'}
-${hasEmail ? `Email: ${existingSnapshot.customerEmail}` : 'Email: Not provided'}  
-${hasVehicle ? `Vehicle: ${existingSnapshot.vehicle}` : 'Vehicle: Not provided'}
-${hasAddress ? `Address: ${existingSnapshot.address}` : 'Address: Not provided'}
-Location Type: ${existingSnapshot.locationType || 'Not specified'}
+${hasName ? `Name: ${customerName}` : 'Name: Not provided'}
+${hasEmail ? `Email: ${customerEmail}` : 'Email: Not provided'}  
+${hasVehicle ? `Vehicle: ${vehicle}` : 'Vehicle: Not provided'}
+${hasAddress ? `Address: ${address}` : 'Address: Not provided'}
+Location Type: ${existingSnapshot?.locationType || 'Not specified'}
 
 CRITICAL RULES FOR RETURNING CUSTOMERS:
 1. DO NOT ask for information you already have above
-2. ${hasName ? `Always use "${existingSnapshot.customerName}" as their name - NEVER ask for their name again` : 'Ask for name if not provided'}
-3. ${hasAddress ? `Use "${existingSnapshot.address}" as their address - NEVER ask for their address again` : 'Ask for address if not provided'}
-4. ${hasVehicle ? `Use "${existingSnapshot.vehicle}" as their vehicle - NEVER ask for vehicle details again` : 'Ask for vehicle if not provided'}
-5. ${hasEmail ? `Use "${existingSnapshot.customerEmail}" as their email - NEVER ask for email again` : 'Ask for email if not provided'}
+2. ${hasName ? `Always use "${customerName}" as their name - NEVER ask for their name again` : 'Ask for name if not provided'}
+3. ${hasAddress ? `Use "${address}" as their address - NEVER ask for their address again` : 'Ask for address if not provided'}
+4. ${hasVehicle ? `Use "${vehicle}" as their vehicle - NEVER ask for vehicle details again` : 'Ask for vehicle if not provided'}
+5. ${hasEmail ? `Use "${customerEmail}" as their email - NEVER ask for email again` : 'Ask for email if not provided'}
 
 IMPORTANT: If you see "RETURNING CUSTOMER" information above, you MUST use that information. Do NOT ask for name, address, vehicle, or email if they're already provided in that section.
 
 WHEN CUSTOMER SAYS "I want to book another appointment" or similar:
-- Greet them by name: "${hasName ? existingSnapshot.customerName : 'there'}"
+- Greet them by name: "${hasName ? customerName : 'there'}"
 - Use their existing information
 - Only ask: "What service would you like this time? And what date works for you?"
 
 WHEN CUSTOMER ASKS "what is my name?" or "what's my name?":
-- ${hasName ? `Tell them: "Your name is ${existingSnapshot.customerName}!"` : `Say: "I don't have your name on file yet. What's your name?"`}`;
+- ${hasName ? `Tell them: "Your name is ${customerName}!"` : `Say: "I don't have your name on file yet. What's your name?"`}`;
     }
     
     // Check for existing bookings AND calendar events to provide real-time availability info to the AI
@@ -1793,126 +1921,8 @@ WHEN CUSTOMER ASKS "what is my name?" or "what's my name?":
     try {
       const { getMergedFreeSlots } = await import('@/lib/slotComputationV2');
       
-      // Parse user's date/time request first
-      const parseUserDateTime = (message: string): { date?: string; time?: string } | null => {
-        const msg = message.toLowerCase().trim();
-        
-        // First, try to parse standalone dates like "October 16th", "Oct 16", etc.
-        // Define parseDateFromText locally since it's not in scope here
-        const parseDateFromText = (text: string): Date | null => {
-          const lower = text.toLowerCase()
-          const today = new Date()
-
-          if (/(^|\b)today(\b|$)/i.test(lower)) return today
-          if (/(^|\b)tomorrow(\b|$)/i.test(lower)) { const d = new Date(today); d.setDate(today.getDate() + 1); return d }
-
-          const weekdays = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'] as const
-          for (let i = 0; i < weekdays.length; i++) {
-            const day = weekdays[i]
-            const re = new RegExp(`\\b${day}\\b`, 'i')
-            if (re.test(lower)) {
-              const d = new Date(today)
-              const current = d.getDay()
-              const target = i
-              
-              const hasNext = /\bnext\b/i.test(lower)
-              let diff = target - current
-              
-              if (hasNext) {
-                if (diff <= 0) diff += 7
-              } else {
-                if (diff < 0) diff += 7
-              }
-              
-              d.setDate(d.getDate() + diff)
-              return d
-            }
-          }
-
-          // Month name with day: "Oct 10", "October 10", "Oct 10th"
-          const monthNames = ['january', 'february', 'march', 'april', 'may', 'june',
-                             'july', 'august', 'september', 'october', 'november', 'december']
-          const monthAbbrevs = ['jan', 'feb', 'mar', 'apr', 'may', 'jun',
-                               'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
-          
-          const monthDay = text.match(/\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s+(\d{1,2})(?:st|nd|rd|th)?\b/i)
-          if (monthDay) {
-            const monthName = monthDay[1].toLowerCase()
-            const day = parseInt(monthDay[2], 10)
-            
-            let monthIndex = monthNames.indexOf(monthName)
-            if (monthIndex === -1) {
-              monthIndex = monthAbbrevs.indexOf(monthName)
-            }
-            
-            if (monthIndex !== -1) {
-              const d = new Date(today.getFullYear(), monthIndex, day)
-              if (d < today) {
-                d.setFullYear(today.getFullYear() + 1)
-              }
-              return d
-            }
-          }
-
-          return null
-        };
-        
-        const standaloneDate = parseDateFromText(message);
-        if (standaloneDate) {
-          return {
-            date: standaloneDate.toISOString().split('T')[0], // YYYY-MM-DD format
-            time: undefined
-          };
-        }
-        
-        // Look for patterns like "sunday at 9 AM", "tomorrow at 2 PM", "friday at 10:30 AM"
-        const dayTimeMatch = msg.match(/(sunday|monday|tuesday|wednesday|thursday|friday|saturday|tomorrow|today)\s+(?:at\s+)?(\d{1,2}):?(\d{2})?\s*(am|pm)/i);
-        
-        if (dayTimeMatch) {
-          const [, day, hour, minute = '00', period] = dayTimeMatch;
-          
-          let targetDate: Date;
-          const today = new Date();
-          
-          if (day === 'today') {
-            targetDate = new Date(today);
-          } else if (day === 'tomorrow') {
-            targetDate = new Date(today);
-            targetDate.setDate(today.getDate() + 1);
-          } else {
-            // Map day names to day numbers (0 = Sunday, 1 = Monday, etc.)
-            const dayMap: { [key: string]: number } = {
-              'sunday': 0, 'monday': 1, 'tuesday': 2, 'wednesday': 3,
-              'thursday': 4, 'friday': 5, 'saturday': 6
-            };
-            
-            const targetDay = dayMap[day.toLowerCase()];
-            targetDate = new Date(today);
-            
-            // Find the next occurrence of that day
-            const daysUntilTarget = (targetDay - today.getDay() + 7) % 7;
-            targetDate.setDate(today.getDate() + (daysUntilTarget === 0 ? 7 : daysUntilTarget));
-          }
-          
-          // Format time
-          let hourNum = parseInt(hour);
-          if (period.toLowerCase() === 'pm' && hourNum !== 12) hourNum += 12;
-          if (period.toLowerCase() === 'am' && hourNum === 12) hourNum = 0;
-          
-          const timeStr = `${hourNum.toString().padStart(2, '0')}:${minute.padStart(2, '0')}`;
-          const fullTimeStr = `${hour}:${minute} ${period.toUpperCase()}`;
-          
-          return {
-            date: targetDate.toISOString().split('T')[0], // YYYY-MM-DD format
-            time: fullTimeStr
-          };
-        }
-        
-        return null;
-      };
-      
-      // Parse user's date/time request first
-      const userDateTime = parseUserDateTime(body);
+      // Parse user's date/time request first (using old logic for now)
+      const userDateTime: { date?: string; time?: string } | null = null as { date?: string; time?: string } | null;
       const today = new Date();
       const dayISO = userDateTime?.date || today.toISOString().split('T')[0];
       const checkMultipleDays = !userDateTime?.date; // Check multiple days if no specific date requested
@@ -2074,7 +2084,7 @@ WHEN CUSTOMER ASKS "what is my name?" or "what's my name?":
         }));
         
         console.log(`🔍 DEBUG: Generated ${availableSlots.length} available slots for ${dayISO}`);
-        console.log(`🔍 DEBUG: User requested: ${userDateTime ? `${userDateTime.date} at ${userDateTime.time}` : 'no specific date/time'}`);
+        console.log(`🔍 DEBUG: User requested: ${userDateTime ? `${userDateTime.date || 'no date'} at ${userDateTime.time || 'no time'}` : 'no specific date/time'}`);
         console.log('🔍 DEBUG: First 5 slots:', availableSlots.slice(0, 5).map(s => `${s.startLocal} – ${s.endLocal}`));
       }
     } catch (error) {
@@ -2135,6 +2145,11 @@ You are Arian from ${detailer.businessName}, a mobile car detailing service.
 - "Perfect! And where should I come to you? Just want to make sure I have the right spot."
 - "Great! So when works best for you? Let me see what I have open..."
 
+📦 PACKAGE SELECTION EXAMPLES:
+- Customer: "Exterior Cleaning" → AI: "Perfect! The Exterior Cleaning package ($160) includes hand wash, waxing, and protection. Would you like to add any additional services, or shall we proceed with just the package?"
+- Customer: "Just the package" → AI: "Great! Now I need your address and preferred date/time to book your Exterior Cleaning package."
+- Customer: "Can I add ceramic coating?" → AI: "Absolutely! Ceramic coating would be an additional $300-700. So you'll have the Exterior Cleaning package plus ceramic coating. What's your address?"
+
 📋 NATURAL BOOKING FLOW:
 1. Greet warmly and ask about their needs
 2. Show interest in their vehicle
@@ -2154,6 +2169,9 @@ You are Arian from ${detailer.businessName}, a mobile car detailing service.
 - Being too formal or stiff
 - Giving generic responses
 - Not showing enthusiasm for the work
+- Listing individual services after a package has been selected
+- Repeating the same service information multiple times
+- Ignoring when a customer has already chosen a package
 
 ${isFirstTimeCustomer ? `COMPLIANCE REQUIREMENT: This is a first-time customer. You MUST start your response by asking for SMS consent before any business conversation. Say: "Hi! I'm Arian from ${detailer.businessName}. To help you book your mobile car detailing service, I'll need to send you appointment confirmations and updates via SMS. Is that okay with you?" Only proceed with booking after they agree. If they say yes, immediately send: "${detailer.businessName}: You are now opted-in to receive appointment confirmations and updates. For help, reply HELP. To opt-out, reply STOP."` : ''}
 
@@ -2199,6 +2217,14 @@ CRITICAL: The AVAILABLE_SLOTS list is the ONLY source of truth for availability.
 3. Do NOT ask "Would you like to book that time?" if they already agreed
 4. Once a customer confirms a time, move directly to final booking confirmation
 5. Avoid redundant questions - if they've already provided information, use it
+
+🚨 PACKAGE SELECTION RULES:
+1. When a customer selects a PACKAGE (like "Exterior Cleaning", "Interior Cleaning", "Full Detailing"), confirm the package selection
+2. After confirming a package, ask ONCE if they want to add any additional services
+3. Do NOT repeatedly list individual services after a package has been selected
+4. If they want the package only, proceed to booking details (address, date/time)
+5. If they want to add services, show additional options ONCE, then move to booking
+6. NEVER re-list the same services multiple times after package selection
 
 ${customerContext}
 
@@ -2374,21 +2400,23 @@ Be conversational and natural.`;
     let useStateMachine = false;
     let newPhase: ConversationPhase = currentPhase;
     
-    // Check if this looks like a booking conversation
+    // Better detection for date/time in messages - Updated to handle ordinal numbers
+    const hasDatePattern = /\b(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|\d{1,2}(?:st|nd|rd|th)?[\/\-]\d{1,2}(?:[\/\-]\d{2,4})?|\d{4}-\d{2}-\d{2}|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|january|february|march|april|may|june|july|august|september|october|november|december)\b/i.test(body || '');
+    const hasTimePattern = /\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i.test(body || '') || /(morning|afternoon|evening|tonight|night)/i.test(body || '') || /\b\d{1,2}\s*(?:am|pm)?\s*[-–]\s*\d{1,2}\s*(?:am|pm)\b/i.test(body || '');
+    
+    // Check if this looks like a booking conversation - Updated to include date/time patterns
     const isBookingRelated = body.toLowerCase().includes('book') || 
                            body.toLowerCase().includes('appointment') ||
                            body.toLowerCase().includes('schedule') ||
                            body.toLowerCase().includes('time') ||
                            body.toLowerCase().includes('date') ||
                            body.toLowerCase().includes('available') ||
+                           hasDatePattern ||
+                           hasTimePattern ||
                            conversationHistory.some(msg => 
                              msg.role === 'assistant' && 
                              (msg.content.includes('available times') || msg.content.includes('pick one'))
                            );
-    
-    // Better detection for date/time in messages
-    const hasDatePattern = /\b(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|\d{1,2}[\/\-]\d{1,2}(?:[\/\-]\d{2,4})?|\d{4}-\d{2}-\d{2}|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|january|february|march|april|may|june|july|august|september|october|november|december)\b/i.test(body || '');
-    const hasTimePattern = /\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i.test(body || '') || /(morning|afternoon|evening|tonight|night)/i.test(body || '') || /\b\d{1,2}\s*(?:am|pm)?\s*[-–]\s*\d{1,2}\s*(?:am|pm)\b/i.test(body || '');
     
     console.log('🔍 DEBUG: Conversation state machine check:', {
       body: body,
@@ -2564,45 +2592,7 @@ Be conversational and natural.`;
         console.log('🔄 Reschedule requested but no existing booking found, proceeding with new booking');
       }
     }
-
-    if (isBookingRelated && !asksForServices) {
-      try {
-        console.log('🔍 DEBUG: Attempting to use conversation state machine...');
-        const { getConversationContext, processConversationState } = await import('@/lib/conversationState');
-        
-        const context = await getConversationContext(detailer.id, from, messageSid);
-        console.log('🔍 DEBUG: Got conversation context:', context);
-        
-        const { response: stateResponse, newContext, shouldSend } = await processConversationState(
-          context,
-          body,
-          detailerServices.map(ds => ds.service),
-          availableSlots,
-          detailer.timezone || 'America/New_York'
-        );
-        
-        console.log('🔍 DEBUG: Conversation state machine result:', {
-          stateResponse,
-          shouldSend,
-          newContextState: newContext.state
-        });
-        
-        if (shouldSend) {
-          aiResponse = stateResponse;
-          useStateMachine = true;
-          console.log('✅ Using conversation state machine response:', aiResponse);
-          
-          // Update context in database
-          const { updateConversationContext } = await import('@/lib/conversationState');
-          await updateConversationContext(newContext);
-        } else {
-          console.log('❌ Conversation state machine returned shouldSend=false');
-        }
-      } catch (error) {
-        console.error('❌ Error in conversation state machine:', error);
-        // Fall back to regular AI processing
-      }
-    }
+    
     
     // If user intent is clearly "what services", skip the LLM and send catalog
     if (asksForServices) {
@@ -2622,6 +2612,7 @@ Be conversational and natural.`;
         
         console.log('DEBUG: Sending to OpenAI:', { messageCount: messages.length, lastUserMessage: body });
         
+        
         // Use GPT-4o (most reliable and available model)
         const response = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
@@ -2633,7 +2624,7 @@ Be conversational and natural.`;
           body: JSON.stringify({
             model: 'gpt-4o', // Using GPT-4o (most reliable and available model)
             messages,
-            max_tokens: 160,
+            max_tokens: 500,
             temperature: 0.7,
           }),
         });
@@ -2643,10 +2634,18 @@ Be conversational and natural.`;
           console.log('DEBUG: Full OpenAI response:', JSON.stringify(data, null, 2));
           if (data.choices?.length && data.choices[0].message?.content?.trim()) {
             aiResponse = data.choices[0].message.content.trim()
-            console.log('DEBUG: OpenAI response:', aiResponse);
+            console.log('🚨🚨🚨 AI RESPONSE GENERATED 🚨🚨🚨');
+            console.log('🚨 RESPONSE LENGTH:', aiResponse?.length || 0);
+            console.log('🚨 FIRST 200 CHARS:', aiResponse?.substring(0, 200) || 'N/A');
+            console.log('🚨 LAST 200 CHARS:', aiResponse?.substring(Math.max(0, (aiResponse?.length || 0) - 200)) || 'N/A');
+            console.log('🚨🚨🚨 END AI RESPONSE 🚨🚨🚨');
             
             // Remove any existing calendar links from AI response to avoid duplicates
             aiResponse = aiResponse.replace(/\n*📅 Add to calendar:.*$/gm, '');
+            console.log('🚨🚨🚨 AFTER CALENDAR REMOVAL 🚨🚨🚨');
+            console.log('🚨 RESPONSE LENGTH:', aiResponse?.length || 0);
+            console.log('🚨 FIRST 200 CHARS:', aiResponse?.substring(0, 200) || 'N/A');
+            console.log('🚨🚨🚨 END CALENDAR REMOVAL 🚨🚨🚨');
             
             // Check if this is an actual booking confirmation (not just conversation about bookings)
             const lowerResponse = aiResponse.toLowerCase();
@@ -2808,27 +2807,33 @@ Be conversational and natural.`;
                throw new Error('Time conflict with existing appointment');
              }
 
-             // Validate service radius before creating booking
-             const distanceValidation = await validateServiceRadius(
-               { latitude: detailer.latitude, longitude: detailer.longitude, serviceRadius: detailer.serviceRadius || 25 },
-               address
-             );
-             
-             if (!distanceValidation.isValid) {
-               console.log(`❌ Booking rejected: ${distanceValidation.message}`);
-               await twilioClient.messages.create({
-                 body: distanceValidation.message,
-                 from: process.env.TWILIO_PHONE_NUMBER,
-                 to: from
-               });
-               return NextResponse.json({ message: 'Booking rejected - outside service radius' });
-             }
+            // Validate service radius before creating booking
+            const distanceValidation = await validateServiceRadius(
+              { latitude: detailer.latitude, longitude: detailer.longitude, serviceRadius: detailer.serviceRadius || 25 },
+              address
+            );
+            
+            if (!distanceValidation.isValid) {
+              console.log(`❌ Booking rejected: ${distanceValidation.message}`);
+              
+              // Initialize Twilio client for error message
+              const hasTwilioCreds = !!process.env.TWILIO_ACCOUNT_SID && !!process.env.TWILIO_AUTH_TOKEN;
+              if (hasTwilioCreds) {
+                const twilioClient = require('twilio')(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+                await twilioClient.messages.create({
+                  body: distanceValidation.message,
+                  from: process.env.TWILIO_PHONE_NUMBER,
+                  to: from
+                });
+              }
+              return NextResponse.json({ message: 'Booking rejected - outside service radius' });
+            }
              
              console.log(`✅ Distance validation passed: ${distanceValidation.message}`);
              
              // Calculate duration for the service
              const serviceDuration = calculateServiceDuration([service], detailerServices);
-             
+
              // Create the booking directly
              booking = await prisma.booking.create({
                data: {
@@ -3080,6 +3085,20 @@ Would you like to:
 Please let me know what you'd prefer!`;
                  
                  console.log('📝 Sending duplicate booking message to customer (AI confirmation)');
+                 
+                 // Send the duplicate booking message via Twilio
+                 const sendDisabled = process.env.TWILIO_SEND_DISABLED === '1'
+                 const hasTwilioCreds = !!process.env.TWILIO_ACCOUNT_SID && !!process.env.TWILIO_AUTH_TOKEN
+                 let twilioSid: string | undefined
+                 
+                 if (!sendDisabled && hasTwilioCreds) {
+                   const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID!, process.env.TWILIO_AUTH_TOKEN!)
+                   twilioSid = await safeSend(twilioClient, from, to, aiResponse)
+                 }
+                 
+                 // Save the duplicate booking message to database
+                 await saveErrorMessageToDatabase(conversation.id, aiResponse, twilioSid);
+                 
                  releaseLock(conversationId);
                  return new Response(aiResponse, { status: 200 });
                }
@@ -3088,6 +3107,20 @@ Please let me know what you'd prefer!`;
              // For other errors, show a generic message
              aiResponse = `I apologize, but I'm having trouble creating your appointment right now. Please try again in a moment, or contact us directly for assistance.`;
              console.log('📝 Sending error message to customer due to AI confirmation booking creation failure');
+             
+             // Send the error message via Twilio
+             const sendDisabled = process.env.TWILIO_SEND_DISABLED === '1'
+             const hasTwilioCreds = !!process.env.TWILIO_ACCOUNT_SID && !!process.env.TWILIO_AUTH_TOKEN
+             let twilioSid: string | undefined
+             
+             if (!sendDisabled && hasTwilioCreds) {
+               const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID!, process.env.TWILIO_AUTH_TOKEN!)
+               twilioSid = await safeSend(twilioClient, from, to, aiResponse)
+             }
+             
+             // Save the error message to database
+             await saveErrorMessageToDatabase(conversation.id, aiResponse, twilioSid);
+             
              releaseLock(conversationId);
              return new Response(aiResponse, { status: 200 });
            }
@@ -3204,9 +3237,66 @@ Which day and time would work best for you?`;
     const sendDisabled = process.env.TWILIO_SEND_DISABLED === '1'
     const hasTwilioCreds = !!process.env.TWILIO_ACCOUNT_SID && !!process.env.TWILIO_AUTH_TOKEN
     let twilioSid: string | undefined
+    let client: any = null
 
     if (!sendDisabled && hasTwilioCreds) {
-      const client = twilio(process.env.TWILIO_ACCOUNT_SID!, process.env.TWILIO_AUTH_TOKEN!)
+      client = twilio(process.env.TWILIO_ACCOUNT_SID!, process.env.TWILIO_AUTH_TOKEN!)
+      
+      // Always check for conversation state machine to handle state transitions
+      try {
+        console.log('🔍 DEBUG: Checking conversation state machine...');
+        const { getConversationContext, processConversationState } = await import('@/lib/conversationState');
+        
+        const context = await getConversationContext(detailer.id, from, messageSid);
+        console.log('🔍 DEBUG: Got conversation context:', context);
+        
+        // Always use state machine if not idle, or if this is a booking-related message
+        if (context.state !== 'idle' || (isBookingRelated && !asksForServices)) {
+          console.log('🔍 DEBUG: Using conversation state machine:', {
+            currentState: context.state,
+            isBookingRelated,
+            asksForServices
+          });
+          
+          const { response: stateResponse, newContext, shouldSend, twilioSid: stateTwilioSid } = await processConversationState(
+            context,
+            body,
+            detailerServices.map(ds => ds.service),
+            availableSlots,
+            detailer.timezone || 'America/New_York',
+            conversation.id,
+            client,
+            from,
+            to
+          );
+          
+          console.log('🔍 DEBUG: Conversation state machine result:', {
+            stateResponse,
+            shouldSend,
+            newContextState: newContext.state
+          });
+          
+          if (shouldSend) {
+            aiResponse = stateResponse;
+            useStateMachine = true;
+            twilioSid = stateTwilioSid; // Use the twilioSid from state machine
+            console.log('✅ Using conversation state machine response:', aiResponse);
+            console.log('✅ State machine twilioSid:', twilioSid);
+            
+            // Update context in database
+            const { updateConversationContext } = await import('@/lib/conversationState');
+            await updateConversationContext(newContext);
+          } else {
+            console.log('❌ Conversation state machine returned shouldSend=false');
+          }
+        } else {
+          console.log('🔍 DEBUG: Idle state and not booking-related, proceeding with regular AI processing');
+        }
+      } catch (error) {
+        console.error('❌ Error in conversation state machine:', error);
+        // Fall back to regular AI processing
+      }
+      
       const text = body.toLowerCase()
       const gaveConsent = /\b(yes|okay|ok|sure|agree|consent)\b/.test(text)
 
@@ -3282,24 +3372,24 @@ Which day and time would work best for you?`;
         } else if (isAvailabilityList) {
           console.log('✅ Detected state machine availability list, skipping conflict check');
         } else {
-          try {
-            // Use direct validation function
-            const { validateTime } = await import('@/lib/validation');
-            
-            const validationResult = await validateTime({
-              detailerId: detailer.id,
-              date: picked.date,
-              time: picked.time,
-              durationMinutes: 120,
+        try {
+          // Use direct validation function
+          const { validateTime } = await import('@/lib/validation');
+          
+          const validationResult = await validateTime({
+            detailerId: detailer.id,
+            date: picked.date,
+            time: picked.time,
+            durationMinutes: 120,
               tz: detailer.timezone || 'America/New_York',
-              excludeCustomerPhone: from
-            });
-            
-            // Check if AI is correctly stating unavailability vs trying to book unavailable time
-            const isStatingUnavailability = /not available|booked|unavailable|taken/i.test(aiResponse);
-            
-            if (!validationResult.available && !isStatingUnavailability) {
-              console.log('❌ CONFLICT DETECTED in AI response, overriding with safe message');
+            excludeCustomerPhone: from
+          });
+          
+          // Check if AI is correctly stating unavailability vs trying to book unavailable time
+          const isStatingUnavailability = /not available|booked|unavailable|taken/i.test(aiResponse);
+          
+          if (!validationResult.available && !isStatingUnavailability) {
+            console.log('❌ CONFLICT DETECTED in AI response, overriding with safe message');
             
             const alt = validationResult.suggestions?.[0];
             const safeText = alt
@@ -3308,26 +3398,30 @@ Which day and time would work best for you?`;
             
             aiResponse = safeText;
             console.log('✅ Overriding AI response with conflict-safe message');
-            } else if (!validationResult.available && isStatingUnavailability) {
-              console.log('✅ AI correctly stated unavailability, keeping response');
-            } else {
-              console.log('✅ AI suggested time is available, proceeding');
-            }
-          } catch (validationError) {
-            console.error('Error validating AI response:', validationError);
-            // Fail-closed: avoid proposing a time we didn't validate
-            aiResponse = "Let me double-check availability—do mornings or afternoons work better?";
-            console.log('✅ Failing closed with neutral response due to validation error');
+          } else if (!validationResult.available && isStatingUnavailability) {
+            console.log('✅ AI correctly stated unavailability, keeping response');
+          } else {
+            console.log('✅ AI suggested time is available, proceeding');
+          }
+        } catch (validationError) {
+          console.error('Error validating AI response:', validationError);
+          // Fail-closed: avoid proposing a time we didn't validate
+          aiResponse = "Let me double-check availability—do mornings or afternoons work better?";
+          console.log('✅ Failing closed with neutral response due to validation error');
           }
         }
       }
 
-      // Now send the validated response
-      // Check if message contains calendar link and is too long
-      const calendarLinkMatch = aiResponse.match(/📅 Calendar: (https:\/\/[^\s]+)/);
-      const messageWithoutCalendar = aiResponse.replace(/\n\n📅 Calendar: https:\/\/[^\s]+/, '');
-      
-      if (calendarLinkMatch && messageWithoutCalendar.length > 100) {
+      // Skip SMS sending if state machine already handled it
+      if (useStateMachine && twilioSid) {
+        console.log('✅ State machine already sent SMS, skipping main SMS logic');
+      } else {
+        // Now send the validated response
+        // Check if message contains calendar link and is too long
+        const calendarLinkMatch = aiResponse.match(/📅 Calendar: (https:\/\/[^\s]+)/);
+        const messageWithoutCalendar = aiResponse.replace(/\n\n📅 Calendar: https:\/\/[^\s]+/, '');
+        
+        if (calendarLinkMatch && messageWithoutCalendar.length > 100) {
         // Send main message first, then calendar link separately
         console.log('Sending main message and calendar link separately to avoid chunking issues');
         twilioSid = await safeSend(client, from, to, messageWithoutCalendar);
@@ -3342,6 +3436,34 @@ Which day and time would work best for you?`;
           if (mmsSidTry) {
             twilioSid = mmsSidTry
             console.log('✅ MMS sent successfully to preserve ordering and formatting')
+            
+            // Store AI response to database immediately after MMS send
+            console.log('🚨🚨🚨 SAVING TO DATABASE (MMS PATH) 🚨🚨🚨');
+            console.log('🚨 CONVERSATION ID:', conversation.id);
+            console.log('🚨 AI RESPONSE LENGTH:', aiResponse?.length || 0);
+            console.log('🚨 FIRST 200 CHARS:', aiResponse?.substring(0, 200) || 'N/A');
+            console.log('🚨 TWILIO SID:', twilioSid);
+            console.log('🚨 STATUS:', twilioSid ? 'sent' : 'simulated');
+            console.log('🚨🚨🚨 END SAVING TO DATABASE (MMS PATH) 🚨🚨🚨');
+            
+            const savedMessage = await prisma.message.create({
+              data: {
+                conversationId: conversation.id,
+                direction: 'outbound',
+                content: aiResponse,
+                twilioSid: twilioSid,
+                status: twilioSid ? 'sent' : 'simulated',
+              },
+            });
+            
+            console.log('🚨🚨🚨 SAVED TO DATABASE SUCCESS (MMS PATH) 🚨🚨🚨');
+            console.log('🚨 MESSAGE ID:', savedMessage.id);
+            console.log('🚨 TWILIO SID:', savedMessage.twilioSid);
+            console.log('🚨 STATUS:', savedMessage.status);
+            console.log('🚨 SAVED CONTENT LENGTH:', savedMessage.content?.length || 0);
+            console.log('🚨 SAVED FIRST 200 CHARS:', savedMessage.content?.substring(0, 200) || 'N/A');
+            console.log('🚨🚨🚨 END SAVED TO DATABASE SUCCESS (MMS PATH) 🚨🚨🚨');
+            
             return NextResponse.json({ success: true, aiResponse, twilioSid })
           } else {
             console.log('❌ MMS failed, falling back to SMS')
@@ -3350,6 +3472,12 @@ Which day and time would work best for you?`;
 
         // Fallback to SMS chunking with ordering delays
         const chunks = chunkForSms(aiResponse)
+        console.log('🚨🚨🚨 BEFORE SMS SENDING 🚨🚨🚨');
+        console.log('🚨 AI RESPONSE LENGTH:', aiResponse?.length || 0);
+        console.log('🚨 FIRST 200 CHARS:', aiResponse?.substring(0, 200) || 'N/A');
+        console.log('🚨 CHUNKS COUNT:', chunks.length);
+        console.log('🚨 FIRST CHUNK LENGTH:', chunks[0]?.length || 0);
+        console.log('🚨🚨🚨 END BEFORE SMS 🚨🚨🚨');
         if (chunks.length === 1) {
           console.log('Sending single SMS')
           twilioSid = await safeSend(client, from, to, aiResponse)
@@ -3362,6 +3490,34 @@ Which day and time would work best for you?`;
             if (i < chunks.length - 1) await new Promise(r => setTimeout(r, 300))
           }
           twilioSid = firstSid
+        }
+        
+        // Store AI response to database immediately after SMS send
+        console.log('🚨🚨🚨 SAVING TO DATABASE (SMS PATH) 🚨🚨🚨');
+        console.log('🚨 CONVERSATION ID:', conversation.id);
+        console.log('🚨 AI RESPONSE LENGTH:', aiResponse?.length || 0);
+        console.log('🚨 FIRST 200 CHARS:', aiResponse?.substring(0, 200) || 'N/A');
+        console.log('🚨 TWILIO SID:', twilioSid);
+        console.log('🚨 STATUS:', twilioSid ? 'sent' : 'simulated');
+        console.log('🚨🚨🚨 END SAVING TO DATABASE (SMS PATH) 🚨🚨🚨');
+        
+        const savedMessage = await prisma.message.create({
+          data: {
+            conversationId: conversation.id,
+            direction: 'outbound',
+            content: aiResponse,
+            twilioSid: twilioSid,
+            status: twilioSid ? 'sent' : 'simulated',
+          },
+        });
+        
+        console.log('🚨🚨🚨 SAVED TO DATABASE SUCCESS (SMS PATH) 🚨🚨🚨');
+        console.log('🚨 MESSAGE ID:', savedMessage.id);
+        console.log('🚨 TWILIO SID:', savedMessage.twilioSid);
+        console.log('🚨 STATUS:', savedMessage.status);
+        console.log('🚨 SAVED CONTENT LENGTH:', savedMessage.content?.length || 0);
+        console.log('🚨 SAVED FIRST 200 CHARS:', savedMessage.content?.substring(0, 200) || 'N/A');
+        console.log('🚨🚨🚨 END SAVED TO DATABASE SUCCESS (SMS PATH) 🚨🚨🚨');
         }
       }
       
@@ -3384,9 +3540,9 @@ Which day and time would work best for you?`;
           if (!existingSnap.vcardSent) {
             // Existing customer who hasn't received vCard yet
             await tx.customerSnapshot.update({
-              where: { detailerId_customerPhone: { detailerId: detailer.id, customerPhone: from } },
+            where: { detailerId_customerPhone: { detailerId: detailer.id, customerPhone: from } },
               data: { vcardSent: true }
-            })
+          })
             return true // Send vCard
           }
           
@@ -3409,7 +3565,15 @@ Which day and time would work best for you?`;
     }
 
     // Store AI response
-    await prisma.message.create({
+    console.log('🚨🚨🚨 SAVING TO DATABASE 🚨🚨🚨');
+    console.log('🚨 CONVERSATION ID:', conversation.id);
+    console.log('🚨 AI RESPONSE LENGTH:', aiResponse?.length || 0);
+    console.log('🚨 FIRST 200 CHARS:', aiResponse?.substring(0, 200) || 'N/A');
+    console.log('🚨 TWILIO SID:', twilioSid);
+    console.log('🚨 STATUS:', twilioSid ? 'sent' : 'simulated');
+    console.log('🚨🚨🚨 END SAVING TO DATABASE 🚨🚨🚨');
+    
+    const savedMessage = await prisma.message.create({
       data: {
         conversationId: conversation.id,
         direction: 'outbound',
@@ -3418,6 +3582,14 @@ Which day and time would work best for you?`;
         status: twilioSid ? 'sent' : 'simulated',
       },
     });
+    
+    console.log('🚨🚨🚨 SAVED TO DATABASE SUCCESS 🚨🚨🚨');
+    console.log('🚨 MESSAGE ID:', savedMessage.id);
+    console.log('🚨 TWILIO SID:', savedMessage.twilioSid);
+    console.log('🚨 STATUS:', savedMessage.status);
+    console.log('🚨 SAVED CONTENT LENGTH:', savedMessage.content?.length || 0);
+    console.log('🚨 SAVED FIRST 200 CHARS:', savedMessage.content?.substring(0, 200) || 'N/A');
+    console.log('🚨🚨🚨 END SAVED TO DATABASE 🚨🚨🚨');
 
     // 4) UPDATE CONVERSATION PHASE BASED ON RESPONSE
     console.log(`🔄 [${traceId}] Updating conversation phase based on response`);
@@ -3749,11 +3921,17 @@ What time would work better for you?`;
           
           if (!distanceValidation.isValid) {
             console.log(`❌ Booking rejected: ${distanceValidation.message}`);
-            await twilioClient.messages.create({
-              body: distanceValidation.message,
-              from: process.env.TWILIO_PHONE_NUMBER,
-              to: from
-            });
+            
+            // Initialize Twilio client for error message
+            const hasTwilioCreds = !!process.env.TWILIO_ACCOUNT_SID && !!process.env.TWILIO_AUTH_TOKEN;
+            if (hasTwilioCreds) {
+              const twilioClient = require('twilio')(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+              await twilioClient.messages.create({
+                body: distanceValidation.message,
+                from: process.env.TWILIO_PHONE_NUMBER,
+                to: from
+              });
+            }
             return NextResponse.json({ message: 'Booking rejected - outside service radius' });
           }
           
@@ -3761,7 +3939,7 @@ What time would work better for you?`;
           
           // Calculate duration for the services
           const serviceDuration = calculateServiceDuration(services.length ? services : ['Detailing'], detailerServices);
-          
+
           // Create the booking directly
           booking = await prisma.booking.create({
             data: {
@@ -3841,6 +4019,20 @@ Would you like to:
 Please let me know what you'd prefer!`;
               
               console.log('📝 Sending duplicate booking message to customer');
+              
+              // Send the duplicate booking message via Twilio
+              const sendDisabled = process.env.TWILIO_SEND_DISABLED === '1'
+              const hasTwilioCreds = !!process.env.TWILIO_ACCOUNT_SID && !!process.env.TWILIO_AUTH_TOKEN
+              let twilioSid: string | undefined
+              
+              if (!sendDisabled && hasTwilioCreds) {
+                const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID!, process.env.TWILIO_AUTH_TOKEN!)
+                twilioSid = await safeSend(twilioClient, from, to, aiResponse)
+              }
+              
+              // Save the duplicate booking message to database
+              await saveErrorMessageToDatabase(conversation.id, aiResponse, twilioSid);
+              
               releaseLock(conversationId);
               return new Response(aiResponse, { status: 200 });
             }
@@ -3849,6 +4041,20 @@ Please let me know what you'd prefer!`;
           // For other errors, show a generic message
           aiResponse = `I apologize, but I'm having trouble creating your appointment right now. Please try again in a moment, or contact us directly for assistance.`;
           console.log('📝 Sending error message to customer due to booking creation failure');
+          
+          // Send the error message via Twilio
+          const sendDisabled = process.env.TWILIO_SEND_DISABLED === '1'
+          const hasTwilioCreds = !!process.env.TWILIO_ACCOUNT_SID && !!process.env.TWILIO_AUTH_TOKEN
+          let twilioSid: string | undefined
+          
+          if (!sendDisabled && hasTwilioCreds) {
+            const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID!, process.env.TWILIO_AUTH_TOKEN!)
+            twilioSid = await safeSend(twilioClient, from, to, aiResponse)
+          }
+          
+          // Save the error message to database
+          await saveErrorMessageToDatabase(conversation.id, aiResponse, twilioSid);
+          
           releaseLock(conversationId);
           return new Response(aiResponse, { status: 200 });
         }
@@ -4112,6 +4318,7 @@ Notes: ${parsed.note || 'Auto-captured from SMS conversation'}
 
     // Release conversation lock
     releaseLock(conversationId);
+    console.log(`🔓 Lock released for conversation: ${conversationId} (success case)`);
     
     return NextResponse.json({ 
       success: true,
@@ -4130,11 +4337,15 @@ Notes: ${parsed.note || 'Auto-captured from SMS conversation'}
   } catch (error) {
     console.error('=== FAST SMS WEBHOOK ERROR ===');
     console.error('Error details:', error);
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack');
+    console.error('Error message:', error instanceof Error ? error.message : 'Unknown error');
+    console.error('Error name:', error instanceof Error ? error.name : 'Unknown');
     
-    // Release conversation lock on error (if variables are in scope)
+    // Release conversation lock on error
     try {
       if (typeof releaseLock === 'function' && conversationId) {
         releaseLock(conversationId);
+        console.log(`🔓 Lock released for conversation: ${conversationId} (error case)`);
       }
     } catch (lockError) {
       console.error('Error releasing conversation lock:', lockError);

@@ -125,7 +125,7 @@ export default function MobileNav() {
                 key={item.name}
                 href={item.href}
                 className={`flex flex-col items-center justify-center py-2 transition-all duration-200 ${
-                  active ? "text-green-600 dark:text-green-400" : "text-gray-500 dark:text-gray-400"
+                  active ? "text-blue-600 dark:text-blue-400" : "text-gray-500 dark:text-gray-400"
                 }`}
               >
                 <IconComponent className={`h-6 w-6 ${active ? "scale-110" : "scale-100"}`} />
@@ -139,7 +139,7 @@ export default function MobileNav() {
             <button
               aria-label="Create"
               onClick={() => setSheetOpen((o) => !o)}
-              className="relative -mt-6 h-12 w-12 rounded-full bg-green-600 text-white shadow-xl active:scale-95 transition transform"
+              className="relative -mt-6 h-12 w-12 rounded-full bg-blue-600 text-white shadow-xl active:scale-95 transition transform"
             >
               <PlusIcon className="h-7 w-7 mx-auto" />
             </button>
@@ -154,7 +154,7 @@ export default function MobileNav() {
                 key={item.name}
                 href={item.href}
                 className={`flex flex-col items-center justify-center py-2 transition-all duration-200 ${
-                  active ? "text-green-600 dark:text-green-400" : "text-gray-500 dark:text-gray-400"
+                  active ? "text-blue-600 dark:text-blue-400" : "text-gray-500 dark:text-gray-400"
                 }`}
               >
                 <IconComponent className={`h-6 w-6 ${active ? "scale-110" : "scale-100"}`} />

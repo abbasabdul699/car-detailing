@@ -27,22 +27,7 @@ export async function POST(request: NextRequest) {
     const normalizedPhone = customerPhone.replace(/\D/g, '');
     const e164Phone = normalizedPhone.startsWith('1') ? `+${normalizedPhone}` : `+1${normalizedPhone}`;
 
-    // Check if conversation already exists
-    const existingConversation = await prisma.conversation.findFirst({
-      where: {
-        detailerId: session.user.id,
-        customerPhone: e164Phone
-      }
-    });
-
-    if (existingConversation) {
-      return NextResponse.json({ 
-        error: 'Conversation already exists with this customer',
-        conversation: existingConversation
-      }, { status: 409 });
-    }
-
-    // Get detailer info
+    // Get detailer info first
     const detailer = await prisma.detailer.findUnique({
       where: { id: session.user.id },
       select: {
@@ -60,28 +45,57 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Detailer phone number not configured' }, { status: 400 });
     }
 
-    // Create conversation
-    const conversation = await prisma.conversation.create({
-      data: {
-        detailerId: detailer.id,
-        customerPhone: e164Phone,
-        customerName: customerName || null,
-        status: 'active'
+    // Check if conversation already exists
+    const existingConversation = await prisma.conversation.findFirst({
+      where: {
+        detailerId: session.user.id,
+        customerPhone: e164Phone
+      },
+      include: {
+        _count: {
+          select: { messages: true }
+        }
       }
     });
 
-    // Create initial AI message
-    const initialMessage = `Hi${customerName ? ` ${customerName}` : ''}! 👋 
+    let conversation;
+    
+    if (existingConversation) {
+      // If conversation exists but has no messages, we can re-initialize it
+      if (existingConversation._count.messages === 0) {
+        console.log('Re-initializing empty conversation:', existingConversation.id);
+        // Update the existing conversation
+        conversation = await prisma.conversation.update({
+          where: { id: existingConversation.id },
+          data: {
+            customerName: customerName || existingConversation.customerName || null,
+            status: 'active',
+            lastMessageAt: new Date()
+          }
+        });
+      } else {
+        // Conversation exists and has messages - return error
+        return NextResponse.json({ 
+          error: 'Conversation already exists with this customer',
+          conversation: existingConversation
+        }, { status: 409 });
+      }
+    } else {
+      // Create new conversation
+      console.log('Creating new conversation for detailer:', detailer.id, 'customer:', e164Phone);
+      conversation = await prisma.conversation.create({
+        data: {
+          detailerId: detailer.id,
+          customerPhone: e164Phone,
+          customerName: customerName || null,
+          status: 'active'
+        }
+      });
+      console.log('Conversation created successfully:', conversation.id);
+    }
 
-I'm ${detailer.businessName}'s AI assistant. I'm here to help you book your car detailing service! 
-
-What type of service are you looking for today? I can help you with:
-• Interior cleaning
-• Exterior washing
-• Full detail packages
-• Or any other car care needs
-
-Just let me know what you need! 🚗✨`;
+    // Create initial AI message - short and natural
+    const initialMessage = `Hey${customerName ? ` ${customerName}` : ''}! This is Arian from ${detailer.businessName}. What can I help you with today?`;
 
     // Send SMS via Twilio
     try {
@@ -96,14 +110,17 @@ Just let me know what you need! 🚗✨`;
     }
 
     // Save the initial message to database
-    await prisma.message.create({
+    console.log('Saving initial message to database for conversation:', conversation.id);
+    const savedMessage = await prisma.message.create({
       data: {
         conversationId: conversation.id,
         direction: 'outbound',
         content: initialMessage,
-        status: 'sent'
+        status: 'sent',
+        twilioSid: `start-conversation-${conversation.id}-${Date.now()}` // Unique SID for initial message
       }
     });
+    console.log('Message saved successfully:', savedMessage.id);
 
     // Send vCard to new customer (atomic transaction)
     try {
@@ -174,6 +191,24 @@ Just let me know what you need! 🚗✨`;
           phone: e164Phone
         }
       });
+
+      // Also create customer snapshot so SMS system recognizes them as returning customer
+      await prisma.customerSnapshot.upsert({
+        where: {
+          detailerId_customerPhone: {
+            detailerId: detailer.id,
+            customerPhone: e164Phone
+          }
+        },
+        update: {
+          customerName: customerName
+        },
+        create: {
+          detailerId: detailer.id,
+          customerPhone: e164Phone,
+          customerName: customerName
+        }
+      });
     }
 
     // Create notification for detailer
@@ -201,7 +236,7 @@ Just let me know what you need! 🚗✨`;
   } catch (error) {
     console.error('Error starting conversation:', error);
     return NextResponse.json(
-      { error: 'Failed to start conversation' },
+      { error: `Failed to start conversation: ${error instanceof Error ? error.message : 'Unknown error'}` },
       { status: 500 }
     );
   }
