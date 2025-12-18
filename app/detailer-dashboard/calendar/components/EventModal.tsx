@@ -32,8 +32,8 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
     const [isMultiDay, setIsMultiDay] = useState(false); // Default to single-day events
     const [selectedResourceId, setSelectedResourceId] = useState<string>(preSelectedResource?.id || '');
     const [businessHours, setBusinessHours] = useState<any>(null);
-    const [customers, setCustomers] = useState<Array<{ id: string; customerName?: string; customerPhone: string; customerEmail?: string; address?: string; vehicleModel?: string; services?: string[]; data?: any }>>([]);
-    const [selectedCustomer, setSelectedCustomer] = useState<{ id: string; customerName?: string; customerPhone: string; customerEmail?: string; address?: string; locationType?: string; vehicleModel?: string; pastJobs?: Array<{ id: string; date: string; services: string[]; vehicleModel?: string; employeeName?: string }> } | null>(null);
+    const [customers, setCustomers] = useState<Array<{ id: string; customerName?: string; customerPhone: string; customerEmail?: string; address?: string; locationType?: string; customerType?: string; vehicleModel?: string; services?: string[]; data?: any }>>([]);
+    const [selectedCustomer, setSelectedCustomer] = useState<{ id: string; customerName?: string; customerPhone: string; customerEmail?: string; address?: string; locationType?: string; customerType?: string; vehicleModel?: string; pastJobs?: Array<{ id: string; date: string; services: string[]; vehicleModel?: string; employeeName?: string }> } | null>(null);
     const [customerSearch, setCustomerSearch] = useState('');
     const [showCustomerDetailsPopup, setShowCustomerDetailsPopup] = useState(false);
     const [customerName, setCustomerName] = useState('');
@@ -41,6 +41,7 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
     const [customerEmail, setCustomerEmail] = useState('');
     const [customerAddress, setCustomerAddress] = useState('');
     const [locationType, setLocationType] = useState('');
+    const [customerType, setCustomerType] = useState('');
     const [vehicles, setVehicles] = useState<Array<{ id: string; model: string }>>([]);
     const [showAddVehicleModal, setShowAddVehicleModal] = useState(false);
     const [newVehicleModel, setNewVehicleModel] = useState('');
@@ -171,7 +172,7 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
     };
 
     // Handle customer selection from suggestions - show customer card
-    const handleCustomerSelect = async (customer: { id: string; customerName?: string; customerPhone: string; customerEmail?: string; address?: string; locationType?: string; vehicleModel?: string; services?: string[]; data?: any }) => {
+    const handleCustomerSelect = async (customer: { id: string; customerName?: string; customerPhone: string; customerEmail?: string; address?: string; locationType?: string; customerType?: string; vehicleModel?: string; services?: string[]; data?: any }) => {
         // Fetch past jobs for this customer
         const pastJobs = await fetchCustomerPastJobs(customer.id, customer.customerPhone);
         
@@ -183,6 +184,7 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
             customerEmail: customer.customerEmail,
             address: customer.address,
             locationType: customer.locationType,
+            customerType: customer.customerType,
             vehicleModel: customer.vehicleModel,
             pastJobs: pastJobs.map((job: any) => ({
                 id: job.id,
@@ -199,6 +201,7 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
         setCustomerEmail(customer.customerEmail || '');
         setCustomerAddress(customer.address || '');
         setLocationType(customer.locationType || '');
+        setCustomerType(customer.customerType || '');
         
         // Populate customer notes from data.notes if available
         if (customer.data && typeof customer.data === 'object' && customer.data.notes) {
@@ -251,6 +254,7 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
         setCustomerEmail('');
         setCustomerAddress('');
         setLocationType('');
+        setCustomerType('');
         setVehicles([]);
         setSelectedServices([]);
         setServiceSearch('');
@@ -300,6 +304,12 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
             return;
         }
 
+        // Validate that a resource is selected
+        if (!selectedResourceId) {
+            alert('Please select a resource (Bay or Van) for this event.');
+            return;
+        }
+
         // For timed events, validate that times are provided
         if (!isAllDay && (!startTime || !endTime)) {
             alert('Please provide both start and end times for timed events.');
@@ -317,6 +327,8 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
             let startDateTime = startDate;
             let endDateTime = isMultiDay ? (endDate || startDate) : startDate;
             let timeToStore = null;
+            let startTimeToSend = null;
+            let endTimeToSend = null;
 
             if (isAllDay && startTime && endTime) {
                 // For all-day events with business hours, store the start time
@@ -325,10 +337,24 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                 endDateTime = `${startDate}T${endTime}`;
                 timeToStore = startTime; // Store the business hours start time
             } else if (!isAllDay && startTime && endTime) {
+                // For timed events, send times separately to avoid timezone issues
+                // Construct datetime strings but also send times separately
                 startDateTime = `${startDate}T${startTime}`;
                 const endDateForTime = isMultiDay ? (endDate || startDate) : startDate;
                 endDateTime = `${endDateForTime}T${endTime}`;
-                timeToStore = startTime;
+                // Store time as a range format for timed events
+                const formatTo12Hour = (time24: string): string => {
+                    if (!time24) return '';
+                    const [hours, minutes] = time24.split(':').map(Number);
+                    const period = hours >= 12 ? 'PM' : 'AM';
+                    const hours12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+                    return `${hours12}:${String(minutes).padStart(2, '0')} ${period}`;
+                };
+                const startTime12 = formatTo12Hour(startTime);
+                const endTime12 = formatTo12Hour(endTime);
+                timeToStore = `${startTime12} to ${endTime12}`;
+                startTimeToSend = startTime;
+                endTimeToSend = endTime;
             }
 
             const response = await fetch('/api/detailer/events', {
@@ -342,7 +368,9 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                     startDate: startDateTime,
                     endDate: endDateTime,
                     isAllDay,
-                    time: timeToStore, // Include time for all-day events with business hours
+                    time: timeToStore, // Include time for all-day events with business hours, or time range for timed events
+                    startTime: startTimeToSend || undefined, // Send start time separately for timed events
+                    endTime: endTimeToSend || undefined, // Send end time separately for timed events
                     description: description || '',
                     resourceId: selectedResourceId || undefined,
                     customerName: customerName || undefined,
@@ -350,6 +378,7 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                     customerEmail: customerEmail || undefined,
                     customerAddress: customerAddress || undefined,
                     locationType: locationType || undefined,
+                    customerType: customerType || undefined,
                     vehicleModel: vehicles.length > 0 ? vehicles.map(v => v.model).join(', ') : undefined,
                     vehicles: vehicles.length > 0 ? vehicles.map(v => v.model) : undefined,
                     services: selectedServices.length > 0 ? selectedServices.map(s => s.name) : undefined
@@ -639,6 +668,7 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
             setCustomerEmail('');
             setCustomerAddress('');
             setLocationType('');
+            setCustomerType('');
             setVehicles([]);
             setSelectedServices([]);
             setServiceSearch('');
@@ -712,21 +742,20 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                     <div className="pt-2">
                         <h3 className="text-sm font-semibold text-gray-900 mb-4">Customer</h3>
                         
-                        {!selectedCustomer ? (
-                            // Search bar - show when no customer is selected
+                        {/* Search bar - always visible */}
+                        <div className="relative">
                             <div className="relative">
-                                <div className="relative">
                                 <input 
                                     type="text" 
-                                        id="customer-search" 
-                                        value={customerSearch} 
+                                    id="customer-search" 
+                                    value={customerSearch} 
                                     onChange={e => {
-                                            setCustomerSearch(e.target.value);
+                                        setCustomerSearch(e.target.value);
                                         setShowCustomerSuggestions(true);
                                         setSelectedCustomerIndex(-1);
                                     }}
                                     onFocus={() => {
-                                            if (customerSearch.trim().length > 0) {
+                                        if (customerSearch.trim().length > 0) {
                                             setShowCustomerSuggestions(true);
                                         }
                                     }}
@@ -734,78 +763,79 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                                         // Delay hiding suggestions to allow click on suggestion
                                         setTimeout(() => setShowCustomerSuggestions(false), 200);
                                     }}
-                                        onKeyDown={handleCustomerSearchKeyDown}
-                                        className="w-full px-4 py-2.5 border rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent pl-10" 
-                                        placeholder="Search existing customers"
-                                        style={{ borderColor: '#E2E2DD' }}
-                                    />
-                                    <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                                    </svg>
-                                </div>
-                                {showCustomerSuggestions && customerSearch.trim().length > 0 && (
-                                    <div className="absolute z-10 w-full mt-1 bg-white border rounded-xl shadow-lg max-h-60 overflow-auto" style={{ borderColor: '#E2E2DD' }}>
-                                        {filteredCustomers.map((customer, index) => (
-                                            <div
-                                                key={customer.id}
-                                                onClick={() => handleCustomerSelect(customer)}
-                                                className={`px-4 py-2 cursor-pointer hover:bg-gray-100 ${
-                                                    index === selectedCustomerIndex 
-                                                        ? 'bg-gray-100' 
-                                                        : ''
-                                                }`}
-                                            >
-                                                <div className="font-medium text-gray-900">
-                                                    {customer.customerName || 'Unnamed Customer'}
-                                                </div>
-                                                {customer.customerPhone && (
-                                                    <div className="text-sm text-gray-500">
-                                                        {customer.customerPhone}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        ))}
-                                        {/* Always show "Add new customer" as the last option */}
-                                        {showAddNewCustomer && (
-                                            <div
-                                                onClick={handleAddNewCustomer}
-                                                className={`px-4 py-2 cursor-pointer hover:bg-gray-100 ${
-                                                    filteredCustomers.length > 0 ? 'border-t' : ''
-                                                } ${
-                                                    filteredCustomers.length === selectedCustomerIndex 
-                                                        ? 'bg-gray-100' 
-                                                        : ''
-                                                }`}
-                                                style={{ borderColor: '#E2E2DD' }}
-                                            >
-                                                <div className="font-medium text-blue-600 flex items-center gap-2">
-                                                    <span>+</span>
-                                                    <span>Add new customer: "{customerSearch}"</span>
-                                                </div>
-                                    </div>
-                                )}
-                            </div>
-                                )}
-                            
-                            {/* Always-visible "New customer" button */}
-                            <div className="mt-2 flex justify-end">
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        if (onOpenNewCustomerModal) {
-                                            onOpenNewCustomerModal('');
-                                        }
-                                    }}
-                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 border rounded-full text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                                    onKeyDown={handleCustomerSearchKeyDown}
+                                    className="w-full px-4 py-2.5 border rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent pl-10" 
+                                    placeholder="Search existing customers"
                                     style={{ borderColor: '#E2E2DD' }}
-                                >
-                                    <span className="text-gray-600">+</span>
-                                    <span>New customer</span>
-                                </button>
+                                />
+                                <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                </svg>
                             </div>
-                            </div>
-                        ) : (
-                            // Customer card - show when customer is selected
+                            {showCustomerSuggestions && customerSearch.trim().length > 0 && (
+                                <div className="absolute z-10 w-full mt-1 bg-white border rounded-xl shadow-lg max-h-60 overflow-auto" style={{ borderColor: '#E2E2DD' }}>
+                                    {filteredCustomers.map((customer, index) => (
+                                        <div
+                                            key={customer.id}
+                                            onClick={() => handleCustomerSelect(customer)}
+                                            className={`px-4 py-2 cursor-pointer hover:bg-gray-100 ${
+                                                index === selectedCustomerIndex 
+                                                    ? 'bg-gray-100' 
+                                                    : ''
+                                            }`}
+                                        >
+                                            <div className="font-medium text-gray-900">
+                                                {customer.customerName || 'Unnamed Customer'}
+                                            </div>
+                                            {customer.customerPhone && (
+                                                <div className="text-sm text-gray-500">
+                                                    {customer.customerPhone}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                    {/* Always show "Add new customer" as the last option */}
+                                    {showAddNewCustomer && (
+                                        <div
+                                            onClick={handleAddNewCustomer}
+                                            className={`px-4 py-2 cursor-pointer hover:bg-gray-100 ${
+                                                filteredCustomers.length > 0 ? 'border-t' : ''
+                                            } ${
+                                                filteredCustomers.length === selectedCustomerIndex 
+                                                    ? 'bg-gray-100' 
+                                                    : ''
+                                            }`}
+                                            style={{ borderColor: '#E2E2DD' }}
+                                        >
+                                            <div className="font-medium text-blue-600 flex items-center gap-2">
+                                                <span>+</span>
+                                                <span>Add new customer: "{customerSearch}"</span>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                            
+                        {/* Always-visible "New customer" button */}
+                        <div className="mt-2 flex justify-end">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    if (onOpenNewCustomerModal) {
+                                        onOpenNewCustomerModal('');
+                                    }
+                                }}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 border rounded-full text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                                style={{ borderColor: '#E2E2DD' }}
+                            >
+                                <span className="text-gray-600">+</span>
+                                <span>New customer</span>
+                            </button>
+                        </div>
+                            
+                        {/* Customer card - show when customer is selected */}
+                        {selectedCustomer && (
                             <div 
                                 ref={customerCardRef}
                                 className="bg-gray-50 rounded-xl p-4 border relative cursor-pointer hover:bg-gray-100 transition-colors" 
@@ -1558,6 +1588,48 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                                 )}
                             </div>
                         )}
+                    </div>
+
+                    {/* Customer Type and Location Type */}
+                    <div className="pt-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* Customer Type Dropdown */}
+                            <div>
+                                <label htmlFor="customer-type" className="block text-sm font-semibold text-gray-900 mb-2">
+                                    Customer Type
+                                </label>
+                                <select
+                                    id="customer-type"
+                                    value={customerType}
+                                    onChange={e => setCustomerType(e.target.value)}
+                                    className="w-full px-4 py-2.5 border rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                                    style={{ borderColor: '#E2E2DD' }}
+                                >
+                                    <option value="">Select customer type</option>
+                                    <option value="new">New Customer</option>
+                                    <option value="returning">Returning Customer</option>
+                                    <option value="maintenance">Maintenance Customer</option>
+                                </select>
+                            </div>
+                            
+                            {/* Location Type Dropdown */}
+                            <div>
+                                <label htmlFor="location-type" className="block text-sm font-semibold text-gray-900 mb-2">
+                                    Location Type
+                                </label>
+                                <select
+                                    id="location-type"
+                                    value={locationType}
+                                    onChange={e => setLocationType(e.target.value)}
+                                    className="w-full px-4 py-2.5 border rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                                    style={{ borderColor: '#E2E2DD' }}
+                                >
+                                    <option value="">Select location type</option>
+                                    <option value="pick up">Pick Up</option>
+                                    <option value="drop off">Drop Off</option>
+                                </select>
+                            </div>
+                        </div>
                     </div>
 
                     {/* Customer Notes */}

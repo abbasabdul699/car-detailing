@@ -234,6 +234,8 @@ model CustomerSnapshot {
   address       String?
   // Type of location (home, work, other)
   locationType  String?
+  // Type of customer (new, returning, maintenance)
+  customerType  String?
   // Simple vehicle description string (e.g., "Toyota RAV4 2023")
   vehicle       String?
   // Structured vehicle fields for better filtering

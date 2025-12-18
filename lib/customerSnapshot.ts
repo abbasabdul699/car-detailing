@@ -5,6 +5,7 @@ export type SnapshotUpdate = {
   customerEmail?: string | null
   address?: string | null
   locationType?: string | null
+  customerType?: string | null
   vehicle?: string | null
   vehicleYear?: number | null
   vehicleMake?: string | null
@@ -30,6 +31,7 @@ export async function upsertCustomerSnapshot(
   if (update.customerEmail !== undefined) cleaned.customerEmail = update.customerEmail
   if (update.address !== undefined) cleaned.address = update.address
   if (update.locationType !== undefined) cleaned.locationType = update.locationType
+  if (update.customerType !== undefined) cleaned.customerType = update.customerType
   if (update.vehicle !== undefined) cleaned.vehicle = update.vehicle
   if (update.vehicleYear !== undefined) cleaned.vehicleYear = update.vehicleYear
   if (update.vehicleMake !== undefined) cleaned.vehicleMake = update.vehicleMake

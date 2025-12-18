@@ -39,9 +39,10 @@ export default function ImageUploader({
           continue;
         }
 
-        // Validate file size (5MB limit)
-        if (file.size > 5 * 1024 * 1024) {
-          setError('Image size should be less than 5MB');
+        // Validate file size (4MB limit to stay under Vercel's 4.5MB limit)
+        const maxFileSize = 4 * 1024 * 1024; // 4MB
+        if (file.size > maxFileSize) {
+          setError('Image size must be less than 4MB. Please compress your image or use a smaller file.');
           continue;
         }
 
@@ -62,10 +63,22 @@ export default function ImageUploader({
           body: formData,
         });
 
-        const data = await res.json();
+        // Handle 413 Payload Too Large errors gracefully
+        if (res.status === 413) {
+          throw new Error('File is too large. Maximum size is 4MB. Please compress your image or use a smaller file.');
+        }
+
+        // Try to parse JSON, but handle non-JSON responses
+        let data;
+        try {
+          data = await res.json();
+        } catch (parseError) {
+          // If response is not JSON (e.g., HTML error page), provide a helpful error
+          throw new Error(`Upload failed: Server returned ${res.status} ${res.statusText}. File may be too large (max 4MB).`);
+        }
         
         if (!res.ok) {
-          throw new Error(data.error || 'Upload failed');
+          throw new Error(data.error || `Upload failed: ${res.status} ${res.statusText}`);
         }
 
         if (!data.image?.url) {
@@ -142,19 +155,35 @@ export default function ImageUploader({
 
       {uploading && <p className="text-blue-500">Uploading images...</p>}
       {error && (
-        <div className="text-red-500 font-semibold">
-          {error}
+        <div className={`rounded-lg border-2 p-4 ${
+          error.toLowerCase().includes('too large') || error.toLowerCase().includes('size')
+            ? 'bg-red-50 border-red-300'
+            : 'bg-red-50 border-red-200'
+        }`}>
+          <div className="flex items-start gap-3">
+            <svg className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+            </svg>
+            <div className="flex-1">
+              <h4 className="text-red-800 font-semibold mb-1">
+                {error.toLowerCase().includes('too large') || error.toLowerCase().includes('size')
+                  ? 'File Too Large'
+                  : 'Upload Error'}
+              </h4>
+              <p className="text-red-700 text-sm mb-3">{error}</p>
           <button
             type="button"
-            className="ml-2 underline text-blue-600 hover:text-blue-800"
+                className="text-sm bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded transition-colors"
             onClick={() => {
               setError(null);
               setPreviews({});
               if (fileInputRef.current) fileInputRef.current.value = '';
             }}
           >
-            Retry
+                Dismiss
           </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

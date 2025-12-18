@@ -6,6 +6,10 @@ import { ObjectId } from 'mongodb';
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
+// Route segment config - note: Vercel has a hard 4.5MB limit that cannot be overridden
+export const runtime = 'nodejs';
+export const maxDuration = 30;
+
 export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -36,10 +40,11 @@ export async function POST(request: Request) {
       );
     }
 
-    // Validate file size (5MB limit)
-    if (file.size > 5 * 1024 * 1024) {
+    // Validate file size (4MB limit to stay under Vercel's 4.5MB limit)
+    const maxFileSize = 4 * 1024 * 1024; // 4MB
+    if (file.size > maxFileSize) {
       return NextResponse.json(
-        { error: 'File size must be less than 5MB' },
+        { error: 'File size must be less than 4MB. Please compress your image or use a smaller file.' },
         { status: 400 }
       );
     }

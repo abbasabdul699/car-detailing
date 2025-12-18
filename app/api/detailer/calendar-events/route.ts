@@ -241,36 +241,68 @@ export async function GET(request: NextRequest) {
           // Timed event - parse time
           let timeStr = event.time;
           
-          // Convert 12-hour format to 24-hour format
-          if (timeStr.includes('PM') || timeStr.includes('AM')) {
-            const isPM = timeStr.includes('PM');
-            const timeOnly = timeStr.replace(/\s*(AM|PM)/i, '').trim();
-            const [hours, minutes] = timeOnly.split(':').map(Number);
+          // Check if time is in range format: "7:00 AM to 12:00 PM"
+          const timeRangeMatch = timeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM)\s+to\s+(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+          
+          if (timeRangeMatch) {
+            // Parse start time
+            let startHour = parseInt(timeRangeMatch[1]);
+            const startMin = parseInt(timeRangeMatch[2]);
+            const startPeriod = timeRangeMatch[3].toUpperCase();
+            if (startPeriod === 'PM' && startHour !== 12) startHour += 12;
+            if (startPeriod === 'AM' && startHour === 12) startHour = 0;
+            const startTime24 = `${String(startHour).padStart(2, '0')}:${String(startMin).padStart(2, '0')}:00`;
             
-            let hour24 = hours;
-            if (isPM && hours !== 12) {
-              hour24 = hours + 12;
-            } else if (!isPM && hours === 12) {
-              hour24 = 0;
+            // Parse end time
+            let endHour = parseInt(timeRangeMatch[4]);
+            const endMin = parseInt(timeRangeMatch[5]);
+            const endPeriod = timeRangeMatch[6].toUpperCase();
+            if (endPeriod === 'PM' && endHour !== 12) endHour += 12;
+            if (endPeriod === 'AM' && endHour === 12) endHour = 0;
+            const endTime24 = `${String(endHour).padStart(2, '0')}:${String(endMin).padStart(2, '0')}:00`;
+            
+            startDateTime = new Date(`${dateStr}T${startTime24}`);
+            endDateTime = new Date(`${dateStr}T${endTime24}`);
+            
+            // If parsing fails, fall back to event date
+            if (isNaN(startDateTime.getTime())) {
+              startDateTime = eventDate;
+            }
+            if (isNaN(endDateTime.getTime())) {
+              endDateTime = new Date(startDateTime.getTime() + 2 * 60 * 60 * 1000);
+            }
+          } else {
+            // Single time format - convert 12-hour format to 24-hour format
+            if (timeStr.includes('PM') || timeStr.includes('AM')) {
+              const isPM = timeStr.includes('PM');
+              const timeOnly = timeStr.replace(/\s*(AM|PM)/i, '').trim();
+              const [hours, minutes] = timeOnly.split(':').map(Number);
+              
+              let hour24 = hours;
+              if (isPM && hours !== 12) {
+                hour24 = hours + 12;
+              } else if (!isPM && hours === 12) {
+                hour24 = 0;
+              }
+              
+              timeStr = `${hour24.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
+            } else if (!timeStr.includes(':')) {
+              timeStr = `${timeStr}:00`;
+            } else if (timeStr.split(':').length === 2) {
+              timeStr = `${timeStr}:00`;
             }
             
-            timeStr = `${hour24.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
-          } else if (!timeStr.includes(':')) {
-            timeStr = `${timeStr}:00`;
-          } else if (timeStr.split(':').length === 2) {
-            timeStr = `${timeStr}:00`;
+            // dateStr is already extracted above using UTC
+            startDateTime = new Date(`${dateStr}T${timeStr}`);
+            
+            // If time parsing fails, fall back to event date
+            if (isNaN(startDateTime.getTime())) {
+              startDateTime = eventDate;
+            }
+            
+            // Default to 2 hours duration for timed events
+            endDateTime = new Date(startDateTime.getTime() + 2 * 60 * 60 * 1000);
           }
-          
-          // dateStr is already extracted above using UTC
-          startDateTime = new Date(`${dateStr}T${timeStr}`);
-          
-          // If time parsing fails, fall back to event date
-          if (isNaN(startDateTime.getTime())) {
-            startDateTime = eventDate;
-          }
-          
-          // Default to 2 hours duration for timed events
-          endDateTime = new Date(startDateTime.getTime() + 2 * 60 * 60 * 1000);
         } else {
           // No time specified - use event date
           // dateStr is already extracted above using UTC
@@ -285,6 +317,8 @@ export async function GET(request: NextRequest) {
         let customerName: string | null = null;
         let customerPhone: string | null = null;
         let customerAddress: string | null = null;
+        let locationType: string | null = null;
+        let customerType: string | null = null;
         let vehicleModel: string | null = null;
         let services: string[] | null = null;
         
@@ -296,6 +330,8 @@ export async function GET(request: NextRequest) {
             customerName = metadata.customerName || null;
             customerPhone = metadata.customerPhone || null;
             customerAddress = metadata.customerAddress || null;
+            locationType = metadata.locationType || null;
+            customerType = metadata.customerType || null;
             vehicleModel = metadata.vehicleModel || null;
             services = metadata.services || null;
           } catch (e) {
@@ -327,6 +363,8 @@ export async function GET(request: NextRequest) {
           customerName,
           customerPhone,
           customerAddress,
+          locationType,
+          customerType,
           vehicleType: vehicleModel, // Use vehicleType for consistency with bookings
           vehicleModel,
           services

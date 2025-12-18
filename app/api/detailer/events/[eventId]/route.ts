@@ -274,7 +274,7 @@ export async function PATCH(
     const { eventId } = await params;
     const detailerId = session.user.id;
     const body = await request.json();
-    const { title, color, employeeId, startDate, endDate, isAllDay, description, resourceId, time, customerName, customerPhone, customerEmail, customerAddress, locationType, vehicleModel, services } = body;
+    const { title, color, employeeId, startDate, endDate, isAllDay, description, resourceId, time, startTime: startTimeParam, endTime: endTimeParam, customerName, customerPhone, customerEmail, customerAddress, locationType, customerType, vehicleModel, services } = body;
 
     if (!eventId) {
       return NextResponse.json({ error: 'Event ID is required' }, { status: 400 });
@@ -293,7 +293,8 @@ export async function PATCH(
     }
 
     // Verify resource exists if provided
-    if (resourceId) {
+    // If resourceId is provided in the update, validate it
+    if (resourceId !== undefined) {
       const resource = await prisma.resource.findFirst({
         where: {
           id: resourceId,
@@ -303,6 +304,15 @@ export async function PATCH(
       
       if (!resource) {
         return NextResponse.json({ error: 'Resource not found or does not belong to this detailer' }, { status: 404 });
+      }
+    } else {
+      // If resourceId is not provided, ensure the existing event has one
+      const existingEvent = await prisma.event.findUnique({
+        where: { id: eventId }
+      });
+      
+      if (existingEvent && !existingEvent.resourceId) {
+        return NextResponse.json({ error: 'Event must have a resource assigned. Please select a resource (Bay or Van).' }, { status: 400 });
       }
     }
 
@@ -340,17 +350,44 @@ export async function PATCH(
     }
 
     // Parse dates
-    const startDateTime = startDate ? new Date(startDate) : event.date;
-    const endDateTime = endDate ? new Date(endDate) : startDateTime;
-    
-    // Extract time from datetime or use provided time
+    // For timed events with separate time fields, construct Date objects in local time
+    let startDateTime: Date;
+    let endDateTime: Date;
     let startTime: string | null = null;
-    if (time !== undefined) {
-      startTime = time;
-    } else if (!isAllDay && startDate) {
-      startTime = startDateTime.toTimeString().slice(0, 5);
-    } else if (event.time) {
-      startTime = event.time;
+    
+    if (startDate) {
+      if (!isAllDay && startTimeParam && endTimeParam) {
+        // For timed events, construct Date objects from date and time components in local time
+        const [startYear, startMonth, startDay] = startDate.split('T')[0].split('-').map(Number);
+        const [startHour, startMin] = startTimeParam.split(':').map(Number);
+        startDateTime = new Date(startYear, startMonth - 1, startDay, startHour, startMin, 0);
+        
+        const endDateStr = (endDate || startDate).split('T')[0];
+        const [endYear, endMonth, endDay] = endDateStr.split('-').map(Number);
+        const [endHour, endMin] = endTimeParam.split(':').map(Number);
+        endDateTime = new Date(endYear, endMonth - 1, endDay, endHour, endMin, 0);
+        
+        // Store time as provided (already in range format from frontend)
+        startTime = time || null;
+      } else {
+        // For all-day events or events without separate time fields, parse normally
+        startDateTime = new Date(startDate);
+        endDateTime = endDate ? new Date(endDate) : startDateTime;
+        
+        if (time !== undefined) {
+          startTime = time;
+        } else if (!isAllDay) {
+          startTime = startDateTime.toTimeString().slice(0, 5);
+        } else if (event.time) {
+          startTime = event.time;
+        }
+      }
+    } else {
+      startDateTime = event.date;
+      endDateTime = event.date;
+      if (event.time) {
+        startTime = event.time;
+      }
     }
 
     // Handle description and metadata
@@ -375,6 +412,7 @@ export async function PATCH(
       customerEmail: customerEmail !== undefined ? (customerEmail || null) : existingMetadata.customerEmail,
       customerAddress: customerAddress !== undefined ? (customerAddress || null) : existingMetadata.customerAddress,
       locationType: locationType !== undefined ? (locationType || null) : existingMetadata.locationType,
+      customerType: customerType !== undefined ? (customerType || null) : existingMetadata.customerType,
       vehicleModel: vehicleModel !== undefined ? (vehicleModel || null) : existingMetadata.vehicleModel,
       services: services !== undefined ? (services || null) : existingMetadata.services
     };
@@ -396,7 +434,7 @@ export async function PATCH(
         ...(time !== undefined && { time: startTime }),
         ...(isAllDay !== undefined && { allDay: isAllDay }),
         ...(description !== undefined && { description: combinedDescription }),
-        ...(resourceId !== undefined && { resourceId: resourceId || null })
+        ...(resourceId !== undefined && { resourceId: resourceId })
       }
     });
 
@@ -432,6 +470,7 @@ export async function PATCH(
         
         const finalCustomerEmail = customerEmail !== undefined ? customerEmail : existingMetadata.customerEmail;
         const finalLocationType = locationType !== undefined ? locationType : existingMetadata.locationType;
+        const finalCustomerType = customerType !== undefined ? customerType : existingMetadata.customerType;
         
         // Upsert CustomerSnapshot - store vehicleModel as-is (detailers only care about model)
         await upsertCustomerSnapshot(detailerId, normalizedPhone, {
@@ -439,6 +478,7 @@ export async function PATCH(
           customerEmail: finalCustomerEmail || null,
           address: finalCustomerAddress || null,
           locationType: finalLocationType || null,
+          customerType: finalCustomerType || null,
           vehicle: finalVehicleModel || null,
           vehicleModel: finalVehicleModel || null,
           services: finalServices || null,

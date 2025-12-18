@@ -17,10 +17,15 @@ export async function POST(request: NextRequest) {
 
     const detailerId = session.user.id;
     const body = await request.json();
-    const { title, color, employeeId, startDate, endDate, isAllDay, description, resourceId, time, customerName, customerPhone, customerEmail, customerAddress, locationType, vehicleModel, services } = body;
+    const { title, color, employeeId, startDate, endDate, isAllDay, description, resourceId, time, startTime: startTimeParam, endTime: endTimeParam, customerName, customerPhone, customerEmail, customerAddress, locationType, customerType, vehicleModel, services } = body;
 
     if (!title || !startDate) {
       return NextResponse.json({ error: 'Title and start date are required' }, { status: 400 });
+    }
+
+    // Require resourceId for all events
+    if (!resourceId) {
+      return NextResponse.json({ error: 'Resource (Bay or Van) is required for all events' }, { status: 400 });
     }
 
     // Verify the detailer exists
@@ -34,34 +39,49 @@ export async function POST(request: NextRequest) {
     }
 
     // Parse the start and end dates
-    const startDateTime = new Date(startDate);
-    const endDateTime = new Date(endDate || startDate);
-    
-    // Extract time from datetime or use provided time
-    // For all-day events with business hours, use the provided time
-    // For timed events, extract from datetime
+    // For timed events with separate time fields, construct Date objects in local time
+    let startDateTime: Date;
+    let endDateTime: Date;
     let startTime: string | null = null;
-    if (time) {
-      // Use provided time (for all-day events with business hours)
-      startTime = time;
-    } else if (!isAllDay) {
-      // For timed events, extract time from datetime
-      startTime = startDateTime.toTimeString().slice(0, 5); // HH:MM format
+    
+    if (!isAllDay && startTimeParam && endTimeParam) {
+      // For timed events, construct Date objects from date and time components in local time
+      const [startYear, startMonth, startDay] = startDate.split('T')[0].split('-').map(Number);
+      const [startHour, startMin] = startTimeParam.split(':').map(Number);
+      startDateTime = new Date(startYear, startMonth - 1, startDay, startHour, startMin, 0);
+      
+      const endDateStr = (endDate || startDate).split('T')[0];
+      const [endYear, endMonth, endDay] = endDateStr.split('-').map(Number);
+      const [endHour, endMin] = endTimeParam.split(':').map(Number);
+      endDateTime = new Date(endYear, endMonth - 1, endDay, endHour, endMin, 0);
+      
+      // Store time as provided (already in range format from frontend)
+      startTime = time || null;
+    } else {
+      // For all-day events or events without separate time fields, parse normally
+      startDateTime = new Date(startDate);
+      endDateTime = new Date(endDate || startDate);
+      
+      if (time) {
+        // Use provided time (for all-day events with business hours)
+        startTime = time;
+      } else if (!isAllDay) {
+        // For timed events without separate time fields, extract time from datetime
+        startTime = startDateTime.toTimeString().slice(0, 5); // HH:MM format
+      }
     }
     // For all-day events without time, leave it null
     
-    // Verify resource exists and belongs to this detailer if resourceId is provided
-    if (resourceId) {
-      const resource = await prisma.resource.findFirst({
-        where: {
-          id: resourceId,
-          detailerId
-        }
-      });
-      
-      if (!resource) {
-        return NextResponse.json({ error: 'Resource not found or does not belong to this detailer' }, { status: 404 });
+    // Verify resource exists and belongs to this detailer (required)
+    const resource = await prisma.resource.findFirst({
+      where: {
+        id: resourceId,
+        detailerId
       }
+    });
+    
+    if (!resource) {
+      return NextResponse.json({ error: 'Resource not found or does not belong to this detailer' }, { status: 404 });
     }
 
     // Verify employee exists and belongs to this detailer if employeeId is provided
@@ -86,6 +106,8 @@ export async function POST(request: NextRequest) {
       customerName: customerName || null,
       customerPhone: customerPhone || null,
       customerAddress: customerAddress || null,
+      locationType: locationType || null,
+      customerType: customerType || null,
       vehicleModel: vehicleModel || null,
       services: services || null
     };
@@ -108,7 +130,7 @@ export async function POST(request: NextRequest) {
         allDay: isAllDay || false,
         color: employeeColor, // Use employee's color or provided color
         employeeId: employeeId || null,
-        resourceId: resourceId || null
+        resourceId: resourceId
       }
     });
 
@@ -140,6 +162,7 @@ export async function POST(request: NextRequest) {
           customerEmail: customerEmail || null,
           address: customerAddress || null,
           locationType: locationType || null,
+          customerType: customerType || null,
           vehicle: vehicleModel || null,
           vehicleModel: vehicleModel || null,
           services: services || null,

@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import Image from "next/image";
 import { ChevronLeftIcon, ChevronRightIcon, PlusIcon } from "@heroicons/react/24/solid";
@@ -63,6 +63,18 @@ const EventEditForm = ({ event, resources, onSave, onCancel }: {
     if (event.start && event.end && !event.allDay) {
       return format(new Date(event.start), 'HH:mm');
     } else if (event.time) {
+      // Check if time is in range format: "7:00 AM to 12:00 PM"
+      const timeRangeMatch = event.time.match(/(\d{1,2}):(\d{2})\s*(AM|PM)\s+to\s+(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+      if (timeRangeMatch) {
+        // Extract start time and convert to 24-hour format
+        let startHour = parseInt(timeRangeMatch[1]);
+        const startMin = timeRangeMatch[2];
+        const startPeriod = timeRangeMatch[3].toUpperCase();
+        if (startPeriod === 'PM' && startHour !== 12) startHour += 12;
+        if (startPeriod === 'AM' && startHour === 12) startHour = 0;
+        return `${String(startHour).padStart(2, '0')}:${startMin}`;
+      }
+      // If not a range, try to parse as single time
       return event.time;
     }
     return '';
@@ -70,6 +82,18 @@ const EventEditForm = ({ event, resources, onSave, onCancel }: {
   const [endTime, setEndTime] = useState(() => {
     if (event.start && event.end && !event.allDay) {
       return format(new Date(event.end), 'HH:mm');
+    } else if (event.time) {
+      // Check if time is in range format: "7:00 AM to 12:00 PM"
+      const timeRangeMatch = event.time.match(/(\d{1,2}):(\d{2})\s*(AM|PM)\s+to\s+(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+      if (timeRangeMatch) {
+        // Extract end time and convert to 24-hour format
+        let endHour = parseInt(timeRangeMatch[4]);
+        const endMin = timeRangeMatch[5];
+        const endPeriod = timeRangeMatch[6].toUpperCase();
+        if (endPeriod === 'PM' && endHour !== 12) endHour += 12;
+        if (endPeriod === 'AM' && endHour === 12) endHour = 0;
+        return `${String(endHour).padStart(2, '0')}:${endMin}`;
+      }
     }
     return '';
   });
@@ -82,6 +106,8 @@ const EventEditForm = ({ event, resources, onSave, onCancel }: {
   const [customerName, setCustomerName] = useState(event.customerName || '');
   const [customerPhone, setCustomerPhone] = useState(event.customerPhone || '');
   const [customerAddress, setCustomerAddress] = useState(event.customerAddress || '');
+  const [customerType, setCustomerType] = useState(event.customerType || '');
+  const [locationType, setLocationType] = useState(event.locationType || '');
   const [vehicles, setVehicles] = useState<Array<{ id: string; model: string }>>(() => {
     // Initialize vehicles from event data
     let vehicleList: Array<{ id: string; model: string }> = [];
@@ -162,6 +188,71 @@ const EventEditForm = ({ event, resources, onSave, onCancel }: {
       setSelectedServices(matchedItems);
     }
   }, [event.services, availableServices, availableBundles]);
+
+  // Parse metadata from description if customerType or locationType are not set
+  useEffect(() => {
+    if ((!event.customerType || !event.locationType) && event.description && event.description.includes('__METADATA__:')) {
+      const parts = event.description.split('__METADATA__:');
+      try {
+        const metadata = JSON.parse(parts[1] || '{}');
+        if (!event.customerType && metadata.customerType) {
+          setCustomerType(metadata.customerType);
+        }
+        if (!event.locationType && metadata.locationType) {
+          setLocationType(metadata.locationType);
+        }
+      } catch (e) {
+        // Ignore parse errors
+      }
+    }
+  }, [event.description, event.customerType, event.locationType]);
+
+  // Update date and times when event prop changes (e.g., after saving)
+  useEffect(() => {
+    // Update startDate if event.date or event.start changes
+    if (event.date || event.start) {
+      const eventDate = event.date || event.start;
+      if (typeof eventDate === 'string') {
+        if (eventDate.includes('T')) {
+          setStartDate(eventDate.split('T')[0]);
+        } else if (eventDate.match(/^\d{4}-\d{2}-\d{2}/)) {
+          setStartDate(eventDate);
+        }
+      } else {
+        const date = new Date(eventDate);
+        const year = date.getUTCFullYear();
+        const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(date.getUTCDate()).padStart(2, '0');
+        setStartDate(`${year}-${month}-${day}`);
+      }
+    }
+    
+    // Update times
+    if (event.start && event.end && !event.allDay) {
+      setStartTime(format(new Date(event.start), 'HH:mm'));
+      setEndTime(format(new Date(event.end), 'HH:mm'));
+    } else if (event.time) {
+      // Check if time is in range format: "7:00 AM to 12:00 PM"
+      const timeRangeMatch = event.time.match(/(\d{1,2}):(\d{2})\s*(AM|PM)\s+to\s+(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+      if (timeRangeMatch) {
+        // Extract start time and convert to 24-hour format
+        let startHour = parseInt(timeRangeMatch[1]);
+        const startMin = timeRangeMatch[2];
+        const startPeriod = timeRangeMatch[3].toUpperCase();
+        if (startPeriod === 'PM' && startHour !== 12) startHour += 12;
+        if (startPeriod === 'AM' && startHour === 12) startHour = 0;
+        setStartTime(`${String(startHour).padStart(2, '0')}:${startMin}`);
+        
+        // Extract end time and convert to 24-hour format
+        let endHour = parseInt(timeRangeMatch[4]);
+        const endMin = timeRangeMatch[5];
+        const endPeriod = timeRangeMatch[6].toUpperCase();
+        if (endPeriod === 'PM' && endHour !== 12) endHour += 12;
+        if (endPeriod === 'AM' && endHour === 12) endHour = 0;
+        setEndTime(`${String(endHour).padStart(2, '0')}:${endMin}`);
+      }
+    }
+  }, [event.date, event.start, event.end, event.time, event.allDay]);
 
   // Fetch business hours
   useEffect(() => {
@@ -264,16 +355,33 @@ const EventEditForm = ({ event, resources, onSave, onCancel }: {
     let startDateTime = startDate;
     let endDateTime = isMultiDay ? (endDate || startDate) : startDate;
     let timeToStore = null;
+    let startTimeToSend = null;
+    let endTimeToSend = null;
+
+    // Helper function to convert 24-hour format (HH:mm) to 12-hour format (h:mm AM/PM)
+    const formatTo12Hour = (time24: string): string => {
+      if (!time24) return '';
+      const [hours, minutes] = time24.split(':').map(Number);
+      const period = hours >= 12 ? 'PM' : 'AM';
+      const hours12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+      return `${hours12}:${String(minutes).padStart(2, '0')} ${period}`;
+    };
 
     if (isAllDay && startTime && endTime) {
       startDateTime = `${startDate}T${startTime}`;
       endDateTime = `${startDate}T${endTime}`;
       timeToStore = startTime;
     } else if (!isAllDay && startTime && endTime) {
+      // For timed events, send times separately to avoid timezone issues
       startDateTime = `${startDate}T${startTime}`;
       const endDateForTime = isMultiDay ? (endDate || startDate) : startDate;
       endDateTime = `${endDateForTime}T${endTime}`;
-      timeToStore = startTime;
+      // Format as time range: "7:00 AM to 12:00 PM"
+      const startTime12 = formatTo12Hour(startTime);
+      const endTime12 = formatTo12Hour(endTime);
+      timeToStore = `${startTime12} to ${endTime12}`;
+      startTimeToSend = startTime;
+      endTimeToSend = endTime;
     }
 
     onSave({
@@ -283,11 +391,15 @@ const EventEditForm = ({ event, resources, onSave, onCancel }: {
       endDate: endDateTime,
       isAllDay,
       time: timeToStore,
+      startTime: startTimeToSend || undefined, // Send start time separately for timed events
+      endTime: endTimeToSend || undefined, // Send end time separately for timed events
       description,
       resourceId: selectedResourceId || undefined,
       customerName: customerName || undefined,
       customerPhone: customerPhone || undefined,
       customerAddress: customerAddress || undefined,
+      customerType: customerType || undefined,
+      locationType: locationType || undefined,
       vehicleModel: vehicles.length > 0 ? vehicles.map(v => v.model).join(', ') : undefined,
       vehicles: vehicles.length > 0 ? vehicles.map(v => v.model) : undefined,
       services: selectedServices.map(s => s.name)
@@ -401,6 +513,48 @@ const EventEditForm = ({ event, resources, onSave, onCancel }: {
             )}
           </div>
         )}
+      </div>
+
+      {/* Customer Type and Location Type Selection */}
+      <div className="pt-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Customer Type Dropdown */}
+          <div>
+            <label htmlFor="customer-type-select" className="block text-sm font-semibold text-gray-900 mb-2">
+              Customer Type
+            </label>
+            <select
+              id="customer-type-select"
+              value={customerType}
+              onChange={e => setCustomerType(e.target.value)}
+              className="w-full px-4 py-2.5 border rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+              style={{ borderColor: '#E2E2DD' }}
+            >
+              <option value="">Select customer type</option>
+              <option value="new">New Customer</option>
+              <option value="returning">Returning Customer</option>
+              <option value="maintenance">Maintenance Customer</option>
+            </select>
+          </div>
+          
+          {/* Location Type Dropdown */}
+          <div>
+            <label htmlFor="location-type-select" className="block text-sm font-semibold text-gray-900 mb-2">
+              Location Type
+            </label>
+            <select
+              id="location-type-select"
+              value={locationType}
+              onChange={e => setLocationType(e.target.value)}
+              className="w-full px-4 py-2.5 border rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+              style={{ borderColor: '#E2E2DD' }}
+            >
+              <option value="">Select location type</option>
+              <option value="pickup">Pick Up</option>
+              <option value="dropoff">Drop Off</option>
+            </select>
+          </div>
+        </div>
       </div>
 
       {/* Date and Time Section */}
@@ -967,8 +1121,12 @@ const MonthView = ({ date, events, selectedEvent, onEventClick, scale = 1.0 }: {
     const daysInMonth = getDaysInMonth(year, month);
     const firstDay = new Date(year, month, 1).getDay();
 
+    // Calculate row height based on scale - recalibrated so current 200% becomes new 100%
+    // Base values doubled: 80 -> 160, so 100% now = old 200%, and 200% will be even wider
+    const scaledRowHeight = 160 * scale; // Base row height that scales with slider
+    
     return (
-        <div className="grid grid-cols-7 border-t border-l border-gray-200 dark:border-gray-700 flex-1" style={{ gridAutoRows: '1fr' }}>
+        <div className="grid grid-cols-7 border-t border-l border-gray-200 dark:border-gray-700 flex-1" style={{ gridAutoRows: `${scaledRowHeight}px` }}>
             {daysOfWeek.map((day) => (
                 <div key={day} className="py-2 text-center font-semibold text-[10px] md:text-xs text-gray-600 dark:text-gray-300 uppercase tracking-wider border-r border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
                     <span className="md:hidden">{day.slice(0,3)}</span>
@@ -1035,17 +1193,14 @@ const MonthView = ({ date, events, selectedEvent, onEventClick, scale = 1.0 }: {
                   
                   return false;
                 });
-                const scaledPadding = 1.5 * scale;
-                const scaledMinHeight = 24 * scale;
-                const scaledMinHeightMd = 32 * scale;
+                const scaledPadding = 8 * scale; // Doubled from 4 to 8 (recalibrated baseline)
                 return (
-                    <div key={day} className="flex-1 border-r border-b border-gray-200 dark:border-gray-700 flex flex-col" style={{ minHeight: `${scaledMinHeight * 4}px`, padding: `${scaledPadding * 4}px` }}>
-                        <div className="text-xs md:text-sm font-medium text-gray-800 dark:text-gray-200" style={{ fontSize: `${0.75 * scale}rem` }}>{day}</div>
-                        <div className="mt-1 overflow-y-auto" style={{ gap: `${0.25 * scale}rem` }}>
+                    <div key={day} className="flex-1 border-r border-b border-gray-200 dark:border-gray-700 flex flex-col" style={{ padding: `${scaledPadding}px` }}>
+                        <div className="text-xs md:text-sm font-medium text-gray-800 dark:text-gray-200">{day}</div>
+                        <div className="mt-1 overflow-y-auto flex flex-col" style={{ gap: `${8 * scale}px` }}>
                             {dayEvents.map((event, eventIndex) => {
                                 const isSelected = selectedEvent === event.id;
-                                const scaledEventPadding = 1.5 * scale;
-                                const scaledEventFontSize = 0.75 * scale;
+                                const scaledEventPadding = 12 * scale; // Doubled from 6 to 12 (recalibrated baseline)
                                 const baseClasses = `${eventColors[event.color]?.bg} rounded-xl dark:text-white cursor-pointer transition-all duration-200 hover:shadow-md flex flex-col`;
                                 const selectedClasses = isSelected ? 'ring-2 ring-gray-400 ring-opacity-50 shadow-lg scale-105' : '';
                                 
@@ -1056,31 +1211,32 @@ const MonthView = ({ date, events, selectedEvent, onEventClick, scale = 1.0 }: {
                                             key={eventIndex} 
                                             className={`${baseClasses} ${selectedClasses} border-l-4 ${eventColors[event.color]?.border}`}
                                             onClick={() => onEventClick(event)}
-                                            style={{ padding: `${scaledEventPadding * 4}px`, fontSize: `${scaledEventFontSize}rem` }}
+                                            style={{ padding: `${scaledEventPadding}px` }}
                                         >
                                             <div className="flex items-center gap-1.5">
                                             {event.employeeImageUrl ? (
                                                 <img 
                                                     src={event.employeeImageUrl} 
                                                     alt={event.employeeName || 'Employee'}
-                                                    className="w-4 h-4 rounded-full object-cover border border-gray-300 dark:border-gray-600 flex-shrink-0"
+                                                    className="rounded-full object-cover border border-gray-300 dark:border-gray-600 flex-shrink-0"
+                                                    style={{ width: `${8 * scale}px`, height: `${8 * scale}px` }}
                                                 />
                                             ) : event.employeeName ? (
-                                                <div className="w-4 h-4 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center border border-gray-300 dark:border-gray-600 flex-shrink-0">
+                                                <div className="rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center border border-gray-300 dark:border-gray-600 flex-shrink-0" style={{ width: `${8 * scale}px`, height: `${8 * scale}px` }}>
                                                     <span className="text-[7px] font-semibold text-gray-700 dark:text-gray-300">
                                                         {event.employeeName.charAt(0).toUpperCase()}
                                                     </span>
                                                 </div>
                                             ) : null}
                                             {event.source === 'google' && (
-                                                <svg className="w-3 h-3 text-gray-600 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                                                <svg className="text-gray-600 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor" style={{ width: `${6 * scale}px`, height: `${6 * scale}px` }}>
                                                     <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
                                                     <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
                                                     <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
                                                     <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
                                                 </svg>
                                             )}
-                                                <span className="font-semibold text-sm md:text-base truncate">{event.title || event.eventName || (Array.isArray(event.services) ? event.services.join(' + ') : event.services) || 'Service'}</span>
+                                                <span className="text-sm md:text-base font-semibold truncate">{event.title || event.eventName || (Array.isArray(event.services) ? event.services.join(' + ') : event.services) || 'Service'}</span>
                                             </div>
                                             {formatTimeRange(event) && (
                                                 <span className="text-xs font-semibold text-gray-700 dark:text-gray-300 mt-0.5 truncate">
@@ -1097,8 +1253,8 @@ const MonthView = ({ date, events, selectedEvent, onEventClick, scale = 1.0 }: {
                                                     </span>
                                                 )}
                                                 {getCustomerType(event) === 'repeat' && (
-                                                    <span className="text-xs font-semibold bg-purple-200 text-purple-800 dark:bg-purple-900 dark:text-purple-200 px-1.5 py-0.5 rounded mt-0.5 inline-block">
-                                                        Repeat customer
+                                                    <span className="text-xs font-semibold bg-purple-200 text-purple-800 dark:bg-purple-900 dark:text-purple-200 px-1.5 py-0.5 rounded mt-0.5 inline-block truncate">
+                                                        Repeat ...
                                                     </span>
                                                 )}
                                                 {(event.customerName || event.customerPhone) && (
@@ -1120,25 +1276,25 @@ const MonthView = ({ date, events, selectedEvent, onEventClick, scale = 1.0 }: {
                                             e.stopPropagation();
                                             onEventClick(event);
                                         }}
-                                        style={{ padding: `${scaledEventPadding * 4}px`, fontSize: `${scaledEventFontSize}rem` }}
+                                        style={{ padding: `${scaledEventPadding}px` }}
                                     >
-                                        <div className="flex items-center gap-1.5">
-                                    <div className={`w-2 h-full rounded-l-md ${eventColors[event.color]?.border} border-l-2 flex-shrink-0`}></div>
+                                        <div className="flex items-center gap-1.5 w-full">
                                         {event.employeeImageUrl ? (
                                             <img 
                                                 src={event.employeeImageUrl} 
                                                 alt={event.employeeName || 'Employee'}
-                                                className="w-6 h-6 rounded-full object-cover border border-gray-300 dark:border-gray-600 flex-shrink-0"
+                                                className="rounded-full object-cover border border-gray-300 dark:border-gray-600 flex-shrink-0"
+                                                style={{ width: `${12 * scale}px`, height: `${12 * scale}px` }}
                                             />
                                         ) : event.employeeName ? (
-                                            <div className="w-6 h-6 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center border border-gray-300 dark:border-gray-600 flex-shrink-0">
+                                            <div className="rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center border border-gray-300 dark:border-gray-600 flex-shrink-0" style={{ width: `${12 * scale}px`, height: `${12 * scale}px` }}>
                                                 <span className="text-[9px] font-semibold text-gray-700 dark:text-gray-300">
                                                     {event.employeeName.charAt(0).toUpperCase()}
                                                 </span>
                                             </div>
                                         ) : null}
                                         {event.source === 'google' && (
-                                            <svg className="w-3 h-3 text-gray-600 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                                            <svg className="text-gray-600 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor" style={{ width: `${6 * scale}px`, height: `${6 * scale}px` }}>
                                                 <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
                                                 <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
                                                 <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
@@ -1148,26 +1304,26 @@ const MonthView = ({ date, events, selectedEvent, onEventClick, scale = 1.0 }: {
                                             <span className="truncate text-sm md:text-base font-semibold flex-1">{event.title || event.eventName || (Array.isArray(event.services) ? event.services.join(' + ') : event.services) || 'Service'}</span>
                                         </div>
                                         {formatTimeRange(event) && (
-                                            <span className="text-xs font-semibold text-gray-700 dark:text-gray-300 mt-0.5 truncate ml-4">
+                                            <span className="text-xs font-semibold text-gray-700 dark:text-gray-300 mt-0.5 truncate text-left w-full">
                                                 {formatTimeRange(event)}
                                             </span>
                                         )}
                                         {(event.vehicleType || event.vehicleModel) ? (
-                                            <span className="text-xs font-semibold text-gray-600 dark:text-gray-400 mt-0.5 truncate ml-4">{event.vehicleType || event.vehicleModel}</span>
+                                            <span className="text-xs font-semibold text-gray-600 dark:text-gray-400 mt-0.5 truncate text-left w-full">{event.vehicleType || event.vehicleModel}</span>
                                         ) : null}
-                                        <div className="mt-auto pt-2 ml-4">
+                                        <div className="mt-auto pt-2 w-full">
                                             {getCustomerType(event) === 'new' && (
-                                                <span className="text-xs font-semibold bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300 px-1.5 py-0.5 rounded mt-0.5 inline-block">
+                                                <span className="text-xs font-semibold bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300 px-1.5 py-0.5 rounded mt-0.5 inline-block text-left">
                                                     New customer
                                                 </span>
                                             )}
                                             {getCustomerType(event) === 'repeat' && (
-                                                <span className="text-xs font-semibold bg-purple-200 text-purple-800 dark:bg-purple-900 dark:text-purple-200 px-1.5 py-0.5 rounded mt-0.5 inline-block">
-                                                    Repeat customer
+                                                <span className="text-xs font-semibold bg-purple-200 text-purple-800 dark:bg-purple-900 dark:text-purple-200 px-1.5 py-0.5 rounded mt-0.5 inline-block text-left truncate">
+                                                    Repeat ...
                                                 </span>
                                             )}
                                             {(event.customerName || event.customerPhone) && (
-                                                <span className="text-xs text-gray-700 dark:text-gray-300 mt-0.5 truncate font-semibold block">
+                                                <span className="text-xs text-gray-700 dark:text-gray-300 mt-0.5 truncate font-semibold block text-left w-full">
                                                     {event.customerName || 'Customer'}{event.customerPhone ? ` (${event.customerPhone})` : ''}
                                                 </span>
                                             )}
@@ -1183,7 +1339,216 @@ const MonthView = ({ date, events, selectedEvent, onEventClick, scale = 1.0 }: {
     );
 };
 
-const WeekView = ({ date, events, onEventClick, scale = 1.0 }: { date: Date, events: any[], onEventClick: (event: any) => void, scale?: number }) => {
+// Event Hover Popup Component
+const EventHoverPopup = ({ 
+    event, 
+    position, 
+    formatTimeRange, 
+    getCustomerType,
+    onMouseEnter,
+    onMouseLeave 
+}: { 
+    event: any;
+    position: { top: number; left: number } | null;
+    formatTimeRange: (event: any) => string;
+    getCustomerType: (event: any) => string;
+    onMouseEnter: () => void;
+    onMouseLeave: () => void;
+}) => {
+    if (!event || !position) return null;
+
+    const eventColor = event.color || 'blue';
+    const eventColors: Record<string, { bg: string; border: string }> = {
+        blue: { bg: 'bg-blue-100', border: 'border-blue-500' },
+        green: { bg: 'bg-green-100', border: 'border-green-500' },
+        red: { bg: 'bg-red-100', border: 'border-red-500' },
+        yellow: { bg: 'bg-yellow-100', border: 'border-yellow-500' },
+        purple: { bg: 'bg-purple-100', border: 'border-purple-500' },
+        orange: { bg: 'bg-orange-100', border: 'border-orange-500' },
+        pink: { bg: 'bg-pink-100', border: 'border-pink-500' },
+        indigo: { bg: 'bg-indigo-100', border: 'border-indigo-500' },
+    };
+    const colorConfig = eventColors[eventColor] || eventColors.blue;
+
+    const serviceName = event.title || event.eventName || (Array.isArray(event.services) ? event.services.join(' + ') : event.services) || 'Service';
+    const vehicleModel = event.vehicleType || event.vehicleModel;
+    const timeRange = formatTimeRange(event);
+    const customerType = getCustomerType(event);
+    const paymentStatus = event.paymentStatus || event.status;
+    const bookingSource = event.source;
+
+    return (
+        <div
+            className="fixed bg-white shadow-2xl z-[100] rounded-xl overflow-hidden pointer-events-auto"
+            style={{
+                border: '1px solid #E2E2DD',
+                backgroundColor: '#FFFFFF',
+                width: '400px',
+                top: `${position.top}px`,
+                left: `${position.left}px`,
+                maxWidth: 'calc(100vw - 32px)',
+            }}
+            onMouseEnter={onMouseEnter}
+            onMouseLeave={onMouseLeave}
+        >
+            <div className="p-5 space-y-4">
+                {/* Header with Service Name, Time, and Payment Status */}
+                <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1">
+                        <h3 className="text-lg font-bold text-gray-900">
+                            {serviceName}
+                        </h3>
+                        {/* Time Range */}
+                        {timeRange && (
+                            <div className="text-base font-semibold mt-1.5" style={{ color: 'rgba(64, 64, 58, 0.7)' }}>
+                                {timeRange}
+                            </div>
+                        )}
+                        {/* Vehicle */}
+                        {vehicleModel && (
+                            <div className="text-base font-medium mt-1.5" style={{ color: 'rgba(64, 64, 58, 0.7)' }}>
+                                {vehicleModel}
+                            </div>
+                        )}
+                    </div>
+                    {paymentStatus === 'paid' || paymentStatus === 'PAID' ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-green-100 text-green-700 text-xs font-semibold flex-shrink-0">
+                            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z" />
+                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clipRule="evenodd" />
+                            </svg>
+                            PAID
+                        </span>
+                    ) : null}
+                </div>
+
+                {/* Tags */}
+                <div className="flex flex-wrap items-center gap-2">
+                    {event.locationType && (
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded ${
+                            event.locationType.toLowerCase() === 'pick up' || event.locationType.toLowerCase() === 'pickup'
+                                ? 'bg-blue-100 text-blue-700'
+                                : event.locationType.toLowerCase() === 'drop off' || event.locationType.toLowerCase() === 'dropoff'
+                                ? 'bg-pink-100 text-pink-700'
+                                : 'bg-gray-100 text-gray-700'
+                        }`}>
+                            {event.locationType?.toLowerCase() === 'pickup' ? 'Pick Up' : 
+                             event.locationType?.toLowerCase() === 'dropoff' ? 'Drop Off' :
+                             event.locationType?.toLowerCase() === 'pick up' ? 'Pick Up' :
+                             event.locationType?.toLowerCase() === 'drop off' ? 'Drop Off' :
+                             event.locationType}
+                        </span>
+                    )}
+                    {event.customerType === 'new' && (
+                        <span className="text-xs font-semibold bg-gray-200 text-gray-700 px-2 py-0.5 rounded">
+                            New Customer
+                        </span>
+                    )}
+                    {event.customerType === 'returning' && (
+                        <span className="text-xs font-semibold bg-purple-200 text-purple-800 dark:bg-purple-900 dark:text-purple-200 px-2 py-0.5 rounded">
+                            Returning Customer
+                        </span>
+                    )}
+                    {event.customerType === 'maintenance' && (
+                        <span className="text-xs font-semibold bg-blue-200 text-blue-800 dark:bg-blue-900 dark:text-blue-200 px-2 py-0.5 rounded">
+                            Maintenance Customer
+                        </span>
+                    )}
+                    {!event.customerType && customerType === 'new' && (
+                        <span className="text-xs font-semibold bg-gray-200 text-gray-700 px-2 py-0.5 rounded">
+                            New customer
+                        </span>
+                    )}
+                    {!event.customerType && customerType === 'repeat' && (
+                        <span className="text-xs font-semibold text-white px-2 py-0.5 rounded" style={{ backgroundColor: '#AE5AEF' }}>
+                            Repeat customer
+                        </span>
+                    )}
+                </div>
+
+                {/* Customer Information */}
+                {(event.customerName || event.customerPhone) && (
+                    <div className="text-base text-gray-700">
+                        <span className="font-semibold">{event.customerName || 'Customer'}</span>
+                        {event.customerPhone && (
+                            <span className="text-gray-600 ml-1">({event.customerPhone})</span>
+                        )}
+                    </div>
+                )}
+
+                {/* Assigned Employee */}
+                {event.employeeName && (
+                    <div className="flex items-center gap-3">
+                        {event.employeeImageUrl ? (
+                            <img
+                                src={event.employeeImageUrl}
+                                alt={event.employeeName}
+                                className="w-10 h-10 rounded-full object-cover border border-gray-300"
+                            />
+                        ) : (
+                            <div className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center border border-gray-300">
+                                <span className="text-base font-semibold text-gray-700">
+                                    {event.employeeName.charAt(0).toUpperCase()}
+                                </span>
+                            </div>
+                        )}
+                        <span className="text-base text-gray-700">{event.employeeName}</span>
+                    </div>
+                )}
+
+                {/* Booking Source - Only show for Google Calendar and Woocommerce, hide Local */}
+                {bookingSource && bookingSource !== 'local' && bookingSource !== 'local-booking' && bookingSource !== 'local-google-synced' && (
+                    <div className="flex items-center gap-2 text-xs text-gray-600">
+                        {bookingSource === 'google' && (
+                            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                            </svg>
+                        )}
+                        {bookingSource === 'woocommerce' && (
+                            <span className="inline-flex items-center justify-center w-4 h-4 rounded bg-purple-100 text-purple-700 text-[10px] font-bold">W</span>
+                        )}
+                        <span className="capitalize">{bookingSource === 'woocommerce' ? 'Woocommerce' : bookingSource}</span>
+                    </div>
+                )}
+
+                {/* Description */}
+                {event.description && (
+                    <div className="text-sm border-t border-gray-200 pt-4 mt-4">
+                        <div className="line-clamp-3">
+                            <span className="font-semibold text-gray-700">Notes: </span>
+                            <span className="text-gray-600">{event.description}</span>
+                        </div>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, businessHours, onResourceSelect, onOpenModal, draftEvent, onDraftEventUpdate }: { 
+  date: Date, 
+  events: any[], 
+  onEventClick: (event: any) => void, 
+  resources?: Array<{ id: string, name: string, type: 'bay' | 'van' }>, 
+  scale?: number, 
+  businessHours?: any,
+  onResourceSelect?: (resource: { id: string, name: string, type: 'bay' | 'van' }) => void,
+  onOpenModal?: (draftEvent?: { resourceId: string; startTime: string; endTime: string; date: Date }) => void,
+  draftEvent?: { resourceId: string; startTime: string; endTime: string; date: Date } | null,
+  onDraftEventUpdate?: (draftEvent: { resourceId: string; startTime: string; endTime: string; date: Date }) => void
+}) => {
+    // Hover state for event popup
+    const [hoveredEvent, setHoveredEvent] = useState<any | null>(null);
+    const [popupPosition, setPopupPosition] = useState<{ top: number; left: number } | null>(null);
+    const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const timeColumnScrollRef = useRef<HTMLDivElement>(null);
+    const mainScrollRef = useRef<HTMLDivElement>(null);
+    // Selected cell state for highlighting
+    const [selectedCell, setSelectedCell] = useState<{ day: Date; resourceId: string; slotIndex: number } | null>(null);
+
     // Debug: Log first event with customer data
     if (events.length > 0) {
         const firstEvent = events[0];
@@ -1196,6 +1561,98 @@ const WeekView = ({ date, events, onEventClick, scale = 1.0 }: { date: Date, eve
             services: firstEvent.services
         });
     }
+
+    // Handle event hover
+    const handleEventMouseEnter = (event: any, element: HTMLElement) => {
+        // Clear any existing timeout
+        if (hoverTimeoutRef.current) {
+            clearTimeout(hoverTimeoutRef.current);
+        }
+        
+        // Get element position relative to viewport (for fixed positioning)
+        const rect = element.getBoundingClientRect();
+        
+        // Position popup to the right of the event card
+        const popupWidth = 400; // Increased for better desktop visibility
+        const gap = 8; // 8px gap
+        let left = rect.right + gap;
+        let top = rect.top;
+        
+        // Check if popup would overflow right side of viewport
+        if (left + popupWidth > window.innerWidth) {
+            // Position to the left instead
+            left = rect.left - popupWidth - gap;
+            // If still overflow on left, position at left edge
+            if (left < 0) {
+                left = 8;
+            }
+        }
+        
+        // Check if popup would overflow bottom of viewport
+        const popupHeight = 300; // Estimated height
+        if (top + popupHeight > window.innerHeight) {
+            top = window.innerHeight - popupHeight - 8;
+        }
+        
+        // Ensure popup doesn't go above viewport
+        if (top < 8) {
+            top = 8;
+        }
+        
+        setHoveredEvent(event);
+        setPopupPosition({ top, left });
+    };
+
+    // Handle event mouse leave
+    const handleEventMouseLeave = () => {
+        // Small delay to allow moving mouse to popup
+        hoverTimeoutRef.current = setTimeout(() => {
+            setHoveredEvent(null);
+            setPopupPosition(null);
+        }, 100);
+    };
+
+    // Handle popup mouse enter (keep it open when hovering over popup)
+    const handlePopupMouseEnter = () => {
+        if (hoverTimeoutRef.current) {
+            clearTimeout(hoverTimeoutRef.current);
+        }
+    };
+
+    // Handle popup mouse leave
+    const handlePopupMouseLeave = () => {
+        setHoveredEvent(null);
+        setPopupPosition(null);
+    };
+
+    // Cleanup timeout on unmount
+    useEffect(() => {
+        return () => {
+            if (hoverTimeoutRef.current) {
+                clearTimeout(hoverTimeoutRef.current);
+            }
+        };
+    }, []);
+
+    // Sync time column scroll with main content scroll
+    useEffect(() => {
+        const mainScroll = mainScrollRef.current;
+        const timeColumnScroll = timeColumnScrollRef.current;
+        
+        if (!mainScroll || !timeColumnScroll) return;
+
+        const handleScroll = () => {
+            if (timeColumnScroll.scrollTop !== mainScroll.scrollTop) {
+                timeColumnScroll.scrollTop = mainScroll.scrollTop;
+            }
+        };
+
+        mainScroll.addEventListener('scroll', handleScroll, { passive: true });
+        
+        return () => {
+            mainScroll.removeEventListener('scroll', handleScroll);
+        };
+    }, []);
 
     // Format time range for event cards (e.g., "9:00 AM - 11:00 AM")
     const formatTimeRange = (event: any): string => {
@@ -1233,268 +1690,698 @@ const WeekView = ({ date, events, onEventClick, scale = 1.0 }: { date: Date, eve
     const weekStart = startOfWeek(date);
     const weekEnd = endOfWeek(date);
     const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd });
-    // Generate time slots: All-day, 4am-11am, 12pm-11pm
-    const timeSlots = ['All-day'];
-    for (let hour = 4; hour <= 11; hour++) {
-        timeSlots.push(`${hour}am`);
-    }
-    timeSlots.push('12pm');
-    for (let hour = 1; hour <= 11; hour++) {
-        timeSlots.push(`${hour}pm`);
-    }
+    
+    // Helper function to parse hour from time slot string (e.g., "7am" -> 7, "12pm" -> 12, "1pm" -> 13)
+    const parseSlotHour = (slot: string): number | null => {
+        if (!slot) return null;
+        const match = slot.match(/(\d+)(am|pm)/i);
+        if (!match) return null;
+        let hour = parseInt(match[1]);
+        const period = match[2].toLowerCase();
+        if (period === 'pm' && hour !== 12) hour += 12;
+        if (period === 'am' && hour === 12) hour = 0;
+        return hour;
+    };
+    
+    // Generate time slots based on business hours
+    const generateTimeSlots = (): string[] => {
+        if (!businessHours) {
+            // Fallback to default hours if no business hours
+            const slots: string[] = [];
+            for (let hour = 7; hour <= 11; hour++) {
+                slots.push(`${hour}am`);
+            }
+            slots.push('12pm');
+            for (let hour = 1; hour <= 7; hour++) {
+                slots.push(`${hour}pm`);
+            }
+            return slots;
+        }
+
+        const dayNames = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+        let earliestHour = 24;
+        let latestHour = 0;
+
+        // Find earliest opening and latest closing across all days in the week
+        weekDays.forEach(day => {
+            const dayOfWeek = day.getDay();
+            const dayKey = dayNames[dayOfWeek];
+            const dayHours = businessHours[dayKey];
+            
+            if (dayHours && Array.isArray(dayHours) && dayHours.length >= 2) {
+                const [openTime, closeTime] = dayHours;
+                if (openTime && closeTime) {
+                    const [openHour] = openTime.split(':').map(Number);
+                    const [closeHour] = closeTime.split(':').map(Number);
+                    if (openHour < earliestHour) earliestHour = openHour;
+                    if (closeHour > latestHour) latestHour = closeHour;
+                }
+            }
+        });
+
+        // If no valid hours found, use defaults
+        if (earliestHour === 24 || latestHour === 0) {
+            earliestHour = 7;
+            latestHour = 20;
+        }
+
+        // Generate slots from earliest to latest hour (up to but not including closing hour)
+        const slots: string[] = [];
+        for (let hour = earliestHour; hour < latestHour; hour++) {
+            if (hour === 0) {
+                slots.push('12am');
+            } else if (hour < 12) {
+                slots.push(`${hour}am`);
+            } else if (hour === 12) {
+                slots.push('12pm');
+            } else {
+                slots.push(`${hour - 12}pm`);
+            }
+        }
+        
+        return slots;
+    };
+
+    const timeSlots = generateTimeSlots();
 
     const scaledTimeColumnWidth = 80 * scale;
-    const scaledTimeSlotHeight = 64 * scale;
+    const scaledTimeSlotHeight = 96 * scale; // Increased from 64 to 96 for taller default boxes
     const scaledColumnMinWidth = 100 * scale;
 
+    // Use resources if available, otherwise create a default "Station" resource
+    const displayResources = resources.length > 0 ? resources : [{ id: 'station', name: 'Station', type: 'bay' as const }];
+    const totalColumns = weekDays.length * displayResources.length;
+
     return (
-        <div className="flex border-t border-l border-gray-200 dark:border-gray-700 w-full h-full overflow-hidden">
-            <div className="border-r border-gray-200 dark:border-gray-700 flex-shrink-0 flex flex-col h-full" style={{ width: `${scaledTimeColumnWidth}px` }}>
-                {/* Sticky header for time column */}
-                <div className="flex-shrink-0 border-b border-gray-200 dark:border-gray-700" style={{ height: `${40 * scale}px` }}></div>
-                {/* Scrollable time slots */}
-                <div className="flex-1 overflow-y-auto">
-                {timeSlots.map(slot => (
-                        <div key={slot} className="flex items-center justify-center text-xs text-gray-500 border-b border-gray-200 dark:border-gray-700" style={{ height: `${scaledTimeSlotHeight}px`, fontSize: `${0.75 * scale}rem` }}>
-                        {slot}
-                    </div>
-                ))}
-            </div>
-            </div>
-            <div className="flex-1 overflow-y-auto overflow-x-auto h-full">
-                <div className="grid grid-cols-7" style={{ minWidth: `calc(7 * ${scaledColumnMinWidth}px)` }}>
-                {weekDays.map(day => (
-                    <div key={day.toString()} className="border-r border-gray-200 dark:border-gray-700">
-                             <div className="text-center py-2 text-xs font-semibold uppercase border-b border-gray-200 dark:border-gray-700 sticky top-0 bg-white dark:bg-gray-900 z-10">
-                            {format(day, 'EEE')} <span className="text-gray-800 dark:text-white">{format(day, 'M/d')}</span>
-                        </div>
+        <div className="flex border-t border-l border-gray-200 dark:border-gray-700 w-full h-full" style={{ height: '100%', overflow: 'visible' }}>
+            {/* Main scrollable container - contains both time column and main content */}
+            <div 
+                ref={mainScrollRef}
+                className="flex-1 min-h-0 overflow-x-auto overflow-y-auto"
+                id="week-view-scroll-container"
+                style={{ 
+                    position: 'relative',
+                    height: '100%',
+                    maxHeight: '100%',
+                    minWidth: 0
+                }}
+            >
+                {/* Inner flex container for time column and main content */}
+                <div className="flex" style={{ minHeight: '100%' }}>
+                    {/* Time column - sticky on left, inside scroll container */}
+                    <div
+                      className="border-r border-gray-200 dark:border-gray-700 flex-shrink-0 flex flex-col bg-white dark:bg-gray-900"
+                      style={{ 
+                        position: 'sticky', 
+                        left: 0, 
+                        zIndex: 60, 
+                        width: `${scaledTimeColumnWidth}px`,
+                        alignSelf: 'flex-start'
+                      }}
+                    >
+                        {/* Sticky header for time column - matches the height of the main header */}
+                        <div 
+                          className="flex-shrink-0 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900" 
+                          style={{ 
+                            height: `${80 * scale}px`, 
+                            boxSizing: 'border-box',
+                            position: 'sticky',
+                            top: 0,
+                            zIndex: 70,
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.08)'
+                          }}
+                        ></div>
+                        {/* Time slots - these will scroll with the main content */}
+                        <div 
+                            ref={timeColumnScrollRef}
+                            className="flex-1 overflow-y-auto"
+                            style={{ 
+                                minHeight: `${timeSlots.length * scaledTimeSlotHeight}px`,
+                                scrollbarWidth: 'thin'
+                            }}
+                            onScroll={(e) => {
+                                // Sync main content scroll with time column scroll
+                                if (mainScrollRef.current && e.currentTarget.scrollTop !== mainScrollRef.current.scrollTop) {
+                                    mainScrollRef.current.scrollTop = e.currentTarget.scrollTop;
+                                }
+                            }}
+                        >
                         {timeSlots.map(slot => (
-                                 <div key={slot} className="border-b border-gray-200 dark:border-gray-700 relative" style={{ height: `${scaledTimeSlotHeight}px` }}>
-                                {/* Show all-day events */}
-                                {slot === 'All-day' && events.filter(e => {
-                                    if (!e.allDay) return false;
-                                    
-                                    // For Google Calendar events, use start/end dates
-                                    if (e.source === 'google' && e.start) {
-                                        let eventStartDate;
-                                        if (e.start.includes('T')) {
-                                            eventStartDate = e.start.split('T')[0];
-                                        } else {
-                                            eventStartDate = e.start;
-                                        }
-                                        return eventStartDate === format(day, 'yyyy-MM-dd');
-                                    }
-                                    
-                                    // Check if this is a multi-day event by comparing start and end dates
-                                    if (e.start && e.end) {
-                                        const eventStart = new Date(e.start);
-                                        const eventEnd = new Date(e.end);
-                                        const currentDay = new Date(day);
-                                        
-                                        // If we have both start and end dates, check if current day falls within the range
-                                        if (eventStart && eventEnd) {
-                                            // Check if current day is between start and end (inclusive)
-                                            return currentDay >= eventStart && currentDay <= eventEnd;
-                                        }
-                                    }
-                                    
-                                    // For single-day events with date field, use the existing logic
-                                    if (e.date) {
-                                        return format(e.date, 'yyyy-MM-dd') === format(day, 'yyyy-MM-dd');
-                                    }
-                                    
-                                    return false;
-                                }).map((event, i) => (
-                                    <div 
-                                        key={i} 
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            onEventClick(event);
-                                        }}
-                                        className={`absolute w-[95%] left-1 top-1 ${eventColors[event.color]?.bg} p-1.5 rounded-xl flex flex-col text-xs dark:text-white cursor-pointer hover:shadow-lg transition-all z-10`}
-                                        style={{ pointerEvents: 'auto' }}
-                                    >
-                                        <div className="flex items-center gap-1.5">
-                                        <div className={`w-2 h-full rounded-l-md ${eventColors[event.color]?.border} border-l-2 flex-shrink-0`}></div>
-                                        {event.employeeImageUrl ? (
-                                            <img 
-                                                src={event.employeeImageUrl} 
-                                                alt={event.employeeName || 'Employee'}
-                                                className="w-6 h-6 rounded-full object-cover border border-gray-300 dark:border-gray-600 flex-shrink-0"
-                                            />
-                                        ) : event.employeeName ? (
-                                            <div className="w-6 h-6 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center border border-gray-300 dark:border-gray-600 flex-shrink-0">
-                                                <span className="text-[9px] font-semibold text-gray-700 dark:text-gray-300">
-                                                    {event.employeeName.charAt(0).toUpperCase()}
-                                                </span>
-                                            </div>
-                                        ) : null}
-                                        {event.source === 'google' && (
-                                            <svg className="w-3 h-3 text-gray-600 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
-                                                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                                                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                                                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                                                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                                            </svg>
-                                        )}
-                                            <span className="truncate font-semibold text-sm md:text-base flex-1">{event.title || event.eventName || (Array.isArray(event.services) ? event.services.join(' + ') : event.services) || 'Service'}</span>
-                                        </div>
-                                        {(event.customerName || event.customerPhone) && (
-                                            <span className="text-xs text-gray-700 dark:text-gray-300 mt-0.5 truncate ml-4 font-semibold">
-                                                {event.customerName || 'Customer'}{event.customerPhone ? ` (${event.customerPhone})` : ''}
-                                            </span>
-                                        )}
-                                        {getCustomerType(event) === 'new' && (
-                                            <span className="text-xs font-semibold bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300 px-1.5 py-0.5 rounded mt-0.5 ml-4 inline-block">
-                                                New customer
-                                            </span>
-                                        )}
-                                        {getCustomerType(event) === 'repeat' && (
-                                            <span className="text-xs font-semibold bg-purple-200 text-purple-800 dark:bg-purple-900 dark:text-purple-200 px-1.5 py-0.5 rounded mt-0.5 ml-4 inline-block">
-                                                Repeat customer
-                                            </span>
-                                        )}
-                                        {(event.vehicleType || event.vehicleModel) ? (
-                                            <span className="text-xs font-semibold text-gray-600 dark:text-gray-400 mt-0.5 truncate ml-4">{event.vehicleType || event.vehicleModel}</span>
-                                        ) : null}
-                                        {event.services && (Array.isArray(event.services) ? event.services.length > 0 : event.services) ? (
-                                            <span className="text-xs font-semibold text-gray-600 dark:text-gray-400 mt-0.5 truncate ml-4">
-                                                {Array.isArray(event.services) ? event.services.join(', ') : event.services}
-                                            </span>
-                                        ) : null}
-                                        {formatTimeRange(event) && (
-                                            <span className="text-xs font-semibold text-gray-700 dark:text-gray-300 mt-0.5 truncate ml-4">
-                                                {formatTimeRange(event)}
-                                            </span>
-                                        )}
-                                    </div>
-                                ))}
-                                
-                                {/* Show timed events in their appropriate time slots */}
-                                {slot !== 'All-day' && events.filter(e => {
-                                    // Skip all-day events
-                                    if (e.allDay) return false;
-                                    
-                                    // Check if event is on the current day
-                                    let eventStartDate;
-                                    if (e.start) {
-                                        if (e.start.includes('T')) {
-                                            eventStartDate = e.start.split('T')[0];
-                                        } else {
-                                            eventStartDate = e.start;
-                                        }
-                                    } else {
-                                        eventStartDate = '';
-                                    }
-                                    
-                                    const currentDateStr = format(day, 'yyyy-MM-dd');
-                                    if (eventStartDate !== currentDateStr) return false;
-                                    
-                                    // Extract hour from start time (e.g., "2025-09-17T10:00:00" -> "10")
-                                    const startTime = e.start;
-                                    if (!startTime || typeof startTime !== 'string') return false;
-                                    
-                                    // Parse the time from the datetime string
-                                    const timeMatch = startTime.match(/T(\d{1,2}):/);
-                                    if (!timeMatch) return false;
-                                    
-                                    const hour = parseInt(timeMatch[1]);
-                                    
-                                    // Map the hour to the correct time slot
-                                    // Time slots are: All-day, 4am, 5am, ..., 11pm
-                                    const slotHour = parseInt(slot.replace(/am|pm/, ''));
-                                    const isPM = slot.includes('pm');
-                                    
-                                    // Convert 24-hour format to 12-hour format for comparison
-                                    let eventHour12 = hour;
-                                    let eventIsPM = false;
-                                    
-                                    if (hour === 0) {
-                                        eventHour12 = 12; // Midnight
-                                        eventIsPM = false;
-                                    } else if (hour === 12) {
-                                        eventHour12 = 12; // Noon
-                                        eventIsPM = true;
-                                    } else if (hour > 12) {
-                                        eventHour12 = hour - 12;
-                                        eventIsPM = true;
-                                    } else {
-                                        eventHour12 = hour;
-                                        eventIsPM = false;
-                                    }
-                                    
-                                    return eventHour12 === slotHour && eventIsPM === isPM;
-                                }).map((event, i) => (
-                                    <div 
-                                        key={i} 
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            onEventClick(event);
-                                        }}
-                                        className={`absolute w-[95%] left-1 top-1 ${eventColors[event.color]?.bg} p-1.5 rounded-xl flex flex-col text-xs dark:text-white cursor-pointer hover:shadow-lg transition-all z-10`}
-                                        style={{ pointerEvents: 'auto' }}
-                                    >
-                                        <div className="flex items-center gap-1.5">
-                                        <div className={`w-2 h-full rounded-l-md ${eventColors[event.color]?.border} border-l-2 flex-shrink-0`}></div>
-                                        {event.employeeImageUrl ? (
-                                            <img 
-                                                src={event.employeeImageUrl} 
-                                                alt={event.employeeName || 'Employee'}
-                                                className="w-6 h-6 rounded-full object-cover border border-gray-300 dark:border-gray-600 flex-shrink-0"
-                                            />
-                                        ) : event.employeeName ? (
-                                            <div className="w-6 h-6 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center border border-gray-300 dark:border-gray-600 flex-shrink-0">
-                                                <span className="text-[9px] font-semibold text-gray-700 dark:text-gray-300">
-                                                    {event.employeeName.charAt(0).toUpperCase()}
-                                                </span>
-                                            </div>
-                                        ) : null}
-                                        {event.source === 'google' && (
-                                            <svg className="w-3 h-3 text-gray-600 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
-                                                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                                                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                                                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                                                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                                            </svg>
-                                        )}
-                                            <span className="truncate font-semibold text-sm md:text-base flex-1">{event.title || event.eventName || (Array.isArray(event.services) ? event.services.join(' + ') : event.services) || 'Service'}</span>
-                                        </div>
-                                        {(event.customerName || event.customerPhone) && (
-                                            <span className="text-xs text-gray-700 dark:text-gray-300 mt-0.5 truncate ml-4 font-semibold">
-                                                {event.customerName || 'Customer'}{event.customerPhone ? ` (${event.customerPhone})` : ''}
-                                            </span>
-                                        )}
-                                        {getCustomerType(event) === 'new' && (
-                                            <span className="text-xs font-semibold bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300 px-1.5 py-0.5 rounded mt-0.5 ml-4 inline-block">
-                                                New customer
-                                            </span>
-                                        )}
-                                        {getCustomerType(event) === 'repeat' && (
-                                            <span className="text-xs font-semibold bg-purple-200 text-purple-800 dark:bg-purple-900 dark:text-purple-200 px-1.5 py-0.5 rounded mt-0.5 ml-4 inline-block">
-                                                Repeat customer
-                                            </span>
-                                        )}
-                                        {(event.vehicleType || event.vehicleModel) ? (
-                                            <span className="text-xs font-semibold text-gray-600 dark:text-gray-400 mt-0.5 truncate ml-4">{event.vehicleType || event.vehicleModel}</span>
-                                        ) : null}
-                                        {event.services && (Array.isArray(event.services) ? event.services.length > 0 : event.services) ? (
-                                            <span className="text-xs font-semibold text-gray-600 dark:text-gray-400 mt-0.5 truncate ml-4">
-                                                {Array.isArray(event.services) ? event.services.join(', ') : event.services}
-                                            </span>
-                                        ) : null}
-                                        {formatTimeRange(event) && (
-                                            <span className="text-xs font-semibold text-gray-700 dark:text-gray-300 mt-0.5 truncate ml-4">
-                                                {formatTimeRange(event)}
-                                            </span>
-                                        )}
-                                    </div>
-                                ))}
+                                <div key={slot} className="flex items-center justify-center text-xs text-gray-500 border-b border-gray-200 dark:border-gray-700" style={{ height: `${scaledTimeSlotHeight}px`, fontSize: `${0.75 * scale}rem`, boxSizing: 'border-box' }}>
+                                {slot}
                             </div>
                         ))}
                     </div>
-                ))}
+                    </div>
+                    
+                    {/* Main content area */}
+                    <div className="flex-1 min-w-0">
+                        {/* Sticky header container - direct child of scroll container */}
+                        <div 
+                          className="flex-shrink-0 sticky top-0 z-50 bg-white dark:bg-gray-900"
+                          style={{ 
+                            minWidth: `calc(${totalColumns} * ${scaledColumnMinWidth}px)`,
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.08)',
+                          }}
+                        >
+                    {/* First row: Day headers spanning all resources for each day */}
+                    <div className="grid border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900" style={{ gridTemplateColumns: `repeat(${totalColumns}, minmax(${scaledColumnMinWidth}px, 1fr))` }}>
+                        {weekDays.map(day => (
+                            <div 
+                                key={`day-header-${day.toString()}`} 
+                                className="text-center flex items-center justify-center text-xs font-semibold uppercase border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900" 
+                                style={{ 
+                                    gridColumn: `span ${displayResources.length}`,
+                                    height: `${40 * scale}px`, 
+                                    boxSizing: 'border-box'
+                                }}
+                            >
+                                <span>{format(day, 'EEE')} {format(day, 'M/d')}</span>
+                            </div>
+                        ))}
+                    </div>
+                    
+                    {/* Second row: Resource headers for each day */}
+                    <div className="grid border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900" style={{ gridTemplateColumns: `repeat(${totalColumns}, minmax(${scaledColumnMinWidth}px, 1fr))` }}>
+                        {weekDays.map(day => 
+                            displayResources.map((resource, resourceIndex) => (
+                                <div 
+                                    key={`resource-header-${day.toString()}-${resource.id}`} 
+                                    className="text-center flex flex-row items-center justify-center gap-1 text-xs font-semibold border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900" 
+                                    style={{ 
+                                        height: `${40 * scale}px`, 
+                                        boxSizing: 'border-box'
+                                    }}
+                                >
+                                    <span>{resource.name}</span>
+                                    {onOpenModal && onResourceSelect && (
+                                        <button 
+                                            className="text-xs text-gray-600 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 relative" 
+                                            style={{ zIndex: 9999, position: 'relative' }}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onResourceSelect(resource);
+                                                // Get first time slot hour for default start time
+                                                const firstSlotHour = parseSlotHour(timeSlots[0]) || 7;
+                                                const clickedDate = new Date(day);
+                                                clickedDate.setHours(firstSlotHour, 0, 0, 0);
+                                                const endDate = new Date(clickedDate);
+                                                endDate.setHours(firstSlotHour + 1, 0, 0, 0);
+                                                onOpenModal({
+                                                    resourceId: resource.id,
+                                                    startTime: clickedDate.toISOString(),
+                                                    endTime: endDate.toISOString(),
+                                                    date: day
+                                                });
+                                            }}
+                                        >
+                                            <PlusIcon className="w-3 h-3 inline" />
+                                        </button>
+                                    )}
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </div>
+                
+                {/* Scrollable grid content */}
+                <div
+                  className="grid"
+                  style={{
+                    gridTemplateColumns: `repeat(${totalColumns}, minmax(${scaledColumnMinWidth}px, 1fr))`,
+                    minWidth: `calc(${totalColumns} * ${scaledColumnMinWidth}px)`,
+                    width: 'max-content'
+                  }}
+                >
+                    
+                    {/* Time slot rows with events - each resource column gets its own wrapper */}
+                    {weekDays.map(day => 
+                        displayResources.map((resource) => {
+                            // Create a wrapper for this resource column that contains all time slots
+                            const dayIndex = weekDays.findIndex(d => format(d, 'yyyy-MM-dd') === format(day, 'yyyy-MM-dd'));
+                            const resourceIndex = displayResources.findIndex(r => r.id === resource.id);
+                            const columnIndex = (dayIndex * displayResources.length) + resourceIndex;
+                            
+                            // Filter events for this day and resource
+                            const dayEvents = (events || []).filter(e => {
+                                if (!e) return false;
+                                // Filter by resource
+                                if (e.resourceId && e.resourceId !== resource.id) return false;
+                                
+                                // Check if event is on the current day
+                                        let eventStartDate;
+                                if (e.start) {
+                                        if (e.start.includes('T')) {
+                                            eventStartDate = e.start.split('T')[0];
+                                        } else {
+                                            eventStartDate = e.start;
+                                        }
+                                } else if (e.date) {
+                                    eventStartDate = typeof e.date === 'string' ? e.date : format(e.date, 'yyyy-MM-dd');
+                                } else {
+                                    eventStartDate = '';
+                                }
+                                
+                                const currentDateStr = format(day, 'yyyy-MM-dd');
+                                return eventStartDate === currentDateStr;
+                            });
+                            
+                            // Separate all-day events from timed events
+                            const allDayEvents = dayEvents.filter(e => e && e.allDay);
+                            const timedEvents = dayEvents.filter(e => e && !e.allDay && e.start && e.end);
+                            const totalTimeSlotHeight = timeSlots.length * scaledTimeSlotHeight;
+                            
+                            return (
+                                <div
+                                    key={`resource-column-${day.toString()}-${resource.id}`}
+                                    className="relative"
+                                    style={{ gridColumn: columnIndex + 1 }}
+                                >
+                                    {/* Render all-day events as blocks spanning entire day height */}
+                                    {allDayEvents.map((event, i) => {
+                                        if (!event) return null;
+                                        const eventColor = event.color || 'blue';
+                                        const colorConfig = eventColors[eventColor] || eventColors.blue;
+                                        return (
+                                            <div
+                                                key={`all-day-${i}-${event.id || i}`}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    onEventClick(event);
+                                                }}
+                                                onMouseEnter={(e) => handleEventMouseEnter(event, e.currentTarget)}
+                                                onMouseLeave={handleEventMouseLeave}
+                                                className={`absolute w-[95%] left-1 top-0 ${colorConfig.bg} p-1.5 rounded-xl flex flex-col items-start text-xs dark:text-white cursor-pointer hover:shadow-lg transition-all z-10`}
+                                                style={{
+                                                    pointerEvents: 'auto',
+                                                    height: `${totalTimeSlotHeight}px`,
+                                                    top: `${i * 40}px`, // Stack multiple all-day events vertically
+                                                    zIndex: 5
+                                                }}
+                                            >
+                                                <div className="flex items-center gap-1.5 w-full">
+                                                    {event.employeeImageUrl ? (
+                                                        <img 
+                                                            src={event.employeeImageUrl} 
+                                                            alt={event.employeeName || 'Employee'}
+                                                            className="w-6 h-6 rounded-full object-cover border border-gray-300 dark:border-gray-600 flex-shrink-0"
+                                                        />
+                                                    ) : event.employeeName ? (
+                                                        <div className="w-6 h-6 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center border border-gray-300 dark:border-gray-600 flex-shrink-0">
+                                                            <span className="text-[9px] font-semibold text-gray-700 dark:text-gray-300">
+                                                                {event.employeeName.charAt(0).toUpperCase()}
+                                                            </span>
+                                                        </div>
+                                                    ) : null}
+                                                    {event.source === 'google' && (
+                                                        <svg className="w-3 h-3 text-gray-600 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                                                            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                                                            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                                                            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                                                            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                                                        </svg>
+                                                    )}
+                                                    <span className="truncate font-semibold text-sm md:text-base flex-1">{event.title || event.eventName || (Array.isArray(event.services) ? event.services.join(' + ') : event.services) || 'Service'}</span>
+                                                </div>
+                                                {(event.customerName || event.customerPhone) && (
+                                                    <span className="text-xs text-gray-700 dark:text-gray-300 mt-0.5 truncate font-semibold text-left w-full">
+                                                        {event.customerName || 'Customer'}{event.customerPhone ? ` (${event.customerPhone})` : ''}
+                                                    </span>
+                                                )}
+                                                {getCustomerType(event) === 'new' && (
+                                                    <span className="text-xs font-semibold bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300 px-1.5 py-0.5 rounded mt-0.5 inline-block text-left">
+                                                        New customer
+                                                    </span>
+                                                )}
+                                                {getCustomerType(event) === 'repeat' && (
+                                                    <span className="text-xs font-semibold bg-purple-200 text-purple-800 dark:bg-purple-900 dark:text-purple-200 px-1.5 py-0.5 rounded mt-0.5 inline-block text-left truncate">
+                                                        Repeat ...
+                                                    </span>
+                                                )}
+                                                {(event.vehicleType || event.vehicleModel) ? (
+                                                    <span className="text-xs font-semibold text-gray-600 dark:text-gray-400 mt-0.5 truncate text-left w-full">{event.vehicleType || event.vehicleModel}</span>
+                                                ) : null}
+                                                {event.services && (Array.isArray(event.services) ? event.services.length > 0 : event.services) ? (
+                                                    <span className="text-xs font-semibold text-gray-600 dark:text-gray-400 mt-0.5 truncate text-left w-full">
+                                                        {Array.isArray(event.services) ? event.services.join(', ') : event.services}
+                                                    </span>
+                                                ) : null}
+                                                {formatTimeRange(event) && (
+                                                    <span className="text-xs font-semibold text-gray-700 dark:text-gray-300 mt-0.5 truncate text-left w-full">
+                                                        {formatTimeRange(event)}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                    
+                                    {/* Time slot rows */}
+                                    {timeSlots.map((slot, slotIndex) => {
+                                        const isSelected = selectedCell?.day && 
+                                            selectedCell?.resourceId === resource.id && 
+                                            selectedCell?.slotIndex === slotIndex &&
+                                            format(selectedCell.day, 'yyyy-MM-dd') === format(day, 'yyyy-MM-dd');
+                                        
+                                        return (
+                                            <div 
+                                                key={`${slot}-${day.toString()}-${resource.id}`} 
+                                                className={`border-r border-b border-gray-200 dark:border-gray-700 relative cursor-pointer transition-all ${
+                                                    isSelected 
+                                                        ? 'bg-blue-50/30 dark:bg-blue-900/20 border-2 border-dashed border-blue-400' 
+                                                        : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                                                }`}
+                                                style={{ 
+                                                    height: `${scaledTimeSlotHeight}px`, 
+                                                    boxSizing: 'border-box'
+                                                }}
+                                                onClick={(e) => {
+                                                    // Only handle clicks on blank space, not on events
+                                                    const target = e.target as HTMLElement;
+                                                    const isEventClick = target.closest('.absolute') && 
+                                                        (target.classList.contains('cursor-pointer') || 
+                                                         target.closest('[class*="border-l-4"]') ||
+                                                         target.closest('[class*="border-dashed"]'));
+                                                    
+                                                    if (!isEventClick && (target === e.currentTarget || target.classList.contains('border-r'))) {
+                                                        const slotHour = parseSlotHour(slot);
+                                                        if (slotHour !== null && onOpenModal && onResourceSelect) {
+                                                            // Highlight the selected cell
+                                                            setSelectedCell({
+                                                                day: day,
+                                                                resourceId: resource.id,
+                                                                slotIndex: slotIndex
+                                                            });
+                                                            
+                                                            const clickedDate = new Date(day);
+                                                            clickedDate.setHours(slotHour, 0, 0, 0);
+                                                            const endDate = new Date(clickedDate);
+                                                            endDate.setHours(slotHour + 1, 0, 0, 0);
+                                                            
+                                                            onResourceSelect(resource);
+                                                            onOpenModal({
+                                                                resourceId: resource.id,
+                                                                startTime: clickedDate.toISOString(),
+                                                                endTime: endDate.toISOString(),
+                                                                date: day
+                                                            });
+                                                            
+                                                            // Clear selection after a short delay to show the highlight
+                                                            setTimeout(() => {
+                                                                setSelectedCell(null);
+                                                            }, 300);
+                                                        }
+                                                    }
+                                                }}
+                                            >
+                                            </div>
+                                        );
+                                    })}
+                                    
+                                    {/* Draft event (dotted card) */}
+                                    {draftEvent && draftEvent.resourceId === resource.id && (() => {
+                                        const draftStart = new Date(draftEvent.startTime);
+                                        const draftEnd = new Date(draftEvent.endTime);
+                                        const draftDate = new Date(draftEvent.date || draftStart);
+                                        
+                                        // Check if draft event is for this day
+                                        if (format(draftDate, 'yyyy-MM-dd') !== format(day, 'yyyy-MM-dd')) {
+                                            return null;
+                                        }
+                                        
+                                        const draftStartHour = draftStart.getHours();
+                                        const draftStartMinutes = draftStart.getMinutes();
+                                        const firstSlotHour = parseSlotHour(timeSlots[0]) || 0;
+                                        const hoursFromSlotStart = draftStartHour - firstSlotHour;
+                                        const minutesOffset = (hoursFromSlotStart * 60 + draftStartMinutes) / 60;
+                                        
+                                        const top = (0 * scaledTimeSlotHeight) + (minutesOffset * scaledTimeSlotHeight);
+                                        
+                                        const durationMs = draftEnd.getTime() - draftStart.getTime();
+                                        const durationHours = durationMs / (1000 * 60 * 60);
+                                        const height = Math.max(scaledTimeSlotHeight * 0.5, durationHours * scaledTimeSlotHeight);
+                                        
+                                        // Calculate width for drag functionality
+                                        const avgHourWidth = scaledColumnMinWidth;
+                                        
+                                        return (
+                                            <div
+                                                className="absolute w-[95%] left-1 rounded-xl border-2 border-dashed border-blue-400 bg-blue-50/30 dark:bg-blue-900/20 pointer-events-auto z-10"
+                                                style={{ 
+                                                    top: `${top}px`,
+                                                    height: `${height}px`,
+                                                    minHeight: `${scaledTimeSlotHeight * 0.5}px`
+                                                }}
+                                            >
+                                                <div className="p-2 flex items-center justify-center h-full relative">
+                                                    <span className="text-sm font-medium text-blue-600 dark:text-blue-400">New event</span>
+                                                    
+                                                    {/* Drag handle on the right edge */}
+                                                    {onDraftEventUpdate && (
+                                                        <div
+                                                            onMouseDown={(e) => {
+                                                                e.preventDefault();
+                                                                e.stopPropagation();
+                                                                
+                                                                const startX = e.clientX;
+                                                                const startWidth = scaledColumnMinWidth;
+                                                                const startTime = new Date(draftStart);
+                                                                const startEndTime = new Date(draftEnd);
+                                                                
+                                                                const handleMouseMove = (moveEvent: MouseEvent) => {
+                                                                    const deltaX = moveEvent.clientX - startX;
+                                                                    const newWidth = Math.max(avgHourWidth, startWidth + deltaX);
+                                                                    
+                                                                    const hoursFromStart = newWidth / avgHourWidth;
+                                                                    const roundedHours = Math.max(0.5, Math.round(hoursFromStart * 2) / 2);
+                                                                    
+                                                                    const newEnd = new Date(startTime);
+                                                                    newEnd.setHours(startTime.getHours() + Math.floor(roundedHours));
+                                                                    newEnd.setMinutes((roundedHours % 1) * 60);
+                                                                    
+                                                                    if (newEnd.getTime() !== startEndTime.getTime() && onDraftEventUpdate) {
+                                                                        onDraftEventUpdate({
+                                                                            ...draftEvent,
+                                                                            endTime: newEnd.toISOString(),
+                                                                            date: day
+                                                                        });
+                                                                    }
+                                                                };
+                                                                
+                                                                const handleMouseUp = () => {
+                                                                    document.removeEventListener('mousemove', handleMouseMove);
+                                                                    document.removeEventListener('mouseup', handleMouseUp);
+                                                                };
+                                                                
+                                                                document.addEventListener('mousemove', handleMouseMove);
+                                                                document.addEventListener('mouseup', handleMouseUp);
+                                                            }}
+                                                            className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center cursor-ew-resize hover:bg-blue-600 transition-colors shadow-lg z-20"
+                                                            style={{ cursor: 'ew-resize' }}
+                                                        >
+                                                            <ChevronRightIcon className="w-4 h-4 text-white" />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
+                                    
+                                    {/* Render timed events positioned absolutely within this resource column */}
+                                    {timedEvents.map((event, i) => {
+                                        if (!event || !event.start || !event.end) return null;
+                                        // Calculate position and height based on actual start/end times
+                                        const startTime = new Date(event.start);
+                                        const endTime = new Date(event.end);
+                                        
+                                        let startHour = startTime.getHours();
+                                        let startMinutes = startTime.getMinutes();
+                                                    
+                                        const displayedTime = formatTimeRange(event);
+                                        let verifiedStartHour = startHour;
+                                        
+                                        if (displayedTime) {
+                                            const timeMatch = displayedTime.match(/(\d+):(\d+)\s*(AM|PM)/i);
+                                            if (timeMatch) {
+                                                let displayedHour = parseInt(timeMatch[1]);
+                                                const isPM = timeMatch[3].toUpperCase() === 'PM';
+                                                if (isPM && displayedHour !== 12) {
+                                                    displayedHour += 12;
+                                                } else if (!isPM && displayedHour === 12) {
+                                                    displayedHour = 0;
+                                                }
+                                                
+                                                if (displayedHour !== startHour) {
+                                                    console.warn(`Hour mismatch for event "${event.title || event.eventName}": calculated=${startHour}, displayed=${displayedHour}. Using displayed hour.`);
+                                                    verifiedStartHour = displayedHour;
+                                                }
+                                            }
+                                        }
+                                        
+                                        // Find which time slot this event starts in
+                                        let slotIndex = -1;
+                                        for (let i = 0; i < timeSlots.length; i++) {
+                                            const slot = timeSlots[i];
+                                            const slotHour = parseSlotHour(slot);
+                                            if (slotHour !== null && verifiedStartHour >= slotHour) {
+                                                slotIndex = i;
+                                            } else if (slotHour !== null && verifiedStartHour < slotHour) {
+                                                break;
+                                            }
+                                        }
+                                        
+                                        // If event starts before first slot, use first slot
+                                        if (slotIndex === -1) slotIndex = 0;
+                                        
+                                        // Calculate offset within the slot
+                                        const firstSlotHour = parseSlotHour(timeSlots[0]) || 0;
+                                        const slotStartHour = parseSlotHour(timeSlots[slotIndex]) || firstSlotHour;
+                                        const hoursFromSlotStart = verifiedStartHour - slotStartHour;
+                                        const minutesOffset = (hoursFromSlotStart * 60 + startMinutes) / 60;
+                                        
+                                        const top = (slotIndex * scaledTimeSlotHeight) + (minutesOffset * scaledTimeSlotHeight);
+                                        
+                                        const durationMs = endTime.getTime() - startTime.getTime();
+                                        const durationHours = durationMs / (1000 * 60 * 60);
+                                        const height = Math.max(scaledTimeSlotHeight * 0.5, durationHours * scaledTimeSlotHeight);
+                                        
+                                        const eventColor = event.color || 'blue';
+                                        const colorConfig = eventColors[eventColor] || eventColors.blue;
+                                        
+                                        return (
+                                    <div 
+                                        key={`event-${i}-${event.id || i}-${resource.id}`}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onEventClick(event);
+                                        }}
+                                        onMouseEnter={(e) => handleEventMouseEnter(event, e.currentTarget)}
+                                        onMouseLeave={handleEventMouseLeave}
+                                    className={`absolute w-[95%] left-1 ${colorConfig.bg} p-1.5 rounded-xl flex flex-col items-start text-xs dark:text-white cursor-pointer hover:shadow-lg transition-all z-10`}
+                                    style={{ 
+                                        pointerEvents: 'auto',
+                                        top: `${top}px`,
+                                        height: `${height}px`,
+                                        minHeight: `${scaledTimeSlotHeight * 0.5}px`
+                                    }}
+                                    >
+                                        {/* Service name - large and bold */}
+                                        <div className="flex items-center gap-1.5 w-full mb-1">
+                                        {event.source === 'google' && (
+                                            <svg className="w-3 h-3 text-gray-600 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                                                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                                                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                                                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                                                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                                            </svg>
+                                        )}
+                                            <span className="truncate font-bold text-lg md:text-xl flex-1">
+                                                {event.title || event.eventName || (Array.isArray(event.services) ? event.services.join(' + ') : event.services) || 'Service'}
+                                            </span>
+                                        </div>
+                                        
+                                        {/* Time range - split into two lines */}
+                                        {formatTimeRange(event) && (() => {
+                                            const timeRange = formatTimeRange(event);
+                                            const [startTime, endTime] = timeRange.split(' - ');
+                                            return (
+                                                <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1 text-left w-full">
+                                                    <div>{startTime}</div>
+                                                    {endTime && <div className="text-gray-600 dark:text-gray-400">- {endTime}</div>}
+                                                </div>
+                                            );
+                                        })()}
+                                        
+                                        {/* Customer name */}
+                                        {event.customerName && (
+                                            <span className="text-xs text-gray-700 dark:text-gray-300 mb-1 truncate font-semibold text-left w-full">
+                                                {event.customerName}
+                                            </span>
+                                        )}
+                                        
+                                        {/* Vehicle */}
+                                        {(event.vehicleType || event.vehicleModel) && (
+                                            <span className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1 truncate text-left w-full">
+                                                {event.vehicleType || event.vehicleModel}
+                                            </span>
+                                        )}
+                                        
+                                        {/* Customer Type Tag, Location Type Tag, and Technician icon at bottom */}
+                                        <div className="mt-auto flex flex-col items-center w-full pt-1 gap-1">
+                                            {/* Location Type Tag - Only for Bay columns, above customer type */}
+                                            {resource.type === 'bay' && event.locationType && (
+                                                <span className={`text-xs font-semibold px-1.5 py-0.5 rounded inline-block text-center ${
+                                                    (event.locationType?.toLowerCase() === 'pick up' || event.locationType?.toLowerCase() === 'pickup')
+                                                        ? 'bg-blue-500 text-white'
+                                                        : (event.locationType?.toLowerCase() === 'drop off' || event.locationType?.toLowerCase() === 'dropoff')
+                                                        ? 'bg-pink-500 text-white'
+                                                        : 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+                                                }`}>
+                                                    {event.locationType?.toLowerCase() === 'pickup' ? 'Pick Up' : 
+                                                     event.locationType?.toLowerCase() === 'dropoff' ? 'Drop Off' :
+                                                     event.locationType}
+                                            </span>
+                                        )}
+                                            
+                                            {/* Customer Type Tag - Below location type (if present) */}
+                                            {event.customerType && (
+                                                <span className={`text-xs font-semibold px-1.5 py-0.5 rounded inline-block text-center ${
+                                                    event.customerType.toLowerCase() === 'new' 
+                                                        ? 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+                                                        : event.customerType.toLowerCase() === 'returning'
+                                                        ? 'bg-purple-200 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
+                                                        : event.customerType.toLowerCase() === 'maintenance'
+                                                        ? 'bg-blue-200 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                                                        : 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+                                                }`}>
+                                                    {event.customerType === 'new' ? 'New Customer' : 
+                                                     event.customerType === 'returning' ? 'Returning Customer' :
+                                                     event.customerType === 'maintenance' ? 'Maintenance Customer' :
+                                                     event.customerType}
+                                            </span>
+                                            )}
+                                            
+                                            {/* Fallback: Show old customer type logic if customerType is not set */}
+                                            {!event.customerType && getCustomerType(event) === 'repeat' && (
+                                                <span className="text-xs font-semibold bg-purple-200 text-purple-800 dark:bg-purple-900 dark:text-purple-200 px-1.5 py-0.5 rounded inline-block text-center">
+                                                    Repeat ...
+                                            </span>
+                                        )}
+                                            
+                                            {/* Technician icon */}
+                                            {event.employeeImageUrl ? (
+                                                <img 
+                                                    src={event.employeeImageUrl} 
+                                                    alt={event.employeeName || 'Employee'}
+                                                    className="w-14 h-14 rounded-full object-cover border border-gray-300 dark:border-gray-600 flex-shrink-0"
+                                                />
+                                            ) : event.employeeName ? (
+                                                <div className="w-14 h-14 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center border border-gray-300 dark:border-gray-600 flex-shrink-0">
+                                                    <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                                                        {event.employeeName.charAt(0).toUpperCase()}
+                                                    </span>
+                                                </div>
+                                            ) : null}
+                                        </div>
+                                    </div>
+                                        );
+                                    })}
+                                </div>
+                            );
+                        })
+                    )}
+                </div>
+                    </div>
                 </div>
             </div>
+            {/* Event Hover Popup */}
+            <EventHoverPopup
+                event={hoveredEvent}
+                position={popupPosition}
+                formatTimeRange={formatTimeRange}
+                getCustomerType={getCustomerType}
+                onMouseEnter={handlePopupMouseEnter}
+                onMouseLeave={handlePopupMouseLeave}
+            />
         </div>
     );
 };
@@ -1821,14 +2708,15 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
   };
 
   return (
-    <div className="flex flex-col h-full max-h-full overflow-hidden w-full">
+    <div className="flex flex-col h-full max-h-full w-full overflow-hidden">
       {/* Scrollable container for header and rows */}
       <div className="flex-1 min-h-0 min-w-0 overflow-x-auto overflow-y-auto" id="calendar-scroll-container" ref={containerRef} style={{ position: 'relative' }}>
-      {/* Header with time slots */}
-         <div className="flex bg-white dark:bg-white flex-shrink-0 z-10 sticky top-0" style={{ minWidth: `${totalColumnWidth + 128}px` }}>
-          <div className="w-32 flex-shrink-0 p-2 bg-white dark:bg-white sticky left-0 z-20" style={{ borderRight: '1px solid #F0F0EE' }}>
+        <div style={{ minWidth: `${totalColumnWidth + 128}px` }}>
+      {/* Header with time slots - sticky when scrolling down */}
+         <div className="flex bg-white dark:bg-white flex-shrink-0 sticky top-0 z-50" style={{ minWidth: `${totalColumnWidth + 128}px`, width: 'max-content', boxShadow: '0 2px 4px 0 rgba(0, 0, 0, 0.1)' }}>
+          <div className="w-32 flex-shrink-0 p-2 bg-white dark:bg-white sticky left-0 z-60" style={{ borderRight: '1px solid #F0F0EE' }}>
           </div>
-          <div className="flex" style={{ minWidth: `${totalColumnWidth}px` }}>
+          <div className="flex flex-shrink-0" style={{ minWidth: `${totalColumnWidth}px`, width: `${totalColumnWidth}px` }}>
             {timeSlots.map((slot, index) => (
               <div 
                 key={slot} 
@@ -1853,15 +2741,15 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
                 />
               </div>
             ))}
+          </div>
         </div>
-      </div>
 
         {/* Resource rows container - needs fixed height for percentage-based row heights */}
         <div 
           className="flex flex-col"
           style={{ 
             minWidth: `${totalColumnWidth + 128}px`,
-            height: containerHeight > 0 ? `${containerHeight}px` : '100%'
+            height: containerHeight > 0 ? `${containerHeight}px` : 'auto'
           }}
         >
           {resources.map((resource, index) => {
@@ -1872,7 +2760,7 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
             <div 
               key={resource.id} 
                 className="flex flex-shrink-0"
-                style={{ height: rowHeight, minHeight: '80px', borderBottom: '1px solid #F0F0EE' }}
+                style={{ height: rowHeight, minHeight: `${120 * scale}px`, borderBottom: '1px solid #F0F0EE' }}
             >
               {/* Resource name column */}
                 <div className="w-32 flex-shrink-0 p-3 bg-white dark:bg-white sticky left-0 z-20" style={{ isolation: 'isolate', borderRight: '1px solid #F0F0EE' }}>
@@ -1970,7 +2858,7 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
                     }
                   }}
                 >
-                <div className="flex relative h-full" style={{ minWidth: `${totalColumnWidth}px` }}>
+                <div className="flex relative h-full flex-shrink-0" style={{ minWidth: `${totalColumnWidth}px`, width: `${totalColumnWidth}px` }}>
                   {/* Time slot columns */}
                   {timeSlots.map((slot, index) => (
                     <div 
@@ -2091,6 +2979,7 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
           );
         })}
         </div>
+        </div>
       </div>
     </div>
   );
@@ -2138,6 +3027,7 @@ export default function CalendarPage() {
   const [todayEvents, setTodayEvents] = useState<any[]>([]);
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [isTeamDropdownOpen, setIsTeamDropdownOpen] = useState(false);
+  const [selectedTechnicians, setSelectedTechnicians] = useState<string[]>([]); // Array of employee IDs
   const [isNewCustomerModalOpen, setIsNewCustomerModalOpen] = useState(false);
   const [newCustomerModalInitialName, setNewCustomerModalInitialName] = useState('');
   const [newCustomerData, setNewCustomerData] = useState<{ customerName: string; customerPhone: string; customerEmail?: string; address?: string } | null>(null);
@@ -2147,8 +3037,9 @@ export default function CalendarPage() {
   const notesSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const session = useSession();
   const detailerId = session.data?.user?.id;
-  const [employees, setEmployees] = useState<Array<{ id: string; name: string; imageUrl?: string; email?: string; phone?: string }>>([]);
+  const [teamEmployees, setTeamEmployees] = useState<Array<{ id: string; name: string; imageUrl?: string; email?: string; phone?: string }>>([]);
   const [isLoadingEmployees, setIsLoadingEmployees] = useState(false);
+  
   const [eventVehicles, setEventVehicles] = useState<Array<{ id: string; model: string }>>([]);
   const [showAddVehicleModal, setShowAddVehicleModal] = useState(false);
   const [newVehicleModel, setNewVehicleModel] = useState('');
@@ -2157,22 +3048,115 @@ export default function CalendarPage() {
   const [selectedServices, setSelectedServices] = useState<Array<{ id: string; name: string; type: 'service' | 'bundle' }>>([]);
   const [serviceSearch, setServiceSearch] = useState('');
   const [showServiceDropdown, setShowServiceDropdown] = useState(false);
+  const [businessHours, setBusinessHours] = useState<any>(null);
   
-  // Calendar zoom scale (0.5 = smaller, 1.0 = normal, 2.0 = larger)
-  const [calendarScale, setCalendarScale] = useState(() => {
+  // Filter bookings by selected technicians
+  const filteredBookings = useMemo(() => {
+    if (selectedTechnicians.length === 0) {
+      return bookings;
+    }
+    return bookings.filter((event: any) => {
+      // Check if event has employeeId that matches selected technicians
+      if (event.employeeId && selectedTechnicians.includes(event.employeeId)) {
+        return true;
+      }
+      // Check if event has employeeName that matches selected technicians
+      if (event.employeeName) {
+        // Find employee by name in the teamEmployees list
+        const employee = teamEmployees.find((emp: any) => emp.name === event.employeeName);
+        if (employee && selectedTechnicians.includes(employee.id)) {
+          return true;
+        }
+      }
+      return false;
+    });
+  }, [bookings, selectedTechnicians, teamEmployees]);
+  
+  // Calendar zoom scales - separate for each view (0.5 = smaller, 1.0 = normal, 2.0 = larger)
+  const [dayScale, setDayScale] = useState(() => {
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('calendarScale');
-      return saved ? parseFloat(saved) : 1.0;
+      const saved = localStorage.getItem('calendarDayScale');
+      if (saved) return parseFloat(saved);
+      // Migration: check for old single scale value
+      const oldScale = localStorage.getItem('calendarScale');
+      if (oldScale) {
+        const oldValue = parseFloat(oldScale);
+        // Migrate old value to day and week views (unchanged)
+        // For month view, convert: old 200% (2.0) becomes new 100% (1.0)
+        localStorage.setItem('calendarDayScale', oldValue.toString());
+        localStorage.setItem('calendarWeekScale', oldValue.toString());
+        localStorage.setItem('calendarMonthScale', (oldValue / 2.0).toString());
+        localStorage.removeItem('calendarScale');
+        return oldValue;
+      }
+      return 1.0;
     }
     return 1.0;
   });
   
-  // Save scale to localStorage when it changes
+  const [weekScale, setWeekScale] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('calendarWeekScale');
+      if (saved) return parseFloat(saved);
+      // Migration: check for old single scale value
+      const oldScale = localStorage.getItem('calendarScale');
+      if (oldScale) {
+        return parseFloat(oldScale);
+      }
+      return 1.0;
+    }
+    return 1.0;
+  });
+  
+  const [monthScale, setMonthScale] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('calendarMonthScale');
+      if (saved) return parseFloat(saved);
+      // Migration: check for old single scale value
+      const oldScale = localStorage.getItem('calendarScale');
+      if (oldScale) {
+        const oldValue = parseFloat(oldScale);
+        // Convert old scale to new scale: old 200% (2.0) becomes new 100% (1.0)
+        // Formula: newValue = oldValue / 2.0 (since we doubled all base values)
+        return oldValue / 2.0;
+      }
+      return 1.0; // Default to 100% (which looks like old 200% due to recalibration)
+    }
+    return 1.0;
+  });
+  
+  // Get the current scale based on view mode
+  const calendarScale = viewMode === 'day' ? dayScale : viewMode === 'week' ? weekScale : monthScale;
+  
+  // Set the current scale based on view mode
+  const setCalendarScale = (value: number) => {
+    if (viewMode === 'day') {
+      setDayScale(value);
+    } else if (viewMode === 'week') {
+      setWeekScale(value);
+    } else {
+      setMonthScale(value);
+    }
+  };
+  
+  // Save scales to localStorage when they change
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      localStorage.setItem('calendarScale', calendarScale.toString());
+      localStorage.setItem('calendarDayScale', dayScale.toString());
     }
-  }, [calendarScale]);
+  }, [dayScale]);
+  
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('calendarWeekScale', weekScale.toString());
+    }
+  }, [weekScale]);
+  
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('calendarMonthScale', monthScale.toString());
+    }
+  }, [monthScale]);
   
   console.log('Session status:', session.status, 'Session data:', session.data);
   
@@ -2209,7 +3193,7 @@ export default function CalendarPage() {
         const response = await fetch('/api/detailer/employees');
         if (response.ok) {
           const data = await response.json();
-          setEmployees(data.employees || []);
+          setTeamEmployees(data.employees || []);
         }
       } catch (error) {
         console.error('Error fetching employees:', error);
@@ -2218,6 +3202,20 @@ export default function CalendarPage() {
       }
     };
     fetchEmployees();
+  }, [detailerId]);
+
+  // Fetch business hours
+  useEffect(() => {
+    if (!detailerId) return;
+    fetch('/api/detailer/profile')
+      .then(res => res.json())
+      .then(data => {
+        const businessHours = data.businessHours || data.profile?.businessHours;
+        if (businessHours) {
+          setBusinessHours(businessHours);
+        }
+      })
+      .catch(err => console.error('Error fetching business hours:', err));
   }, [detailerId]);
 
   // Mobile detection and current time updates
@@ -2430,6 +3428,23 @@ export default function CalendarPage() {
       setCustomerPastJobs([]);
     }
   }, [selectedEventData?.customerPhone, allEmployees]);
+
+  // Close team dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (teamDropdownRef.current && !teamDropdownRef.current.contains(event.target as Node)) {
+        setIsTeamDropdownOpen(false);
+      }
+    };
+
+    if (isTeamDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isTeamDropdownOpen]);
 
   // Close employee switch dropdown when clicking outside
   useEffect(() => {
@@ -3069,17 +4084,80 @@ export default function CalendarPage() {
                 <button onClick={handleNext} className="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800">
                     <ChevronRightIcon className="w-5 h-5 text-gray-500 dark:text-gray-300" />
                 </button>
-                <div className="relative" ref={teamDropdownRef}>
+                <div className="relative flex items-center gap-2 overflow-hidden" ref={teamDropdownRef}>
                   <button
                     onClick={() => setIsTeamDropdownOpen(!isTeamDropdownOpen)}
-                    className="px-3 py-1 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex items-center gap-1"
+                    className="px-3 py-1 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex items-center gap-1 flex-shrink-0"
                   >
                     Team
-                    <ChevronDownIcon className={`w-4 h-4 transition-transform ${isTeamDropdownOpen ? 'rotate-180' : ''}`} />
+                    {!isTeamDropdownOpen && <ChevronRightIcon className="w-4 h-4 transition-transform duration-300" />}
                   </button>
                   
-                  {/* Team Dropdown */}
-                  {isTeamDropdownOpen && (
+                  {/* Team Tags - shown to the right of Team button with slide animation */}
+                  {teamEmployees.length > 0 && (
+                    <div 
+                      className={`flex items-center gap-2 overflow-hidden transition-all duration-300 ease-out ${
+                        isTeamDropdownOpen 
+                          ? 'opacity-100 translate-x-0 max-w-[1000px]' 
+                          : 'opacity-0 -translate-x-4 max-w-0 pointer-events-none'
+                      }`}
+                      style={{
+                        transitionProperty: 'opacity, transform, max-width',
+                      }}
+                    >
+                      {/* All tag */}
+                      <button
+                        onClick={() => {
+                          setSelectedTechnicians([]);
+                          setIsTeamDropdownOpen(false);
+                        }}
+                        className={`px-3 py-1 text-xs font-medium rounded-full transition-colors flex-shrink-0 whitespace-nowrap ${
+                          selectedTechnicians.length === 0
+                            ? 'bg-gray-700 text-white'
+                            : 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                        }`}
+                      >
+                        All
+                      </button>
+                      {/* Technician tags */}
+                      {teamEmployees.map((employee, index) => {
+                        const isSelected = selectedTechnicians.includes(employee.id);
+                        return (
+                          <button
+                            key={employee.id}
+                            onClick={() => {
+                              if (isSelected) {
+                                setSelectedTechnicians(selectedTechnicians.filter(id => id !== employee.id));
+                              } else {
+                                setSelectedTechnicians([...selectedTechnicians, employee.id]);
+                              }
+                              // Keep dropdown open so user can select multiple
+                            }}
+                            className={`px-3 py-1 text-xs font-medium rounded-full transition-colors flex-shrink-0 whitespace-nowrap ${
+                              isSelected
+                                ? 'bg-gray-700 text-white'
+                                : 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                            }`}
+                            style={{
+                              transitionDelay: isTeamDropdownOpen ? `${index * 30}ms` : '0ms',
+                            }}
+                          >
+                            {employee.name}
+                          </button>
+                        );
+                      })}
+                      {/* Left arrow at the end when open */}
+                      <button
+                        onClick={() => setIsTeamDropdownOpen(false)}
+                        className="px-2 py-1 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex-shrink-0"
+                      >
+                        <ChevronLeftIcon className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
+                  
+                  {/* Legacy Team Dropdown - keeping for now but can be removed */}
+                  {false && isTeamDropdownOpen && (
                     <div className="absolute top-full left-0 mt-2 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50 min-w-[320px] max-w-md max-h-[500px] overflow-y-auto">
                       <div className="p-4">
                         <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">
@@ -3087,11 +4165,11 @@ export default function CalendarPage() {
                         </h3>
                         {isLoadingEmployees ? (
                           <div className="text-sm text-gray-500 dark:text-gray-400 py-4">Loading employees...</div>
-                        ) : employees.length === 0 ? (
+                        ) : teamEmployees.length === 0 ? (
                           <div className="text-sm text-gray-500 dark:text-gray-400 py-4">No employees found</div>
                         ) : (
                           <div className="space-y-3">
-                            {employees.map((employee) => {
+                            {teamEmployees.map((employee: any) => {
                               // Filter events for the selected date
                               const selectedDateStr = format(currentDate, 'yyyy-MM-dd');
                               const dayEvents = bookings.filter((event: any) => {
@@ -3278,19 +4356,53 @@ export default function CalendarPage() {
             </div>
         </div>
         
-        <div className={`flex-1 min-h-0 min-w-0 ${viewMode === 'week' ? 'overflow-x-auto overflow-y-auto' : 'overflow-hidden'}`}>
+        <div 
+          className={`flex-1 min-h-0 ${viewMode === 'month' ? 'min-w-0 overflow-hidden' : 'min-w-0'} ${isActionSidebarOpen ? 'pr-0 md:pr-[400px] lg:pr-[420px]' : 'pr-16'}`}
+          style={{ transition: 'padding-right 0.3s ease-in-out' }}
+        >
           {isLoadingEvents ? (
             <div className="flex items-center justify-center h-64">
               <div className="text-lg text-gray-600 dark:text-gray-400">Loading calendar events...</div>
             </div>
           ) : (
             <>
-              {viewMode === 'month' && <MonthView date={currentDate} events={bookings} selectedEvent={selectedEvent} onEventClick={handleEventClick} scale={calendarScale} />}
-              {viewMode === 'week' && <WeekView date={currentDate} events={bookings} onEventClick={handleEventClick} scale={calendarScale} />}
+              {viewMode === 'month' && <MonthView date={currentDate} events={filteredBookings} selectedEvent={selectedEvent} onEventClick={handleEventClick} scale={calendarScale} />}
+              {viewMode === 'week' && <WeekView 
+                date={currentDate} 
+                events={filteredBookings} 
+                onEventClick={handleEventClick} 
+                resources={resources.length > 0 ? resources : [{ id: 'station', name: 'Station', type: 'bay' }]} 
+                scale={calendarScale} 
+                businessHours={businessHours}
+                onResourceSelect={setSelectedResource}
+                onOpenModal={(draft) => {
+                  if (draft) {
+                    setDraftEvent({
+                      resourceId: draft.resourceId,
+                      startTime: draft.startTime,
+                      endTime: draft.endTime
+                    });
+                  }
+                  setIsModalOpen(true);
+                }}
+                draftEvent={draftEvent ? {
+                  resourceId: draftEvent.resourceId,
+                  startTime: draftEvent.startTime,
+                  endTime: draftEvent.endTime,
+                  date: currentDate
+                } : null}
+                onDraftEventUpdate={(updatedDraft) => {
+                  setDraftEvent({
+                    resourceId: updatedDraft.resourceId,
+                    startTime: updatedDraft.startTime,
+                    endTime: updatedDraft.endTime
+                  });
+                }}
+              />}
               {viewMode === 'day' && (
                 <DayView 
                   date={currentDate} 
-                  events={bookings} 
+                  events={filteredBookings} 
                   resources={resources.length > 0 ? resources : [
                     { id: 'default-bay-1', name: 'Bay 1', type: 'bay' },
                     { id: 'default-bay-2', name: 'Bay 2', type: 'bay' },
@@ -3515,10 +4627,31 @@ export default function CalendarPage() {
                         });
 
                         if (response.ok) {
+                          const result = await response.json();
                           fetchCalendarEvents();
                           setIsEditingEvent(false);
-                          // Update selected event data
-                          setSelectedEventData({ ...selectedEventData, ...updatedData });
+                          
+                          // Construct start and end fields from the saved data for proper form initialization
+                          let updatedEventData = { ...selectedEventData, ...updatedData };
+                          
+                          // Map startDate/endDate to start/end for form initialization
+                          if (updatedData.startDate) {
+                            updatedEventData.start = updatedData.startDate;
+                          }
+                          if (updatedData.endDate) {
+                            updatedEventData.end = updatedData.endDate;
+                          } else if (updatedData.startDate) {
+                            // If only startDate is provided, use it for end as well
+                            updatedEventData.end = updatedData.startDate;
+                          }
+                          
+                          // Also include the time field if it was updated
+                          if (updatedData.time !== undefined) {
+                            updatedEventData.time = updatedData.time;
+                          }
+                          
+                          // Update selected event data with computed fields
+                          setSelectedEventData(updatedEventData);
                           alert('Event updated successfully!');
                         } else {
                           const error = await response.json();
@@ -3734,6 +4867,47 @@ export default function CalendarPage() {
                       </div>
                     </>
                   )}
+
+                      {/* Customer Type and Location Type */}
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-900 mb-4">Customer Information</h3>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {/* Customer Type Tag */}
+                          {selectedEventData.customerType && (
+                            <span className={`text-xs font-semibold px-3 py-1.5 rounded-full inline-block ${
+                              selectedEventData.customerType.toLowerCase() === 'new' 
+                                ? 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+                                : selectedEventData.customerType.toLowerCase() === 'returning'
+                                ? 'bg-purple-200 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
+                                : selectedEventData.customerType.toLowerCase() === 'maintenance'
+                                ? 'bg-blue-200 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                                : 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+                            }`}>
+                              {selectedEventData.customerType === 'new' ? 'New Customer' : 
+                               selectedEventData.customerType === 'returning' ? 'Returning Customer' :
+                               selectedEventData.customerType === 'maintenance' ? 'Maintenance Customer' :
+                               selectedEventData.customerType}
+                            </span>
+                          )}
+                          
+                          {/* Location Type Tag */}
+                          {selectedEventData.locationType && (
+                            <span className={`text-xs font-semibold px-3 py-1.5 rounded-full inline-block ${
+                              (selectedEventData.locationType?.toLowerCase() === 'pick up' || selectedEventData.locationType?.toLowerCase() === 'pickup')
+                                ? 'bg-blue-500 text-white'
+                                : (selectedEventData.locationType?.toLowerCase() === 'drop off' || selectedEventData.locationType?.toLowerCase() === 'dropoff')
+                                ? 'bg-pink-500 text-white'
+                                : 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+                            }`}>
+                              {selectedEventData.locationType?.toLowerCase() === 'pickup' ? 'Pick Up' : 
+                               selectedEventData.locationType?.toLowerCase() === 'dropoff' ? 'Drop Off' :
+                               selectedEventData.locationType?.toLowerCase() === 'pick up' ? 'Pick Up' :
+                               selectedEventData.locationType?.toLowerCase() === 'drop off' ? 'Drop Off' :
+                               selectedEventData.locationType}
+                            </span>
+                          )}
+                        </div>
+                      </div>
 
                       {/* Vehicle Information (Car Model) */}
                       <div>

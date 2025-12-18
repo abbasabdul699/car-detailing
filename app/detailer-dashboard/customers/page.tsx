@@ -1,9 +1,12 @@
 'use client';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { FaEdit, FaTrash, FaPlus } from 'react-icons/fa';
 import { useSession } from 'next-auth/react';
 import { BarsArrowUpIcon, BarsArrowDownIcon } from '@heroicons/react/24/outline';
 import { CheckIcon, XMarkIcon } from '@heroicons/react/24/solid';
+import AddressAutocompleteInput from '../calendar/components/AddressAutocompleteInput';
+import Image from 'next/image';
+import { format } from 'date-fns';
 
 interface Customer {
   id: string;
@@ -12,6 +15,7 @@ interface Customer {
   customerEmail?: string;
   address?: string;
   locationType?: string;
+  customerType?: string;
   vehicle?: string;
   vehicleYear?: number;
   vehicleMake?: string;
@@ -31,12 +35,46 @@ export default function CustomersPage() {
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [selectedCustomers, setSelectedCustomers] = useState<Set<string>>(new Set());
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importResults, setImportResults] = useState<{ success: number; errors: Array<{ row: number; error: string }> } | null>(null);
+  const [hoveredCell, setHoveredCell] = useState<{ rowId: string; column: string; content: string; x: number; y: number } | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [columnWidths, setColumnWidths] = useState<{ [key: string]: number }>({
+    checkbox: 48,
+    name: 200,
+    phone: 150,
+    email: 200,
+    address: 250,
+    vehicle: 150,
+    services: 200,
+    action: 120,
+  });
+  const [resizingColumn, setResizingColumn] = useState<string | null>(null);
+  const [resizeStartX, setResizeStartX] = useState(0);
+  const [resizeStartWidth, setResizeStartWidth] = useState(0);
+  const [isActionSidebarOpen, setIsActionSidebarOpen] = useState(false);
+  const [selectedCustomerData, setSelectedCustomerData] = useState<Customer | null>(null);
+  const [customerPastJobs, setCustomerPastJobs] = useState<Array<{ 
+    id: string; 
+    date: string; 
+    time?: string;
+    services: string[]; 
+    vehicleModel?: string; 
+    locationType?: string;
+    resourceType?: string;
+    isUpcoming?: boolean;
+    employeeName?: string;
+  }>>([]);
+  const actionSidebarRef = useRef<HTMLDivElement>(null);
   const [formData, setFormData] = useState({
     customerPhone: '',
     customerName: '',
     customerEmail: '',
     address: '',
     locationType: '',
+    customerType: '',
     vehicleModel: '',
     services: [] as string[],
     vcardSent: false,
@@ -46,6 +84,24 @@ export default function CustomersPage() {
   useEffect(() => {
     fetchCustomers();
   }, []);
+
+  // Close action sidebar when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (actionSidebarRef.current && !actionSidebarRef.current.contains(event.target as Node)) {
+        setIsActionSidebarOpen(false);
+        setSelectedCustomerData(null);
+      }
+    };
+
+    if (isActionSidebarOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isActionSidebarOpen]);
 
   const fetchCustomers = async () => {
     setLoading(true);
@@ -75,6 +131,7 @@ export default function CustomersPage() {
         customerEmail: customer.customerEmail || '',
         address: customer.address || '',
         locationType: customer.locationType || '',
+        customerType: customer.customerType || '',
         vehicleModel: customer.vehicleModel || '',
         services: customer.services || [],
         vcardSent: customer.vcardSent || false,
@@ -88,6 +145,7 @@ export default function CustomersPage() {
         customerEmail: '',
         address: '',
         locationType: '',
+        customerType: '',
         vehicleModel: '',
         services: [],
         vcardSent: false,
@@ -95,6 +153,68 @@ export default function CustomersPage() {
       });
     }
     setIsModalOpen(true);
+  };
+
+  const handleCustomerClick = async (customer: Customer) => {
+    setSelectedCustomerData(customer);
+    setIsActionSidebarOpen(true);
+    
+    // Fetch customer's past jobs/events
+    try {
+      // Fetch calendar events and resources in parallel
+      const [eventsResponse, resourcesResponse] = await Promise.all([
+        fetch('/api/detailer/calendar-events'),
+        fetch('/api/detailer/resources')
+      ]);
+      
+      if (eventsResponse.ok && resourcesResponse.ok) {
+        const [eventsData, resourcesData] = await Promise.all([
+          eventsResponse.json(),
+          resourcesResponse.json()
+        ]);
+        
+        const allEvents = eventsData.events || [];
+        const resources = resourcesData.resources || [];
+        
+        // Create a map of resourceId to resource type
+        const resourceMap = new Map<string, string>();
+        resources.forEach((resource: any) => {
+          resourceMap.set(resource.id, resource.type);
+        });
+        
+        // Filter events for this customer (completed/confirmed, both past and upcoming)
+        const now = new Date();
+        const customerEvents = allEvents.filter((event: any) => {
+          return event.customerPhone === customer.customerPhone && 
+                 (event.status === 'completed' || event.status === 'confirmed' || !event.status);
+        }).sort((a: any, b: any) => {
+          const dateA = new Date(a.date || a.start || a.scheduledDate || 0).getTime();
+          const dateB = new Date(b.date || b.start || b.scheduledDate || 0).getTime();
+          return dateB - dateA; // Most recent first
+        });
+        
+        // Transform to match the expected format with resource type, upcoming flag, time, and employee
+        setCustomerPastJobs(customerEvents.map((event: any) => {
+          const resourceType = event.resourceId ? resourceMap.get(event.resourceId) : null;
+          const eventDate = new Date(event.date || event.start || event.scheduledDate);
+          const isUpcoming = eventDate >= now;
+          return {
+            id: event.id,
+            date: event.date || event.start || event.scheduledDate,
+            time: event.time || null,
+            services: Array.isArray(event.services) ? event.services : (event.services ? [event.services] : []),
+            vehicleModel: event.vehicleModel || event.vehicleType,
+            locationType: event.locationType || null,
+            resourceType: resourceType || null,
+            isUpcoming: isUpcoming,
+            employeeName: event.employeeName || null
+          };
+        }));
+      }
+    } catch (error) {
+      console.error('Error fetching customer events:', error);
+      setCustomerPastJobs([]);
+    }
   };
 
   const handleCloseModal = () => {
@@ -106,6 +226,7 @@ export default function CustomersPage() {
       customerEmail: '',
       address: '',
       locationType: '',
+      customerType: '',
       vehicleModel: '',
       services: [],
       vcardSent: false,
@@ -138,6 +259,7 @@ export default function CustomersPage() {
         customerEmail: formData.customerEmail || undefined,
         address: formData.address || undefined,
         locationType: formData.locationType || undefined,
+        customerType: formData.customerType || undefined,
         vehicleModel: formData.vehicleModel || undefined,
         services: formData.services,
         vcardSent: formData.vcardSent,
@@ -220,9 +342,24 @@ export default function CustomersPage() {
       : <BarsArrowDownIcon className="w-4 h-4 text-gray-600 dark:text-gray-400" />;
   };
 
+  // Filter customers based on search query
+  const filteredCustomers = React.useMemo(() => {
+    if (!searchQuery.trim()) return customers;
+    
+    const query = searchQuery.toLowerCase().trim();
+    return customers.filter(customer => {
+      const name = (customer.customerName || '').toLowerCase();
+      const phone = (customer.customerPhone || '').toLowerCase();
+      const vehicle = (customer.vehicle || customer.vehicleModel || '').toLowerCase();
+      
+      return name.includes(query) || phone.includes(query) || vehicle.includes(query);
+    });
+  }, [customers, searchQuery]);
+
   const sortedCustomers = React.useMemo(() => {
-    if (!sortConfig) return customers;
-    return [...customers].sort((a, b) => {
+    const customersToSort = filteredCustomers;
+    if (!sortConfig) return customersToSort;
+    return [...customersToSort].sort((a, b) => {
       let aValue: any = a[sortConfig.key as keyof Customer];
       let bValue: any = b[sortConfig.key as keyof Customer];
       
@@ -235,7 +372,7 @@ export default function CustomersPage() {
       if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
       return 0;
     });
-  }, [customers, sortConfig]);
+  }, [filteredCustomers, sortConfig]);
 
   const handleBulkDelete = async () => {
     if (selectedCustomers.size === 0) return;
@@ -300,9 +437,235 @@ export default function CustomersPage() {
     alert(`Exported ${selectedCustomers.size} customer(s) to CSV.`);
   };
 
+  const handleDownloadTemplate = () => {
+    // Create template CSV with headers and example row
+    const headers = ['Phone', 'Name', 'Email', 'Address', 'Location Type', 'Customer Type', 'Vehicle', 'Vehicle Year', 'Vehicle Make', 'Vehicle Model', 'Services', 'Notes'];
+    const exampleRow = [
+      '+1234567890',
+      'John Doe',
+      'john@example.com',
+      '123 Main St, Boston, MA 02101',
+      'home',
+      'returning',
+      'Toyota Camry 2020',
+      '2020',
+      'Toyota',
+      'Camry',
+      'Express Detail; Full Detail',
+      'Prefers morning appointments'
+    ];
+    
+    const csvContent = [
+      headers.join(','),
+      exampleRow.map(cell => `"${cell}"`).join(',')
+    ].join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'customer_import_template.csv');
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const validTypes = ['text/csv', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
+      const validExtensions = ['.csv', '.xls', '.xlsx'];
+      const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
+      
+      if (!validTypes.includes(file.type) && !validExtensions.includes(fileExtension)) {
+        alert('Please upload a CSV or Excel file (.csv, .xls, .xlsx)');
+        return;
+      }
+      
+      setImportFile(file);
+      setImportResults(null);
+    }
+  };
+
+  const handleImport = async () => {
+    if (!importFile) {
+      alert('Please select a file to import');
+      return;
+    }
+
+    setImportLoading(true);
+    setImportResults(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', importFile);
+
+      const response = await fetch('/api/detailer/customers/import', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to import customers');
+      }
+
+      setImportResults(result);
+      
+      if (result.success > 0) {
+        await fetchCustomers();
+      }
+    } catch (err: any) {
+      setError(err.message);
+      alert(err.message);
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
+  const handleCloseImportModal = () => {
+    setIsImportModalOpen(false);
+    setImportFile(null);
+    setImportResults(null);
+  };
+
+  // Get initials for avatar
+  const getInitials = (name?: string) => {
+    if (!name) return '?';
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+    return name.substring(0, 2).toUpperCase();
+  };
+
+  // Handle column resizing
+  const handleMouseDown = (e: React.MouseEvent, columnKey: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setResizingColumn(columnKey);
+    setResizeStartX(e.clientX);
+    setResizeStartWidth(columnWidths[columnKey] || 150);
+  };
+
+  React.useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (resizingColumn) {
+        const diff = e.clientX - resizeStartX;
+        const newWidth = Math.max(50, resizeStartWidth + diff);
+        setColumnWidths(prev => ({
+          ...prev,
+          [resizingColumn]: newWidth,
+        }));
+      }
+    };
+
+    const handleMouseUp = () => {
+      setResizingColumn(null);
+    };
+
+    if (resizingColumn) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [resizingColumn, resizeStartX, resizeStartWidth]);
+
+  // Handle call button
+  const handleCall = (phone: string) => {
+    window.location.href = `tel:${phone}`;
+  };
+
+  // Handle column resizing
+  const handleResizeMouseDown = (e: React.MouseEvent, columnKey: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setResizingColumn(columnKey);
+    setResizeStartX(e.clientX);
+    setResizeStartWidth(columnWidths[columnKey] || 150);
+  };
+
+  React.useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (resizingColumn) {
+        const diff = e.clientX - resizeStartX;
+        const newWidth = Math.max(50, resizeStartWidth + diff);
+        setColumnWidths(prev => ({
+          ...prev,
+          [resizingColumn]: newWidth,
+        }));
+      }
+    };
+
+    const handleMouseUp = () => {
+      setResizingColumn(null);
+    };
+
+    if (resizingColumn) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [resizingColumn, resizeStartX, resizeStartWidth]);
+
+  // Handle SMS button - start conversation with AI
+  const handleSendSMS = async (customer: Customer) => {
+    if (!customer.customerPhone) {
+      alert('Customer phone number is required');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/detailer/start-conversation', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          customerPhone: customer.customerPhone,
+          customerName: customer.customerName || undefined,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        // If conversation already exists, that's okay - redirect to messages
+        if (response.status === 409) {
+          window.location.href = '/detailer-dashboard/messages';
+          return;
+        }
+        throw new Error(result.error || 'Failed to start conversation');
+      }
+
+      // Redirect to messages page to see the conversation
+      window.location.href = '/detailer-dashboard/messages';
+    } catch (err: any) {
+      alert(err.message || 'Failed to send SMS');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-white dark:bg-gray-950">
-      <div className="w-full">
+      <div className={`w-full ${isActionSidebarOpen ? 'pr-0 md:pr-[400px] lg:pr-[420px]' : 'pr-16'}`}>
         {/* Header Section */}
         <div className="px-6 pt-6 pb-4 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between mb-4">
@@ -311,11 +674,38 @@ export default function CustomersPage() {
             </h1>
             <div className="flex items-center gap-3">
               <button
+                onClick={() => setIsImportModalOpen(true)}
+                className="bg-black text-white px-4 py-2 rounded-full font-semibold hover:bg-gray-800 transition flex items-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+                Import Customers
+              </button>
+              <button
                 onClick={() => handleOpenModal()}
                 className="bg-black text-white px-4 py-2 rounded-full font-semibold hover:bg-gray-800 transition flex items-center gap-2"
               >
                 <FaPlus /> Add Customer
               </button>
+            </div>
+          </div>
+          
+          {/* Search Bar */}
+          <div className="flex items-center gap-3 mt-4">
+            <div className="relative" style={{ width: '500px' }}>
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Customer name, car model, or phone number"
+                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-full focus:ring-2 focus:ring-gray-900 focus:border-transparent dark:bg-gray-800 dark:text-white"
+              />
             </div>
           </div>
         </div>
@@ -337,7 +727,7 @@ export default function CustomersPage() {
               </button>
               <button
                 onClick={handleExportSelected}
-                className="px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-600 rounded-lg transition"
+                className="px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-700 rounded-lg transition"
               >
                 Export Selected
               </button>
@@ -356,14 +746,16 @@ export default function CustomersPage() {
           <div className="text-center py-12 text-gray-600 dark:text-gray-400">Loading...</div>
         ) : error ? (
           <div className="text-center py-12 text-red-600 dark:text-red-400">{error}</div>
-        ) : customers.length === 0 ? (
+        ) : sortedCustomers.length === 0 ? (
           <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-            No customers found. Click "Add Customer" to create one.
+            {searchQuery.trim() 
+              ? `No customers found matching "${searchQuery}". Try a different search term.`
+              : 'No customers found. Click "Add Customer" to create one.'}
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
+            <table className="w-full table-fixed">
+              <thead className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-200">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-12">
                     <input
@@ -373,65 +765,106 @@ export default function CustomersPage() {
                       className="w-4 h-4 text-gray-900 border-gray-300 rounded focus:ring-gray-900"
                     />
                   </th>
+                  {selectedCustomers.size > 0 && (
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-12">
                     #
                   </th>
+                  )}
                   <th 
-                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition"
+                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition relative"
                     onClick={() => handleSort('customerName')}
+                    style={{ width: columnWidths.name, minWidth: columnWidths.name, maxWidth: columnWidths.name }}
                   >
                     <div className="flex items-center gap-1">
                       <span>Name</span>
                       {getSortIcon('customerName')}
                     </div>
+                    <div
+                      className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-gray-400 z-10"
+                      onMouseDown={(e) => handleResizeMouseDown(e, 'name')}
+                    />
                   </th>
                   <th 
-                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition"
+                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition relative"
                     onClick={() => handleSort('customerPhone')}
+                    style={{ width: columnWidths.phone, minWidth: columnWidths.phone, maxWidth: columnWidths.phone }}
                   >
                     <div className="flex items-center gap-1">
-                      <span>Phone</span>
+                      <span>Phone number</span>
                       {getSortIcon('customerPhone')}
                     </div>
+                    <div
+                      className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-gray-400 z-10"
+                      onMouseDown={(e) => handleResizeMouseDown(e, 'phone')}
+                    />
                   </th>
                   <th 
-                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition"
+                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition relative"
                     onClick={() => handleSort('customerEmail')}
+                    style={{ width: columnWidths.email, minWidth: columnWidths.email, maxWidth: columnWidths.email }}
                   >
                     <div className="flex items-center gap-1">
                       <span>Email</span>
                       {getSortIcon('customerEmail')}
                     </div>
+                    <div
+                      className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-gray-400 z-10"
+                      onMouseDown={(e) => handleResizeMouseDown(e, 'email')}
+                    />
                   </th>
                   <th 
-                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition"
+                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition relative"
                     onClick={() => handleSort('address')}
+                    style={{ width: columnWidths.address, minWidth: columnWidths.address, maxWidth: columnWidths.address }}
                   >
                     <div className="flex items-center gap-1">
                       <span>Address</span>
                       {getSortIcon('address')}
                     </div>
+                    <div
+                      className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-gray-400 z-10"
+                      onMouseDown={(e) => handleResizeMouseDown(e, 'address')}
+                    />
                   </th>
                   <th 
-                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition"
+                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition relative"
                     onClick={() => handleSort('vehicle')}
+                    style={{ width: columnWidths.vehicle, minWidth: columnWidths.vehicle, maxWidth: columnWidths.vehicle }}
                   >
                     <div className="flex items-center gap-1">
-                      <span>Vehicle</span>
+                      <span>Vehicle(s)</span>
                       {getSortIcon('vehicle')}
                     </div>
+                    <div
+                      className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-gray-400 z-10"
+                      onMouseDown={(e) => handleResizeMouseDown(e, 'vehicle')}
+                    />
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Services
+                  <th 
+                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider relative"
+                    style={{ width: columnWidths.services, minWidth: columnWidths.services, maxWidth: columnWidths.services }}
+                  >
+                    Service(s)
+                    <div
+                      className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-gray-400 z-10"
+                      onMouseDown={(e) => handleResizeMouseDown(e, 'services')}
+                    />
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Actions
+                  <th 
+                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider relative"
+                    style={{ width: columnWidths.action, minWidth: columnWidths.action, maxWidth: columnWidths.action }}
+                  >
+                    Action
                   </th>
                 </tr>
               </thead>
               <tbody className="bg-white dark:bg-gray-950 divide-y divide-gray-200 dark:divide-gray-700">
                 {sortedCustomers.map((customer, index) => (
-                  <tr key={customer.id} className="hover:bg-gray-50 dark:hover:bg-gray-900 transition">
+                  <tr 
+                    key={customer.id} 
+                    className="hover:bg-gray-50 dark:hover:bg-gray-900 transition cursor-pointer"
+                    onClick={() => handleCustomerClick(customer)}
+                  >
                     <td className="px-4 py-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                       <input
                         type="checkbox"
@@ -441,49 +874,133 @@ export default function CustomersPage() {
                         onClick={(e) => e.stopPropagation()}
                       />
                     </td>
+                    {selectedCustomers.size > 0 && (
                     <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                       {index + 1}
                     </td>
+                    )}
                     <td 
-                      className="px-4 py-4 whitespace-nowrap cursor-pointer"
-                      onClick={() => handleOpenModal(customer)}
+                      className="px-4 py-4"
+                      style={{ width: columnWidths.name, minWidth: columnWidths.name, maxWidth: columnWidths.name }}
                     >
-                      <div className="font-medium text-gray-900 dark:text-white hover:text-gray-600 dark:hover:text-gray-300 transition">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
+                          <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                            {getInitials(customer.customerName)}
+                          </span>
+                        </div>
+                        <div className="font-medium text-gray-900 dark:text-white hover:text-gray-600 dark:hover:text-gray-300 transition truncate min-w-0">
                         {customer.customerName || '-'}
+                        </div>
                       </div>
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
-                      {customer.customerPhone || '-'}
+                    <td 
+                      className="px-4 py-4 text-sm text-gray-600 dark:text-gray-400 truncate"
+                      style={{ width: columnWidths.phone, minWidth: columnWidths.phone, maxWidth: columnWidths.phone }}
+                    >
+                      <span className="truncate block">{customer.customerPhone || '-'}</span>
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
+                    <td 
+                      className="px-4 py-4 text-sm relative group truncate"
+                      style={{ width: columnWidths.email, minWidth: columnWidths.email, maxWidth: columnWidths.email }}
+                      onMouseEnter={(e) => {
+                        if (customer.customerEmail && customer.customerEmail !== '-') {
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          setHoveredCell({
+                            rowId: customer.id,
+                            column: 'email',
+                            content: customer.customerEmail,
+                            x: rect.left + rect.width / 2,
+                            y: rect.top
+                          });
+                        }
+                      }}
+                      onMouseLeave={() => {
+                        if (hoveredCell?.rowId === customer.id && hoveredCell?.column === 'email') {
+                          setHoveredCell(null);
+                        }
+                      }}
+                    >
+                      <span className={`truncate block relative z-10 ${customer.customerEmail && customer.customerEmail !== '-' ? 'cursor-pointer text-gray-600 dark:text-gray-400 group-hover:text-black dark:group-hover:text-white' : 'text-gray-600 dark:text-gray-400'}`}>
                       {customer.customerEmail || '-'}
+                      </span>
+                      {customer.customerEmail && customer.customerEmail !== '-' && (
+                        <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none rounded" style={{ backgroundColor: '#F0F0EE' }} />
+                      )}
                     </td>
-                    <td className="px-4 py-4 text-sm text-gray-600 dark:text-gray-400 max-w-xs truncate">
+                    <td 
+                      className="px-4 py-4 text-sm truncate relative group"
+                      style={{ width: columnWidths.address, minWidth: columnWidths.address, maxWidth: columnWidths.address }}
+                      onMouseEnter={(e) => {
+                        if (customer.address && customer.address !== '-') {
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          setHoveredCell({
+                            rowId: customer.id,
+                            column: 'address',
+                            content: customer.address,
+                            x: rect.left + rect.width / 2,
+                            y: rect.top
+                          });
+                        }
+                      }}
+                      onMouseLeave={() => {
+                        if (hoveredCell?.rowId === customer.id && hoveredCell?.column === 'address') {
+                          setHoveredCell(null);
+                        }
+                      }}
+                    >
+                      <span className={`truncate block relative z-10 ${customer.address && customer.address !== '-' ? 'cursor-pointer text-gray-600 dark:text-gray-400 group-hover:text-black dark:group-hover:text-white' : 'text-gray-600 dark:text-gray-400'}`}>
                       {customer.address || '-'}
+                      </span>
+                      {customer.address && customer.address !== '-' && (
+                        <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none rounded" style={{ backgroundColor: '#F0F0EE' }} />
+                      )}
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
-                      {customer.vehicle || '-'}
+                    <td 
+                      className="px-4 py-4 text-sm text-gray-600 dark:text-gray-400 truncate"
+                      style={{ width: columnWidths.vehicle, minWidth: columnWidths.vehicle, maxWidth: columnWidths.vehicle }}
+                    >
+                      <span className="truncate block">{customer.vehicle || customer.vehicleModel || '-'}</span>
                     </td>
-                    <td className="px-4 py-4 text-sm text-gray-600 dark:text-gray-400">
+                    <td 
+                      className="px-4 py-4 text-sm text-gray-600 dark:text-gray-400 truncate"
+                      style={{ width: columnWidths.services, minWidth: columnWidths.services, maxWidth: columnWidths.services }}
+                    >
+                      <span className="truncate block">
                       {customer.services && customer.services.length > 0 
-                        ? customer.services.join(', ') 
+                          ? `(${customer.services.length}) ${customer.services.join(' + ')}`
                         : '-'}
+                      </span>
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm" onClick={(e) => e.stopPropagation()}>
+                    <td 
+                      className="px-4 py-4 whitespace-nowrap text-sm" 
+                      onClick={(e) => e.stopPropagation()}
+                      style={{ width: columnWidths.action }}
+                    >
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={() => handleOpenModal(customer)}
-                          className="p-2 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 rounded transition"
-                          title="Edit"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleCall(customer.customerPhone);
+                          }}
+                          className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 flex items-center justify-center transition"
+                          title="Call"
                         >
-                          <FaEdit className="w-4 h-4" />
+                          <svg className="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                          </svg>
                         </button>
                         <button
-                          onClick={() => handleDelete(customer.id)}
-                          className="p-2 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition"
-                          title="Delete"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSendSMS(customer);
+                          }}
+                          className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 flex items-center justify-center transition"
+                          title="Send SMS"
                         >
-                          <FaTrash className="w-4 h-4" />
+                          <svg className="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                          </svg>
                         </button>
                       </div>
                     </td>
@@ -562,12 +1079,11 @@ export default function CustomersPage() {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Address
                 </label>
-                <input
-                  type="text"
+                <AddressAutocompleteInput
                   value={formData.address}
-                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  onChange={(value) => setFormData({ ...formData, address: value })}
                   placeholder="123 Main St, City, State ZIP"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-transparent dark:bg-gray-700 dark:text-white"
                 />
               </div>
 
@@ -581,9 +1097,24 @@ export default function CustomersPage() {
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-transparent dark:bg-gray-700 dark:text-white"
                 >
                   <option value="">Select location type</option>
-                  <option value="home">Home</option>
-                  <option value="work">Work</option>
-                  <option value="other">Other</option>
+                  <option value="pick up">Pick Up</option>
+                  <option value="drop off">Drop Off</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Customer Type
+                </label>
+                <select
+                  value={formData.customerType}
+                  onChange={(e) => setFormData({ ...formData, customerType: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                >
+                  <option value="">Select customer type</option>
+                  <option value="new">New Customer</option>
+                  <option value="returning">Returning Customer</option>
+                  <option value="maintenance">Maintenance Customer</option>
                 </select>
               </div>
 
@@ -634,6 +1165,397 @@ export default function CustomersPage() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Hover Tooltip */}
+      {hoveredCell && (
+        <div
+          className="fixed z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl px-3 py-2 text-sm text-gray-900 dark:text-gray-100 max-w-md pointer-events-none"
+          style={{
+            left: `${hoveredCell.x}px`,
+            top: `${hoveredCell.y - 5}px`,
+            transform: 'translate(-50%, -100%)',
+          }}
+        >
+          <div className="whitespace-normal break-words">
+            {hoveredCell.content}
+          </div>
+          <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-200 dark:border-t-gray-700" />
+        </div>
+      )}
+
+      {/* Import Modal */}
+      {isImportModalOpen && (
+        <div className="fixed inset-0 flex items-center justify-center z-50 p-4 overflow-y-auto" style={{ backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', backgroundColor: 'rgba(0, 0, 0, 0.3)' }}>
+          <div className="rounded-xl shadow-xl max-w-2xl w-full p-6 my-8" style={{ backgroundColor: '#F8F8F7' }}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                Import Customers
+              </h2>
+              <button
+                onClick={handleCloseImportModal}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                aria-label="Close modal"
+              >
+                <XMarkIcon className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <h3 className="text-sm font-semibold text-gray-900 mb-2">Import Instructions</h3>
+                <ol className="text-sm text-gray-800 space-y-1 list-decimal list-inside">
+                  <li>Download the template CSV file using the "Download Template" button below</li>
+                  <li>Fill in your customer information following the template format</li>
+                  <li>Phone number is required for each customer</li>
+                  <li>Upload your completed CSV or Excel file (.csv, .xls, .xlsx)</li>
+                  <li>Review the import results and fix any errors if needed</li>
+                </ol>
+              </div>
+
+              <div>
+                <button
+                  onClick={handleDownloadTemplate}
+                  className="w-full bg-gray-100 text-gray-700 px-4 py-2 rounded-lg font-semibold hover:bg-gray-200 transition flex items-center justify-center gap-2 border border-gray-300"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Download Template
+                </button>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Select File (CSV or Excel)
+                </label>
+                <input
+                  type="file"
+                  accept=".csv,.xls,.xlsx,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                  onChange={handleFileSelect}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                />
+                {importFile && (
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                    Selected: {importFile.name}
+                  </p>
+                )}
+              </div>
+
+              {importResults && (
+                <div className={`rounded-lg p-4 ${importResults.errors.length > 0 ? 'bg-yellow-50 border border-yellow-200' : 'bg-green-50 border border-green-200'}`}>
+                  <h3 className="text-sm font-semibold mb-2">
+                    {importResults.errors.length > 0 ? 'Import Completed with Errors' : 'Import Successful'}
+                  </h3>
+                  <p className="text-sm mb-2">
+                    Successfully imported: <span className="font-semibold">{importResults.success}</span> customer(s)
+                  </p>
+                  {importResults.errors.length > 0 && (
+                    <div className="mt-2">
+                      <p className="text-sm font-semibold mb-1">Errors ({importResults.errors.length}):</p>
+                      <div className="max-h-40 overflow-y-auto text-xs space-y-1">
+                        {importResults.errors.map((err, idx) => (
+                          <p key={idx} className="text-red-700">
+                            Row {err.row}: {err.error}
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={handleCloseImportModal}
+                  className="flex-1 px-6 py-2 border border-gray-300 dark:border-gray-600 rounded-xl text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition"
+                >
+                  {importResults ? 'Close' : 'Cancel'}
+                </button>
+                <button
+                  onClick={handleImport}
+                  disabled={!importFile || importLoading}
+                  className="flex-1 px-6 py-2 bg-black text-white rounded-xl hover:bg-gray-800 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {importLoading ? (
+                    <>
+                      <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      <span>Importing...</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                      </svg>
+                      <span>Import</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Action Sidebar */}
+      <div 
+        ref={actionSidebarRef}
+        className={`fixed top-0 right-0 h-full w-full md:w-[400px] lg:w-[420px] shadow-2xl z-40 transform transition-transform duration-300 ease-in-out ${
+          isActionSidebarOpen ? 'translate-x-0' : 'translate-x-full'
+        }`} style={{ backgroundColor: '#F8F8F7', borderLeft: '1px solid #E2E2DD', boxShadow: 'none' }}>
+        <div className="h-full flex flex-col overflow-hidden" style={{ backgroundColor: '#F8F8F7' }}>
+          {/* Header */}
+          <div className="flex-shrink-0 px-6 pt-6 pb-2">
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full flex items-center justify-center relative" style={{ backgroundColor: '#E2E2DD' }}>
+                  <Image 
+                    src="/icons/layouting.png" 
+                    alt="Customer Details" 
+                    width={20} 
+                    height={20}
+                    className="object-contain"
+                  />
+                  <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2" style={{ borderColor: '#F8F8F7' }}></div>
+                </div>
+                <h2 className="text-xl font-bold text-gray-900">
+                  Customer Details
+                </h2>
+              </div>
+              <button
+                onClick={() => {
+                  setIsActionSidebarOpen(false);
+                  setSelectedCustomerData(null);
+                }}
+                className="p-1 rounded-lg hover:bg-gray-100 transition-colors"
+              >
+                <XMarkIcon className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+          </div>
+
+          {/* Content */}
+          {selectedCustomerData && (
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="space-y-6">
+                {/* Customer Information */}
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 mb-4">Customer</h3>
+                  <div className="bg-gray-50 rounded-xl p-4 border" style={{ borderColor: '#E2E2DD', borderRadius: '12px' }}>
+                    <div className="flex items-start justify-between mb-2">
+                      <h4 className="font-semibold text-gray-900 text-base">
+                        {selectedCustomerData.customerName || 'Unnamed Customer'}
+                      </h4>
+                      {selectedCustomerData.customerPhone && (
+                        <span className="text-sm text-gray-600">
+                          {selectedCustomerData.customerPhone}
+                        </span>
+                      )}
+                    </div>
+                    
+                    {selectedCustomerData.customerEmail && (
+                      <p className="text-sm text-gray-600 mb-2">
+                        {selectedCustomerData.customerEmail}
+                      </p>
+                    )}
+                    
+                    {selectedCustomerData.address && (
+                      <p className="text-sm text-gray-600 mb-3">
+                        {selectedCustomerData.address}
+                      </p>
+                    )}
+
+                    {/* Customer Type and Location Type */}
+                    <div className="flex flex-wrap items-center gap-2 mt-3">
+                      {selectedCustomerData.customerType && (
+                        <span className={`text-xs font-semibold px-3 py-1.5 rounded-full inline-block ${
+                          selectedCustomerData.customerType.toLowerCase() === 'new' 
+                            ? 'bg-gray-200 text-gray-700'
+                            : selectedCustomerData.customerType.toLowerCase() === 'returning'
+                            ? 'bg-purple-200 text-purple-800'
+                            : selectedCustomerData.customerType.toLowerCase() === 'maintenance'
+                            ? 'bg-blue-200 text-blue-800'
+                            : 'bg-gray-200 text-gray-700'
+                        }`}>
+                          {selectedCustomerData.customerType === 'new' ? 'New Customer' : 
+                           selectedCustomerData.customerType === 'returning' ? 'Returning Customer' :
+                           selectedCustomerData.customerType === 'maintenance' ? 'Maintenance Customer' :
+                           selectedCustomerData.customerType}
+                        </span>
+                      )}
+                      
+                      {selectedCustomerData.locationType && (
+                        <span className={`text-xs font-semibold px-3 py-1.5 rounded-full inline-block ${
+                          (selectedCustomerData.locationType?.toLowerCase() === 'pick up' || selectedCustomerData.locationType?.toLowerCase() === 'pickup')
+                            ? 'bg-blue-500 text-white'
+                            : (selectedCustomerData.locationType?.toLowerCase() === 'drop off' || selectedCustomerData.locationType?.toLowerCase() === 'dropoff')
+                            ? 'bg-pink-500 text-white'
+                            : 'bg-gray-200 text-gray-700'
+                        }`}>
+                          {selectedCustomerData.locationType?.toLowerCase() === 'pickup' ? 'Pick Up' : 
+                           selectedCustomerData.locationType?.toLowerCase() === 'dropoff' ? 'Drop Off' :
+                           selectedCustomerData.locationType?.toLowerCase() === 'pick up' ? 'Pick Up' :
+                           selectedCustomerData.locationType?.toLowerCase() === 'drop off' ? 'Drop Off' :
+                           selectedCustomerData.locationType}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Vehicle Information */}
+                {(selectedCustomerData.vehicle || selectedCustomerData.vehicleModel) && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-900 mb-4">Car model</h3>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-800 text-white text-sm font-medium">
+                        <span>{selectedCustomerData.vehicleModel || selectedCustomerData.vehicle}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Customer Notes */}
+                {selectedCustomerData && (selectedCustomerData as any).data && typeof (selectedCustomerData as any).data === 'object' && (selectedCustomerData as any).data.notes && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-900 mb-4">Notes</h3>
+                    <div className="bg-white rounded-xl p-4 border" style={{ borderColor: '#E2E2DD', borderRadius: '12px' }}>
+                      <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                        {(selectedCustomerData as any).data.notes}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Service History */}
+                {customerPastJobs && customerPastJobs.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-900 mb-4">
+                      Service History ({customerPastJobs.length})
+                    </h3>
+                    <div className="space-y-3">
+                      {customerPastJobs.map((job, index) => (
+                        <div 
+                          key={job.id || index}
+                          className="p-4 rounded-xl border" 
+                          style={{ borderColor: '#E2E2DD', backgroundColor: 'white' }}
+                        >
+                          {/* Date and Time */}
+                          <div className="mb-3">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="text-sm font-semibold text-gray-900">
+                                {job.date ? (() => {
+                                  try {
+                                    const date = new Date(job.date);
+                                    if (isNaN(date.getTime())) return 'Date unavailable';
+                                    const dateStr = format(date, 'MMMM d, yyyy');
+                                    if (job.time) {
+                                      return `${dateStr} at ${job.time}`;
+                                    }
+                                    return dateStr;
+                                  } catch (e) {
+                                    return 'Date unavailable';
+                                  }
+                                })() : 'Date unavailable'}
+                              </p>
+                              {job.isUpcoming && (
+                                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">
+                                  Upcoming
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          
+                          {/* Technician */}
+                          {job.employeeName && (
+                            <div className="mb-2">
+                              <p className="text-xs text-gray-600 mb-1">Technician</p>
+                              <p className="text-sm text-gray-900">{job.employeeName}</p>
+                            </div>
+                          )}
+                          
+                          {/* Service */}
+                          {job.services && job.services.length > 0 && (
+                            <div className="mb-2">
+                              <p className="text-xs text-gray-600 mb-1">Service</p>
+                              <p className="text-sm text-gray-900">
+                                {Array.isArray(job.services) ? job.services.join(', ') : job.services}
+                              </p>
+                            </div>
+                          )}
+                          
+                          {/* Pickup/Drop-off (only for BAY appointments) */}
+                          {job.resourceType === 'bay' && job.locationType && (
+                            <div className="mb-2">
+                              <p className="text-xs text-gray-600 mb-1">Pickup/Drop-off</p>
+                              <p className="text-sm text-gray-900">
+                                {job.locationType === 'pick up' || job.locationType.toLowerCase() === 'pickup' 
+                                  ? 'Pick Up' 
+                                  : job.locationType === 'drop off' || job.locationType.toLowerCase() === 'dropoff'
+                                  ? 'Drop Off'
+                                  : job.locationType}
+                              </p>
+                            </div>
+                          )}
+                          
+                          {/* Vehicle */}
+                          {job.vehicleModel && (
+                            <div>
+                              <p className="text-xs text-gray-600 mb-1">Vehicle</p>
+                              <p className="text-sm text-gray-900">{job.vehicleModel}</p>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div className="flex gap-3 pt-4">
+                  <button
+                    onClick={() => {
+                      handleOpenModal(selectedCustomerData);
+                      setIsActionSidebarOpen(false);
+                    }}
+                    className="flex-1 px-6 py-2 bg-orange-500 text-white rounded-xl hover:bg-orange-600 transition-colors"
+                  >
+                    Edit
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Column Sidebar - Only show when action panel is closed */}
+      {!isActionSidebarOpen && (
+        <div
+          onClick={() => {
+            // Open sidebar with first customer if available
+            if (customers.length > 0) {
+              handleCustomerClick(customers[0]);
+            } else {
+              setIsActionSidebarOpen(true);
+            }
+          }}
+          className="fixed right-0 top-0 h-full w-16 border-l border-gray-200 z-30 cursor-pointer transition-colors flex items-start justify-center"
+          style={{ backgroundColor: '#F8F8F7', paddingTop: '32px' }}
+          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#E8E8E7'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#F8F8F7'; }}
+        >
+          <Image 
+            src="/icons/layouting.png" 
+            alt="Action Panel" 
+            width={28} 
+            height={28}
+            className="object-contain"
+          />
         </div>
       )}
     </div>
