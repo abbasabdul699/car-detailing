@@ -3,8 +3,22 @@ import React, { useEffect, useState, useRef } from 'react';
 import { FaEdit, FaTrash, FaPlus } from 'react-icons/fa';
 import Image from 'next/image';
 import { useSession } from 'next-auth/react';
-import { BarsArrowUpIcon, BarsArrowDownIcon } from '@heroicons/react/24/outline';
+import { BarsArrowUpIcon, BarsArrowDownIcon, Bars3Icon } from '@heroicons/react/24/outline';
+import { XMarkIcon } from '@heroicons/react/24/solid';
 import BusinessHoursPicker, { BusinessHours } from '@/app/components/BusinessHoursPicker';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import {
+  UsersIcon,
+  ChatBubbleLeftRightIcon,
+  CalendarDaysIcon,
+  UserIcon,
+  CubeIcon,
+  PhotoIcon,
+  CreditCardIcon,
+  Cog8ToothIcon,
+  QuestionMarkCircleIcon,
+} from '@heroicons/react/24/outline';
 
 interface Resource {
   id: string;
@@ -48,10 +62,30 @@ export default function ResourcesPage() {
     workHours: {} as BusinessHours,
     color: 'blue' as string
   });
+  const router = useRouter();
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetchAllData();
   }, []);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setIsMenuOpen(false);
+      }
+    };
+
+    if (isMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isMenuOpen]);
 
   useEffect(() => {
     if (activeTab !== 'employees') {
@@ -435,20 +469,153 @@ export default function ResourcesPage() {
     <div className="min-h-screen bg-white dark:bg-gray-950">
       <div className="w-full">
         {/* Header Section */}
-        <div className="px-6 pt-6 pb-4 border-b border-gray-200 dark:border-gray-700">
+        <div className="px-4 md:px-6 pt-4 md:pt-6 pb-4 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between mb-4">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
-              {activeTab === 'employees' ? 'Employees' : activeTab === 'bays' ? 'Bays' : 'Vans'}
-            </h1>
             <div className="flex items-center gap-3">
+              {/* Hamburger Menu Button - Mobile Only */}
+              <button
+                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                className="md:hidden w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition"
+                aria-label="Menu"
+              >
+                <Bars3Icon className="w-6 h-6 text-gray-700 dark:text-gray-300" />
+              </button>
+              <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-gray-100">
+                {activeTab === 'employees' ? 'Employees' : activeTab === 'bays' ? 'Bays' : 'Vans'}
+              </h1>
+            </div>
+            <div className="flex items-center gap-2 md:gap-3">
               <button
                 onClick={() => handleOpenModal()}
-                className="bg-black text-white px-4 py-2 rounded-full font-semibold hover:bg-gray-800 transition flex items-center gap-2"
+                className="hidden md:flex bg-black text-white px-4 py-2 rounded-full font-semibold hover:bg-gray-800 transition items-center gap-2"
               >
                 <FaPlus /> Add {activeTab === 'employees' ? 'Employee' : activeTab === 'bays' ? 'Bay' : 'Van'}
               </button>
             </div>
           </div>
+
+          {/* Hamburger Menu - Mobile Only */}
+          {isMenuOpen && (
+            <>
+              <div 
+                className="md:hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-40"
+                onClick={() => setIsMenuOpen(false)}
+              />
+              <div 
+                ref={menuRef}
+                className="md:hidden fixed top-0 left-0 h-full w-80 bg-white dark:bg-gray-900 shadow-xl z-50 transform transition-transform"
+              >
+                <div className="flex flex-col h-full">
+                  {/* Menu Header */}
+                  <div className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Menu</h2>
+                    <button
+                      onClick={() => setIsMenuOpen(false)}
+                      className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition"
+                      aria-label="Close menu"
+                    >
+                      <XMarkIcon className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+                    </button>
+                  </div>
+
+                  {/* Navigation Items */}
+                  <div className="flex-1 overflow-y-auto py-4">
+                    <div className="space-y-1 px-2">
+                      <Link
+                        href="/detailer-dashboard/resources"
+                        onClick={() => setIsMenuOpen(false)}
+                        className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition text-gray-700 dark:text-gray-300"
+                      >
+                        <UsersIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                        <span className="font-medium">Resources</span>
+                      </Link>
+                      <Link
+                        href="/detailer-dashboard/messages"
+                        onClick={() => setIsMenuOpen(false)}
+                        className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition text-gray-700 dark:text-gray-300"
+                      >
+                        <ChatBubbleLeftRightIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                        <span className="font-medium">Messages</span>
+                      </Link>
+                      <Link
+                        href="/detailer-dashboard/calendar"
+                        onClick={() => setIsMenuOpen(false)}
+                        className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition text-gray-700 dark:text-gray-300"
+                      >
+                        <CalendarDaysIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                        <span className="font-medium">Calendar</span>
+                      </Link>
+                      <Link
+                        href="/detailer-dashboard/profile"
+                        onClick={() => setIsMenuOpen(false)}
+                        className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition text-gray-700 dark:text-gray-300"
+                      >
+                        <UserIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                        <span className="font-medium">Profile</span>
+                      </Link>
+                    </div>
+
+                    {/* Divider */}
+                    <div className="my-4 px-2">
+                      <div className="border-t border-gray-200 dark:border-gray-700" />
+                    </div>
+
+                    {/* Additional Actions */}
+                    <div className="space-y-1 px-2">
+                      <Link
+                        href="/detailer-dashboard/customers"
+                        onClick={() => setIsMenuOpen(false)}
+                        className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition text-gray-700 dark:text-gray-300"
+                      >
+                        <UserIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                        <span className="font-medium">Customers</span>
+                      </Link>
+                      <Link
+                        href="/detailer-dashboard/services"
+                        onClick={() => setIsMenuOpen(false)}
+                        className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition text-gray-700 dark:text-gray-300"
+                      >
+                        <CubeIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                        <span className="font-medium">Services</span>
+                      </Link>
+                      <Link
+                        href="/detailer-dashboard/images?upload=1"
+                        onClick={() => setIsMenuOpen(false)}
+                        className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition text-gray-700 dark:text-gray-300"
+                      >
+                        <PhotoIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                        <span className="font-medium">Manage Images</span>
+                      </Link>
+                      <Link
+                        href="/detailer-dashboard/subscription"
+                        onClick={() => setIsMenuOpen(false)}
+                        className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition text-gray-700 dark:text-gray-300"
+                      >
+                        <CreditCardIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                        <span className="font-medium">Subscription</span>
+                      </Link>
+                      <Link
+                        href="/detailer-dashboard/settings"
+                        onClick={() => setIsMenuOpen(false)}
+                        className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition text-gray-700 dark:text-gray-300"
+                      >
+                        <Cog8ToothIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                        <span className="font-medium">Settings</span>
+                      </Link>
+                      <Link
+                        href="/help-page"
+                        onClick={() => setIsMenuOpen(false)}
+                        className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition text-gray-700 dark:text-gray-300"
+                      >
+                        <QuestionMarkCircleIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                        <span className="font-medium">Help & Support</span>
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
           
           {/* Navigation Tabs */}
           <div className="flex items-center gap-4">
@@ -767,6 +934,15 @@ export default function ResourcesPage() {
           </div>
         )}
       </div>
+
+      {/* Floating Action Button - Mobile Only */}
+      <button
+        onClick={() => handleOpenModal()}
+        className="md:hidden fixed bottom-6 right-6 w-14 h-14 bg-black text-white rounded-full shadow-lg hover:bg-gray-800 transition flex items-center justify-center z-30"
+        aria-label={`Add ${activeTab === 'employees' ? 'Employee' : activeTab === 'bays' ? 'Bay' : 'Van'}`}
+      >
+        <FaPlus className="w-6 h-6" />
+      </button>
 
       {/* Modal */}
       {isModalOpen && (

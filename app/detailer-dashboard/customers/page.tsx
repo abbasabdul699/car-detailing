@@ -2,11 +2,25 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { FaEdit, FaTrash, FaPlus } from 'react-icons/fa';
 import { useSession } from 'next-auth/react';
-import { BarsArrowUpIcon, BarsArrowDownIcon } from '@heroicons/react/24/outline';
+import { BarsArrowUpIcon, BarsArrowDownIcon, Bars3Icon } from '@heroicons/react/24/outline';
 import { CheckIcon, XMarkIcon } from '@heroicons/react/24/solid';
 import AddressAutocompleteInput from '../calendar/components/AddressAutocompleteInput';
 import Image from 'next/image';
 import { format } from 'date-fns';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import {
+  UsersIcon,
+  ChatBubbleLeftRightIcon,
+  CalendarDaysIcon,
+  UserIcon,
+  CubeIcon,
+  PhotoIcon,
+  CreditCardIcon,
+  Cog8ToothIcon,
+  QuestionMarkCircleIcon,
+  FunnelIcon,
+} from '@heroicons/react/24/outline';
 
 interface Customer {
   id: string;
@@ -28,6 +42,7 @@ interface Customer {
 
 export default function CustomersPage() {
   const { data: session } = useSession();
+  const router = useRouter();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -68,6 +83,20 @@ export default function CustomersPage() {
     employeeName?: string;
   }>>([]);
   const actionSidebarRef = useRef<HTMLDivElement>(null);
+  const [customerUpcomingJobs, setCustomerUpcomingJobs] = useState<Map<string, { 
+    vehicleModel?: string;
+    services: string[];
+    date: string;
+  }>>(new Map());
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
+  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const longPressCustomerIdRef = useRef<string | null>(null);
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+  const [filterLastSeen, setFilterLastSeen] = useState('all');
+  const [filterServices, setFilterServices] = useState<string[]>([]);
+  const [filterStation, setFilterStation] = useState('all');
   const [formData, setFormData] = useState({
     customerPhone: '',
     customerName: '',
@@ -85,6 +114,47 @@ export default function CustomersPage() {
     fetchCustomers();
   }, []);
 
+  // Fetch upcoming jobs for all customers
+  useEffect(() => {
+    if (customers.length > 0 && !loading) {
+      fetchUpcomingJobs();
+    }
+  }, [customers.length, loading]);
+
+  const fetchUpcomingJobs = async () => {
+    try {
+      const response = await fetch('/api/detailer/calendar-events');
+      if (response.ok) {
+        const data = await response.json();
+        const events = data.events || [];
+        const now = new Date();
+        
+        const upcomingMap = new Map<string, { vehicleModel?: string; services: string[]; date: string }>();
+        
+        customers.forEach(customer => {
+          const upcomingEvent = events.find((event: any) => {
+            const eventDate = new Date(event.date || event.start || event.scheduledDate);
+            return event.customerPhone === customer.customerPhone && 
+                   eventDate >= now &&
+                   (event.status === 'confirmed' || event.status === 'pending' || !event.status);
+          });
+          
+          if (upcomingEvent) {
+            upcomingMap.set(customer.id, {
+              vehicleModel: upcomingEvent.vehicleModel || upcomingEvent.vehicleType,
+              services: Array.isArray(upcomingEvent.services) ? upcomingEvent.services : (upcomingEvent.services ? [upcomingEvent.services] : []),
+              date: upcomingEvent.date || upcomingEvent.start || upcomingEvent.scheduledDate
+            });
+          }
+        });
+        
+        setCustomerUpcomingJobs(upcomingMap);
+      }
+    } catch (error) {
+      console.error('Error fetching upcoming jobs:', error);
+    }
+  };
+
   // Close action sidebar when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -92,16 +162,52 @@ export default function CustomersPage() {
         setIsActionSidebarOpen(false);
         setSelectedCustomerData(null);
       }
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setIsMenuOpen(false);
+      }
     };
 
-    if (isActionSidebarOpen) {
+    if (isActionSidebarOpen || isMenuOpen) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isActionSidebarOpen]);
+  }, [isActionSidebarOpen, isMenuOpen]);
+
+  // Clear long press timer on unmount
+  useEffect(() => {
+    return () => {
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+      }
+    };
+  }, []);
+
+  // Handle long press to enter multi-select mode
+  const handleLongPressStart = (customerId: string) => {
+    longPressCustomerIdRef.current = customerId;
+    longPressTimerRef.current = setTimeout(() => {
+      setIsMultiSelectMode(true);
+      handleSelectCustomer(customerId);
+      longPressTimerRef.current = null;
+    }, 500); // 500ms long press
+  };
+
+  const handleLongPressEnd = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+
+
+  const exitMultiSelectMode = () => {
+    setIsMultiSelectMode(false);
+    setSelectedCustomers(new Set());
+    longPressCustomerIdRef.current = null;
+  };
 
   const fetchCustomers = async () => {
     setLoading(true);
@@ -665,37 +771,163 @@ export default function CustomersPage() {
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-950">
-      <div className={`w-full ${isActionSidebarOpen ? 'pr-0 md:pr-[400px] lg:pr-[420px]' : 'pr-16'}`}>
+      <div className={`w-full ${isActionSidebarOpen ? 'pr-0 md:pr-[400px] lg:pr-[420px]' : 'pr-0 md:pr-16'}`}>
         {/* Header Section */}
-        <div className="px-6 pt-6 pb-4 border-b border-gray-200 dark:border-gray-700">
+        <div className="px-4 md:px-6 pt-4 md:pt-6 pb-4 md:border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between mb-4">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
+            <div className="flex items-center gap-3">
+              {/* Hamburger Menu Button - Mobile Only */}
+              <button
+                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                className="md:hidden w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition"
+                aria-label="Menu"
+              >
+                <Bars3Icon className="w-6 h-6 text-gray-700 dark:text-gray-300" />
+              </button>
+              <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-gray-100">
               Customers
             </h1>
-            <div className="flex items-center gap-3">
+            </div>
+            <div className="flex items-center gap-2 md:gap-3">
               <button
                 onClick={() => setIsImportModalOpen(true)}
-                className="bg-black text-white px-4 py-2 rounded-full font-semibold hover:bg-gray-800 transition flex items-center gap-2"
+                className="bg-black text-white w-10 h-10 md:w-auto md:h-auto md:px-4 md:py-2 rounded-full text-sm md:text-base font-semibold hover:bg-gray-800 transition flex items-center justify-center gap-2"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                 </svg>
-                Import Customers
+                <span className="hidden md:inline">Import Customers</span>
               </button>
               <button
                 onClick={() => handleOpenModal()}
-                className="bg-black text-white px-4 py-2 rounded-full font-semibold hover:bg-gray-800 transition flex items-center gap-2"
+                className="hidden md:flex bg-black text-white px-4 py-2 rounded-full font-semibold hover:bg-gray-800 transition items-center justify-center gap-2"
               >
-                <FaPlus /> Add Customer
+                <FaPlus className="w-4 h-4" />
+                <span>Add Customer</span>
               </button>
             </div>
           </div>
+
+          {/* Hamburger Menu - Mobile Only */}
+          {isMenuOpen && (
+            <>
+              <div 
+                className="md:hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-40"
+                onClick={() => setIsMenuOpen(false)}
+              />
+              <div 
+                ref={menuRef}
+                className="md:hidden fixed top-0 left-0 h-full w-80 bg-white dark:bg-gray-900 shadow-xl z-50 transform transition-transform"
+              >
+                <div className="flex flex-col h-full">
+                  {/* Menu Header */}
+                  <div className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Menu</h2>
+                    <button
+                      onClick={() => setIsMenuOpen(false)}
+                      className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition"
+                      aria-label="Close menu"
+                    >
+                      <XMarkIcon className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+                    </button>
+                  </div>
+
+                  {/* Navigation Items */}
+                  <div className="flex-1 overflow-y-auto py-4">
+                    <div className="space-y-1 px-2">
+                      <Link
+                        href="/detailer-dashboard/resources"
+                        onClick={() => setIsMenuOpen(false)}
+                        className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition text-gray-700 dark:text-gray-300"
+                      >
+                        <UsersIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                        <span className="font-medium">Resources</span>
+                      </Link>
+                      <Link
+                        href="/detailer-dashboard/messages"
+                        onClick={() => setIsMenuOpen(false)}
+                        className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition text-gray-700 dark:text-gray-300"
+                      >
+                        <ChatBubbleLeftRightIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                        <span className="font-medium">Messages</span>
+                      </Link>
+                      <Link
+                        href="/detailer-dashboard/calendar"
+                        onClick={() => setIsMenuOpen(false)}
+                        className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition text-gray-700 dark:text-gray-300"
+                      >
+                        <CalendarDaysIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                        <span className="font-medium">Calendar</span>
+                      </Link>
+                      <Link
+                        href="/detailer-dashboard/profile"
+                        onClick={() => setIsMenuOpen(false)}
+                        className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition text-gray-700 dark:text-gray-300"
+                      >
+                        <UserIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                        <span className="font-medium">Profile</span>
+                      </Link>
+                    </div>
+
+                    {/* Divider */}
+                    <div className="my-4 px-2">
+                      <div className="border-t border-gray-200 dark:border-gray-700" />
+                    </div>
+
+                    {/* Additional Actions */}
+                    <div className="space-y-1 px-2">
+                      <Link
+                        href="/detailer-dashboard/services"
+                        onClick={() => setIsMenuOpen(false)}
+                        className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition text-gray-700 dark:text-gray-300"
+                      >
+                        <CubeIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                        <span className="font-medium">Services</span>
+                      </Link>
+                      <Link
+                        href="/detailer-dashboard/images?upload=1"
+                        onClick={() => setIsMenuOpen(false)}
+                        className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition text-gray-700 dark:text-gray-300"
+                      >
+                        <PhotoIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                        <span className="font-medium">Manage Images</span>
+                      </Link>
+                      <Link
+                        href="/detailer-dashboard/subscription"
+                        onClick={() => setIsMenuOpen(false)}
+                        className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition text-gray-700 dark:text-gray-300"
+                      >
+                        <CreditCardIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                        <span className="font-medium">Subscription</span>
+                      </Link>
+                      <Link
+                        href="/detailer-dashboard/settings"
+                        onClick={() => setIsMenuOpen(false)}
+                        className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition text-gray-700 dark:text-gray-300"
+                      >
+                        <Cog8ToothIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                        <span className="font-medium">Settings</span>
+                      </Link>
+                      <Link
+                        href="/help-page"
+                        onClick={() => setIsMenuOpen(false)}
+                        className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition text-gray-700 dark:text-gray-300"
+                      >
+                        <QuestionMarkCircleIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                        <span className="font-medium">Help & Support</span>
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
           
           {/* Search Bar */}
           <div className="flex items-center gap-3 mt-4">
-            <div className="relative" style={{ width: '500px' }}>
+            <div className="relative flex-1 md:flex-none" style={{ maxWidth: '500px' }}>
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="h-5 w-5 text-black dark:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
               </div>
@@ -703,57 +935,328 @@ export default function CustomersPage() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Customer name, car model, or phone number"
+                placeholder="Search customers"
                 className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-full focus:ring-2 focus:ring-gray-900 focus:border-transparent dark:bg-gray-800 dark:text-white"
               />
             </div>
+            {/* Filter Button */}
+            <button
+              onClick={() => setIsFilterModalOpen(true)}
+              className="w-10 h-10 rounded-full border border-gray-300 dark:border-gray-600 flex items-center justify-center hover:bg-gray-50 dark:hover:bg-gray-800 transition flex-shrink-0"
+              aria-label="Filter"
+            >
+              <svg className="w-5 h-5 text-black dark:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 7h18M5 12h12M7 17h8" />
+              </svg>
+            </button>
           </div>
         </div>
 
         {/* Bulk Actions Toolbar */}
         {selectedCustomers.size > 0 && (
-          <div className="px-6 py-3 bg-black border-b border-gray-800 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-white">
+          <div className="px-4 md:px-6 py-3 bg-black border-b border-gray-800 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-sm font-medium text-white truncate">
                 {selectedCustomers.size} customer{selectedCustomers.size !== 1 ? 's' : ''} selected
               </span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-shrink-0">
               <button
                 onClick={handleBulkDelete}
-                className="px-3 py-1.5 text-sm font-medium text-white hover:bg-red-600 rounded-lg transition"
+                className="px-2 md:px-3 py-1.5 text-xs md:text-sm font-medium text-white hover:bg-red-600 rounded-lg transition"
               >
-                Delete Selected
+                <span className="hidden sm:inline">Delete Selected</span>
+                <span className="sm:hidden">Delete</span>
               </button>
               <button
                 onClick={handleExportSelected}
-                className="px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-700 rounded-lg transition"
+                className="px-2 md:px-3 py-1.5 text-xs md:text-sm font-medium text-white hover:bg-gray-700 rounded-lg transition hidden sm:block"
               >
                 Export Selected
               </button>
               <button
-                onClick={() => setSelectedCustomers(new Set())}
-                className="px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-700 rounded-lg transition"
+                onClick={() => {
+                  if (isMultiSelectMode) {
+                    exitMultiSelectMode();
+                  } else {
+                    setSelectedCustomers(new Set());
+                  }
+                }}
+                className="px-2 md:px-3 py-1.5 text-xs md:text-sm font-medium text-white hover:bg-gray-700 rounded-lg transition"
               >
-                Clear Selection
+                <span className="hidden sm:inline">{isMultiSelectMode ? 'Done' : 'Clear Selection'}</span>
+                <span className="sm:hidden">{isMultiSelectMode ? 'Done' : 'Clear'}</span>
               </button>
             </div>
           </div>
         )}
 
-        {/* Table */}
+        {/* Mobile List View */}
+        <div className="md:hidden pb-4">
         {loading ? (
           <div className="text-center py-12 text-gray-600 dark:text-gray-400">Loading...</div>
         ) : error ? (
           <div className="text-center py-12 text-red-600 dark:text-red-400">{error}</div>
         ) : sortedCustomers.length === 0 ? (
-          <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+            <div className="text-center py-12 text-gray-500 dark:text-gray-400 px-4">
             {searchQuery.trim() 
               ? `No customers found matching "${searchQuery}". Try a different search term.`
               : 'No customers found. Click "Add Customer" to create one.'}
           </div>
         ) : (
-          <div className="overflow-x-auto">
+            <>
+              {/* Customer List */}
+              <div>
+                {sortedCustomers.map((customer, index) => {
+                  const upcomingJob = customerUpcomingJobs.get(customer.id);
+                  return (
+                    <div key={customer.id}>
+                      {index > 0 && (
+                        <div className="px-4">
+                          <div className="border-t border-gray-200 dark:border-gray-700"></div>
+                        </div>
+                      )}
+                      <div
+                        className="px-4 py-3 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-900 transition cursor-pointer active:bg-gray-100 dark:active:bg-gray-800"
+                        onClick={(e) => {
+                          if (isMultiSelectMode) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleSelectCustomer(customer.id);
+                          } else {
+                            handleCustomerClick(customer);
+                          }
+                        }}
+                        onTouchStart={() => handleLongPressStart(customer.id)}
+                        onTouchEnd={handleLongPressEnd}
+                        onMouseDown={() => handleLongPressStart(customer.id)}
+                        onMouseUp={handleLongPressEnd}
+                        onMouseLeave={handleLongPressEnd}
+                      >
+                      {/* Checkbox - only show in multi-select mode */}
+                      {isMultiSelectMode && (
+                        <input
+                          type="checkbox"
+                          checked={selectedCustomers.has(customer.id)}
+                          onChange={() => handleSelectCustomer(customer.id)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="w-4 h-4 text-gray-900 border-gray-300 rounded focus:ring-gray-900 cursor-pointer flex-shrink-0"
+                        />
+                      )}
+                      <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
+                        <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                          {getInitials(customer.customerName)}
+                        </span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-gray-900 dark:text-white truncate">
+                          {customer.customerName || 'Unnamed Customer'}
+                        </div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400 mt-0.5 flex items-center gap-1 flex-wrap">
+                          {/* Phone Number */}
+                          {customer.customerPhone && (
+                            <span className="truncate">{customer.customerPhone}</span>
+                          )}
+                          {/* Vehicle */}
+                          {(customer.vehicleModel || customer.vehicle) && (
+                            <>
+                              {customer.customerPhone && (
+                                <span className="text-gray-400">•</span>
+                              )}
+                              <span className="truncate">{customer.vehicleModel || customer.vehicle}</span>
+                            </>
+                          )}
+                          {/* Customer Type */}
+                          {customer.customerType && (
+                            <>
+                              {(customer.customerPhone || customer.vehicleModel || customer.vehicle) && (
+                                <span className="text-gray-400">•</span>
+                              )}
+                              <span className="capitalize">{customer.customerType}</span>
+                            </>
+                          )}
+                          {/* Upcoming Job Info */}
+                          {upcomingJob && (
+                            <>
+                              {(customer.customerPhone || customer.vehicleModel || customer.vehicle || customer.customerType) && (
+                                <span className="text-gray-400">•</span>
+                              )}
+                              <span className="text-orange-600 dark:text-orange-400">Upcoming job</span>
+                              {upcomingJob.services.length > 0 && (
+                                <>
+                                  <span className="text-gray-400">•</span>
+                                  <span className="text-gray-500">{upcomingJob.services[0]}</span>
+                                </>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSendSMS(customer);
+                        }}
+                        className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 flex items-center justify-center transition flex-shrink-0"
+                        title="Send SMS"
+                      >
+                        <svg className="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                        </svg>
+                      </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Floating Action Button - Mobile Only */}
+        <button
+          onClick={() => handleOpenModal()}
+          className="md:hidden fixed bottom-6 right-6 w-14 h-14 bg-black text-white rounded-full shadow-lg hover:bg-gray-800 transition flex items-center justify-center z-30"
+          aria-label="Add Customer"
+        >
+          <FaPlus className="w-6 h-6" />
+        </button>
+
+        {/* Filter Modal - Mobile Only */}
+        {isFilterModalOpen && (
+          <>
+            {/* Backdrop */}
+            <div 
+              className="md:hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-40"
+              onClick={() => setIsFilterModalOpen(false)}
+            />
+            {/* Filter Dialog - Bottom Sheet */}
+            <div className="md:hidden fixed inset-x-0 bottom-0 bg-white dark:bg-gray-900 z-50 rounded-t-2xl shadow-2xl max-h-[85vh] overflow-y-auto">
+              {/* Header */}
+              <div className="sticky top-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-4 py-4 flex items-center justify-between rounded-t-2xl">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Filter</h2>
+                <button
+                  onClick={() => setIsFilterModalOpen(false)}
+                  className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition"
+                  aria-label="Close filter"
+                >
+                  <XMarkIcon className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+                </button>
+              </div>
+
+              {/* Filter Content */}
+              <div className="px-4 py-6 space-y-6">
+                {/* Last seen Section */}
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Last seen</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {['all', '30', '31-90', '91-120'].map((option) => {
+                      const labels: { [key: string]: string } = {
+                        'all': 'All time',
+                        '30': 'Last 30 days',
+                        '31-90': '31-90 days',
+                        '91-120': '91-120 days'
+                      };
+                      const isSelected = filterLastSeen === option;
+                      return (
+                        <button
+                          key={option}
+                          onClick={() => setFilterLastSeen(option)}
+                          className={`px-4 py-2 rounded-full text-sm font-medium transition ${
+                            isSelected
+                              ? 'text-white'
+                              : 'bg-white text-gray-700 dark:bg-gray-800 dark:text-gray-300 border border-gray-300 dark:border-gray-600'
+                          }`}
+                          style={isSelected ? { backgroundColor: '#6B6A5E' } : {}}
+                        >
+                          {labels[option]}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Services Section */}
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Services</h3>
+                  <div className="space-y-3">
+                    {[
+                      { id: 'maintenance', label: 'Maintenance' },
+                      { id: 'full-detail', label: 'Full detail' },
+                      { id: 'high-ticket', label: 'High-ticket (ceramic, correction, etc.)' },
+                      { id: 'first-time', label: 'First-time customer' }
+                    ].map((service) => {
+                      const isChecked = filterServices.includes(service.id);
+                      return (
+                        <label
+                          key={service.id}
+                          className="flex items-center gap-3 cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setFilterServices([...filterServices, service.id]);
+                              } else {
+                                setFilterServices(filterServices.filter(s => s !== service.id));
+                              }
+                            }}
+                            className="w-5 h-5 text-gray-900 border-gray-300 rounded focus:ring-gray-900"
+                          />
+                          <span className="text-sm text-gray-700 dark:text-gray-300">{service.label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Station Section */}
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Station</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {['all', 'in-shop', 'mobile'].map((option) => {
+                      const labels: { [key: string]: string } = {
+                        'all': 'All stations',
+                        'in-shop': 'In-shop',
+                        'mobile': 'Mobile'
+                      };
+                      const isSelected = filterStation === option;
+                      return (
+                        <button
+                          key={option}
+                          onClick={() => setFilterStation(option)}
+                          className={`px-4 py-2 rounded-full text-sm font-medium transition ${
+                            isSelected
+                              ? 'text-white'
+                              : 'bg-white text-gray-700 dark:bg-gray-800 dark:text-gray-300 border border-gray-300 dark:border-gray-600'
+                          }`}
+                          style={isSelected ? { backgroundColor: '#6B6A5E' } : {}}
+                        >
+                          {labels[option]}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Desktop Table View */}
+        {loading ? (
+          <div className="hidden md:block text-center py-12 text-gray-600 dark:text-gray-400">Loading...</div>
+        ) : error ? (
+          <div className="hidden md:block text-center py-12 text-red-600 dark:text-red-400">{error}</div>
+        ) : sortedCustomers.length === 0 ? (
+          <div className="hidden md:block text-center py-12 text-gray-500 dark:text-gray-400">
+            {searchQuery.trim() 
+              ? `No customers found matching "${searchQuery}". Try a different search term.`
+              : 'No customers found. Click "Add Customer" to create one.'}
+          </div>
+        ) : (
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full table-fixed">
               <thead className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-200">
                 <tr>
@@ -1301,6 +1804,17 @@ export default function CustomersPage() {
         </div>
       )}
 
+      {/* Mobile backdrop */}
+      {isActionSidebarOpen && (
+        <div 
+          className="md:hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-30"
+          onClick={() => {
+            setIsActionSidebarOpen(false);
+            setSelectedCustomerData(null);
+          }}
+        />
+      )}
+
       {/* Action Sidebar */}
       <div 
         ref={actionSidebarRef}
@@ -1533,7 +2047,7 @@ export default function CustomersPage() {
         </div>
       </div>
 
-      {/* Column Sidebar - Only show when action panel is closed */}
+      {/* Column Sidebar - Only show when action panel is closed on desktop */}
       {!isActionSidebarOpen && (
         <div
           onClick={() => {
@@ -1544,7 +2058,7 @@ export default function CustomersPage() {
               setIsActionSidebarOpen(true);
             }
           }}
-          className="fixed right-0 top-0 h-full w-16 border-l border-gray-200 z-30 cursor-pointer transition-colors flex items-start justify-center"
+          className="hidden md:flex fixed right-0 top-0 h-full w-16 border-l border-gray-200 z-30 cursor-pointer transition-colors items-start justify-center"
           style={{ backgroundColor: '#F8F8F7', paddingTop: '32px' }}
           onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#E8E8E7'; }}
           onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#F8F8F7'; }}

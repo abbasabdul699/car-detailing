@@ -287,8 +287,8 @@ export default function DetailerDashboardLayout({
               </div>
             </div>
           </main>
-          {/* Mobile bottom navigation */}
-          <MobileNav />
+          {/* Mobile bottom navigation - hidden on customers and resources pages */}
+          {pathname !== '/detailer-dashboard/customers' && pathname !== '/detailer-dashboard/resources' && <MobileNav />}
         </div>
         
         {/* Plan Selection Modal */}
