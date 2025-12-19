@@ -14,7 +14,7 @@ import {
   CreditCardIcon,
   BookOpenIcon
 } from "@heroicons/react/24/outline";
-import MobileNav from "./components/MobileNav";
+import MobileMenu from "./components/MobileMenu";
 import { useSession } from "next-auth/react";
 import { ThemeProvider } from "@/app/components/ThemeContext";
 import PlanSelectionModal from "@/app/components/PlanSelectionModal";
@@ -277,6 +277,8 @@ export default function DetailerDashboardLayout({
         </div>
         {/* Main content area, with left padding for sidebar */}
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden md:ml-16">
+          {/* Mobile Hamburger Menu */}
+          <MobileMenu />
           <main className="flex-1 min-w-0 overflow-hidden" style={{ backgroundColor: '#ffffff' }}>
             <div className="h-full min-w-0 overflow-hidden">
               <div className="h-full min-w-0 overflow-hidden">
@@ -287,8 +289,6 @@ export default function DetailerDashboardLayout({
               </div>
             </div>
           </main>
-          {/* Mobile bottom navigation - hidden on customers and resources pages */}
-          {pathname !== '/detailer-dashboard/customers' && pathname !== '/detailer-dashboard/resources' && <MobileNav />}
         </div>
         
         {/* Plan Selection Modal */}

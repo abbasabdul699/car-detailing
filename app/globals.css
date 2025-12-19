@@ -88,7 +88,14 @@ html:has(.detailer-dashboard-border) {
 
 /* Blue border wrapper for detailer dashboard */
 /* Blue border overlay for detailer dashboard - fixed position so it doesn't affect layout */
+/* Hidden on mobile devices */
 .detailer-dashboard-border-overlay {
+  display: none !important;
+}
+
+@media (min-width: 768px) {
+  .detailer-dashboard-border-overlay {
+    display: block !important;
   position: fixed !important;
   top: 0 !important;
   left: 0 !important;
@@ -101,6 +108,12 @@ html:has(.detailer-dashboard-border) {
   pointer-events: none !important;
   z-index: 9999 !important;
   box-sizing: border-box !important;
+  }
+}
+
+/* Hide hamburger menu button when action panel is open */
+body.action-panel-open .action-panel-hide {
+  display: none !important;
 }
 
 .rdp-root {

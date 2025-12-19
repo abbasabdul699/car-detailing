@@ -18,7 +18,7 @@ import {
   startOfMonth,
   getDay
 } from 'date-fns';
-import { ChevronDownIcon, Cog8ToothIcon } from '@heroicons/react/24/outline';
+import { ChevronDownIcon, Cog8ToothIcon, FunnelIcon, UsersIcon } from '@heroicons/react/24/outline';
 import { XMarkIcon, PencilIcon, CheckIcon } from '@heroicons/react/24/solid';
 import EventModal from './components/EventModal';
 import AddressAutocompleteInput from './components/AddressAutocompleteInput';
@@ -3034,7 +3034,9 @@ export default function CalendarPage() {
   const datePickerRef = useRef<HTMLDivElement>(null);
   const teamDropdownRef = useRef<HTMLDivElement>(null);
   const actionSidebarRef = useRef<HTMLDivElement>(null);
+  const bottomSheetRef = useRef<HTMLDivElement>(null);
   const notesSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const bottomSheetTouchStartRef = useRef<{ y: number; time: number } | null>(null);
   const session = useSession();
   const detailerId = session.data?.user?.id;
   const [teamEmployees, setTeamEmployees] = useState<Array<{ id: string; name: string; imageUrl?: string; email?: string; phone?: string }>>([]);
@@ -3274,11 +3276,28 @@ export default function CalendarPage() {
       const deltaY = touch.clientY - touchStartRef.current.y;
       const deltaTime = Date.now() - touchStartRef.current.time;
 
-      // Check for swipe gesture (vertical swipe, minimal horizontal movement)
-      const minSwipeDistance = 80; // Minimum pixels to register as swipe (increased to avoid accidental triggers)
-      const maxHorizontalMovement = 100; // Maximum horizontal movement allowed
+      // Check for swipe gesture
+      const minSwipeDistance = 80; // Minimum pixels to register as swipe
       const maxSwipeTime = 500; // Maximum time in ms for a swipe
 
+      // Horizontal swipe for day navigation (day view only)
+      if (viewMode === 'day' && Math.abs(deltaX) > minSwipeDistance && Math.abs(deltaY) < Math.abs(deltaX) * 0.5 && deltaTime < maxSwipeTime) {
+        // Swipe right: previous day
+        if (deltaX > 0) {
+          e.preventDefault();
+          setCurrentDate(subDays(currentDate, 1));
+        }
+        // Swipe left: next day
+        else if (deltaX < 0) {
+          e.preventDefault();
+          setCurrentDate(addDays(currentDate, 1));
+        }
+        touchStartRef.current = null;
+        return;
+      }
+
+      // Vertical swipe for week/month view transitions
+      const maxHorizontalMovement = 100; // Maximum horizontal movement allowed for vertical swipes
       if (
         Math.abs(deltaY) > minSwipeDistance &&
         Math.abs(deltaX) < maxHorizontalMovement &&
@@ -3299,8 +3318,8 @@ export default function CalendarPage() {
       touchStartRef.current = null;
     };
 
-    // Add listeners on mobile for view transitions
-    if (isMobile && (viewMode === 'week' || viewMode === 'month')) {
+    // Add listeners on mobile for view transitions and day navigation
+    if (isMobile) {
       const calendarContainer = document.getElementById('calendar-scroll-container') || document.body;
       calendarContainer.addEventListener('touchstart', handleTouchStart, { passive: true });
       calendarContainer.addEventListener('touchmove', handleTouchMove, { passive: true });
@@ -3312,7 +3331,7 @@ export default function CalendarPage() {
         calendarContainer.removeEventListener('touchend', handleTouchEnd);
       };
     }
-  }, [isMobile, viewMode]);
+  }, [isMobile, viewMode, currentDate]);
 
   // Close date picker when clicking outside
   useEffect(() => {
@@ -3484,6 +3503,18 @@ export default function CalendarPage() {
     };
   }, [isActionSidebarOpen]);
 
+  // Hide hamburger menu when action panel is open
+  useEffect(() => {
+    if (isActionSidebarOpen) {
+      document.body.classList.add('action-panel-open');
+    } else {
+      document.body.classList.remove('action-panel-open');
+    }
+    return () => {
+      document.body.classList.remove('action-panel-open');
+    };
+  }, [isActionSidebarOpen]);
+
   // Close customer details popup when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -3640,7 +3671,7 @@ export default function CalendarPage() {
     });
     setSelectedEvent(event.id);
     setSelectedEventData(event);
-    setIsActionSidebarOpen(true); // Open action panel instead of modal
+    // Don't open action panel - bottom sheet will show event details
     setEventDetailsOpen(false); // Close modal if it was open
     setIsEditingNotes(false); // Reset notes edit mode when selecting a new event
     setShowCustomerDetailsPopup(false); // Close customer popup when selecting a new event
@@ -3783,14 +3814,12 @@ export default function CalendarPage() {
         const weekEnd = endOfWeek(currentDate);
         return `${format(weekStart, 'MMM d')} - ${format(weekEnd, 'd, yyyy')}`;
     }
-    // Day view: Show day of week, month, day of month, and year (e.g., "Friday, December 5, 2025")
-    return format(currentDate, 'EEEE, MMMM d, yyyy');
+    // Day view: Show month, day of month, and year (e.g., "December 5, 2025")
+    return format(currentDate, 'MMMM d, yyyy');
   };
 
   // Mobile calendar view render function
   const renderMobileCalendar = () => {
-    const weekStart = startOfWeek(currentDate);
-    const weekDays = eachDayOfInterval({ start: weekStart, end: endOfWeek(currentDate) });
     const hours = Array.from({ length: 16 }, (_, i) => i + 6); // 6 AM to 9 PM
     
     // Filter events for the current day
@@ -3812,14 +3841,22 @@ export default function CalendarPage() {
     const currentMinute = now.getMinutes();
     const currentTop = ((currentHour - 6) * 60 + currentMinute) * 2; // 2px per minute, starting from 6 AM
 
+    // Use resources if available, otherwise create default resources
+    const displayResources = resources.length > 0 ? resources : [
+      { id: 'default-bay-1', name: 'B1', type: 'bay' as const },
+      { id: 'default-bay-2', name: 'B2', type: 'bay' as const },
+      { id: 'default-van-1', name: 'V1', type: 'van' as const }
+    ];
+
     // Event colors mapping
-    const eventColors: Record<string, { bg: string; text: string }> = {
-      blue: { bg: 'bg-blue-100', text: 'text-blue-900' },
-      green: { bg: 'bg-green-100', text: 'text-green-900' },
-      yellow: { bg: 'bg-yellow-100', text: 'text-yellow-900' },
-      orange: { bg: 'bg-orange-100', text: 'text-orange-900' },
-      red: { bg: 'bg-red-100', text: 'text-red-900' },
-      purple: { bg: 'bg-purple-100', text: 'text-purple-900' },
+    const eventColors: Record<string, { bg: string; text: string; border: string }> = {
+      blue: { bg: 'bg-blue-100', text: 'text-blue-900', border: 'border-blue-500' },
+      green: { bg: 'bg-green-100', text: 'text-green-900', border: 'border-green-500' },
+      yellow: { bg: 'bg-yellow-100', text: 'text-yellow-900', border: 'border-yellow-500' },
+      orange: { bg: 'bg-orange-100', text: 'text-orange-900', border: 'border-orange-500' },
+      red: { bg: 'bg-red-100', text: 'text-red-900', border: 'border-red-500' },
+      purple: { bg: 'bg-purple-100', text: 'text-purple-900', border: 'border-purple-500' },
+      pink: { bg: 'bg-pink-100', text: 'text-pink-900', border: 'border-pink-500' },
     };
 
     const getEventPosition = (event: any) => {
@@ -3861,72 +3898,128 @@ export default function CalendarPage() {
       return { top, height };
     };
 
+    // Touch handlers for day navigation
+    const handleMobileTouchStart = (e: React.TouchEvent) => {
+      const touch = e.touches[0];
+      touchStartRef.current = {
+        x: touch.clientX,
+        y: touch.clientY,
+        time: Date.now()
+      };
+    };
+
+    const handleMobileTouchEnd = (e: React.TouchEvent) => {
+      if (!touchStartRef.current) return;
+
+      const touch = e.changedTouches[0];
+      const deltaX = touch.clientX - touchStartRef.current.x;
+      const deltaY = touch.clientY - touchStartRef.current.y;
+      const deltaTime = Date.now() - touchStartRef.current.time;
+
+      const minSwipeDistance = 80;
+      const maxSwipeTime = 500;
+
+      // Horizontal swipe for day navigation
+      if (Math.abs(deltaX) > minSwipeDistance && Math.abs(deltaY) < Math.abs(deltaX) * 0.5 && deltaTime < maxSwipeTime) {
+        // Swipe right: previous day
+        if (deltaX > 0) {
+          setCurrentDate(subDays(currentDate, 1));
+        }
+        // Swipe left: next day
+        else if (deltaX < 0) {
+          setCurrentDate(addDays(currentDate, 1));
+        }
+      }
+
+      touchStartRef.current = null;
+    };
+
     return (
-      <div className="h-full flex flex-col pb-16 md:pb-0" style={{ backgroundColor: '#f9f7fa' }}>
+      <div 
+        className="h-full flex flex-col pb-16 md:pb-0" 
+        style={{ backgroundColor: '#f9f7fa' }}
+        onTouchStart={handleMobileTouchStart}
+        onTouchEnd={handleMobileTouchEnd}
+      >
         {/* Header */}
-        <div className="flex items-center justify-between px-4 pt-3 pb-2">
-          <h1 className="text-2xl font-bold text-gray-900">Calendar</h1>
+        <div className="flex items-center justify-between px-4 pt-4 pb-2">
           <div className="flex items-center gap-3">
-            <div className="text-xs font-medium text-gray-600">
-              {format(currentTime, 'H:mm:ss')}
+            <h1 className="font-bold text-gray-900 pl-12 md:pl-0" style={{ fontFamily: 'Helvetica Neue', fontSize: '20px' }}>{renderHeaderDate()}</h1>
             </div>
-            <button className="p-2">
-              <Cog8ToothIcon className="w-6 h-6 text-gray-600" />
+          <div className="flex items-center gap-3">
+            {/* Today Button - Shows current day number */}
+            <button
+              onClick={() => setCurrentDate(new Date())}
+              className="w-8 h-8 text-white rounded-xl flex items-center justify-center font-semibold transition"
+              style={{ backgroundColor: '#4A4844' }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#3A3834'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#4A4844'}
+              aria-label="Go to today"
+            >
+              {new Date().getDate()}
+            </button>
+              <button
+              onClick={() => setIsActionSidebarOpen(!isActionSidebarOpen)}
+              className="w-8 h-8 flex items-center justify-center rounded-xl transition"
+              aria-label="Action Panel"
+            >
+              <Image 
+                src="/icons/layouting.png" 
+                alt="Action Panel" 
+                width={20} 
+                height={20}
+                className="object-contain"
+              />
             </button>
           </div>
         </div>
 
-        {/* Current Day */}
-        <div className="px-4 pb-2">
-          <div className="text-sm font-semibold text-gray-900">
-            {format(currentDate, 'EEEE, MMM d')}
+        {/* Calendar Grid with Resource Columns */}
+        <div className={`flex-1 overflow-y-auto ${isActionSidebarOpen ? 'z-0' : ''}`}>
+          <div className="flex flex-col h-full">
+            {/* Resource Headers */}
+            <div className={`flex border-b border-gray-200 sticky top-0 ${isActionSidebarOpen ? 'z-0' : 'z-10'}`} style={{ backgroundColor: '#f9f7fa' }}>
+              <div className="w-16 flex-shrink-0 border-r border-gray-200"></div>
+              {displayResources.map((resource) => (
+                <div key={resource.id} className="flex-1 border-r border-gray-200 last:border-r-0 px-2 py-2 text-center">
+                  <span className="text-sm font-semibold text-gray-900">{resource.name.toUpperCase()}</span>
           </div>
-        </div>
-
-        {/* Week Navigation */}
-        <div className="px-4 pb-3">
-          <div className="flex justify-between">
-            {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day, idx) => (
-              <button
-                key={idx}
-                onClick={() => setCurrentDate(weekDays[idx])}
-                className="flex flex-col items-center"
-              >
-                <div className="text-xs font-medium text-gray-500 mb-1">{day}</div>
-                <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                    isSameDay(weekDays[idx], currentDate)
-                      ? 'bg-purple-200 text-purple-900'
-                      : 'text-gray-700'
-                  }`}
-                >
-                  {format(weekDays[idx], 'd')}
-                </div>
-              </button>
-            ))}
-          </div>
+              ))}
         </div>
 
         {/* Calendar Grid */}
-        <div className="flex-1 overflow-y-auto px-4">
-          <div className="relative" style={{ minHeight: '960px' }}>
-            {/* Time slots */}
+            <div className="flex-1 overflow-y-auto px-0">
+              <div className="flex relative" style={{ minHeight: '960px' }}>
+                {/* Time Column */}
+                <div className={`w-16 flex-shrink-0 border-r border-gray-200 relative ${isActionSidebarOpen ? 'z-0' : 'z-10'}`} style={{ backgroundColor: '#f9f7fa' }}>
             {hours.map((hour) => (
               <div key={hour} className="relative" style={{ height: '120px' }}>
-                <div className="absolute left-0 top-0 text-xs font-medium text-gray-500" style={{ width: '60px' }}>
+                      <div className="absolute left-2 top-0 text-xs font-medium text-gray-500">
                   {hour === 12 ? '12:00 PM' : hour > 12 ? `${hour - 12}:00 PM` : `${hour}:00 AM`}
                 </div>
-                <div
-                  className="absolute left-14 right-0 border-t border-gray-200"
-                  style={{ top: '0px' }}
-                />
-              </div>
-            ))}
+                    </div>
+                  ))}
+                </div>
 
-            {/* Current time indicator */}
+                {/* Resource Columns */}
+                {displayResources.map((resource) => {
+                  const resourceEvents = dayEvents.filter((event: any) => event.resourceId === resource.id);
+                  
+                  return (
+                    <div key={resource.id} className="flex-1 relative border-r border-gray-200 last:border-r-0">
+                      {/* Time slot lines */}
+                      {hours.map((hour) => (
+                        <div
+                          key={hour}
+                          className="absolute left-0 right-0 border-t border-gray-200"
+                          style={{ top: `${(hour - 6) * 120}px` }}
+                        />
+                      ))}
+
+                      {/* Current time indicator for this column */}
             {isSameDay(currentTime, currentDate) && currentHour >= 6 && currentHour < 22 && (
               <div
-                className="absolute left-14 right-0 z-10"
+                          className="absolute left-0 right-0 z-10"
                 style={{ top: `${currentTop}px` }}
               >
                 <div className="relative">
@@ -3936,59 +4029,188 @@ export default function CalendarPage() {
               </div>
             )}
 
-            {/* Events */}
-            <div className="absolute left-14 right-0 top-0 bottom-0">
-              {dayEvents.map((event: any) => {
+                      {/* Events in this resource column */}
+                      {resourceEvents.map((event: any) => {
                 const { top, height } = getEventPosition(event);
                 const color = event.color || 'blue';
                 const eventColor = eventColors[color] || eventColors.blue;
+                        
+                        // Determine event color based on service type or default
+                        let eventBgColor = 'bg-pink-100';
+                        let eventTextColor = 'text-pink-900';
+                        let eventBorderColor = 'border-pink-500';
+                        
+                        if (color && eventColors[color]) {
+                          eventBgColor = eventColors[color].bg;
+                          eventTextColor = eventColors[color].text;
+                          eventBorderColor = eventColors[color].border;
+                        }
+                        
+                        const serviceName = Array.isArray(event.services) 
+                          ? event.services.join(', ') 
+                          : (event.services || event.title || event.eventName || 'Event');
+                        
+                        const locationType = event.locationType || event.customerAddress ? 'Drop off' : null;
+                        const isRepeatCustomer = event.customerId && event.customerId !== 'new';
                 
                 return (
                   <div
                     key={event.id}
                     onClick={() => handleEventClick(event)}
-                    className={`absolute left-0 right-4 rounded-lg p-2 cursor-pointer ${eventColor.bg} ${eventColor.text} border-l-4`}
+                            className={`absolute left-1 right-1 rounded-lg p-2 cursor-pointer ${eventBgColor} ${eventTextColor} border-l-4`}
                     style={{
                       top: `${top}px`,
                       height: `${height}px`,
-                      minHeight: '40px',
-                      borderLeftColor: color === 'blue' ? '#3b82f6' : color === 'green' ? '#10b981' : color === 'yellow' ? '#eab308' : '#6366f1',
-                    }}
-                  >
-                    <div className="font-semibold text-sm truncate">
-                      {event.title || event.eventName || (Array.isArray(event.services) ? event.services.join(', ') : event.services) || 'Event'}
+                              minHeight: '60px',
+                              borderLeftColor: color === 'blue' ? '#3b82f6' : 
+                                            color === 'green' ? '#10b981' : 
+                                            color === 'yellow' ? '#eab308' : 
+                                            color === 'orange' ? '#f97316' :
+                                            color === 'red' ? '#ef4444' :
+                                            color === 'purple' ? '#a855f7' :
+                                            '#ec4899', // pink default
+                            }}
+                          >
+                            <div className="font-semibold text-xs mb-1">
+                              {serviceName}
                     </div>
-                    {event.description && (
-                      <div className="text-xs mt-1 opacity-75 truncate">{event.description}</div>
+                            
+                            {/* Badges */}
+                            <div className="flex flex-wrap gap-1 mb-1">
+                              {locationType && (
+                                <span className="px-2 py-0.5 text-[10px] font-medium rounded-full bg-pink-200 text-pink-800">
+                                  {locationType}
+                                </span>
+                              )}
+                              {isRepeatCustomer && (
+                                <span className="px-2 py-0.5 text-[10px] font-medium rounded-full bg-purple-200 text-purple-800">
+                                  Repeat customer
+                                </span>
+                              )}
+                            </div>
+                            
+                            {/* Customer Info */}
+                            {event.customerName && (
+                              <div className="text-[10px] font-medium mt-1">
+                                {event.customerName}
+                              </div>
+                            )}
+                            {event.customerPhone && (
+                              <div className="text-[10px] text-gray-600 mt-0.5">
+                                {event.customerPhone}
+                              </div>
                     )}
                   </div>
                 );
               })}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Navigation buttons */}
-        <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200">
+
+        {/* Floating Action Buttons */}
+        <div className="fixed bottom-6 right-6 flex flex-col gap-3 z-40">
+          {/* Filter Employee Button */}
           <button
-            onClick={handlePrev}
-            className="p-2 rounded-lg hover:bg-gray-200"
+            onClick={() => setIsTeamDropdownOpen(!isTeamDropdownOpen)}
+            className="w-14 h-14 bg-white dark:bg-gray-800 rounded-full shadow-lg flex items-center justify-center border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition"
+            aria-label="Filter employees"
           >
-            <ChevronLeftIcon className="w-5 h-5 text-gray-600" />
+            <FunnelIcon className="w-6 h-6 text-gray-700 dark:text-gray-300" />
+            {selectedTechnicians.length > 0 && (
+              <span className="absolute -top-1 -right-1 w-5 h-5 bg-blue-500 text-white text-xs rounded-full flex items-center justify-center">
+                {selectedTechnicians.length}
+              </span>
+            )}
           </button>
+          
+          {/* Add Event Button */}
           <button
-            onClick={() => setCurrentDate(new Date())}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg"
+            onClick={() => setIsModalOpen(true)}
+            className="w-14 h-14 bg-black dark:bg-gray-900 rounded-full shadow-lg flex items-center justify-center hover:bg-gray-800 dark:hover:bg-gray-700 transition"
+            aria-label="Add event"
           >
-            Today
-          </button>
-          <button
-            onClick={handleNext}
-            className="p-2 rounded-lg hover:bg-gray-200"
-          >
-            <ChevronRightIcon className="w-5 h-5 text-gray-600" />
+            <PlusIcon className="w-7 h-7 text-white" />
           </button>
         </div>
+
+        {/* Employee Filter Dropdown - Mobile */}
+        {isTeamDropdownOpen && (
+          <>
+            <div
+              className="fixed inset-0 bg-black/40 backdrop-blur-sm z-30"
+              onClick={() => setIsTeamDropdownOpen(false)}
+            />
+            <div className="fixed bottom-24 right-6 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 z-40 w-64 max-h-96 overflow-y-auto">
+              <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Filter Employees</h3>
+          <button
+                    onClick={() => setIsTeamDropdownOpen(false)}
+                    className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+          >
+                    <XMarkIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+          </button>
+        </div>
+              </div>
+              <div className="p-4 space-y-2">
+                <button
+                  onClick={() => {
+                    setSelectedTechnicians([]);
+                    setIsTeamDropdownOpen(false);
+                  }}
+                  className={`w-full px-4 py-2 text-sm font-medium rounded-lg transition-colors text-left ${
+                    selectedTechnicians.length === 0
+                      ? 'bg-gray-900 text-white'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  }`}
+                >
+                  All Employees
+                </button>
+                {teamEmployees.map((employee) => {
+                  const isSelected = selectedTechnicians.includes(employee.id);
+                  return (
+                    <button
+                      key={employee.id}
+                      onClick={() => {
+                        if (isSelected) {
+                          setSelectedTechnicians(selectedTechnicians.filter(id => id !== employee.id));
+                        } else {
+                          setSelectedTechnicians([...selectedTechnicians, employee.id]);
+                        }
+                      }}
+                      className={`w-full px-4 py-2 text-sm font-medium rounded-lg transition-colors text-left flex items-center gap-3 ${
+                        isSelected
+                          ? 'bg-gray-900 text-white'
+                          : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                      }`}
+                    >
+                      {employee.imageUrl ? (
+                        <img
+                          src={employee.imageUrl}
+                          alt={employee.name}
+                          className="w-8 h-8 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center">
+                          <UsersIcon className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+                        </div>
+                      )}
+                      <span>{employee.name}</span>
+                      {isSelected && (
+                        <CheckIcon className="w-5 h-5 ml-auto" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </>
+        )}
       </div>
     );
   };
@@ -4053,6 +4275,176 @@ export default function CalendarPage() {
             setIsNewCustomerModalOpen(false);
           }}
         />
+        {/* Bottom Sheet Backdrop - Mobile - Only for event details */}
+        {selectedEventData && (
+          <div
+            className="md:hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-[80]"
+            onClick={() => {
+              setSelectedEventData(null);
+              setSelectedEvent(null);
+            }}
+          />
+        )}
+        {/* Bottom Sheet - Mobile - Only for event details */}
+        {selectedEventData && (
+        <div 
+          ref={bottomSheetRef}
+          className="md:hidden fixed bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl z-[9999] transform transition-transform duration-300 ease-out translate-y-0"
+          style={{ 
+            maxHeight: '85vh', 
+            minHeight: '200px',
+            isolation: 'isolate'
+          }}
+          onTouchStart={(e) => {
+            const touch = e.touches[0];
+            bottomSheetTouchStartRef.current = {
+              y: touch.clientY,
+              time: Date.now()
+            };
+          }}
+          onTouchEnd={(e) => {
+            if (!bottomSheetTouchStartRef.current) return;
+            
+            const touch = e.changedTouches[0];
+            const deltaY = touch.clientY - bottomSheetTouchStartRef.current.y;
+            const deltaTime = Date.now() - bottomSheetTouchStartRef.current.time;
+            
+            // Swipe down to close (minimum 100px down, within 500ms)
+            if (deltaY > 100 && deltaTime < 500) {
+              setSelectedEventData(null);
+              setSelectedEvent(null);
+            }
+            
+            bottomSheetTouchStartRef.current = null;
+          }}
+        >
+          {/* Drag Handle and Close Button */}
+          <div className="flex items-center justify-between pt-3 pb-2 px-4">
+            <div className="flex-1 flex justify-center">
+              <div className="w-12 h-1.5 bg-gray-300 rounded-full"></div>
+            </div>
+            <button
+              onClick={() => {
+                setSelectedEventData(null);
+                setSelectedEvent(null);
+              }}
+              className="p-1 rounded-lg hover:bg-gray-100 transition-colors"
+              aria-label="Close"
+            >
+              <XMarkIcon className="w-5 h-5 text-gray-500" />
+            </button>
+          </div>
+
+          {/* Content */}
+          <div className="flex-1 overflow-y-auto px-4 pb-6" style={{ maxHeight: 'calc(85vh - 20px)' }}>
+            {selectedEventData && (
+              <div className="space-y-4">
+                {/* Service Name and Vehicle */}
+                <div className="pt-2">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                    <h3 className="text-lg font-bold text-gray-900">
+                      {Array.isArray(selectedEventData.services) 
+                        ? selectedEventData.services.join(', ')
+                        : (selectedEventData.services || selectedEventData.title || selectedEventData.eventName || 'Event')}
+                    </h3>
+                  </div>
+                  {(selectedEventData.vehicleType || selectedEventData.vehicleModel) && (
+                    <p className="text-base text-gray-700 ml-4">
+                      {selectedEventData.vehicleType || selectedEventData.vehicleModel}
+                    </p>
+                  )}
+                  
+                  {/* Badges */}
+                  <div className="flex flex-wrap gap-2 mt-3 ml-4">
+                    {selectedEventData.locationType && (
+                      <span className={`px-3 py-1 text-xs font-medium rounded-full ${
+                        (selectedEventData.locationType?.toLowerCase() === 'drop off' || selectedEventData.locationType?.toLowerCase() === 'dropoff')
+                          ? 'bg-pink-500 text-white'
+                          : 'bg-blue-500 text-white'
+                      }`}>
+                        {selectedEventData.locationType?.toLowerCase() === 'dropoff' ? 'Drop off' : 
+                         selectedEventData.locationType?.toLowerCase() === 'drop off' ? 'Drop off' :
+                         selectedEventData.locationType?.toLowerCase() === 'pickup' ? 'Pick up' :
+                         selectedEventData.locationType?.toLowerCase() === 'pick up' ? 'Pick up' :
+                         selectedEventData.locationType}
+                      </span>
+                    )}
+                    {selectedEventData.customerId && selectedEventData.customerId !== 'new' && (
+                      <span className="px-3 py-1 text-xs font-medium rounded-full bg-purple-500 text-white">
+                        Repeat customer
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Customer Information Card */}
+                {(selectedEventData.customerName || selectedEventData.customerPhone || selectedEventData.customerAddress) && (
+                  <div className="bg-gray-50 rounded-xl p-4 border" style={{ borderColor: '#E2E2DD' }}>
+                    <div className="flex items-start gap-3 mb-3">
+                      {/* Avatar */}
+                      <div className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center flex-shrink-0">
+                        <span className="text-gray-700 font-semibold text-sm">
+                          {selectedEventData.customerName 
+                            ? selectedEventData.customerName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
+                            : '??'}
+                        </span>
+                      </div>
+                      
+                      {/* Customer Info */}
+                      <div className="flex-1 min-w-0">
+                        {selectedEventData.customerName && (
+                          <h4 className="font-semibold text-gray-900 text-base mb-1">
+                            {selectedEventData.customerName}
+                          </h4>
+                        )}
+                        {selectedEventData.customerPhone && (
+                          <p className="text-sm text-gray-600 mb-2">
+                            {selectedEventData.customerPhone}
+                          </p>
+                        )}
+                        {selectedEventData.customerAddress && (
+                          <p className="text-sm text-gray-600 underline">
+                            {selectedEventData.customerAddress}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Past Jobs */}
+                    {customerPastJobs && customerPastJobs.length > 0 && (
+                      <div className="mt-4 pt-4 border-t" style={{ borderColor: '#E2E2DD' }}>
+                        <p className="font-semibold text-sm text-gray-900 mb-2">
+                          {customerPastJobs.length} Past {customerPastJobs.length === 1 ? 'job' : 'jobs'}
+                        </p>
+                        {customerPastJobs[0] && customerPastJobs[0].date && (
+                          <p className="text-sm text-gray-600">
+                            Last detail: {(() => {
+                              try {
+                                const date = new Date(customerPastJobs[0].date);
+                                if (isNaN(date.getTime())) return 'Date unavailable';
+                                return format(date, 'MMMM d, yyyy');
+                              } catch (e) {
+                                return 'Date unavailable';
+                              }
+                            })()}
+                            {customerPastJobs[0].services && customerPastJobs[0].services.length > 0 && (
+                              <span>, {Array.isArray(customerPastJobs[0].services) ? customerPastJobs[0].services.join(' + ') : customerPastJobs[0].services}</span>
+                            )}
+                            {customerPastJobs[0].vehicleModel && (
+                              <span>. {customerPastJobs[0].vehicleModel}</span>
+                            )}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+        )}
       </>
     );
   }
@@ -4334,9 +4726,13 @@ export default function CalendarPage() {
                 </div>
                 {/* Floating Zoom Slider */}
                 <div className="flex items-center gap-2 bg-white dark:bg-gray-800 rounded-full px-3 py-1.5 shadow-sm border border-gray-200 dark:border-gray-700">
-                    <svg className="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM13 10V7m0 3h3m-3 0H10" />
-                    </svg>
+                    <Image 
+                        src="/icons/zoom-in.svg" 
+                        alt="Zoom" 
+                        width={16} 
+                        height={16}
+                        className="text-gray-500 dark:text-gray-400"
+                    />
                     <input
                         type="range"
                         min="0.5"
@@ -4554,10 +4950,18 @@ export default function CalendarPage() {
           </div>
         )}
 
+        {/* Action Sidebar Backdrop */}
+        {isActionSidebarOpen && (
+          <div
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[85]"
+            onClick={() => setIsActionSidebarOpen(false)}
+          />
+        )}
+        
         {/* Action Sidebar */}
         <div 
           ref={actionSidebarRef}
-          className={`fixed top-0 right-0 h-full w-full md:w-[400px] lg:w-[420px] shadow-2xl z-40 transform transition-transform duration-300 ease-in-out ${
+          className={`fixed top-0 right-0 h-full w-full md:w-[400px] lg:w-[420px] shadow-2xl z-[90] transform transition-transform duration-300 ease-in-out ${
             isActionSidebarOpen ? 'translate-x-0' : 'translate-x-full'
           }`} style={{ backgroundColor: '#F8F8F7', borderLeft: '1px solid #E2E2DD', boxShadow: 'none' }}>
           <div className="h-full flex flex-col overflow-hidden" style={{ backgroundColor: '#F8F8F7' }}>
