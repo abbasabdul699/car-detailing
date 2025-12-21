@@ -1655,7 +1655,7 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                         <button onClick={onClose} className="flex-1 px-6 py-2 border rounded-xl text-gray-700 hover:bg-gray-50 transition-colors" style={{ borderColor: '#E2E2DD' }}>
                             Cancel
                     </button>
-                        <button onClick={handleSubmit} className="flex-1 px-6 py-2 bg-orange-500 text-white rounded-xl hover:bg-orange-600 transition-colors flex items-center justify-center gap-2">
+                        <button onClick={handleSubmit} className="flex-1 px-6 py-2 bg-[#2b2b26] text-white rounded-xl hover:bg-[#4a4844] transition-colors flex items-center justify-center gap-2">
                             <CheckIcon className="w-5 h-5" />
                             <span>Accept</span>
                     </button>
