@@ -2863,7 +2863,7 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
                   {timeSlots.map((slot, index) => (
                     <div 
                       key={slot} 
-                      className="time-slot-cell flex-shrink-0 h-full cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+                      className="time-slot-cell flex-shrink-0 h-full cursor-pointer hover:bg-[#F7F7F5] dark:hover:bg-[gray-800/50] transition-colors"
                       style={{ 
                         width: `${columnWidths[index] * scale}px`,
                         borderRight: '1px solid #F0F0EE' 
@@ -6244,7 +6244,7 @@ export default function CalendarPage() {
                           : (selectedEventData.services || ''),
                       });
                     }}
-                    className="flex-1 px-4 py-2 bg-[#DEDED9] hover:bg-[#C1C0B8] text-[#272623] rounded-xl font-medium transition-colors"
+                    className="flex-1 px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-xl font-medium transition-colors"
                   >
                     Edit Event
                   </button>
