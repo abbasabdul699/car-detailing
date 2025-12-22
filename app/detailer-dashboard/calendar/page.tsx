@@ -1763,7 +1763,7 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
     };
 
     const timeSlots = generateTimeSlots();
-
+    
     const scaledTimeColumnWidth = 80 * scale;
     const scaledTimeSlotHeight = 96 * scale; // Increased from 64 to 96 for taller default boxes
     const scaledColumnMinWidth = 100 * scale;
@@ -1803,7 +1803,7 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                         <div 
                           className="flex-shrink-0 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900" 
                           style={{ 
-                            height: `${80 * scale}px`, 
+                            height: `calc(${80 * scale}px + 2px)`, /* Adjusted for better alignment with calender slots during week view */
                             boxSizing: 'border-box',
                             position: 'sticky',
                             top: 0,
