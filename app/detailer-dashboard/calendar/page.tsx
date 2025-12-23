@@ -6069,7 +6069,7 @@ export default function CalendarPage() {
             
             {/* Customer Notes - keep inside scrollable content */}
             {selectedEventData && !isEditingEvent && (
-              <div className="px-6 pb-4 pt-4 border-t border-gray-200">
+              <div className="p-6 pt-0">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-sm font-semibold text-gray-900">Add notes</h3>
                   {!isEditingNotes && (
