@@ -5014,7 +5014,7 @@ export default function CalendarPage() {
             </div>
 
             {/* Content - Show event details if event is selected, otherwise show today's events */}
-            <div className="flex-1 overflow-y-auto pb-32">
+            <div className="flex-1 overflow-y-auto pb-4">
               {selectedEventData ? (
                 isEditingEvent ? (
                   // Show edit form
