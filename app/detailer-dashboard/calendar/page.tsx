@@ -5014,7 +5014,7 @@ export default function CalendarPage() {
             </div>
 
             {/* Content - Show event details if event is selected, otherwise show today's events */}
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto pb-32">
               {selectedEventData ? (
                 isEditingEvent ? (
                   // Show edit form
@@ -6066,11 +6066,10 @@ export default function CalendarPage() {
                   })}
                 </div>
               )}
-            </div>
             
-            {/* Customer Notes - Right above action buttons */}
+            {/* Customer Notes - keep inside scrollable content */}
             {selectedEventData && !isEditingEvent && (
-              <div className="flex-shrink-0 px-6 pb-4">
+              <div className="px-6 pb-4 pt-4 border-t border-gray-200">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-sm font-semibold text-gray-900">Add notes</h3>
                   {!isEditingNotes && (
@@ -6152,6 +6151,7 @@ export default function CalendarPage() {
                 </div>
               </div>
             )}
+            </div>
             
             {/* Footer - Action Buttons (only show when viewing event details, not editing) */}
             {selectedEventData && !isEditingEvent && (
