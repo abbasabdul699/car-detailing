@@ -2689,7 +2689,7 @@ const DraftEventCard = ({
   );
 };
 
-const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOpenModal, draftEvent, onDraftEventUpdate, scale = 1.0 }: { 
+const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOpenModal, draftEvent, onDraftEventUpdate, scale = 1.0, businessHours }: { 
   date: Date, 
   events: any[], 
   resources: Array<{ id: string, name: string, type: 'bay' | 'van' }>,
@@ -2698,7 +2698,8 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
   onOpenModal: (draftEvent?: { resourceId: string; startTime: string; endTime: string }) => void,
   draftEvent?: { resourceId: string; startTime: string; endTime: string } | null,
   onDraftEventUpdate?: (draftEvent: { resourceId: string; startTime: string; endTime: string }) => void,
-  scale?: number
+  scale?: number,
+  businessHours?: any
 }) => {
   const [containerHeight, setContainerHeight] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -2734,6 +2735,39 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
     const period = hour >= 12 ? 'PM' : 'AM';
     timeSlots.push(`${hour12} ${period}`);
   }
+
+  // Helper function to check if an hour (0-23) is within working hours
+  const isWithinWorkingHours = (hour: number): boolean => {
+    // If no business hours configured, show all hours as working (white)
+    if (!businessHours) {
+      return true;
+    }
+
+    // Map JavaScript day index (0=Sunday) to full day names used in MongoDB
+    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const dayOfWeek = date.getDay();
+    const dayKey = dayNames[dayOfWeek];
+    const dayHours = businessHours[dayKey];
+
+    // If day is not set, closed, or invalid, all hours are non-working (grey)
+    if (!dayHours || !Array.isArray(dayHours) || dayHours.length < 2) {
+      return false;
+    }
+
+    const [openTime, closeTime] = dayHours;
+    
+    // If times are empty or invalid, day is closed - all hours are non-working (grey)
+    if (!openTime || !closeTime || openTime.trim() === '' || closeTime.trim() === '') {
+      return false;
+    }
+
+    // Parse times (format: "HH:MM" in 24-hour format, e.g., "07:00", "20:00")
+    const [openHour] = openTime.split(':').map(Number);
+    const [closeHour] = closeTime.split(':').map(Number);
+
+    // Check if hour is within working hours (openHour <= hour < closeHour)
+    return hour >= openHour && hour < closeHour;
+  };
 
   // Save base column width to localStorage
   useEffect(() => {
@@ -2944,16 +2978,20 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
           <div className="w-32 flex-shrink-0 p-2 bg-white dark:bg-white sticky left-0 z-60" style={{ borderRight: '1px solid #F0F0EE' }}>
           </div>
           <div className="flex flex-shrink-0" style={{ minWidth: `${totalColumnWidth}px`, width: `${totalColumnWidth}px` }}>
-            {timeSlots.map((slot, index) => (
-              <div 
-                key={slot} 
-                className="flex-shrink-0 p-2 bg-white dark:bg-white relative group"
-                style={{ 
-                  width: `${columnWidths[index] * scale}px`,
-                  borderRight: '1px solid #F0F0EE',
-                  overflow: 'hidden'
-                }}
-              >
+            {timeSlots.map((slot, index) => {
+              const hour = index; // hour is 0-23 (0 = 12 AM, 23 = 11 PM)
+              const isWorkingHour = isWithinWorkingHours(hour);
+              return (
+                <div 
+                  key={slot} 
+                  className="flex-shrink-0 p-2 dark:bg-white relative group"
+                  style={{ 
+                    width: `${columnWidths[index] * scale}px`,
+                    borderRight: '1px solid #F0F0EE',
+                    overflow: 'hidden',
+                    backgroundColor: isWorkingHour ? 'white' : '#F5F5F5'
+                  }}
+                >
                 <div className="text-xs font-semibold text-black text-left whitespace-nowrap" style={{ overflow: 'hidden', textOverflow: 'clip' }}>
                   {slot}
                 </div>
@@ -2968,7 +3006,8 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
                   }}
                 />
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
@@ -3088,16 +3127,31 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
                 >
                 <div className="flex relative h-full flex-shrink-0" style={{ minWidth: `${totalColumnWidth}px`, width: `${totalColumnWidth}px` }}>
                   {/* Time slot columns */}
-                  {timeSlots.map((slot, index) => (
-                    <div 
-                      key={slot} 
-                      className="time-slot-cell flex-shrink-0 h-full cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
-                      style={{ 
-                        width: `${columnWidths[index] * scale}px`,
-                        borderRight: '1px solid #F0F0EE' 
-                      }}
-                    />
-                  ))}
+                  {timeSlots.map((slot, index) => {
+                    const hour = index; // hour is 0-23 (0 = 12 AM, 23 = 11 PM)
+                    const isWorkingHour = isWithinWorkingHours(hour);
+                    return (
+                      <div 
+                        key={slot} 
+                        className="time-slot-cell flex-shrink-0 h-full cursor-pointer transition-colors"
+                        style={{ 
+                          width: `${columnWidths[index] * scale}px`,
+                          borderRight: '1px solid #F0F0EE',
+                          backgroundColor: isWorkingHour ? 'white' : '#F5F5F5'
+                        }}
+                        onMouseEnter={(e) => {
+                          if (isWorkingHour) {
+                            e.currentTarget.style.backgroundColor = '#F9FAFB';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (isWorkingHour) {
+                            e.currentTarget.style.backgroundColor = 'white';
+                          }
+                        }}
+                      />
+                    );
+                  })}
                   
                   {/* Draft event (dotted card) */}
                   {draftEvent && draftEvent.resourceId === resource.id && (() => {
@@ -5150,6 +5204,7 @@ export default function CalendarPage() {
                   ]}
                   onEventClick={handleEventClick}
                   onResourceSelect={setSelectedResource}
+                  businessHours={businessHours}
                   onOpenModal={(draft) => {
                     // Check for unsaved changes in edit form
                     if (isEditingEvent && isEditFormDirty) {
