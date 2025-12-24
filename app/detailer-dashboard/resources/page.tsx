@@ -443,7 +443,7 @@ export default function ResourcesPage() {
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
               <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-gray-100 pl-10 md:pl-0">
-                {activeTab === 'employees' ? 'Employees' : activeTab === 'bays' ? 'Bays' : 'Vans'}
+                Resources
               </h1>
             </div>
             <div className="flex items-center gap-2 md:gap-3">
@@ -626,7 +626,11 @@ export default function ResourcesPage() {
                   </thead>
                   <tbody className="bg-white dark:bg-gray-950 divide-y divide-gray-200 dark:divide-gray-700">
                     {sortedEmployees.map((employee, index) => (
-                      <tr key={employee.id} className="hover:bg-gray-50 dark:hover:bg-gray-900 transition">
+                      <tr 
+                        key={employee.id} 
+                        className="hover:bg-gray-50 dark:hover:bg-gray-900 transition cursor-pointer"
+                        onClick={() => handleOpenModal(employee)}
+                      >
                         <td className="px-4 py-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                           <input
                             type="checkbox"
@@ -639,10 +643,7 @@ export default function ResourcesPage() {
                         <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                           {index + 1}
                         </td>
-                        <td 
-                          className="px-4 py-4 whitespace-nowrap cursor-pointer"
-                          onClick={() => handleOpenModal(employee)}
-                        >
+                        <td className="px-4 py-4 whitespace-nowrap">
                           <div className="flex items-center gap-3">
                             {employee.imageUrl ? (
                               <img 
@@ -657,7 +658,7 @@ export default function ResourcesPage() {
                                 </span>
                               </div>
                             )}
-                            <div className="font-medium text-gray-900 dark:text-white hover:text-gray-600 dark:hover:text-gray-300 transition">
+                            <div className="font-medium text-gray-900 dark:text-white">
                               {employee.name}
                             </div>
                           </div>

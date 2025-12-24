@@ -1258,7 +1258,7 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                                                             </p>
                                                         </div>
                                                         <div>
-                                                            <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Location Type</label>
+                                                            <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Arrival</label>
                                                             <p className="text-sm text-gray-900 mt-0.5 capitalize">
                                                                 {selectedCustomer.locationType || 'Not provided'}
                                                             </p>
@@ -1876,13 +1876,13 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                         )}
                     </div>
 
-                    {/* Customer Type and Location Type */}
+                    {/* Station and Arrival */}
                     <div className="pt-4">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {/* Customer Type Dropdown */}
+                            {/* Station Dropdown */}
                             <div>
                                 <label htmlFor="customer-type" className="block text-sm font-semibold text-gray-900 mb-2">
-                                    Customer Type
+                                    Station
                                 </label>
                                 <select
                                     id="customer-type"
@@ -1891,17 +1891,16 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                                     className="w-full px-4 py-2.5 border rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                                     style={{ borderColor: '#E2E2DD' }}
                                 >
-                                    <option value="">Select customer type</option>
+                                    <option value="">Select station</option>
                                     <option value="new">New Customer</option>
-                                    <option value="returning">Returning Customer</option>
-                                    <option value="maintenance">Maintenance Customer</option>
+                                    <option value="returning">Repeat Customer</option>
                                 </select>
                             </div>
                             
-                            {/* Location Type Dropdown */}
+                            {/* Arrival Dropdown */}
                             <div>
                                 <label htmlFor="location-type" className="block text-sm font-semibold text-gray-900 mb-2">
-                                    Location Type
+                                    Arrival
                                 </label>
                                 <select
                                     id="location-type"

@@ -739,13 +739,13 @@ const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () =>
         )}
       </div>
 
-      {/* Customer Type and Location Type Selection */}
+      {/* Station and Arrival Selection */}
       <div className="pt-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Customer Type Dropdown */}
+          {/* Station Dropdown */}
           <div>
             <label htmlFor="customer-type-select" className="block text-sm font-semibold text-gray-900 mb-2">
-              Customer Type
+              Station
             </label>
             <select
               id="customer-type-select"
@@ -754,17 +754,16 @@ const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () =>
               className="w-full px-4 py-2.5 border rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
               style={{ borderColor: '#E2E2DD' }}
             >
-              <option value="">Select customer type</option>
+              <option value="">Select station</option>
               <option value="new">New Customer</option>
-              <option value="returning">Returning Customer</option>
-              <option value="maintenance">Maintenance Customer</option>
+              <option value="returning">Repeat Customer</option>
             </select>
           </div>
           
-          {/* Location Type Dropdown */}
+          {/* Arrival Dropdown */}
           <div>
             <label htmlFor="location-type-select" className="block text-sm font-semibold text-gray-900 mb-2">
-              Location Type
+              Arrival
             </label>
             <select
               id="location-type-select"
@@ -1656,7 +1655,7 @@ const EventHoverPopup = ({
                     )}
                     {event.customerType === 'returning' && (
                         <span className="text-xs font-semibold bg-purple-200 text-purple-800 dark:bg-purple-900 dark:text-purple-200 px-2 py-0.5 rounded">
-                            Returning Customer
+                            Repeat Customer
                         </span>
                     )}
                     {event.customerType === 'maintenance' && (
@@ -2549,7 +2548,7 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                                         : 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
                                                 }`}>
                                                     {event.customerType === 'new' ? 'New Customer' : 
-                                                     event.customerType === 'returning' ? 'Returning Customer' :
+                                                     event.customerType === 'returning' ? 'Repeat Customer' :
                                                      event.customerType === 'maintenance' ? 'Maintenance Customer' :
                                                      event.customerType}
                                             </span>
@@ -2938,10 +2937,10 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
   return (
     <div className="flex flex-col h-full max-h-full w-full overflow-hidden">
       {/* Scrollable container for header and rows */}
-      <div className="flex-1 min-h-0 min-w-0 overflow-x-auto overflow-y-auto" id="calendar-scroll-container" ref={containerRef} style={{ position: 'relative' }}>
+      <div className="flex-1 min-h-0 min-w-0 overflow-x-auto overflow-y-auto" id="calendar-scroll-container" ref={containerRef} style={{ position: 'relative', width: '100%' }}>
         <div style={{ minWidth: `${totalColumnWidth + 128}px` }}>
       {/* Header with time slots - sticky when scrolling down */}
-         <div className="flex bg-white dark:bg-white flex-shrink-0 sticky top-0 z-50" style={{ minWidth: `${totalColumnWidth + 128}px`, width: 'max-content', boxShadow: '0 2px 4px 0 rgba(0, 0, 0, 0.1)' }}>
+         <div className="flex bg-white dark:bg-white flex-shrink-0 sticky top-0 z-50" style={{ minWidth: `${totalColumnWidth + 128}px`, width: 'max-content' }}>
           <div className="w-32 flex-shrink-0 p-2 bg-white dark:bg-white sticky left-0 z-60" style={{ borderRight: '1px solid #F0F0EE' }}>
           </div>
           <div className="flex flex-shrink-0" style={{ minWidth: `${totalColumnWidth}px`, width: `${totalColumnWidth}px` }}>
@@ -2951,10 +2950,11 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
                 className="flex-shrink-0 p-2 bg-white dark:bg-white relative group"
                 style={{ 
                   width: `${columnWidths[index] * scale}px`,
-                  borderRight: '1px solid #F0F0EE'
+                  borderRight: '1px solid #F0F0EE',
+                  overflow: 'hidden'
                 }}
               >
-                <div className="text-xs font-semibold text-black text-left">
+                <div className="text-xs font-semibold text-black text-left whitespace-nowrap" style={{ overflow: 'hidden', textOverflow: 'clip' }}>
                   {slot}
                 </div>
                 {/* Resize handle */}
@@ -4806,15 +4806,6 @@ export default function CalendarPage() {
                 <button onClick={handlePrev} className="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800">
                     <ChevronLeftIcon className="w-5 h-5 text-gray-500 dark:text-gray-300" />
                 </button>
-                <button
-                  onClick={() => {
-                    setCurrentDate(new Date());
-                    setIsDatePickerOpen(false);
-                  }}
-                  className="px-3 py-1 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                >
-                  Today
-                </button>
                 <button onClick={handleNext} className="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800">
                     <ChevronRightIcon className="w-5 h-5 text-gray-500 dark:text-gray-300" />
                 </button>
@@ -5055,6 +5046,15 @@ export default function CalendarPage() {
                 )}
             </div>
             <div className="flex items-center space-x-4">
+                <button
+                  onClick={() => {
+                    setCurrentDate(new Date());
+                    setIsDatePickerOpen(false);
+                  }}
+                  className="px-3 py-1 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                >
+                  Today
+                </button>
                 <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-full p-1">
                     {(['day', 'week', 'month'] as const).map(view => (
                          <button 
@@ -5872,7 +5872,7 @@ export default function CalendarPage() {
                                     </p>
                                   </div>
                                   <div>
-                                    <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Location Type</label>
+                                    <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Arrival</label>
                                     <p className="text-sm text-gray-900 mt-0.5 capitalize">
                                       {selectedEventData.locationType || 'Not provided'}
                                     </p>
@@ -5949,7 +5949,7 @@ export default function CalendarPage() {
                                 : 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
                             }`}>
                               {selectedEventData.customerType === 'new' ? 'New Customer' : 
-                               selectedEventData.customerType === 'returning' ? 'Returning Customer' :
+                               selectedEventData.customerType === 'returning' ? 'Repeat Customer' :
                                selectedEventData.customerType === 'maintenance' ? 'Maintenance Customer' :
                                selectedEventData.customerType}
                             </span>
