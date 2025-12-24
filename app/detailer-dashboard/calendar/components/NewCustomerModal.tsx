@@ -16,6 +16,8 @@ type NewCustomerModalProps = {
     onClose: () => void;
     onSuccess: (customer: { customerName: string; customerPhone: string; customerEmail?: string; address?: string }) => void;
     initialName?: string;
+    existingCustomer?: { customerName: string; customerPhone: string; customerAddress?: string };
+    isEditMode?: boolean;
 };
 
 // US States list
@@ -29,11 +31,11 @@ const US_STATES = [
     'Virginia', 'Washington', 'West Virginia', 'Wisconsin', 'Wyoming'
 ];
 
-export default function NewCustomerModal({ isOpen, onClose, onSuccess, initialName = '' }: NewCustomerModalProps) {
+export default function NewCustomerModal({ isOpen, onClose, onSuccess, initialName = '', existingCustomer, isEditMode = false }: NewCustomerModalProps) {
     const { data: session } = useSession();
-    const [customerName, setCustomerName] = useState(initialName);
-    const [phoneNumber, setPhoneNumber] = useState('');
-    const [address, setAddress] = useState('');
+    const [customerName, setCustomerName] = useState(initialName || existingCustomer?.customerName || '');
+    const [phoneNumber, setPhoneNumber] = useState(existingCustomer?.customerPhone || '');
+    const [address, setAddress] = useState(existingCustomer?.customerAddress || '');
     const [city, setCity] = useState('');
     const [state, setState] = useState('');
     const [zipCode, setZipCode] = useState('');
@@ -142,9 +144,15 @@ export default function NewCustomerModal({ isOpen, onClose, onSuccess, initialNa
     // Reset form when modal opens/closes
     React.useEffect(() => {
         if (isOpen) {
-            setCustomerName(initialName);
-            setPhoneNumber('');
-            setAddress('');
+            if (isEditMode && existingCustomer) {
+                setCustomerName(existingCustomer.customerName || '');
+                setPhoneNumber(existingCustomer.customerPhone || '');
+                setAddress(existingCustomer.customerAddress || '');
+            } else {
+                setCustomerName(initialName);
+                setPhoneNumber('');
+                setAddress('');
+            }
             setCity('');
             setState('');
             setZipCode('');
@@ -223,7 +231,7 @@ export default function NewCustomerModal({ isOpen, onClose, onSuccess, initialNa
                 {/* Header */}
                 <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                        New customer
+                        {isEditMode ? 'Edit customer' : 'New customer'}
                     </h2>
                     <button
                         onClick={onClose}
@@ -357,7 +365,7 @@ export default function NewCustomerModal({ isOpen, onClose, onSuccess, initialNa
                             disabled={isSubmitting}
                         >
                             <CheckIcon className="w-5 h-5" />
-                            <span>Add new customer</span>
+                            <span>{isEditMode ? 'Confirm edit' : 'Add new customer'}</span>
                         </button>
                     </div>
                 </form>

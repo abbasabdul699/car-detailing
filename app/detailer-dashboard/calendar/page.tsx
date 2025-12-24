@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useImperativeHandle, forwardRef } from "react";
 import { useSession } from "next-auth/react";
 import Image from "next/image";
 import { ChevronLeftIcon, ChevronRightIcon, PlusIcon } from "@heroicons/react/24/solid";
@@ -24,13 +24,76 @@ import EventModal from './components/EventModal';
 import AddressAutocompleteInput from './components/AddressAutocompleteInput';
 import NewCustomerModal from './components/NewCustomerModal';
 
+// Discard Changes Modal Component
+const DiscardChangesModal = ({ 
+  isOpen, 
+  onKeepEditing, 
+  onDiscard,
+  isCreating = false 
+}: { 
+  isOpen: boolean; 
+  onKeepEditing: (e?: React.MouseEvent) => void; 
+  onDiscard: () => void;
+  isCreating?: boolean;
+}) => {
+  if (!isOpen) return null;
+
+  return (
+    <div 
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100]"
+      onClick={(e) => {
+        // Prevent backdrop click from closing modal - user must choose an action
+        e.stopPropagation();
+      }}
+    >
+      <div 
+        className="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">
+            {isCreating ? 'Discard this event?' : 'Discard changes?'}
+          </h3>
+          <p className="text-sm text-gray-600 mb-6">
+            You have unsaved changes. Updates will be lost.
+          </p>
+          <div className="flex gap-3">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                onKeepEditing(e);
+              }}
+              className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 transition-colors"
+            >
+              Keep editing
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDiscard();
+              }}
+              className="flex-1 px-4 py-2 bg-red-500 text-white rounded-xl hover:bg-red-600 transition-colors"
+            >
+              Discard event
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // Event Edit Form Component
-const EventEditForm = ({ event, resources, onSave, onCancel }: { 
+const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () => void }, {
   event: any, 
   resources: Array<{ id: string, name: string, type: 'bay' | 'van' }>,
   onSave: (data: any) => void,
-  onCancel: () => void
-}) => {
+  onCancel: () => void,
+  onDirtyChange?: (isDirty: boolean) => void,
+  onRequestDiscard?: () => void,
+  onEditCustomer?: () => void
+}>(({ event, resources, onSave, onCancel, onDirtyChange, onRequestDiscard, onEditCustomer }, ref) => {
   const [selectedEmployeeId, setSelectedEmployeeId] = useState(event.employeeId || '');
   const [employees, setEmployees] = useState<Array<{ id: string; name: string; color: string; imageUrl?: string }>>([]);
   const [showEmployeeDropdown, setShowEmployeeDropdown] = useState(false);
@@ -130,6 +193,161 @@ const EventEditForm = ({ event, resources, onSave, onCancel }: {
   const [selectedServices, setSelectedServices] = useState<Array<{ id: string; name: string; type: 'service' | 'bundle' }>>([]);
   const [serviceSearch, setServiceSearch] = useState('');
   const [showServiceDropdown, setShowServiceDropdown] = useState(false);
+  
+  // Store initial values to detect changes
+  const initialValuesRef = useRef({
+    selectedEmployeeId: event.employeeId || '',
+    startDate: '',
+    startTime: '',
+    endTime: '',
+    isAllDay: event.allDay || false,
+    selectedResourceId: event.resourceId || '',
+    description: event.description || '',
+    customerName: event.customerName || '',
+    customerPhone: event.customerPhone || '',
+    customerAddress: event.customerAddress || '',
+    customerType: event.customerType || '',
+    locationType: event.locationType || '',
+    vehicles: [] as Array<{ id: string; model: string }>,
+    selectedServices: [] as Array<{ id: string; name: string; type: 'service' | 'bundle' }>
+  });
+
+  // Initialize initial values after state is set
+  useEffect(() => {
+    const eventDate = event.date || event.start;
+    let dateStr = '';
+    if (eventDate) {
+      if (typeof eventDate === 'string') {
+        if (eventDate.includes('T')) {
+          dateStr = eventDate.split('T')[0];
+        } else if (eventDate.match(/^\d{4}-\d{2}-\d{2}/)) {
+          dateStr = eventDate;
+        }
+      } else {
+        const date = new Date(eventDate);
+        const year = date.getUTCFullYear();
+        const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(date.getUTCDate()).padStart(2, '0');
+        dateStr = `${year}-${month}-${day}`;
+      }
+    }
+
+    let timeStr = '';
+    if (event.start && event.end && !event.allDay) {
+      timeStr = format(new Date(event.start), 'HH:mm');
+    }
+
+    let endTimeStr = '';
+    if (event.start && event.end && !event.allDay) {
+      endTimeStr = format(new Date(event.end), 'HH:mm');
+    }
+
+    let vehicleList: Array<{ id: string; model: string }> = [];
+    if (event.vehicles && Array.isArray(event.vehicles)) {
+      vehicleList = event.vehicles.map((v: string, idx: number) => ({ id: `vehicle-${idx}`, model: v }));
+    } else if (event.vehicleType || event.vehicleModel) {
+      const vehicleStr = event.vehicleType || event.vehicleModel || '';
+      if (vehicleStr.includes(',')) {
+        vehicleList = vehicleStr.split(',').map((v: string, idx: number) => ({ id: `vehicle-${idx}`, model: v.trim() })).filter((v: { id: string; model: string }) => v.model);
+      } else if (vehicleStr) {
+        vehicleList = [{ id: 'vehicle-0', model: vehicleStr }];
+      }
+    }
+
+    let servicesList: Array<{ id: string; name: string; type: 'service' | 'bundle' }> = [];
+    if (event.services) {
+      const eventServicesList = Array.isArray(event.services) ? event.services : [event.services];
+      servicesList = eventServicesList.map((serviceName: string) => ({ 
+        id: `temp-${serviceName}`, 
+        name: serviceName, 
+        type: 'service' as const 
+      }));
+    }
+
+    initialValuesRef.current = {
+      selectedEmployeeId: event.employeeId || '',
+      startDate: dateStr,
+      startTime: timeStr,
+      endTime: endTimeStr,
+      isAllDay: event.allDay || false,
+      selectedResourceId: event.resourceId || '',
+      description: event.description || '',
+      customerName: event.customerName || '',
+      customerPhone: event.customerPhone || '',
+      customerAddress: event.customerAddress || '',
+      customerType: event.customerType || '',
+      locationType: event.locationType || '',
+      vehicles: vehicleList,
+      selectedServices: servicesList
+    };
+  }, []);
+
+  // Update customer fields when event prop changes (e.g., after editing customer)
+  useEffect(() => {
+    setCustomerName(event.customerName || '');
+    setCustomerPhone(event.customerPhone || '');
+    setCustomerAddress(event.customerAddress || '');
+  }, [event.customerName, event.customerPhone, event.customerAddress]);
+
+  // Check if form has been modified
+  const checkIfDirty = () => {
+    const current = {
+      selectedEmployeeId,
+      startDate,
+      startTime,
+      endTime,
+      isAllDay,
+      selectedResourceId,
+      description,
+      customerName,
+      customerPhone,
+      customerAddress,
+      customerType,
+      locationType,
+      vehicles: vehicles.map(v => v.model).sort().join(','),
+      selectedServices: selectedServices.map(s => s.name).sort().join(',')
+    };
+
+    const initial = {
+      selectedEmployeeId: initialValuesRef.current.selectedEmployeeId,
+      startDate: initialValuesRef.current.startDate,
+      startTime: initialValuesRef.current.startTime,
+      endTime: initialValuesRef.current.endTime,
+      isAllDay: initialValuesRef.current.isAllDay,
+      selectedResourceId: initialValuesRef.current.selectedResourceId,
+      description: initialValuesRef.current.description,
+      customerName: initialValuesRef.current.customerName,
+      customerPhone: initialValuesRef.current.customerPhone,
+      customerAddress: initialValuesRef.current.customerAddress,
+      customerType: initialValuesRef.current.customerType,
+      locationType: initialValuesRef.current.locationType,
+      vehicles: initialValuesRef.current.vehicles.map(v => v.model).sort().join(','),
+      selectedServices: initialValuesRef.current.selectedServices.map(s => s.name).sort().join(',')
+    };
+
+    return JSON.stringify(current) !== JSON.stringify(initial);
+  };
+
+  // Track dirty state and notify parent
+  useEffect(() => {
+    if (onDirtyChange) {
+      const isDirty = checkIfDirty();
+      onDirtyChange(isDirty);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedEmployeeId, startDate, startTime, endTime, isAllDay, selectedResourceId, description, 
+      customerName, customerPhone, customerAddress, customerType, locationType, vehicles.length, selectedServices.length]);
+
+  // Handle cancel with dirty check
+  const handleCancel = () => {
+    if (checkIfDirty()) {
+      if (onRequestDiscard) {
+        onRequestDiscard();
+      }
+    } else {
+      onCancel();
+    }
+  };
   
   // Auto-generate title from selected services
   const title = selectedServices.map(s => s.name).join(', ') || '';
@@ -405,6 +623,12 @@ const EventEditForm = ({ event, resources, onSave, onCancel }: {
       services: selectedServices.map(s => s.name)
     });
   };
+
+  // Expose handlers via ref
+  useImperativeHandle(ref, () => ({
+    handleCancel,
+    handleSubmit
+  }));
 
   return (
     <div className="space-y-6">
@@ -719,42 +943,46 @@ const EventEditForm = ({ event, resources, onSave, onCancel }: {
 
       {/* Customer Information */}
       <div className="border-t border-gray-200 pt-6">
-        <h3 className="text-sm font-semibold text-gray-900 mb-4">Customer Information</h3>
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Customer Name</label>
-              <input
-                type="text"
-                value={customerName}
-                onChange={e => setCustomerName(e.target.value)}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                placeholder="e.g., John Doe"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Customer Phone</label>
-              <input
-                type="tel"
-                value={customerPhone}
-                onChange={e => setCustomerPhone(e.target.value)}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                placeholder="e.g., (123) 456-7890"
-              />
+        <h3 className="text-sm font-semibold text-gray-900 mb-4">Customer</h3>
+        {(customerName || customerPhone || customerAddress) ? (
+          <div 
+            className="bg-gray-50 rounded-xl p-4 border relative" 
+            style={{ borderColor: '#E2E2DD' }}
+          >
+            <div className="flex items-start justify-between">
+              <div className="flex-1 pr-8">
+                <div className="flex items-start justify-between mb-2">
+                  <h4 className="font-semibold text-gray-900 text-base">
+                    {customerName || 'Unnamed Customer'}
+                  </h4>
+                  {customerPhone && (
+                    <span className="text-sm text-gray-600 ml-2">
+                      {customerPhone}
+                    </span>
+                  )}
+                </div>
+                {customerAddress && (
+                  <p className="text-sm text-gray-600">
+                    {customerAddress}
+                  </p>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {onEditCustomer && (
+                  <button
+                    onClick={onEditCustomer}
+                    className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                    title="Edit customer"
+                  >
+                    <PencilIcon className="w-4 h-4 text-gray-700" />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
-          <div>
-            <label htmlFor="customer-address" className="block text-sm font-medium text-gray-700 mb-2">Customer Address</label>
-            <AddressAutocompleteInput
-              id="customer-address"
-              value={customerAddress}
-              onChange={setCustomerAddress}
-              placeholder="Start typing address..."
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-            />
-            <p className="mt-1 text-xs text-gray-500">Used for marketing and determining closest location for van services</p>
-          </div>
-        </div>
+        ) : (
+          <div className="text-sm text-gray-500">No customer information available</div>
+        )}
       </div>
 
       {/* Vehicle Information */}
@@ -1032,27 +1260,9 @@ const EventEditForm = ({ event, resources, onSave, onCancel }: {
           <p className="mt-1 text-xs text-gray-500">Add quick notes about customer preferences, behavior, or reminders</p>
         </div>
       </div>
-
-      {/* Action Buttons */}
-      <div className="flex gap-3 pt-4 border-t border-gray-200">
-        <button
-          onClick={onCancel}
-          className="flex-1 px-6 py-2 border rounded-xl text-gray-700 hover:bg-gray-50 transition-colors"
-          style={{ borderColor: '#E2E2DD' }}
-        >
-          Cancel
-        </button>
-        <button
-          onClick={handleSubmit}
-          className="flex-1 px-6 py-2 bg-orange-500 text-white rounded-xl hover:bg-orange-600 transition-colors flex items-center justify-center gap-2"
-        >
-          <CheckIcon className="w-5 h-5" />
-          <span>Save</span>
-        </button>
-      </div>
     </div>
   );
-};
+});
 
 // #region Helper Functions & Components
 const daysOfWeek = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
@@ -1863,12 +2073,15 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                     
                     {/* Second row: Resource headers for each day */}
                     <div className="grid border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900" style={{ gridTemplateColumns: `repeat(${totalColumns}, minmax(${scaledColumnMinWidth}px, 1fr))` }}>
-                        {weekDays.map(day => 
-                            displayResources.map((resource, resourceIndex) => (
+                        {weekDays.map((day, dayIndex) => 
+                            displayResources.map((resource, resourceIndex) => {
+                                const columnIndex = (dayIndex * displayResources.length) + resourceIndex;
+                                return (
                                 <div 
                                     key={`resource-header-${day.toString()}-${resource.id}`} 
                                     className="text-center flex flex-row items-center justify-center gap-1 text-xs font-semibold border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900" 
                                     style={{ 
+                                        gridColumn: columnIndex + 1,
                                         height: `${40 * scale}px`, 
                                         boxSizing: 'border-box'
                                     }}
@@ -1899,7 +2112,8 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                         </button>
                                     )}
                                 </div>
-                            ))
+                                );
+                            })
                         )}
                     </div>
                 </div>
@@ -1915,10 +2129,9 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                 >
                     
                     {/* Time slot rows with events - each resource column gets its own wrapper */}
-                    {weekDays.map(day => 
+                    {weekDays.map((day, dayIndex) => 
                         displayResources.map((resource) => {
                             // Create a wrapper for this resource column that contains all time slots
-                            const dayIndex = weekDays.findIndex(d => format(d, 'yyyy-MM-dd') === format(day, 'yyyy-MM-dd'));
                             const resourceIndex = displayResources.findIndex(r => r.id === resource.id);
                             const columnIndex = (dayIndex * displayResources.length) + resourceIndex;
                             
@@ -2252,11 +2465,13 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                         key={`event-${i}-${event.id || i}-${resource.id}`}
                                         onClick={(e) => {
                                             e.stopPropagation();
+                                            e.preventDefault();
+                                            // Ensure event click works even when modal/draft is open
                                             onEventClick(event);
                                         }}
                                         onMouseEnter={(e) => handleEventMouseEnter(event, e.currentTarget)}
                                         onMouseLeave={handleEventMouseLeave}
-                                    className={`absolute w-[95%] left-1 ${colorConfig.bg} p-1.5 rounded-xl flex flex-col items-start text-xs dark:text-white cursor-pointer hover:shadow-lg transition-all z-10`}
+                                    className={`absolute w-[95%] left-1 ${colorConfig.bg} p-1.5 rounded-xl flex flex-col items-start text-xs dark:text-white cursor-pointer hover:shadow-lg transition-all z-20`}
                                     style={{ 
                                         pointerEvents: 'auto',
                                         top: `${top}px`,
@@ -2393,17 +2608,19 @@ const DraftEventCard = ({
   width, 
   onDraftEventUpdate,
   date,
-  columnWidths
+  columnWidths,
+  scale = 1.0
 }: { 
   draftEvent: { resourceId: string; startTime: string; endTime: string },
   left: number,
   width: number,
   onDraftEventUpdate?: (draftEvent: { resourceId: string; startTime: string; endTime: string }) => void,
   date: Date,
-  columnWidths: number[]
+  columnWidths: number[],
+  scale?: number
 }) => {
-  // Calculate average hour width for drag calculations
-  const avgHourWidth = columnWidths.reduce((sum, w) => sum + w, 0) / columnWidths.length;
+  // Calculate average hour width for drag calculations (must account for scale)
+  const avgHourWidth = (columnWidths.reduce((sum, w) => sum + w, 0) / columnWidths.length) * scale;
   
   // Handle drag to extend event duration
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -2453,7 +2670,7 @@ const DraftEventCard = ({
       style={{ 
         left: `${left}px`, 
         width: `${width}px`,
-        minWidth: '100px',
+        minWidth: '0px', // Don't enforce minimum - let width be exactly what it should be
         zIndex: 10
       }}
     >
@@ -2527,8 +2744,11 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
   }, [baseColumnWidth]);
 
   // Calculate cumulative widths for event positioning (with scale applied)
+  // Ensure precision by rounding to avoid floating point errors
   const getCumulativeWidth = (index: number) => {
-    return columnWidths.slice(0, index).reduce((sum, width) => sum + (width * scale), 0);
+    const sum = columnWidths.slice(0, index).reduce((acc, width) => acc + (width * scale), 0);
+    // Round to 2 decimal places to avoid floating point precision issues
+    return Math.round(sum * 100) / 100;
   };
 
   // Calculate total width of all columns (with scale applied)
@@ -2640,18 +2860,26 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
     const endMinutes = endTime.getMinutes();
     
     // Calculate left position: sum of widths of all columns before start hour + fraction of start hour column
+    // Use exact same calculation as rendered columns: columnWidths[index] * scale
     let left = getCumulativeWidth(startHour);
     const startHourFraction = startMinutes / 60;
-    left += (columnWidths[startHour] * scale) * startHourFraction;
+    const startHourWidth = columnWidths[startHour] * scale;
+    left += startHourWidth * startHourFraction;
 
-    // Calculate width: from start to end
+    // Calculate end position: sum of widths up to end hour + fraction of end hour column
     let endPosition = getCumulativeWidth(endHour);
     const endHourFraction = endMinutes / 60;
-    endPosition += (columnWidths[endHour] * scale) * endHourFraction;
+    const endHourWidth = columnWidths[endHour] * scale;
+    endPosition += endHourWidth * endHourFraction;
     
-    const width = Math.max(100, endPosition - left);
+    // Width is the difference between end and start positions
+    // Ensure we use exact pixel values without rounding errors
+    const calculatedWidth = endPosition - left;
+    // Don't enforce minimum width - let it be exactly what it should be based on time duration
+    // At lower zoom levels, widths will be smaller, which is correct
+    const width = Math.round(calculatedWidth * 100) / 100; // Round to 2 decimal places for precision
     
-    return { left, width };
+    return { left: Math.round(left * 100) / 100, width };
   };
 
   // Determine customer type (new vs repeat) - check if customer has previous bookings
@@ -2887,6 +3115,7 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
                         onDraftEventUpdate={onDraftEventUpdate}
                         date={date}
                         columnWidths={columnWidths}
+                        scale={scale}
                       />
                     );
                   })()}
@@ -2903,6 +3132,8 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
                         key={event.id}
                         onClick={(e) => {
                           e.stopPropagation();
+                          e.preventDefault();
+                          // Ensure event click works even when modal/draft is open
                           onEventClick(event);
                         }}
                         className={`absolute top-2 bottom-2 rounded-xl p-2 cursor-pointer transition-all hover:shadow-lg ${
@@ -2913,7 +3144,9 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
                         style={{ 
                           left: `${left}px`, 
                           width: `${width}px`,
-                          minWidth: '100px'
+                          minWidth: '100px',
+                          pointerEvents: 'auto',
+                          zIndex: 20
                         }}
                       >
                         <div className="flex items-center gap-2 mb-1">
@@ -2994,7 +3227,8 @@ export default function CalendarPage() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [selectedResource, setSelectedResource] = useState<{ id: string; name: string; type: 'bay' | 'van' } | null>(null);
   const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
-  const [draftEvent, setDraftEvent] = useState<{ resourceId: string; startTime: string; endTime: string } | null>(null);
+  const [draftEvent, setDraftEvent] = useState<{ resourceId: string; startTime: string; endTime: string; date?: Date } | null>(null);
+  const [pendingDraftEvent, setPendingDraftEvent] = useState<{ resourceId: string; startTime: string; endTime: string; date?: Date } | null>(null);
 
   const today = new Date();
   const [events, setEvents] = useState([
@@ -3012,6 +3246,9 @@ export default function CalendarPage() {
   const [selectedEventData, setSelectedEventData] = useState<any>(null);
   const [isEditingEvent, setIsEditingEvent] = useState(false);
   const [editFormData, setEditFormData] = useState<any>(null);
+  const [isEditFormDirty, setIsEditFormDirty] = useState(false);
+  const [showDiscardModal, setShowDiscardModal] = useState(false);
+  const [showEventModalDiscardModal, setShowEventModalDiscardModal] = useState(false);
   const [customerPastJobs, setCustomerPastJobs] = useState<Array<{ id: string; date: string; services: string[]; vehicleModel?: string; employeeName?: string }>>([]);
   const [showEmployeeSwitchDropdown, setShowEmployeeSwitchDropdown] = useState(false);
   const [isEditingNotes, setIsEditingNotes] = useState(false);
@@ -3031,10 +3268,17 @@ export default function CalendarPage() {
   const [isNewCustomerModalOpen, setIsNewCustomerModalOpen] = useState(false);
   const [newCustomerModalInitialName, setNewCustomerModalInitialName] = useState('');
   const [newCustomerData, setNewCustomerData] = useState<{ customerName: string; customerPhone: string; customerEmail?: string; address?: string } | null>(null);
+  const [editingCustomerData, setEditingCustomerData] = useState<{ customerName: string; customerPhone: string; customerAddress?: string } | null>(null);
+  const [isEditingCustomer, setIsEditingCustomer] = useState(false);
+  const [eventDetailsCustomers, setEventDetailsCustomers] = useState<Array<{ id: string; customerName?: string; customerPhone: string; customerEmail?: string; address?: string; locationType?: string; customerType?: string; vehicleModel?: string; services?: string[]; data?: any }>>([]);
+  const [eventDetailsCustomerSearch, setEventDetailsCustomerSearch] = useState('');
+  const [showEventDetailsCustomerSuggestions, setShowEventDetailsCustomerSuggestions] = useState(false);
+  const [selectedEventDetailsCustomerIndex, setSelectedEventDetailsCustomerIndex] = useState(-1);
   const datePickerRef = useRef<HTMLDivElement>(null);
   const teamDropdownRef = useRef<HTMLDivElement>(null);
   const actionSidebarRef = useRef<HTMLDivElement>(null);
   const bottomSheetRef = useRef<HTMLDivElement>(null);
+  const eventEditFormRef = useRef<{ handleCancel: () => void; handleSubmit: () => void } | null>(null);
   const notesSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const bottomSheetTouchStartRef = useRef<{ y: number; time: number } | null>(null);
   const session = useSession();
@@ -3448,6 +3692,64 @@ export default function CalendarPage() {
     }
   }, [selectedEventData?.customerPhone, allEmployees]);
 
+  // Fetch customers for Event Details panel when it opens or when customer is removed
+  useEffect(() => {
+    if (isActionSidebarOpen && selectedEventData && !isEditingEvent) {
+      // Fetch customers when Event Details panel is open
+      fetch('/api/detailer/customers')
+        .then(res => res.json())
+        .then(data => {
+          if (data.customers) {
+            setEventDetailsCustomers(data.customers);
+          }
+        })
+        .catch(err => console.error('Error fetching customers:', err));
+    }
+  }, [isActionSidebarOpen, selectedEventData, isEditingEvent]);
+
+  // Handle customer selection in Event Details panel
+  const handleEventDetailsCustomerSelect = async (customer: { id: string; customerName?: string; customerPhone: string; customerEmail?: string; address?: string; locationType?: string; customerType?: string; vehicleModel?: string; services?: string[]; data?: any }) => {
+    if (!selectedEventData || !selectedEventData.id) return;
+
+    const eventId = selectedEventData.id;
+
+    try {
+      const response = await fetch(`/api/detailer/events/${eventId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerName: customer.customerName || null,
+          customerPhone: customer.customerPhone,
+          customerAddress: customer.address || null
+        }),
+      });
+
+      if (response.ok) {
+        // Clear search
+        setEventDetailsCustomerSearch('');
+        setShowEventDetailsCustomerSuggestions(false);
+        
+        // Update local state immediately for responsive UI
+        const updatedEventData = {
+          ...selectedEventData,
+          customerName: customer.customerName || null,
+          customerPhone: customer.customerPhone,
+          customerAddress: customer.address || null
+        };
+        setSelectedEventData(updatedEventData);
+        
+        // Refresh calendar to get updated data from server
+        // fetchCalendarEvents will sync selectedEventData with fresh data
+        await fetchCalendarEvents();
+      } else {
+        const error = await response.json();
+        console.error('Failed to update customer:', error.error);
+      }
+    } catch (error) {
+      console.error('Error updating customer:', error);
+    }
+  };
+
   // Close team dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -3485,6 +3787,10 @@ export default function CalendarPage() {
   // Close action sidebar when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      // Don't close sidebar if discard modal is open or if we're editing with dirty changes
+      if (showDiscardModal || (isEditingEvent && isEditFormDirty)) {
+        return;
+      }
       if (actionSidebarRef.current && !actionSidebarRef.current.contains(event.target as Node)) {
         setIsActionSidebarOpen(false);
         setSelectedEventData(null);
@@ -3501,7 +3807,7 @@ export default function CalendarPage() {
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isActionSidebarOpen]);
+  }, [isActionSidebarOpen, showDiscardModal, isEditingEvent, isEditFormDirty]);
 
   // Hide hamburger menu when action panel is open
   useEffect(() => {
@@ -3624,6 +3930,14 @@ export default function CalendarPage() {
       console.log('About to call setBookings with:', allEvents.length, 'events');
       setBookings(allEvents);
       
+      // If we have a selected event, sync selectedEventData with fresh data from server
+      if (selectedEventData && selectedEventData.id) {
+        const updatedEvent = allEvents.find((e: any) => e.id === selectedEventData.id);
+        if (updatedEvent) {
+          setSelectedEventData(updatedEvent);
+        }
+      }
+      
       // Filter today's events
       const today = new Date();
       const todayStr = format(today, 'yyyy-MM-dd');
@@ -3669,10 +3983,32 @@ export default function CalendarPage() {
       allDay: event.allDay,
       rawEvent: event
     });
+    
+    // If we're creating a new event (modal open or draft exists), close it first
+    // The modal's own close handler will check for unsaved changes and show discard modal if needed
+    // We'll use a flag to indicate we want to switch to an existing event after closing
+    if (isModalOpen) {
+      // Trigger the modal's close handler which will check for dirty state
+      // We need to close the modal, but the modal should handle the discard check
+      // Since we can't directly call the modal's handleClose, we'll close it and let the modal handle it
+      // Actually, we should close the modal first, then open the event
+      // The modal's onClose will be called, which currently just closes it
+      // We need to update the modal's onClose to check for dirty state
+      setIsModalOpen(false);
+      setDraftEvent(null);
+      setSelectedResource(null);
+    } else if (draftEvent) {
+      // If draft exists but modal not open, just clear it
+      setDraftEvent(null);
+    }
+    
     setSelectedEvent(event.id);
     setSelectedEventData(event);
-    // Don't open action panel - bottom sheet will show event details
+    // Open action panel on desktop - bottom sheet will show event details on mobile
+    setIsActionSidebarOpen(true); // Open the desktop action sidebar
     setEventDetailsOpen(false); // Close modal if it was open
+    setIsEditingEvent(false); // Always reset to Event Details view when clicking an event
+    setIsEditFormDirty(false); // Reset dirty state
     setIsEditingNotes(false); // Reset notes edit mode when selecting a new event
     setShowCustomerDetailsPopup(false); // Close customer popup when selecting a new event
     
@@ -3766,12 +4102,6 @@ export default function CalendarPage() {
 
   const handleDeleteEvent = async () => {
     if (!selectedEventData?.id) return;
-    
-    const confirmDelete = window.confirm(
-      'Are you sure you want to delete this event? This will remove it from both Reeva Detailer and Google Calendar.'
-    );
-    
-    if (!confirmDelete) return;
 
     try {
       const response = await fetch(`/api/detailer/events/${selectedEventData.id}`, {
@@ -3783,15 +4113,12 @@ export default function CalendarPage() {
         fetchCalendarEvents();
         // Close the modal
         handleCloseEventDetails();
-        // Show success message
-        alert('Event deleted successfully!');
       } else {
         const error = await response.json();
-        alert(`Failed to delete event: ${error.error}`);
+        console.error('Failed to delete event:', error.error);
       }
     } catch (error) {
       console.error('Error deleting event:', error);
-      alert('Failed to delete event. Please try again.');
     }
   };
 
@@ -4236,6 +4563,21 @@ export default function CalendarPage() {
             onOpenNewCustomerModal={(initialName) => {
               setNewCustomerModalInitialName(initialName);
               setIsNewCustomerModalOpen(true);
+            }}
+            onOpenEditCustomerModal={(customer) => {
+              console.log('onOpenEditCustomerModal called in CalendarPage with:', customer);
+              // Set up customer data for editing
+              setEditingCustomerData({
+                customerName: customer.customerName,
+                customerPhone: customer.customerPhone,
+                customerAddress: customer.customerAddress || ''
+              });
+              setIsEditingCustomer(true);
+              setIsNewCustomerModalOpen(true);
+              console.log('State updated - isEditingCustomer:', true, 'isNewCustomerModalOpen:', true);
+            }}
+            onRequestClose={() => {
+              setShowEventModalDiscardModal(true);
             }}
             newCustomerData={newCustomerData}
         />
@@ -4776,7 +5118,8 @@ export default function CalendarPage() {
                     setDraftEvent({
                       resourceId: draft.resourceId,
                       startTime: draft.startTime,
-                      endTime: draft.endTime
+                      endTime: draft.endTime,
+                      date: draft.date
                     });
                   }
                   setIsModalOpen(true);
@@ -4785,13 +5128,14 @@ export default function CalendarPage() {
                   resourceId: draftEvent.resourceId,
                   startTime: draftEvent.startTime,
                   endTime: draftEvent.endTime,
-                  date: currentDate
+                  date: draftEvent.date || currentDate
                 } : null}
                 onDraftEventUpdate={(updatedDraft) => {
                   setDraftEvent({
                     resourceId: updatedDraft.resourceId,
                     startTime: updatedDraft.startTime,
-                    endTime: updatedDraft.endTime
+                    endTime: updatedDraft.endTime,
+                    date: updatedDraft.date
                   });
                 }}
               />}
@@ -4807,10 +5151,23 @@ export default function CalendarPage() {
                   onEventClick={handleEventClick}
                   onResourceSelect={setSelectedResource}
                   onOpenModal={(draft) => {
-                    if (draft) {
-                      setDraftEvent(draft);
+                    // Check for unsaved changes in edit form
+                    if (isEditingEvent && isEditFormDirty) {
+                      // Store the draft event to open after discard confirmation
+                      if (draft) {
+                        setPendingDraftEvent(draft);
+                      } else {
+                        setPendingDraftEvent(null);
+                      }
+                      // Show discard modal
+                      setShowDiscardModal(true);
+                    } else {
+                      // No unsaved changes, proceed with opening modal
+                      if (draft) {
+                        setDraftEvent(draft);
+                      }
+                      setIsModalOpen(true);
                     }
-                    setIsModalOpen(true);
                   }}
                   draftEvent={draftEvent}
                   onDraftEventUpdate={(updatedDraft) => {
@@ -4838,6 +5195,21 @@ export default function CalendarPage() {
             onOpenNewCustomerModal={(initialName) => {
               setNewCustomerModalInitialName(initialName);
               setIsNewCustomerModalOpen(true);
+            }}
+            onOpenEditCustomerModal={(customer) => {
+              console.log('onOpenEditCustomerModal called in CalendarPage with:', customer);
+              // Set up customer data for editing
+              setEditingCustomerData({
+                customerName: customer.customerName,
+                customerPhone: customer.customerPhone,
+                customerAddress: customer.customerAddress || ''
+              });
+              setIsEditingCustomer(true);
+              setIsNewCustomerModalOpen(true);
+              console.log('State updated - isEditingCustomer:', true, 'isNewCustomerModalOpen:', true);
+            }}
+            onRequestClose={() => {
+              setShowEventModalDiscardModal(true);
             }}
             newCustomerData={newCustomerData}
         />
@@ -4950,18 +5322,81 @@ export default function CalendarPage() {
           </div>
         )}
 
-        {/* Action Sidebar Backdrop */}
-        {isActionSidebarOpen && (
-          <div
-            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[85]"
-            onClick={() => setIsActionSidebarOpen(false)}
-          />
-        )}
+        {/* Action Sidebar Backdrop - removed blur and shadow per user request */}
+        {/* Click-outside functionality is handled by the useEffect hook */}
+        
+        {/* Modal Backdrop - removed blur and shadow per user request */}
+        {/* Note: Events have z-index 20, so they'll be above this backdrop (z-45) and clickable */}
+        {/* Backdrop removed - no blur or shadow outside Create Event modal */}
+
+        {/* Discard Changes Modal - Rendered at top level to appear centered on screen */}
+        <DiscardChangesModal
+          isOpen={showDiscardModal}
+          onKeepEditing={(e) => {
+            // Stop any event propagation to prevent click outside handlers
+            if (e) {
+              e.stopPropagation();
+              e.preventDefault();
+            }
+            // Just close the modal, keep everything else as is
+            // The sidebar and edit state should remain as they were
+            setShowDiscardModal(false);
+            // Clear any pending draft event since user chose to keep editing
+            setPendingDraftEvent(null);
+          }}
+          onDiscard={() => {
+            const wasEditing = isEditingEvent;
+            setShowDiscardModal(false);
+            setIsEditingEvent(false);
+            setIsEditFormDirty(false);
+            
+            // If there's a pending draft event (from clicking empty space while editing), open it now
+            if (pendingDraftEvent) {
+              setDraftEvent(pendingDraftEvent);
+              setIsModalOpen(true);
+              setPendingDraftEvent(null);
+            }
+            
+            // If closing from edit form cancel, just exit edit mode
+            // If closing from sidebar X, close the sidebar
+            if (!wasEditing && !pendingDraftEvent) {
+              setIsActionSidebarOpen(false);
+              setSelectedEventData(null);
+              setSelectedEvent(null);
+              setIsEditingNotes(false);
+              setShowCustomerDetailsPopup(false);
+            }
+          }}
+          isCreating={false}
+        />
+        
+        {/* Discard Changes Modal for Create Event Panel */}
+        <DiscardChangesModal
+          isOpen={showEventModalDiscardModal}
+          onKeepEditing={(e) => {
+            // Stop any event propagation to prevent click outside handlers
+            if (e) {
+              e.stopPropagation();
+              e.preventDefault();
+            }
+            // Just close the modal, keep EventModal open
+            setShowEventModalDiscardModal(false);
+          }}
+          onDiscard={() => {
+            setShowEventModalDiscardModal(false);
+            // Close EventModal
+            setIsModalOpen(false);
+            setSelectedResource(null);
+            setDraftEvent(null);
+            setNewCustomerData(null);
+          }}
+          isCreating={true}
+        />
         
         {/* Action Sidebar */}
         <div 
           ref={actionSidebarRef}
-          className={`fixed top-0 right-0 h-full w-full md:w-[400px] lg:w-[420px] shadow-2xl z-[90] transform transition-transform duration-300 ease-in-out ${
+          className={`fixed top-0 right-0 h-full w-full md:w-[400px] lg:w-[420px] z-[90] transform transition-transform duration-300 ease-in-out ${
             isActionSidebarOpen ? 'translate-x-0' : 'translate-x-full'
           }`} style={{ backgroundColor: '#F8F8F7', borderLeft: '1px solid #E2E2DD', boxShadow: 'none' }}>
           <div className="h-full flex flex-col overflow-hidden" style={{ backgroundColor: '#F8F8F7' }}>
@@ -5000,11 +5435,16 @@ export default function CalendarPage() {
                 </div>
                 <button
                   onClick={() => {
-                    setIsActionSidebarOpen(false);
-                    setSelectedEventData(null);
-                    setSelectedEvent(null);
-                    setIsEditingNotes(false); // Reset notes edit mode when closing sidebar
-                    setShowCustomerDetailsPopup(false); // Close customer popup when closing sidebar
+                    if (isEditingEvent && isEditFormDirty) {
+                      setShowDiscardModal(true);
+                    } else {
+                      setIsActionSidebarOpen(false);
+                      setSelectedEventData(null);
+                      setSelectedEvent(null);
+                      setIsEditingEvent(false);
+                      setIsEditingNotes(false);
+                      setShowCustomerDetailsPopup(false);
+                    }
                   }}
                   className="p-1 rounded-lg hover:bg-gray-100 transition-colors"
                 >
@@ -5014,14 +5454,27 @@ export default function CalendarPage() {
             </div>
 
             {/* Content - Show event details if event is selected, otherwise show today's events */}
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto" style={{ paddingBottom: isEditingEvent ? '100px' : '0' }}>
               {selectedEventData ? (
                 isEditingEvent ? (
                   // Show edit form
                   <div className="p-6">
                   <EventEditForm
+                    ref={eventEditFormRef}
                     event={selectedEventData}
                     resources={resources}
+                    onDirtyChange={(isDirty) => setIsEditFormDirty(isDirty)}
+                    onRequestDiscard={() => setShowDiscardModal(true)}
+                    onEditCustomer={() => {
+                      // Set up customer data for editing
+                      setEditingCustomerData({
+                        customerName: selectedEventData.customerName || '',
+                        customerPhone: selectedEventData.customerPhone || '',
+                        customerAddress: selectedEventData.customerAddress || ''
+                      });
+                      setIsEditingCustomer(true);
+                      setIsNewCustomerModalOpen(true);
+                    }}
                     onSave={async (updatedData: any) => {
                       try {
                         const response = await fetch(`/api/detailer/events/${selectedEventData.id}`, {
@@ -5034,6 +5487,7 @@ export default function CalendarPage() {
                           const result = await response.json();
                           fetchCalendarEvents();
                           setIsEditingEvent(false);
+                          setIsEditFormDirty(false);
                           
                           // Construct start and end fields from the saved data for proper form initialization
                           let updatedEventData = { ...selectedEventData, ...updatedData };
@@ -5056,18 +5510,18 @@ export default function CalendarPage() {
                           
                           // Update selected event data with computed fields
                           setSelectedEventData(updatedEventData);
-                          alert('Event updated successfully!');
                         } else {
                           const error = await response.json();
-                          alert(`Failed to update event: ${error.error}`);
+                          console.error('Failed to update event:', error.error);
                         }
                       } catch (error) {
                         console.error('Error updating event:', error);
-                        alert('Failed to update event. Please try again.');
                       }
                     }}
                     onCancel={() => {
+                      // onCancel is called after user confirms discard in modal
                       setIsEditingEvent(false);
+                      setIsEditFormDirty(false);
                       setEditFormData(null);
                     }}
                   />
@@ -5082,73 +5536,280 @@ export default function CalendarPage() {
                     {(selectedEventData.customerName || selectedEventData.customerPhone) ? (
                       <div 
                         ref={eventDetailsCustomerCardRef}
-                        className="bg-gray-50 rounded-xl p-4 border relative cursor-pointer hover:bg-gray-100 transition-colors" 
+                        className="bg-gray-50 rounded-xl p-4 border relative" 
                         style={{ borderColor: '#E2E2DD' }}
-                        onClick={() => {
-                          if (eventDetailsCustomerCardRef.current) {
-                            const rect = eventDetailsCustomerCardRef.current.getBoundingClientRect();
-                            // Position popup to the left of the action panel, adjacent to customer box
-                            // Action panel is fixed right-0 with width 400px
-                            const actionPanelWidth = 400;
-                            const popupWidth = 320; // w-80 = 320px
-                            const gap = 4; // 4px gap between popup and action panel
-                            
-                            setCustomerPopupPosition({
-                              top: rect.top, // Align top with customer card
-                              right: actionPanelWidth + gap // Position to the left of action panel with gap
-                            });
-                          }
-                          setShowCustomerDetailsPopup(true);
-                        }}
                       >
-                        <div className="pr-8">
-                          <div className="flex items-start justify-between mb-2">
-                            <h4 className="font-semibold text-gray-900 text-base">
-                              {selectedEventData.customerName || 'Unnamed Customer'}
-                            </h4>
-                            {selectedEventData.customerPhone && (
-                              <span className="text-sm text-gray-600">
-                                {selectedEventData.customerPhone}
-                              </span>
-                            )}
-                      </div>
-                          
-                          {selectedEventData.customerAddress && (
-                            <p className="text-sm text-gray-600 mb-3">
-                              {selectedEventData.customerAddress}
-                            </p>
-                          )}
-                          
-                          {customerPastJobs && customerPastJobs.length > 0 && (
-                            <div className="mt-3">
-                              <p className="font-semibold text-sm text-gray-900 mb-1">
-                                {customerPastJobs.length} Past {customerPastJobs.length === 1 ? 'job' : 'jobs'}
-                              </p>
-                              {customerPastJobs[0] && customerPastJobs[0].date && (
-                                <p className="text-sm text-gray-600">
-                                  Last detail: {(() => {
-                                    try {
-                                      const date = new Date(customerPastJobs[0].date);
-                                      if (isNaN(date.getTime())) return 'Date unavailable';
-                                      return format(date, 'MMMM d, yyyy');
-                                    } catch (e) {
-                                      return 'Date unavailable';
-                                    }
-                                  })()}
-                                  {customerPastJobs[0].services && customerPastJobs[0].services.length > 0 && (
-                                    <span>, {Array.isArray(customerPastJobs[0].services) ? customerPastJobs[0].services.join(' + ') : customerPastJobs[0].services}</span>
-                                  )}
-                                  {customerPastJobs[0].vehicleModel && (
-                                    <span> on a {customerPastJobs[0].vehicleModel}</span>
-                                  )}
-                                </p>
+                        <div className="flex items-start justify-between">
+                          <div 
+                            className="flex-1 pr-8 cursor-pointer hover:bg-gray-100 -m-2 p-2 rounded-lg transition-colors"
+                            onClick={() => {
+                              if (eventDetailsCustomerCardRef.current) {
+                                const rect = eventDetailsCustomerCardRef.current.getBoundingClientRect();
+                                // Position popup to the left of the action panel, adjacent to customer box
+                                // Action panel is fixed right-0 with width 400px
+                                const actionPanelWidth = 400;
+                                const popupWidth = 320; // w-80 = 320px
+                                const gap = 4; // 4px gap between popup and action panel
+                                
+                                setCustomerPopupPosition({
+                                  top: rect.top, // Align top with customer card
+                                  right: actionPanelWidth + gap // Position to the left of action panel with gap
+                                });
+                              }
+                              setShowCustomerDetailsPopup(true);
+                            }}
+                          >
+                            <div className="flex items-start justify-between mb-2">
+                              <h4 className="font-semibold text-gray-900 text-base">
+                                {selectedEventData.customerName || 'Unnamed Customer'}
+                              </h4>
+                              {selectedEventData.customerPhone && (
+                                <span className="text-sm text-gray-600 ml-2">
+                                  {selectedEventData.customerPhone}
+                                </span>
                               )}
-                      </div>
-                          )}
+                            </div>
+                          
+                            {selectedEventData.customerAddress && (
+                              <p className="text-sm text-gray-600 mb-3">
+                                {selectedEventData.customerAddress}
+                              </p>
+                            )}
+                          
+                            {customerPastJobs && customerPastJobs.length > 0 && (
+                              <div className="mt-3">
+                                <p className="font-semibold text-sm text-gray-900 mb-1">
+                                  {customerPastJobs.length} Past {customerPastJobs.length === 1 ? 'job' : 'jobs'}
+                                </p>
+                                {customerPastJobs[0] && customerPastJobs[0].date && (
+                                  <p className="text-sm text-gray-600">
+                                    Last detail: {(() => {
+                                      try {
+                                        const date = new Date(customerPastJobs[0].date);
+                                        if (isNaN(date.getTime())) return 'Date unavailable';
+                                        return format(date, 'MMMM d, yyyy');
+                                      } catch (e) {
+                                        return 'Date unavailable';
+                                      }
+                                    })()}
+                                    {customerPastJobs[0].services && customerPastJobs[0].services.length > 0 && (
+                                      <span>, {Array.isArray(customerPastJobs[0].services) ? customerPastJobs[0].services.join(' + ') : customerPastJobs[0].services}</span>
+                                    )}
+                                    {customerPastJobs[0].vehicleModel && (
+                                      <span> on a {customerPastJobs[0].vehicleModel}</span>
+                                    )}
+                                  </p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                // Set up customer data for editing
+                                setEditingCustomerData({
+                                  customerName: selectedEventData.customerName || '',
+                                  customerPhone: selectedEventData.customerPhone || '',
+                                  customerAddress: selectedEventData.customerAddress || ''
+                                });
+                                setIsEditingCustomer(true);
+                                setIsNewCustomerModalOpen(true);
+                              }}
+                              className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                              title="Edit customer"
+                            >
+                              <PencilIcon className="w-4 h-4 text-gray-700" />
+                            </button>
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                e.preventDefault();
+                                
+                                // Remove customer from event
+                                if (selectedEventData && selectedEventData.id) {
+                                  try {
+                                    const response = await fetch(`/api/detailer/events/${selectedEventData.id}`, {
+                                      method: 'PATCH',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({
+                                        customerName: null,
+                                        customerPhone: null,
+                                        customerAddress: null
+                                      }),
+                                    });
+
+                                    if (response.ok) {
+                                      // Update local state
+                                      const updatedEventData = {
+                                        ...selectedEventData,
+                                        customerName: null,
+                                        customerPhone: null,
+                                        customerAddress: null
+                                      };
+                                      setSelectedEventData(updatedEventData);
+                                      
+                                      // Refresh customers list for search
+                                      fetch('/api/detailer/customers')
+                                        .then(res => res.json())
+                                        .then(data => {
+                                          if (data.customers) {
+                                            setEventDetailsCustomers(data.customers);
+                                          }
+                                        })
+                                        .catch(err => console.error('Error fetching customers:', err));
+                                      
+                                      // Refresh calendar to show updated data
+                                      fetchCalendarEvents();
+                                    } else {
+                                      const error = await response.json();
+                                      console.error('Failed to remove customer:', error.error);
+                                    }
+                                  } catch (error) {
+                                    console.error('Error removing customer:', error);
+                                  }
+                                }
+                              }}
+                              className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                              title="Remove customer"
+                            >
+                              <XMarkIcon className="w-4 h-4 text-gray-500" />
+                            </button>
+                          </div>
                         </div>
                       </div>
                     ) : (
-                      <p className="text-sm text-gray-500 italic">No customer information available</p>
+                      <div className="space-y-3">
+                        {/* Search bar */}
+                        <div className="relative">
+                          <div className="relative">
+                            <input 
+                              type="text" 
+                              value={eventDetailsCustomerSearch} 
+                              onChange={e => {
+                                setEventDetailsCustomerSearch(e.target.value);
+                                setShowEventDetailsCustomerSuggestions(true);
+                                setSelectedEventDetailsCustomerIndex(-1);
+                              }}
+                              onFocus={() => {
+                                if (eventDetailsCustomerSearch.trim().length > 0) {
+                                  setShowEventDetailsCustomerSuggestions(true);
+                                }
+                              }}
+                              onBlur={() => {
+                                // Delay hiding suggestions to allow click on suggestion
+                                setTimeout(() => setShowEventDetailsCustomerSuggestions(false), 200);
+                              }}
+                              onKeyDown={(e) => {
+                                const filteredCustomers = eventDetailsCustomerSearch.trim()
+                                  ? eventDetailsCustomers.filter(customer => {
+                                      const name = (customer.customerName || '').toLowerCase();
+                                      const phone = (customer.customerPhone || '').toLowerCase();
+                                      const searchTerm = eventDetailsCustomerSearch.toLowerCase();
+                                      return name.includes(searchTerm) || phone.includes(searchTerm);
+                                    })
+                                  : [];
+                                const showAddNew = eventDetailsCustomerSearch.trim().length > 0;
+                                const totalSuggestions = filteredCustomers.length + (showAddNew ? 1 : 0);
+
+                                if (e.key === 'ArrowDown') {
+                                  e.preventDefault();
+                                  setSelectedEventDetailsCustomerIndex(prev => 
+                                    prev < totalSuggestions - 1 ? prev + 1 : prev
+                                  );
+                                } else if (e.key === 'ArrowUp') {
+                                  e.preventDefault();
+                                  setSelectedEventDetailsCustomerIndex(prev => prev > 0 ? prev - 1 : -1);
+                                } else if (e.key === 'Enter' && selectedEventDetailsCustomerIndex >= 0) {
+                                  e.preventDefault();
+                                  if (selectedEventDetailsCustomerIndex < filteredCustomers.length) {
+                                    handleEventDetailsCustomerSelect(filteredCustomers[selectedEventDetailsCustomerIndex]);
+                                  } else if (showAddNew) {
+                                    setNewCustomerModalInitialName(eventDetailsCustomerSearch);
+                                    setIsNewCustomerModalOpen(true);
+                                  }
+                                }
+                              }}
+                              className="w-full px-4 py-2.5 border rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent pl-10" 
+                              placeholder="Search existing customers"
+                              style={{ borderColor: '#E2E2DD' }}
+                            />
+                            <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                          </div>
+                          {showEventDetailsCustomerSuggestions && eventDetailsCustomerSearch.trim().length > 0 && (
+                            <div className="absolute z-10 w-full mt-1 bg-white border rounded-xl shadow-lg max-h-60 overflow-auto" style={{ borderColor: '#E2E2DD' }}>
+                              {eventDetailsCustomers.filter(customer => {
+                                const name = (customer.customerName || '').toLowerCase();
+                                const phone = (customer.customerPhone || '').toLowerCase();
+                                const searchTerm = eventDetailsCustomerSearch.toLowerCase();
+                                return name.includes(searchTerm) || phone.includes(searchTerm);
+                              }).map((customer, index) => (
+                                <div
+                                  key={customer.id}
+                                  onClick={() => handleEventDetailsCustomerSelect(customer)}
+                                  className={`px-4 py-2 cursor-pointer hover:bg-gray-100 ${
+                                    index === selectedEventDetailsCustomerIndex 
+                                      ? 'bg-gray-100' 
+                                      : ''
+                                  }`}
+                                >
+                                  <div className="font-medium text-gray-900">
+                                    {customer.customerName || 'Unnamed Customer'}
+                                  </div>
+                                  {customer.customerPhone && (
+                                    <div className="text-sm text-gray-500">
+                                      {customer.customerPhone}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                              {/* Always show "Add new customer" as the last option */}
+                              {eventDetailsCustomerSearch.trim().length > 0 && (
+                                <div
+                                  onClick={() => {
+                                    setNewCustomerModalInitialName(eventDetailsCustomerSearch);
+                                    setIsNewCustomerModalOpen(true);
+                                  }}
+                                  className={`px-4 py-2 cursor-pointer hover:bg-gray-100 border-t ${
+                                    eventDetailsCustomers.filter(customer => {
+                                      const name = (customer.customerName || '').toLowerCase();
+                                      const phone = (customer.customerPhone || '').toLowerCase();
+                                      const searchTerm = eventDetailsCustomerSearch.toLowerCase();
+                                      return name.includes(searchTerm) || phone.includes(searchTerm);
+                                    }).length === selectedEventDetailsCustomerIndex 
+                                      ? 'bg-gray-100' 
+                                      : ''
+                                  }`}
+                                  style={{ borderColor: '#E2E2DD' }}
+                                >
+                                  <div className="font-medium text-blue-600 flex items-center gap-2">
+                                    <span>+</span>
+                                    <span>Add new customer: "{eventDetailsCustomerSearch}"</span>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        
+                        {/* Always-visible "New customer" button */}
+                        <div className="flex justify-end">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setNewCustomerModalInitialName('');
+                              setIsNewCustomerModalOpen(true);
+                            }}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 border rounded-full text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                            style={{ borderColor: '#E2E2DD' }}
+                          >
+                            <span className="text-gray-600">+</span>
+                            <span>New customer</span>
+                          </button>
+                        </div>
+                      </div>
                     )}
                   </div>
 
@@ -5797,11 +6458,10 @@ export default function CalendarPage() {
                                         setShowEmployeeSwitchDropdown(false);
                                       } else {
                                         const error = await response.json();
-                                        alert(`Failed to update employee: ${error.error}`);
+                                        console.error('Failed to update employee:', error.error);
                                       }
                                     } catch (error) {
                                       console.error('Error updating employee:', error);
-                                      alert('Failed to update employee. Please try again.');
                                     }
                                   }}
                                   className={`w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors ${
@@ -5883,11 +6543,10 @@ export default function CalendarPage() {
                                       setShowEmployeeSwitchDropdown(false);
                             } else {
                               const error = await response.json();
-                                      alert(`Failed to update employee: ${error.error}`);
+                                      console.error('Failed to update employee:', error.error);
                             }
                           } catch (error) {
                                     console.error('Error updating employee:', error);
-                                    alert('Failed to update employee. Please try again.');
                                   }
                                 }}
                                 className="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors"
@@ -5985,12 +6644,6 @@ export default function CalendarPage() {
                             onClick={async () => {
                               // Handle cancel/delete
                               if (event.id) {
-                                const confirmDelete = window.confirm(
-                                  'Are you sure you want to delete this event?'
-                                );
-                                
-                                if (!confirmDelete) return;
-                                
                                 try {
                                   const response = await fetch(`/api/detailer/events/${event.id}`, {
                                     method: 'DELETE',
@@ -5998,14 +6651,12 @@ export default function CalendarPage() {
 
                                   if (response.ok) {
                                     fetchCalendarEvents();
-                                    alert('Event deleted successfully!');
                                   } else {
                                     const error = await response.json();
-                                    alert(`Failed to delete event: ${error.error}`);
+                                    console.error('Failed to delete event:', error.error);
                                   }
                                 } catch (error) {
                                   console.error('Error deleting event:', error);
-                                  alert('Failed to delete event. Please try again.');
                                 }
                               }
                             }}
@@ -6039,19 +6690,16 @@ export default function CalendarPage() {
 
                                   if (response.ok) {
                                     fetchCalendarEvents();
-                                    alert('Booking confirmed successfully!');
                                   } else {
                                     const error = await response.json();
-                                    alert(`Failed to confirm booking: ${error.error}`);
+                                    console.error('Failed to confirm booking:', error.error);
                                   }
                                 } catch (error) {
                                   console.error('Error confirming booking:', error);
-                                  alert('Failed to confirm booking. Please try again.');
                                 }
                               } else if (event.status === 'pending') {
                                 // For events without bookingId, just refresh (they're already created)
                                 fetchCalendarEvents();
-                                alert('Event accepted!');
                               }
                             }}
                             className="px-4 py-2 bg-orange-500 hover:bg-orange-600 rounded-full flex items-center gap-2 transition-colors"
@@ -6160,12 +6808,6 @@ export default function CalendarPage() {
                   <button
                     onClick={async () => {
                       if (selectedEventData?.id) {
-                        const confirmDelete = window.confirm(
-                          'Are you sure you want to delete this event? This will remove it from both Reeva Detailer and Google Calendar.'
-                        );
-                        
-                        if (!confirmDelete) return;
-                        
                         try {
                           const response = await fetch(`/api/detailer/events/${selectedEventData.id}`, {
                             method: 'DELETE',
@@ -6176,14 +6818,12 @@ export default function CalendarPage() {
                             setSelectedEventData(null);
                             setSelectedEvent(null);
                             setIsActionSidebarOpen(false);
-                            alert('Event deleted successfully!');
                           } else {
                             const error = await response.json();
-                            alert(`Failed to delete event: ${error.error}`);
+                            console.error('Failed to delete event:', error.error);
                           }
                         } catch (error) {
                           console.error('Error deleting event:', error);
-                          alert('Failed to delete event. Please try again.');
                         }
                       }
                     }}
@@ -6265,6 +6905,36 @@ export default function CalendarPage() {
               </div>
             )}
           </div>
+
+          {/* Fixed Action Buttons - Only show when editing event */}
+          {isEditingEvent && selectedEventData && (
+            <div className="flex-shrink-0 p-6 border-t border-gray-200" style={{ backgroundColor: '#F8F8F7', position: 'sticky', bottom: 0, zIndex: 10 }}>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    if (eventEditFormRef.current) {
+                      eventEditFormRef.current.handleCancel();
+                    }
+                  }}
+                  className="flex-1 px-6 py-2 border rounded-xl text-gray-700 hover:bg-gray-50 transition-colors"
+                  style={{ borderColor: '#E2E2DD' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    if (eventEditFormRef.current) {
+                      eventEditFormRef.current.handleSubmit();
+                    }
+                  }}
+                  className="flex-1 px-6 py-2 bg-orange-500 text-white rounded-xl hover:bg-orange-600 transition-colors flex items-center justify-center gap-2"
+                >
+                  <CheckIcon className="w-5 h-5" />
+                  <span>Save</span>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Column Sidebar - Only show when action panel is closed */}
@@ -6292,16 +6962,119 @@ export default function CalendarPage() {
           onClose={() => {
             setIsNewCustomerModalOpen(false);
             setNewCustomerModalInitialName('');
+            setIsEditingCustomer(false);
+            setEditingCustomerData(null);
           }}
-          onSuccess={(customer) => {
-            // Store the new customer data to populate EventModal form
-            setNewCustomerData(customer);
+          onSuccess={async (customer) => {
+            if (isEditingCustomer) {
+              if (selectedEventData) {
+                // Update the event data with edited customer information
+                const updatedEventData = {
+                  ...selectedEventData,
+                  customerName: customer.customerName,
+                  customerPhone: customer.customerPhone,
+                  customerAddress: customer.address || ''
+                };
+                setSelectedEventData(updatedEventData);
+                
+                // If editing from Event Details view (not edit mode), save to database
+                if (!isEditingEvent && selectedEventData.id) {
+                  try {
+                    const response = await fetch(`/api/detailer/events/${selectedEventData.id}`, {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        customerName: customer.customerName,
+                        customerPhone: customer.customerPhone,
+                        customerAddress: customer.address || ''
+                      }),
+                    });
+
+                    if (response.ok) {
+                      fetchCalendarEvents(); // Refresh calendar to show updated data
+                    } else {
+                      const error = await response.json();
+                      console.error('Failed to update customer:', error.error);
+                    }
+                  } catch (error) {
+                    console.error('Error updating customer:', error);
+                  }
+                } else {
+                  // If in edit mode, mark form as dirty
+                  setIsEditFormDirty(true);
+                }
+              } else if (isModalOpen) {
+                // Editing customer from Create Event panel - update the customer data
+                setNewCustomerData(customer);
+              }
+            } else {
+              // New customer created (not editing)
+              if (selectedEventData && selectedEventData.id && !isEditingEvent) {
+                // If we're in Event Details panel and there's no customer, add the new customer to the event
+                if (!selectedEventData.customerName && !selectedEventData.customerPhone) {
+                  try {
+                    const response = await fetch(`/api/detailer/events/${selectedEventData.id}`, {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        customerName: customer.customerName,
+                        customerPhone: customer.customerPhone,
+                        customerAddress: customer.address || ''
+                      }),
+                    });
+
+                    if (response.ok) {
+                      // Update local state
+                      const updatedEventData = {
+                        ...selectedEventData,
+                        customerName: customer.customerName,
+                        customerPhone: customer.customerPhone,
+                        customerAddress: customer.address || ''
+                      };
+                      setSelectedEventData(updatedEventData);
+                      
+                      // Clear search
+                      setEventDetailsCustomerSearch('');
+                      setShowEventDetailsCustomerSuggestions(false);
+                      
+                      // Refresh customers list
+                      fetch('/api/detailer/customers')
+                        .then(res => res.json())
+                        .then(data => {
+                          if (data.customers) {
+                            setEventDetailsCustomers(data.customers);
+                          }
+                        })
+                        .catch(err => console.error('Error fetching customers:', err));
+                      
+                      // Refresh calendar to show updated data
+                      fetchCalendarEvents();
+                    } else {
+                      const error = await response.json();
+                      console.error('Failed to add customer to event:', error.error);
+                    }
+                  } catch (error) {
+                    console.error('Error adding customer to event:', error);
+                  }
+                } else {
+                  // Store the new customer data to populate EventModal form
+                  setNewCustomerData(customer);
+                }
+              } else {
+                // Store the new customer data to populate EventModal form
+                setNewCustomerData(customer);
+              }
+            }
             
             // Close modal
             setIsNewCustomerModalOpen(false);
             setNewCustomerModalInitialName('');
+            setIsEditingCustomer(false);
+            setEditingCustomerData(null);
           }}
           initialName={newCustomerModalInitialName}
+          existingCustomer={editingCustomerData || undefined}
+          isEditMode={isEditingCustomer}
         />
     </div>
   );

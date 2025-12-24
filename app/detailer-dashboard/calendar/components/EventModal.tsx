@@ -1,10 +1,54 @@
 "use client";
-import React, { useState, useEffect } from 'react';
-import { XMarkIcon, CheckIcon } from '@heroicons/react/24/solid';
+import React, { useState, useEffect, useRef } from 'react';
+import { XMarkIcon, CheckIcon, PencilIcon } from '@heroicons/react/24/solid';
 import Image from 'next/image';
 import { useSession } from 'next-auth/react';
 import { format } from 'date-fns';
 import AddressAutocompleteInput from './AddressAutocompleteInput';
+
+// Discard Changes Modal Component
+const DiscardChangesModal = ({ 
+  isOpen, 
+  onKeepEditing, 
+  onDiscard,
+  isCreating = false 
+}: { 
+  isOpen: boolean; 
+  onKeepEditing: () => void; 
+  onDiscard: () => void;
+  isCreating?: boolean;
+}) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100]">
+      <div className="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4">
+        <div className="p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">
+            {isCreating ? 'Discard this event?' : 'Discard changes?'}
+          </h3>
+          <p className="text-sm text-gray-600 mb-6">
+            You have unsaved changes. Updates will be lost.
+          </p>
+          <div className="flex gap-3">
+            <button
+              onClick={onKeepEditing}
+              className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 transition-colors"
+            >
+              Keep editing
+            </button>
+            <button
+              onClick={onDiscard}
+              className="flex-1 px-4 py-2 bg-red-500 text-white rounded-xl hover:bg-red-600 transition-colors"
+            >
+              Discard event
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 // Removed colorOptions - now using employees
 
@@ -16,10 +60,12 @@ type EventModalProps = {
     resources?: Array<{ id: string; name: string; type: 'bay' | 'van' }>;
     draftEvent?: { resourceId: string; startTime: string; endTime: string } | null;
     onOpenNewCustomerModal?: (initialName: string) => void;
+    onOpenEditCustomerModal?: (customer: { customerName: string; customerPhone: string; customerAddress?: string }) => void;
     newCustomerData?: { customerName: string; customerPhone: string; customerEmail?: string; address?: string } | null;
+    onRequestClose?: () => void; // Called when modal wants to close (checks for dirty state)
 };
 
-export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedResource, resources = [], draftEvent, onOpenNewCustomerModal, newCustomerData }: EventModalProps) {
+export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedResource, resources = [], draftEvent, onOpenNewCustomerModal, onOpenEditCustomerModal, newCustomerData, onRequestClose }: EventModalProps) {
     const { data: session } = useSession();
     const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
     const [employees, setEmployees] = useState<Array<{ id: string; name: string; color: string }>>([]);
@@ -55,6 +101,132 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
     const [selectedCustomerIndex, setSelectedCustomerIndex] = useState(-1);
     const customerCardRef = React.useRef<HTMLDivElement>(null);
     const [popupPosition, setPopupPosition] = useState<{ top: number; right: number } | null>(null);
+    
+    // Store initial values to detect changes (empty form initially)
+    const initialValuesRef = useRef({
+      selectedEmployeeId: '',
+      startDate: '',
+      endDate: '',
+      startTime: '',
+      endTime: '',
+      isAllDay: false,
+      isMultiDay: false,
+      selectedResourceId: preSelectedResource?.id || '',
+      customerName: '',
+      customerPhone: '',
+      customerEmail: '',
+      customerAddress: '',
+      locationType: '',
+      customerType: '',
+      vehicles: [] as Array<{ id: string; model: string }>,
+      selectedServices: [] as Array<{ id: string; name: string; type: 'service' | 'bundle' }>,
+      description: ''
+    });
+
+    // Check if form has been modified
+    const checkIfDirty = () => {
+      const current = {
+        selectedEmployeeId,
+        startDate,
+        endDate,
+        startTime,
+        endTime,
+        isAllDay,
+        isMultiDay,
+        selectedResourceId,
+        customerName,
+        customerPhone,
+        customerEmail,
+        customerAddress,
+        locationType,
+        customerType,
+        vehicles: vehicles.map(v => v.model).sort().join(','),
+        selectedServices: selectedServices.map(s => s.name).sort().join(','),
+        description
+      };
+
+      const initial = {
+        selectedEmployeeId: initialValuesRef.current.selectedEmployeeId,
+        startDate: initialValuesRef.current.startDate,
+        endDate: initialValuesRef.current.endDate,
+        startTime: initialValuesRef.current.startTime,
+        endTime: initialValuesRef.current.endTime,
+        isAllDay: initialValuesRef.current.isAllDay,
+        isMultiDay: initialValuesRef.current.isMultiDay,
+        selectedResourceId: initialValuesRef.current.selectedResourceId,
+        customerName: initialValuesRef.current.customerName,
+        customerPhone: initialValuesRef.current.customerPhone,
+        customerEmail: initialValuesRef.current.customerEmail,
+        customerAddress: initialValuesRef.current.customerAddress,
+        locationType: initialValuesRef.current.locationType,
+        customerType: initialValuesRef.current.customerType,
+        vehicles: initialValuesRef.current.vehicles.map(v => v.model).sort().join(','),
+        selectedServices: initialValuesRef.current.selectedServices.map(s => s.name).sort().join(','),
+        description: initialValuesRef.current.description
+      };
+
+      return JSON.stringify(current) !== JSON.stringify(initial);
+    };
+
+    // Handle close with dirty check
+    const handleClose = () => {
+      if (checkIfDirty()) {
+        if (onRequestClose) {
+          onRequestClose();
+        } else {
+          onClose();
+        }
+      } else {
+        onClose();
+      }
+    };
+
+    // Reset form when modal closes
+    useEffect(() => {
+      if (!isOpen) {
+        // Reset all form fields
+        setSelectedEmployeeId('');
+        setStartDate('');
+        setEndDate('');
+        setStartTime('');
+        setEndTime('');
+        setIsAllDay(false);
+        setIsMultiDay(false);
+        setSelectedResourceId(preSelectedResource?.id || '');
+        setCustomerName('');
+        setCustomerPhone('');
+        setCustomerEmail('');
+        setCustomerAddress('');
+        setLocationType('');
+        setCustomerType('');
+        setVehicles([]);
+        setSelectedServices([]);
+        setDescription('');
+        setSelectedCustomer(null);
+        setCustomerSearch('');
+        
+        // Reset initial values
+        initialValuesRef.current = {
+          selectedEmployeeId: '',
+          startDate: '',
+          endDate: '',
+          startTime: '',
+          endTime: '',
+          isAllDay: false,
+          isMultiDay: false,
+          selectedResourceId: preSelectedResource?.id || '',
+          customerName: '',
+          customerPhone: '',
+          customerEmail: '',
+          customerAddress: '',
+          locationType: '',
+          customerType: '',
+          vehicles: [],
+          selectedServices: [],
+          description: ''
+        };
+      }
+    }, [isOpen, preSelectedResource]);
     
     // Auto-generate title from selected services and bundles
     const title = selectedServices.map(s => s.name).join(', ') || '';
@@ -424,15 +596,12 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                 setDescription('');
                 setShowCustomerSuggestions(false);
                 setSelectedCustomerIndex(-1);
-                
-                // Show success message
-                alert('Event created successfully! It has been synced to your Google Calendar.');
             } else {
                 throw new Error(result.error || 'Failed to create event');
             }
         } catch (error) {
             console.error('Error creating event:', error);
-            alert('Failed to create event. Please try again.');
+            console.error('Failed to create event. Please try again.');
         }
     };
     
@@ -558,12 +727,52 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
             // Ensure it's not all-day
             setIsAllDay(false);
             setIsMultiDay(false);
+            
+            // Update initial values after state is set
+            setTimeout(() => {
+                initialValuesRef.current = {
+                    selectedEmployeeId: '',
+                    startDate: dateStr,
+                    endDate: '',
+                    startTime: startTimeStr,
+                    endTime: endTimeStr,
+                    isAllDay: false,
+                    isMultiDay: false,
+                    selectedResourceId: draftEvent.resourceId,
+                    customerName: '',
+                    customerPhone: '',
+                    customerEmail: '',
+                    customerAddress: '',
+                    locationType: '',
+                    customerType: '',
+                    vehicles: [],
+                    selectedServices: [],
+                    description: ''
+                };
+            }, 50);
         }
     }, [isOpen, draftEvent]);
     
-    // Populate form when new customer is created
+    // Populate form when new customer is created or existing customer is edited
     React.useEffect(() => {
         if (isOpen && newCustomerData) {
+            // Check if we're editing an existing customer (selectedCustomer exists and phone matches)
+            if (selectedCustomer && selectedCustomer.customerPhone === newCustomerData.customerPhone) {
+                // Update the selected customer with edited data
+                setSelectedCustomer({
+                    ...selectedCustomer,
+                    customerName: newCustomerData.customerName,
+                    customerPhone: newCustomerData.customerPhone,
+                    address: newCustomerData.address || ''
+                });
+                
+                // Update form fields
+                setCustomerName(newCustomerData.customerName || '');
+                setCustomerPhone(newCustomerData.customerPhone || '');
+                setCustomerAddress(newCustomerData.address || '');
+                return; // Don't fetch from API, we already have the updated data
+            }
+            
             // Find the newly created customer in the list
             fetch('/api/detailer/customers')
                 .then(res => res.json())
@@ -635,12 +844,52 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                                 setSelectedServices([]);
                             }
                             setCustomerSearch('');
+                            
+                            // Update initial values after state is set
+                            setTimeout(() => {
+                                const currentVehicles = newCustomer.vehicleModel ? [{ id: `vehicle-${Date.now()}`, model: newCustomer.vehicleModel }] : [];
+                                const currentServices = newCustomer.services && Array.isArray(newCustomer.services) 
+                                    ? newCustomer.services
+                                        .map((serviceName: string) => {
+                                            const service = availableServices.find((s: { id: string; name: string }) => s.name === serviceName);
+                                            if (service) {
+                                                return { id: service.id, name: service.name, type: 'service' as const };
+                                            }
+                                            const bundle = availableBundles.find((b: { id: string; name: string }) => b.name === serviceName);
+                                            if (bundle) {
+                                                return { id: bundle.id, name: bundle.name, type: 'bundle' as const };
+                                            }
+                                            return null;
+                                        })
+                                        .filter((s: { id: string; name: string; type: 'service' | 'bundle' } | null): s is { id: string; name: string; type: 'service' | 'bundle' } => s !== null)
+                                    : [];
+                                
+                                initialValuesRef.current = {
+                                    selectedEmployeeId: '',
+                                    startDate: startDate,
+                                    endDate: endDate,
+                                    startTime: startTime,
+                                    endTime: endTime,
+                                    isAllDay: isAllDay,
+                                    isMultiDay: isMultiDay,
+                                    selectedResourceId: selectedResourceId,
+                                    customerName: newCustomer.customerName || newCustomer.customerPhone || '',
+                                    customerPhone: newCustomer.customerPhone || '',
+                                    customerEmail: newCustomer.customerEmail || '',
+                                    customerAddress: newCustomer.address || '',
+                                    locationType: newCustomer.locationType || '',
+                                    customerType: '',
+                                    vehicles: currentVehicles,
+                                    selectedServices: currentServices,
+                                    description: (newCustomer.data && typeof newCustomer.data === 'object' && newCustomer.data.notes) ? newCustomer.data.notes : ''
+                                };
+                            }, 100);
                         }
                     }
                 })
                 .catch(err => console.error('Error fetching customers:', err));
         }
-    }, [isOpen, newCustomerData]);
+    }, [isOpen, newCustomerData, availableServices, availableBundles, selectedCustomer?.customerPhone]);
     
     // Reset selected customer and popup when modal closes
     React.useEffect(() => {
@@ -686,7 +935,7 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
     if (!isOpen) return null;
 
     return (
-        <div className="fixed top-0 right-0 h-full w-full md:w-[400px] lg:w-[420px] shadow-2xl z-50 transform transition-transform duration-300 ease-in-out translate-x-0" style={{ backgroundColor: '#F8F8F7', borderLeft: '1px solid #E2E2DD', boxShadow: 'none' }}>
+        <div className="fixed top-0 right-0 h-full w-full md:w-[400px] lg:w-[420px] z-50 transform transition-transform duration-300 ease-in-out translate-x-0" style={{ backgroundColor: '#F8F8F7', borderLeft: '1px solid #E2E2DD', boxShadow: 'none' }}>
             <div className="h-full flex flex-col overflow-hidden" style={{ backgroundColor: '#F8F8F7' }}>
                 <div className="flex-shrink-0 px-6 pt-6 pb-2">
                     <div className="flex justify-between items-center">
@@ -715,7 +964,7 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                             )}
                             </div>
                         </div>
-                        <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100 transition-colors">
+                        <button onClick={handleClose} className="p-1 rounded-lg hover:bg-gray-100 transition-colors">
                             <XMarkIcon className="w-5 h-5 text-gray-500" />
                         </button>
                     </div>
@@ -838,79 +1087,116 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                         {selectedCustomer && (
                             <div 
                                 ref={customerCardRef}
-                                className="bg-gray-50 rounded-xl p-4 border relative cursor-pointer hover:bg-gray-100 transition-colors" 
+                                className="bg-gray-50 rounded-xl p-4 border relative" 
                                 style={{ borderColor: '#E2E2DD' }}
-                                onClick={() => {
-                                    if (customerCardRef.current) {
-                                        const rect = customerCardRef.current.getBoundingClientRect();
-                                        // Position popup to the left of the action panel, adjacent to customer box
-                                        // Action panel is fixed right-0 with width 400px (md) or 420px (lg)
-                                        const actionPanelWidth = window.innerWidth >= 1024 ? 420 : window.innerWidth >= 768 ? 400 : window.innerWidth;
-                                        const popupWidth = 320; // w-80 = 320px
-                                        const gap = 4; // 4px gap between popup and action panel
-                                        
-                                        setPopupPosition({
-                                            top: rect.top, // Align top with customer card
-                                            right: actionPanelWidth + gap // Position to the left of action panel with gap
-                                        });
-                                    }
-                                    setShowCustomerDetailsPopup(true);
-                                }}
                             >
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleClearCustomer();
-                                    }}
-                                    className="absolute top-3 right-3 p-1 rounded-lg hover:bg-gray-200 transition-colors z-10"
-                                >
-                                    <XMarkIcon className="w-4 h-4 text-gray-500" />
-                                </button>
-                                
-                                <div className="pr-8">
-                                    <div className="flex items-start justify-between mb-2">
-                                        <h4 className="font-semibold text-gray-900 text-base">
-                                            {selectedCustomer.customerName || 'Unnamed Customer'}
-                                        </h4>
-                                        {selectedCustomer.customerPhone && (
-                                            <span className="text-sm text-gray-600">
-                                                {selectedCustomer.customerPhone}
-                                            </span>
-                                        )}
-                                    </div>
-                                    
-                                    {selectedCustomer.address && (
-                                        <p className="text-sm text-gray-600 mb-3">
-                                            {selectedCustomer.address}
-                                        </p>
-                                    )}
-                                    
-                                    {selectedCustomer.pastJobs && selectedCustomer.pastJobs.length > 0 && (
-                                        <div className="mt-3">
-                                            <p className="font-semibold text-sm text-gray-900 mb-1">
-                                                {selectedCustomer.pastJobs.length} Past {selectedCustomer.pastJobs.length === 1 ? 'job' : 'jobs'}
-                                            </p>
-                                            {selectedCustomer.pastJobs[0] && selectedCustomer.pastJobs[0].date && (
-                                                <p className="text-sm text-gray-600">
-                                                    Last detail: {(() => {
-                                                        try {
-                                                            const date = new Date(selectedCustomer.pastJobs[0].date);
-                                                            if (isNaN(date.getTime())) return 'Date unavailable';
-                                                            return format(date, 'MMMM d, yyyy');
-                                                        } catch (e) {
-                                                            return 'Date unavailable';
-                                                        }
-                                                    })()}
-                                                    {selectedCustomer.pastJobs[0].services && selectedCustomer.pastJobs[0].services.length > 0 && (
-                                                        <span>, {Array.isArray(selectedCustomer.pastJobs[0].services) ? selectedCustomer.pastJobs[0].services.join(', ') : selectedCustomer.pastJobs[0].services}</span>
-                                                    )}
-                                                    {selectedCustomer.pastJobs[0].vehicleModel && (
-                                                        <span> on a {selectedCustomer.pastJobs[0].vehicleModel}</span>
-                                                    )}
-                                                </p>
+                                <div className="flex items-start justify-between">
+                                    <div 
+                                        className="flex-1 pr-8 cursor-pointer hover:bg-gray-100 -m-2 p-2 rounded-lg transition-colors"
+                                        onClick={() => {
+                                            if (customerCardRef.current) {
+                                                const rect = customerCardRef.current.getBoundingClientRect();
+                                                // Position popup to the left of the action panel, adjacent to customer box
+                                                // Action panel is fixed right-0 with width 400px (md) or 420px (lg)
+                                                const actionPanelWidth = window.innerWidth >= 1024 ? 420 : window.innerWidth >= 768 ? 400 : window.innerWidth;
+                                                const popupWidth = 320; // w-80 = 320px
+                                                const gap = 4; // 4px gap between popup and action panel
+                                                
+                                                setPopupPosition({
+                                                    top: rect.top, // Align top with customer card
+                                                    right: actionPanelWidth + gap // Position to the left of action panel with gap
+                                                });
+                                            }
+                                            setShowCustomerDetailsPopup(true);
+                                        }}
+                                    >
+                                        <div className="flex items-start justify-between mb-2">
+                                            <h4 className="font-semibold text-gray-900 text-base">
+                                                {selectedCustomer.customerName || 'Unnamed Customer'}
+                                            </h4>
+                                            {selectedCustomer.customerPhone && (
+                                                <span className="text-sm text-gray-600 ml-2">
+                                                    {selectedCustomer.customerPhone}
+                                                </span>
                                             )}
                                         </div>
-                                    )}
+                                        
+                                        {selectedCustomer.address && (
+                                            <p className="text-sm text-gray-600 mb-3">
+                                                {selectedCustomer.address}
+                                            </p>
+                                        )}
+                                        
+                                        {selectedCustomer.pastJobs && selectedCustomer.pastJobs.length > 0 && (
+                                            <div className="mt-3">
+                                                <p className="font-semibold text-sm text-gray-900 mb-1">
+                                                    {selectedCustomer.pastJobs.length} Past {selectedCustomer.pastJobs.length === 1 ? 'job' : 'jobs'}
+                                                </p>
+                                                {selectedCustomer.pastJobs[0] && selectedCustomer.pastJobs[0].date && (
+                                                    <p className="text-sm text-gray-600">
+                                                        Last detail: {(() => {
+                                                            try {
+                                                                const date = new Date(selectedCustomer.pastJobs[0].date);
+                                                                if (isNaN(date.getTime())) return 'Date unavailable';
+                                                                return format(date, 'MMMM d, yyyy');
+                                                            } catch (e) {
+                                                                return 'Date unavailable';
+                                                            }
+                                                        })()}
+                                                        {selectedCustomer.pastJobs[0].services && selectedCustomer.pastJobs[0].services.length > 0 && (
+                                                            <span>, {Array.isArray(selectedCustomer.pastJobs[0].services) ? selectedCustomer.pastJobs[0].services.join(', ') : selectedCustomer.pastJobs[0].services}</span>
+                                                        )}
+                                                        {selectedCustomer.pastJobs[0].vehicleModel && (
+                                                            <span> on a {selectedCustomer.pastJobs[0].vehicleModel}</span>
+                                                        )}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="flex items-center gap-2 flex-shrink-0" style={{ position: 'relative', zIndex: 20 }}>
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                e.preventDefault();
+                                                console.log('Edit button clicked in EventModal');
+                                                // Always call the handler if it exists
+                                                if (onOpenEditCustomerModal) {
+                                                    console.log('Calling onOpenEditCustomerModal with:', {
+                                                        customerName: selectedCustomer.customerName || '',
+                                                        customerPhone: selectedCustomer.customerPhone || '',
+                                                        customerAddress: selectedCustomer.address || ''
+                                                    });
+                                                    onOpenEditCustomerModal({
+                                                        customerName: selectedCustomer.customerName || '',
+                                                        customerPhone: selectedCustomer.customerPhone || '',
+                                                        customerAddress: selectedCustomer.address || ''
+                                                    });
+                                                } else {
+                                                    console.error('onOpenEditCustomerModal is not available');
+                                                }
+                                            }}
+                                            onMouseDown={(e) => {
+                                                e.stopPropagation();
+                                            }}
+                                            className="p-2 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+                                            style={{ position: 'relative', zIndex: 20, pointerEvents: 'auto' }}
+                                            title="Edit customer"
+                                        >
+                                            <PencilIcon className="w-4 h-4 text-gray-700" />
+                                        </button>
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleClearCustomer();
+                                            }}
+                                            className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                                            title="Remove customer"
+                                        >
+                                            <XMarkIcon className="w-4 h-4 text-gray-500" />
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -1652,7 +1938,7 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
 
                 <div className="flex-shrink-0 p-6" style={{ backgroundColor: '#F8F8F7' }}>
                     <div className="flex gap-3">
-                        <button onClick={onClose} className="flex-1 px-6 py-2 border rounded-xl text-gray-700 hover:bg-gray-50 transition-colors" style={{ borderColor: '#E2E2DD' }}>
+                        <button onClick={handleClose} className="flex-1 px-6 py-2 border rounded-xl text-gray-700 hover:bg-gray-50 transition-colors" style={{ borderColor: '#E2E2DD' }}>
                             Cancel
                     </button>
                         <button onClick={handleSubmit} className="flex-1 px-6 py-2 bg-orange-500 text-white rounded-xl hover:bg-orange-600 transition-colors flex items-center justify-center gap-2">
@@ -1662,6 +1948,8 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                     </div>
                 </div>
             </div>
+
+            {/* Discard Changes Modal - moved to parent CalendarPage level */}
         </div>
     );
 } 

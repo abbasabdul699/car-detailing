@@ -84,9 +84,8 @@ export default function DetailerDashboardLayout({
   
   const navigation = [
     { name: "Calendar", href: "/detailer-dashboard/calendar", iconPath: "/icons/calendar (1).png" },
-    { name: "Messages", href: "/detailer-dashboard/messages", iconPath: "/icons/messages (1).png" },
-    { name: "Resources", href: "/detailer-dashboard/resources", iconPath: "/icons/users-alt-3.png" },
-    { name: "Customers", href: "/detailer-dashboard/customers", iconPath: "/icons/book-alt (1).png" },
+    { name: "Customer", href: "/detailer-dashboard/customers", iconPath: "/icons/book-alt (1).png" },
+    { name: "Conversation", href: "/detailer-dashboard/messages", iconPath: "/icons/messages (1).png" },
   ];
 
   const handleLogout = async () => {
@@ -225,6 +224,23 @@ export default function DetailerDashboardLayout({
                   >
                     <UserCircleIcon className="mr-3 h-5 w-5 text-gray-400" />
                     Edit profile
+                  </Link>
+                  <Link 
+                    href="/detailer-dashboard/resources" 
+                    className="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    onClick={() => setDropdownOpen(false)}
+                  >
+                    <div className="mr-3 flex items-center justify-center">
+                      <Image 
+                        src="/icons/users-alt-3.png" 
+                        alt="Resources" 
+                        width={20} 
+                        height={20}
+                        className="opacity-60"
+                        style={{ filter: 'grayscale(100%) brightness(0.6)' }}
+                      />
+                    </div>
+                    Resources
                   </Link>
                   <Link 
                     href="/detailer-dashboard/services" 
