@@ -4,6 +4,7 @@ import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { PrismaClient } from '@prisma/client';
 import { normalizeToE164 } from '@/lib/phone';
 import { upsertCustomerSnapshot } from '@/lib/customerSnapshot';
+import { DateTime } from 'luxon';
 
 const prisma = new PrismaClient();
 
@@ -349,35 +350,76 @@ export async function PATCH(
       }
     }
 
+    // Get detailer's timezone
+    const detailer = await prisma.detailer.findUnique({
+      where: { id: detailerId },
+      select: { timezone: true }
+    });
+    const detailerTimezone = detailer?.timezone || 'America/New_York';
+
     // Parse dates
-    // For timed events with separate time fields, construct Date objects in local time
+    // For timed events with separate time fields, construct Date objects in detailer's timezone
     let startDateTime: Date;
     let endDateTime: Date;
     let startTime: string | null = null;
     
     if (startDate) {
       if (!isAllDay && startTimeParam && endTimeParam) {
-        // For timed events, construct Date objects from date and time components in local time
+        // For timed events, construct Date objects from date and time components in detailer's timezone
         const [startYear, startMonth, startDay] = startDate.split('T')[0].split('-').map(Number);
         const [startHour, startMin] = startTimeParam.split(':').map(Number);
-        startDateTime = new Date(startYear, startMonth - 1, startDay, startHour, startMin, 0);
+        
+        // Create DateTime in detailer's timezone, then convert to UTC for storage
+        const startDT = DateTime.fromObject(
+          { year: startYear, month: startMonth, day: startDay, hour: startHour, minute: startMin },
+          { zone: detailerTimezone }
+        );
+        startDateTime = startDT.toUTC().toJSDate();
         
         const endDateStr = (endDate || startDate).split('T')[0];
         const [endYear, endMonth, endDay] = endDateStr.split('-').map(Number);
         const [endHour, endMin] = endTimeParam.split(':').map(Number);
-        endDateTime = new Date(endYear, endMonth - 1, endDay, endHour, endMin, 0);
+        
+        const endDT = DateTime.fromObject(
+          { year: endYear, month: endMonth, day: endDay, hour: endHour, minute: endMin },
+          { zone: detailerTimezone }
+        );
+        endDateTime = endDT.toUTC().toJSDate();
         
         // Store time as provided (already in range format from frontend)
         startTime = time || null;
       } else {
         // For all-day events or events without separate time fields, parse normally
-        startDateTime = new Date(startDate);
-        endDateTime = endDate ? new Date(endDate) : startDateTime;
+        if (startDate.includes('T')) {
+          startDateTime = new Date(startDate);
+          endDateTime = endDate ? new Date(endDate) : startDateTime;
+        } else {
+          // Date only - set to midnight in detailer's timezone
+          const [year, month, day] = startDate.split('-').map(Number);
+          const startDT = DateTime.fromObject(
+            { year, month, day, hour: 0, minute: 0 },
+            { zone: detailerTimezone }
+          );
+          startDateTime = startDT.toUTC().toJSDate();
+          
+          if (endDate && !endDate.includes('T')) {
+            const [endYear, endMonth, endDay] = endDate.split('-').map(Number);
+            const endDT = DateTime.fromObject(
+              { year: endYear, month: endMonth, day: endDay, hour: 23, minute: 59 },
+              { zone: detailerTimezone }
+            );
+            endDateTime = endDT.toUTC().toJSDate();
+          } else {
+            endDateTime = endDate ? new Date(endDate) : startDateTime;
+          }
+        }
         
         if (time !== undefined) {
           startTime = time;
         } else if (!isAllDay) {
-          startTime = startDateTime.toTimeString().slice(0, 5);
+          // Convert back to detailer's timezone to get the local time
+          const localDT = DateTime.fromJSDate(startDateTime, { zone: 'utc' }).setZone(detailerTimezone);
+          startTime = `${String(localDT.hour).padStart(2, '0')}:${String(localDT.minute).padStart(2, '0')}`;
         } else if (event.time) {
           startTime = event.time;
         }

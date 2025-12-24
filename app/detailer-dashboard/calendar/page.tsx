@@ -3311,6 +3311,7 @@ export default function CalendarPage() {
   const employeeSwitchRef = useRef<HTMLDivElement>(null);
   const eventDetailsCustomerCardRef = useRef<HTMLDivElement>(null);
   const customerDetailsPopupRef = useRef<HTMLDivElement>(null);
+  const customerPopupTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [resources, setResources] = useState<Array<{ id: string, name: string, type: 'bay' | 'van' }>>([]);
   const [isLoadingResources, setIsLoadingResources] = useState(false);
   const [allEmployees, setAllEmployees] = useState<Array<{ id: string; name: string; color: string; imageUrl?: string }>>([]);
@@ -3875,30 +3876,14 @@ export default function CalendarPage() {
     };
   }, [isActionSidebarOpen]);
 
-  // Close customer details popup when clicking outside
+  // Cleanup timeout on unmount
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Node;
-      // Check if click is outside both the customer card and the popup
-      if (
-        showCustomerDetailsPopup &&
-        eventDetailsCustomerCardRef.current &&
-        customerDetailsPopupRef.current &&
-        !eventDetailsCustomerCardRef.current.contains(target) &&
-        !customerDetailsPopupRef.current.contains(target)
-      ) {
-        setShowCustomerDetailsPopup(false);
+    return () => {
+      if (customerPopupTimeoutRef.current) {
+        clearTimeout(customerPopupTimeoutRef.current);
       }
     };
-
-    if (showCustomerDetailsPopup) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [showCustomerDetailsPopup]);
+  }, []);
 
   // Cleanup notes save timeout on unmount or event change
   useEffect(() => {
@@ -5596,8 +5581,14 @@ export default function CalendarPage() {
                       >
                         <div className="flex items-start justify-between">
                           <div 
-                            className="flex-1 pr-8 cursor-pointer hover:bg-gray-100 -m-2 p-2 rounded-lg transition-colors"
-                            onClick={() => {
+                            className="flex-1 pr-8 hover:bg-gray-100 -m-2 p-2 rounded-lg transition-colors"
+                            onMouseEnter={() => {
+                              // Clear any pending timeout
+                              if (customerPopupTimeoutRef.current) {
+                                clearTimeout(customerPopupTimeoutRef.current);
+                                customerPopupTimeoutRef.current = null;
+                              }
+                              
                               if (eventDetailsCustomerCardRef.current) {
                                 const rect = eventDetailsCustomerCardRef.current.getBoundingClientRect();
                                 // Position popup to the left of the action panel, adjacent to customer box
@@ -5612,6 +5603,12 @@ export default function CalendarPage() {
                                 });
                               }
                               setShowCustomerDetailsPopup(true);
+                            }}
+                            onMouseLeave={() => {
+                              // Add a small delay before closing to allow moving to popup
+                              customerPopupTimeoutRef.current = setTimeout(() => {
+                                setShowCustomerDetailsPopup(false);
+                              }, 200);
                             }}
                           >
                             <div className="flex items-start justify-between mb-2">
@@ -5874,7 +5871,19 @@ export default function CalendarPage() {
                       {/* Popup Panel - Positioned to the left of action panel, adjacent to customer box */}
                       <div 
                         ref={customerDetailsPopupRef}
-                        className="fixed w-80 bg-white shadow-2xl z-[60] rounded-xl overflow-hidden" style={{ 
+                        className="fixed w-80 bg-white shadow-2xl z-[60] rounded-xl overflow-hidden" 
+                        onMouseEnter={() => {
+                          // Clear any pending timeout when hovering over popup
+                          if (customerPopupTimeoutRef.current) {
+                            clearTimeout(customerPopupTimeoutRef.current);
+                            customerPopupTimeoutRef.current = null;
+                          }
+                        }}
+                        onMouseLeave={() => {
+                          // Close popup when leaving
+                          setShowCustomerDetailsPopup(false);
+                        }}
+                        style={{ 
                           border: '1px solid #E2E2DD', 
                           backgroundColor: '#F8F8F7', 
                           maxHeight: '90vh',

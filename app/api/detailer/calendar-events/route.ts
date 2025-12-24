@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { PrismaClient } from '@prisma/client';
+import { DateTime } from 'luxon';
 
 const prisma = new PrismaClient();
 
@@ -88,13 +89,17 @@ export async function GET(request: NextRequest) {
         googleCalendarRefreshToken: true,
         syncAppointments: true,
         syncAvailability: true,
-        businessHours: true
+        businessHours: true,
+        timezone: true
       }
     });
 
     if (!detailer) {
       return NextResponse.json({ error: 'Detailer not found' }, { status: 404 });
     }
+
+    // Get detailer's timezone (default to America/New_York if not set)
+    const detailerTimezone = detailer.timezone || 'America/New_York';
 
     let events = [];
     let localEvents = [];
@@ -261,8 +266,22 @@ export async function GET(request: NextRequest) {
             if (endPeriod === 'AM' && endHour === 12) endHour = 0;
             const endTime24 = `${String(endHour).padStart(2, '0')}:${String(endMin).padStart(2, '0')}:00`;
             
-            startDateTime = new Date(`${dateStr}T${startTime24}`);
-            endDateTime = new Date(`${dateStr}T${endTime24}`);
+            // Create dates in detailer's timezone, then convert to UTC
+            const [year, month, day] = dateStr.split('-').map(Number);
+            const [startHour24, startMin24] = startTime24.split(':').map(Number);
+            const [endHour24, endMin24] = endTime24.split(':').map(Number);
+            
+            const startDT = DateTime.fromObject(
+              { year, month, day, hour: startHour24, minute: startMin24 },
+              { zone: detailerTimezone }
+            );
+            startDateTime = startDT.toUTC().toJSDate();
+            
+            const endDT = DateTime.fromObject(
+              { year, month, day, hour: endHour24, minute: endMin24 },
+              { zone: detailerTimezone }
+            );
+            endDateTime = endDT.toUTC().toJSDate();
             
             // If parsing fails, fall back to event date
             if (isNaN(startDateTime.getTime())) {
@@ -292,8 +311,15 @@ export async function GET(request: NextRequest) {
               timeStr = `${timeStr}:00`;
             }
             
-            // dateStr is already extracted above using UTC
-            startDateTime = new Date(`${dateStr}T${timeStr}`);
+            // Create date in detailer's timezone, then convert to UTC
+            const [year, month, day] = dateStr.split('-').map(Number);
+            const [hour24, min24] = timeStr.split(':').map(Number);
+            
+            const startDT = DateTime.fromObject(
+              { year, month, day, hour: hour24, minute: min24 },
+              { zone: detailerTimezone }
+            );
+            startDateTime = startDT.toUTC().toJSDate();
             
             // If time parsing fails, fall back to event date
             if (isNaN(startDateTime.getTime())) {
@@ -406,7 +432,16 @@ export async function GET(request: NextRequest) {
           const dateStr = bookingDate.getUTCFullYear() + '-' + 
             String(bookingDate.getUTCMonth() + 1).padStart(2, '0') + '-' + 
             String(bookingDate.getUTCDate()).padStart(2, '0');
-          startDateTime = new Date(`${dateStr}T${timeStr}`);
+          
+          // Create date in detailer's timezone, then convert to UTC
+          const [year, month, day] = dateStr.split('-').map(Number);
+          const [hour24, min24] = timeStr.split(':').map(Number);
+          
+          const startDT = DateTime.fromObject(
+            { year, month, day, hour: hour24, minute: min24 },
+            { zone: detailerTimezone }
+          );
+          startDateTime = startDT.toUTC().toJSDate();
           
           // If time parsing fails, fall back to booking date
           if (isNaN(startDateTime.getTime())) {

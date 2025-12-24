@@ -100,7 +100,18 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
     const [showCustomerSuggestions, setShowCustomerSuggestions] = useState(false);
     const [selectedCustomerIndex, setSelectedCustomerIndex] = useState(-1);
     const customerCardRef = React.useRef<HTMLDivElement>(null);
+    const customerDetailsPopupRef = React.useRef<HTMLDivElement>(null);
     const [popupPosition, setPopupPosition] = useState<{ top: number; right: number } | null>(null);
+    const customerPopupTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+    
+    // Cleanup timeout on unmount
+    useEffect(() => {
+        return () => {
+            if (customerPopupTimeoutRef.current) {
+                clearTimeout(customerPopupTimeoutRef.current);
+            }
+        };
+    }, []);
     
     // Store initial values to detect changes (empty form initially)
     const initialValuesRef = useRef({
@@ -1092,8 +1103,14 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                             >
                                 <div className="flex items-start justify-between">
                                     <div 
-                                        className="flex-1 pr-8 cursor-pointer hover:bg-gray-100 -m-2 p-2 rounded-lg transition-colors"
-                                        onClick={() => {
+                                        className="flex-1 pr-8 hover:bg-gray-100 -m-2 p-2 rounded-lg transition-colors"
+                                        onMouseEnter={() => {
+                                            // Clear any pending timeout
+                                            if (customerPopupTimeoutRef.current) {
+                                                clearTimeout(customerPopupTimeoutRef.current);
+                                                customerPopupTimeoutRef.current = null;
+                                            }
+                                            
                                             if (customerCardRef.current) {
                                                 const rect = customerCardRef.current.getBoundingClientRect();
                                                 // Position popup to the left of the action panel, adjacent to customer box
@@ -1108,6 +1125,12 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                                                 });
                                             }
                                             setShowCustomerDetailsPopup(true);
+                                        }}
+                                        onMouseLeave={() => {
+                                            // Add a small delay before closing to allow moving to popup
+                                            customerPopupTimeoutRef.current = setTimeout(() => {
+                                                setShowCustomerDetailsPopup(false);
+                                            }, 200);
                                         }}
                                     >
                                         <div className="flex items-start justify-between mb-2">
@@ -1205,13 +1228,27 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                         {showCustomerDetailsPopup && selectedCustomer && popupPosition && (
                             <>
                                 {/* Popup Panel - Positioned to the left of action panel, adjacent to customer box */}
-                                    <div className="fixed w-80 bg-white shadow-2xl z-[60] rounded-xl overflow-hidden" style={{ 
-                                        border: '1px solid #E2E2DD', 
-                                        backgroundColor: '#F8F8F7', 
-                                        maxHeight: '90vh',
-                                        right: `${popupPosition.right}px`,
-                                        top: `${popupPosition.top}px`,
-                                    }}>
+                                    <div 
+                                        ref={customerDetailsPopupRef}
+                                        className="fixed w-80 bg-white shadow-2xl z-[60] rounded-xl overflow-hidden" 
+                                        onMouseEnter={() => {
+                                            // Clear any pending timeout when hovering over popup
+                                            if (customerPopupTimeoutRef.current) {
+                                                clearTimeout(customerPopupTimeoutRef.current);
+                                                customerPopupTimeoutRef.current = null;
+                                            }
+                                        }}
+                                        onMouseLeave={() => {
+                                            // Close popup when leaving
+                                            setShowCustomerDetailsPopup(false);
+                                        }}
+                                        style={{ 
+                                            border: '1px solid #E2E2DD', 
+                                            backgroundColor: '#F8F8F7', 
+                                            maxHeight: '90vh',
+                                            right: `${popupPosition.right}px`,
+                                            top: `${popupPosition.top}px`,
+                                        }}>
                                     <div className="flex flex-col overflow-hidden" style={{ backgroundColor: '#F8F8F7' }}>
                                         {/* Header */}
                                         <div className="flex-shrink-0 p-4 border-b" style={{ borderColor: '#E2E2DD' }}>
