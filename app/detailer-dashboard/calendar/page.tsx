@@ -1763,6 +1763,14 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
     };
 
     const timeSlots = generateTimeSlots();
+
+    const formatSlotLabel = (slot: string) => {
+      const match = slot.match(/^(\d+)(am|pm)$/i);
+      if (!match) return slot;
+      const hour = match[1];
+      const period = match[2].toUpperCase();
+      return `${hour} ${period}`;
+    };
     
     const scaledTimeColumnWidth = 80 * scale;
     const scaledTimeSlotHeight = 96 * scale; // Increased from 64 to 96 for taller default boxes
@@ -1826,14 +1834,22 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                 }
                             }}
                         >
-                        {timeSlots.map(slot => (
-                                <div key={slot} className="flex items-center justify-center text-xs text-gray-500 border-b border-gray-200 dark:border-gray-700" style={{ height: `${scaledTimeSlotHeight}px`, fontSize: `${0.75 * scale}rem`, boxSizing: 'border-box' }}>
-                                {slot}
-                            </div>
+                        {timeSlots.map((slot) => (
+                          <div
+                            key={slot}
+                            className="flex items-center justify-center text-xs text-gray-500 border-b border-gray-200 dark:border-gray-700"
+                            style={{
+                              height: `${scaledTimeSlotHeight}px`,
+                              fontSize: `${0.75 * scale}rem`,
+                              boxSizing: 'border-box',
+                            }}
+                          >
+                            <span>{formatSlotLabel(slot)}</span>
+                          </div>
                         ))}
+                      </div>
                     </div>
-                    </div>
-                    
+
                     {/* Main content area */}
                     <div className="flex-1 min-w-0">
                         {/* Sticky header container - direct child of scroll container */}
