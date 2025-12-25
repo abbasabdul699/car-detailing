@@ -1904,8 +1904,8 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
       weekDays = Array.from({ length: numberOfDays }, (_, i) => addDays(date, i));
     } else {
       // Default to full week
-      const weekStart = startOfWeek(date);
-      const weekEnd = endOfWeek(date);
+    const weekStart = startOfWeek(date);
+    const weekEnd = endOfWeek(date);
       weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd });
     }
     
@@ -5140,7 +5140,12 @@ export default function CalendarPage() {
                 <div className="relative flex items-center gap-2 overflow-hidden" ref={teamDropdownRef}>
                   <button
                     onClick={() => setIsTeamDropdownOpen(!isTeamDropdownOpen)}
-                    className="px-3 py-1 text-sm text-gray-600 hover:text-gray-900 rounded-md hover:bg-gray-100 transition-colors flex items-center gap-1 flex-shrink-0"
+                    className="px-3 py-1 text-sm text-gray-600 hover:text-gray-900 rounded-full transition-colors flex items-center gap-1 flex-shrink-0"
+                    style={{
+                      backgroundColor: '#F3F4F6',
+                      border: '1px solid #E2E2DD',
+                      borderRadius: '9999px'
+                    }}
                   >
                     Team
                     {!isTeamDropdownOpen && <ChevronRightIcon className="w-4 h-4 transition-transform duration-300" />}
@@ -5310,7 +5315,7 @@ export default function CalendarPage() {
                 
                 {/* Mini Calendar Popup */}
                 {isDatePickerOpen && (
-                  <div ref={datePickerRef} className="absolute top-full left-0 mt-2 bg-white rounded-lg shadow-xl border border-gray-200 z-50 p-4" style={{ minWidth: '280px' }}>
+                  <div ref={datePickerRef} className="absolute top-full left-0 mt-2 bg-white rounded-lg shadow-xl border border-gray-200 z-[100] p-4" style={{ minWidth: '280px' }}>
                     <div className="flex items-center justify-between mb-4">
                 <button
                         onClick={() => setCurrentDate(subMonths(currentDate, 1))}
@@ -5381,9 +5386,9 @@ export default function CalendarPage() {
                             ? viewMode === view 
                             : view === 'week' && typeof viewMode === 'number';
                         return (
-                            <button 
+                <button
                                 key={view}
-                                onClick={() => {
+                  onClick={() => {
                                     setViewMode(view);
                                     setNumberOfDays(null);
                                 }}
@@ -5394,7 +5399,7 @@ export default function CalendarPage() {
                                 }`}
                             >
                                 {view}
-                            </button>
+                </button>
                         );
                     })}
                 </div>
@@ -5403,24 +5408,32 @@ export default function CalendarPage() {
                     {(typeof viewMode === 'number' || viewMode === 'week') && (
                         <>
                             {typeof viewMode === 'number' ? (
-                                <button
+                         <button 
                                     onClick={() => {
                                         setIsViewDropdownOpen(!isViewDropdownOpen);
                                         setIsDaysSubmenuOpen(false);
                                     }}
-                                    className="px-3 py-1 text-sm font-medium text-gray-800 rounded-md hover:bg-gray-100 transition-colors flex items-center gap-1"
-                                    style={{ backgroundColor: '#F8F8F7' }}
+                                    className="px-3 py-1 text-sm font-medium text-gray-800 rounded-full hover:bg-gray-100 transition-colors flex items-center gap-1"
+                                    style={{ 
+                                        backgroundColor: '#F8F8F7',
+                                        border: '1px solid #E2E2DD',
+                                        borderRadius: '9999px'
+                                    }}
                                 >
                                     {`${viewMode} days`}
                                     <ChevronDownIcon className="w-4 h-4" />
-                                </button>
+                        </button>
                             ) : (
                                 <button
                                     onClick={() => {
                                         setIsViewDropdownOpen(!isViewDropdownOpen);
                                         setIsDaysSubmenuOpen(false);
                                     }}
-                                    className="px-2 py-1 text-sm text-gray-500 hover:text-gray-700 rounded-md hover:bg-gray-100 transition-colors"
+                                    className="px-2 py-1 text-sm text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100 transition-colors"
+                                    style={{
+                                        border: '1px solid #E2E2DD',
+                                        borderRadius: '9999px'
+                                    }}
                                     title="Custom days"
                                 >
                                     <ChevronDownIcon className="w-4 h-4" />
@@ -5430,149 +5443,38 @@ export default function CalendarPage() {
                     )}
                     {isViewDropdownOpen && (
                         <div 
-                            className="absolute top-full left-0 mt-1 rounded-md shadow-lg z-50 min-w-[180px]"
-                            style={{ backgroundColor: '#2B2B26' }}
-                            onMouseLeave={() => setIsDaysSubmenuOpen(false)}
+                            className="absolute top-full left-0 mt-1 rounded-lg shadow-lg z-[100] min-w-[140px]"
+                            style={{ backgroundColor: '#2B2B26', borderRadius: '8px' }}
                         >
                             <div className="py-1">
-                                <button
-                                    onClick={() => {
-                                        setViewMode('day');
-                                        setNumberOfDays(null);
-                                        setIsViewDropdownOpen(false);
-                                    }}
-                                    className="w-full text-left px-4 py-2 text-sm text-white hover:bg-opacity-80 transition-colors flex items-center justify-between"
-                                    style={{ backgroundColor: (typeof viewMode === 'string' && viewMode === 'day') ? '#40403A' : 'transparent' }}
-                                    onMouseEnter={(e) => {
-                                        if (typeof viewMode !== 'string' || viewMode !== 'day') {
-                                            e.currentTarget.style.backgroundColor = '#40403A';
-                                        }
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        if (typeof viewMode !== 'string' || viewMode !== 'day') {
-                                            e.currentTarget.style.backgroundColor = 'transparent';
-                                        }
-                                    }}
-                                >
-                                    <span>Day</span>
-                                    <span className="text-xs text-gray-400">1 or D</span>
-                                </button>
-                                <button
-                                    onClick={() => {
-                                        setViewMode('week');
-                                        setNumberOfDays(null);
-                                        setIsViewDropdownOpen(false);
-                                    }}
-                                    className="w-full text-left px-4 py-2 text-sm text-white hover:bg-opacity-80 transition-colors flex items-center justify-between"
-                                    style={{ backgroundColor: (typeof viewMode === 'string' && viewMode === 'week') ? '#40403A' : 'transparent' }}
-                                    onMouseEnter={(e) => {
-                                        if (typeof viewMode !== 'string' || viewMode !== 'week') {
-                                            e.currentTarget.style.backgroundColor = '#40403A';
-                                        }
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        if (typeof viewMode !== 'string' || viewMode !== 'week') {
-                                            e.currentTarget.style.backgroundColor = 'transparent';
-                                        }
-                                    }}
-                                >
-                                    <span className="flex items-center gap-2">
-                                        <span>Week</span>
-                                        {(typeof viewMode === 'string' && viewMode === 'week') && <CheckIcon className="w-4 h-4" />}
-                                    </span>
-                                    <span className="text-xs text-gray-400">0 or W</span>
-                                </button>
-                                <button
-                                    onClick={() => {
-                                        setViewMode('month');
-                                        setNumberOfDays(null);
-                                        setIsViewDropdownOpen(false);
-                                    }}
-                                    className="w-full text-left px-4 py-2 text-sm text-white hover:bg-opacity-80 transition-colors flex items-center justify-between"
-                                    style={{ backgroundColor: (typeof viewMode === 'string' && viewMode === 'month') ? '#40403A' : 'transparent' }}
-                                    onMouseEnter={(e) => {
-                                        if (typeof viewMode !== 'string' || viewMode !== 'month') {
-                                            e.currentTarget.style.backgroundColor = '#40403A';
-                                        }
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        if (typeof viewMode !== 'string' || viewMode !== 'month') {
-                                            e.currentTarget.style.backgroundColor = 'transparent';
-                                        }
-                                    }}
-                                >
-                                    <span>Month</span>
-                                    <span className="text-xs text-gray-400">M</span>
-                                </button>
-                                <div 
-                                    className="relative"
-                                    onMouseEnter={() => setIsDaysSubmenuOpen(true)}
-                                >
+                                {[2, 3, 4, 5, 6, 7].map((days) => (
                                     <button
-                                        className="w-full text-left px-4 py-2 text-sm text-white hover:bg-opacity-80 transition-colors flex items-center justify-between"
-                                        style={{ backgroundColor: typeof viewMode === 'number' ? '#40403A' : 'transparent' }}
+                                        key={days}
+                                        onClick={() => {
+                                            setViewMode(days);
+                                            setNumberOfDays(days);
+                                            setIsViewDropdownOpen(false);
+                                        }}
+                                        className="w-full text-left py-2 text-sm text-white hover:bg-opacity-80 transition-colors flex items-center"
+                                        style={{ 
+                                            backgroundColor: 'transparent',
+                                            paddingLeft: '20px',
+                                            paddingRight: '16px'
+                                        }}
                                         onMouseEnter={(e) => {
-                                            if (typeof viewMode !== 'number') {
-                                                e.currentTarget.style.backgroundColor = '#40403A';
-                                            }
+                                            e.currentTarget.style.backgroundColor = '#40403A';
                                         }}
                                         onMouseLeave={(e) => {
-                                            if (typeof viewMode !== 'number') {
-                                                e.currentTarget.style.backgroundColor = 'transparent';
-                                            }
+                                            e.currentTarget.style.backgroundColor = 'transparent';
                                         }}
                                     >
-                                        <span>Number of days</span>
-                                        <span className="text-gray-400">&gt;</span>
-                                    </button>
-                                    {isDaysSubmenuOpen && (
-                                        <div 
-                                            className="absolute rounded-md shadow-lg z-50 min-w-[140px]"
-                                            style={{ 
-                                                backgroundColor: '#2B2B26',
-                                                left: '16px', // Align with parent menu text (px-4 = 16px)
-                                                top: '0px'
-                                            }}
-                                        >
-                                            <div className="py-1">
-                                                {[2, 3, 4, 5, 6, 7].map((days) => (
-                                                    <button
-                                                        key={days}
-                                                        onClick={() => {
-                                                            setViewMode(days);
-                                                            setNumberOfDays(days);
-                                                            setIsViewDropdownOpen(false);
-                                                            setIsDaysSubmenuOpen(false);
-                                                        }}
-                                                        className="w-full text-left py-2 text-sm text-white hover:bg-opacity-80 transition-colors flex items-center justify-between"
-                                                        style={{ 
-                                                            backgroundColor: viewMode === days ? '#40403A' : 'transparent',
-                                                            paddingLeft: '16px', // Match parent menu padding
-                                                            paddingRight: '16px'
-                                                        }}
-                                                        onMouseEnter={(e) => {
-                                                            if (viewMode !== days) {
-                                                                e.currentTarget.style.backgroundColor = '#40403A';
-                                                            }
-                                                        }}
-                                                        onMouseLeave={(e) => {
-                                                            if (viewMode !== days) {
-                                                                e.currentTarget.style.backgroundColor = 'transparent';
-                                                            }
-                                                        }}
-                                                    >
-                                                        <span className="flex items-center gap-2">
-                                                            <span>{days} days</span>
-                                                            {viewMode === days && <CheckIcon className="w-4 h-4" />}
-                                                        </span>
-                                                        <span className="text-xs text-gray-400">{days}</span>
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
+                                        <span className="flex items-center gap-2 justify-between w-full">
+                                            <span>{days} days</span>
+                                            {viewMode === days && <CheckIcon className="w-4 h-4" />}
+                                        </span>
+                        </button>
+                    ))}
+                </div>
                         </div>
                     )}
                 </div>
@@ -5581,17 +5483,22 @@ export default function CalendarPage() {
                     setCurrentDate(new Date());
                     setIsDatePickerOpen(false);
                   }}
-                  className="px-3 py-1 text-sm text-gray-600 hover:text-gray-900 rounded-md hover:bg-gray-100 transition-colors"
-                  style={{ backgroundColor: '#F8F8F7' }}
+                  className="px-3 py-1 text-sm text-gray-600 hover:text-gray-900 rounded-full hover:bg-gray-100 transition-colors"
+                        style={{
+                    backgroundColor: '#F8F8F7', 
+                    boxShadow: 'none', 
+                    borderRadius: '9999px',
+                    border: '1px solid #E2E2DD'
+                  }}
                 >
                   Today
                 </button>
                 {/* Navigation Arrows */}
                 <div className="flex items-center space-x-1">
-                    <button onClick={handlePrev} className="p-2 rounded-md hover:bg-gray-100">
+                    <button onClick={handlePrev} className="p-2 rounded-full hover:bg-gray-100 transition-colors">
                         <ChevronLeftIcon className="w-5 h-5 text-gray-500" />
                     </button>
-                    <button onClick={handleNext} className="p-2 rounded-md hover:bg-gray-100">
+                    <button onClick={handleNext} className="p-2 rounded-full hover:bg-gray-100 transition-colors">
                         <ChevronRightIcon className="w-5 h-5 text-gray-500" />
                     </button>
                 </div>
