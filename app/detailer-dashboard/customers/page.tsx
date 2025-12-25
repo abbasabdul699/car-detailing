@@ -13,6 +13,21 @@ import {
   FunnelIcon,
 } from '@heroicons/react/24/outline';
 
+// Format phone number as (XXX) XXX XXXX
+const formatPhoneNumber = (value: string): string => {
+    // Remove all non-digit characters
+    const digits = value.replace(/\D/g, '');
+    
+    // Limit to 10 digits
+    const limitedDigits = digits.slice(0, 10);
+    
+    // Format based on length
+    if (limitedDigits.length === 0) return '';
+    if (limitedDigits.length <= 3) return `(${limitedDigits}`;
+    if (limitedDigits.length <= 6) return `(${limitedDigits.slice(0, 3)}) ${limitedDigits.slice(3)}`;
+    return `(${limitedDigits.slice(0, 3)}) ${limitedDigits.slice(3, 6)} ${limitedDigits.slice(6)}`;
+};
+
 interface Customer {
   id: string;
   customerPhone: string;
@@ -217,8 +232,9 @@ export default function CustomersPage() {
       const notes = (customer as any).data && typeof (customer as any).data === 'object' && (customer as any).data.notes 
         ? (customer as any).data.notes 
         : '';
+      const existingPhone = customer.customerPhone || '';
       setFormData({
-        customerPhone: customer.customerPhone || '',
+        customerPhone: existingPhone ? formatPhoneNumber(existingPhone) : '',
         customerName: customer.customerName || '',
         customerEmail: customer.customerEmail || '',
         address: customer.address || '',
@@ -332,6 +348,13 @@ export default function CustomersPage() {
       return;
     }
 
+    // Extract digits only from formatted phone number
+    const phoneDigits = formData.customerPhone.replace(/\D/g, '');
+    if (phoneDigits.length !== 10) {
+      alert('Phone number must be 10 digits');
+      return;
+    }
+
     try {
       const url = editingCustomer 
         ? `/api/detailer/customers/${editingCustomer.id}`
@@ -346,7 +369,7 @@ export default function CustomersPage() {
       }
       
       const body = {
-        customerPhone: formData.customerPhone,
+        customerPhone: phoneDigits,
         customerName: formData.customerName || undefined,
         customerEmail: formData.customerEmail || undefined,
         address: formData.address || undefined,
@@ -427,11 +450,11 @@ export default function CustomersPage() {
 
   const getSortIcon = (key: string) => {
     if (!sortConfig || sortConfig.key !== key) {
-      return <BarsArrowUpIcon className="w-4 h-4 text-gray-400 dark:text-gray-500" />;
+      return <BarsArrowUpIcon className="w-4 h-4 text-gray-400" />;
     }
     return sortConfig.direction === 'asc' 
-      ? <BarsArrowUpIcon className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-      : <BarsArrowDownIcon className="w-4 h-4 text-gray-600 dark:text-gray-400" />;
+      ? <BarsArrowUpIcon className="w-4 h-4 text-gray-600" />
+      : <BarsArrowDownIcon className="w-4 h-4 text-gray-600" />;
   };
 
   // Filter customers based on search query
@@ -756,13 +779,13 @@ export default function CustomersPage() {
   };
 
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-950">
+    <div className="min-h-screen bg-white">
       <div className={`w-full ${isActionSidebarOpen ? 'pr-0 md:pr-[400px] lg:pr-[420px]' : 'pr-0 md:pr-16'}`}>
         {/* Header Section */}
-        <div className="px-4 md:px-6 pt-4 md:pt-6 pb-4 md:border-b border-gray-200 dark:border-gray-700">
+        <div className="px-4 md:px-6 pt-4 md:pt-6 pb-4 md:border-b border-gray-200">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-gray-100 pl-10 md:pl-0">
+              <h1 className="text-2xl md:text-3xl font-bold text-gray-900 pl-10 md:pl-0">
               Customers
             </h1>
             </div>
@@ -790,7 +813,7 @@ export default function CustomersPage() {
           <div className="flex items-center gap-3 mt-4">
             <div className="relative flex-1 md:flex-none" style={{ maxWidth: '500px' }}>
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <svg className="h-5 w-5 text-black dark:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="h-5 w-5 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
               </div>
@@ -799,16 +822,16 @@ export default function CustomersPage() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search customers"
-                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-full focus:ring-2 focus:ring-gray-900 focus:border-transparent dark:bg-gray-800 dark:text-white"
+                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-full focus:ring-2 focus:ring-gray-900 focus:border-transparent"
               />
             </div>
             {/* Filter Button */}
             <button
               onClick={() => setIsFilterModalOpen(true)}
-              className="w-10 h-10 rounded-full border border-gray-300 dark:border-gray-600 flex items-center justify-center hover:bg-gray-50 dark:hover:bg-gray-800 transition flex-shrink-0"
+              className="w-10 h-10 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-50 transition flex-shrink-0"
               aria-label="Filter"
             >
-              <svg className="w-5 h-5 text-black dark:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+              <svg className="w-5 h-5 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 7h18M5 12h12M7 17h8" />
               </svg>
             </button>
@@ -817,23 +840,23 @@ export default function CustomersPage() {
 
         {/* Bulk Actions Toolbar */}
         {selectedCustomers.size > 0 && (
-          <div className="px-4 md:px-6 py-3 bg-black border-b border-gray-800 flex items-center justify-between gap-2">
+          <div className="px-4 md:px-6 py-3 bg-gray-100 border-b border-gray-200 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0">
-              <span className="text-sm font-medium text-white truncate">
+              <span className="text-sm font-medium text-gray-900 truncate">
                 {selectedCustomers.size} customer{selectedCustomers.size !== 1 ? 's' : ''} selected
               </span>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
               <button
                 onClick={handleBulkDelete}
-                className="px-2 md:px-3 py-1.5 text-xs md:text-sm font-medium text-white hover:bg-red-600 rounded-lg transition"
+                className="px-2 md:px-3 py-1.5 text-xs md:text-sm font-medium bg-red-500 text-white hover:bg-red-600 rounded-xl transition"
               >
                 <span className="hidden sm:inline">Delete Selected</span>
                 <span className="sm:hidden">Delete</span>
               </button>
               <button
                 onClick={handleExportSelected}
-                className="px-2 md:px-3 py-1.5 text-xs md:text-sm font-medium text-white hover:bg-gray-700 rounded-lg transition hidden sm:block"
+                className="px-2 md:px-3 py-1.5 text-xs md:text-sm font-medium bg-gray-600 text-white hover:bg-gray-700 rounded-xl transition hidden sm:block"
               >
                 Export Selected
               </button>
@@ -845,7 +868,7 @@ export default function CustomersPage() {
                     setSelectedCustomers(new Set());
                   }
                 }}
-                className="px-2 md:px-3 py-1.5 text-xs md:text-sm font-medium text-white hover:bg-gray-700 rounded-lg transition"
+                className="px-2 md:px-3 py-1.5 text-xs md:text-sm font-medium bg-gray-600 text-white hover:bg-gray-700 rounded-xl transition"
               >
                 <span className="hidden sm:inline">{isMultiSelectMode ? 'Done' : 'Clear Selection'}</span>
                 <span className="sm:hidden">{isMultiSelectMode ? 'Done' : 'Clear'}</span>
@@ -857,11 +880,11 @@ export default function CustomersPage() {
         {/* Mobile List View */}
         <div className="md:hidden pb-4">
         {loading ? (
-          <div className="text-center py-12 text-gray-600 dark:text-gray-400">Loading...</div>
+          <div className="text-center py-12 text-gray-600">Loading...</div>
         ) : error ? (
-          <div className="text-center py-12 text-red-600 dark:text-red-400">{error}</div>
+          <div className="text-center py-12 text-red-600">{error}</div>
         ) : sortedCustomers.length === 0 ? (
-            <div className="text-center py-12 text-gray-500 dark:text-gray-400 px-4">
+            <div className="text-center py-12 text-gray-500 px-4">
             {searchQuery.trim() 
               ? `No customers found matching "${searchQuery}". Try a different search term.`
               : 'No customers found. Click "Add Customer" to create one.'}
@@ -876,11 +899,11 @@ export default function CustomersPage() {
                     <div key={customer.id}>
                       {index > 0 && (
                         <div className="px-4">
-                          <div className="border-t border-gray-200 dark:border-gray-700"></div>
+                          <div className="border-t border-gray-200"></div>
                         </div>
                       )}
                       <div
-                        className="px-4 py-3 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-900 transition cursor-pointer active:bg-gray-100 dark:active:bg-gray-800"
+                        className="px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition cursor-pointer active:bg-gray-100"
                         onClick={(e) => {
                           if (isMultiSelectMode) {
                             e.preventDefault();
@@ -906,16 +929,16 @@ export default function CustomersPage() {
                           className="w-4 h-4 text-gray-900 border-gray-300 rounded focus:ring-gray-900 cursor-pointer flex-shrink-0"
                         />
                       )}
-                      <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
-                        <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                      <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
+                        <span className="text-sm font-semibold text-gray-700">
                           {getInitials(customer.customerName)}
                         </span>
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="font-medium text-gray-900 dark:text-white truncate">
+                        <div className="font-medium text-gray-900 truncate">
                           {customer.customerName || 'Unnamed Customer'}
                         </div>
-                        <div className="text-xs text-gray-600 dark:text-gray-400 mt-0.5 flex items-center gap-1 flex-wrap">
+                        <div className="text-xs text-gray-600 mt-0.5 flex items-center gap-1 flex-wrap">
                           {/* Phone Number */}
                           {customer.customerPhone && (
                             <span className="truncate">{customer.customerPhone}</span>
@@ -944,7 +967,7 @@ export default function CustomersPage() {
                               {(customer.customerPhone || customer.vehicleModel || customer.vehicle || customer.customerType) && (
                                 <span className="text-gray-400">•</span>
                               )}
-                              <span className="text-orange-600 dark:text-orange-400">Upcoming job</span>
+                              <span className="text-orange-600">Upcoming job</span>
                               {upcomingJob.services.length > 0 && (
                                 <>
                                   <span className="text-gray-400">•</span>
@@ -960,10 +983,10 @@ export default function CustomersPage() {
                           e.stopPropagation();
                           handleSendSMS(customer);
                         }}
-                        className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 flex items-center justify-center transition flex-shrink-0"
+                        className="w-10 h-10 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition flex-shrink-0"
                         title="Send SMS"
                       >
-                        <svg className="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
                         </svg>
                       </button>
@@ -994,16 +1017,16 @@ export default function CustomersPage() {
               onClick={() => setIsFilterModalOpen(false)}
             />
             {/* Filter Dialog - Bottom Sheet */}
-            <div className="md:hidden fixed inset-x-0 bottom-0 bg-white dark:bg-gray-900 z-50 rounded-t-2xl shadow-2xl max-h-[85vh] overflow-y-auto">
+            <div className="md:hidden fixed inset-x-0 bottom-0 bg-white z-50 rounded-t-2xl shadow-2xl max-h-[85vh] overflow-y-auto">
               {/* Header */}
-              <div className="sticky top-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-4 py-4 flex items-center justify-between rounded-t-2xl">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Filter</h2>
+              <div className="sticky top-0 bg-white border-b border-gray-200 px-4 py-4 flex items-center justify-between rounded-t-2xl">
+                <h2 className="text-lg font-semibold text-gray-900">Filter</h2>
                 <button
                   onClick={() => setIsFilterModalOpen(false)}
-                  className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition"
+                  className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition"
                   aria-label="Close filter"
                 >
-                  <XMarkIcon className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+                  <XMarkIcon className="w-5 h-5 text-gray-600" />
                 </button>
               </div>
 
@@ -1011,7 +1034,7 @@ export default function CustomersPage() {
               <div className="px-4 py-6 space-y-6">
                 {/* Last seen Section */}
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Last seen</h3>
+                  <h3 className="text-sm font-semibold text-gray-900 mb-3">Last seen</h3>
                   <div className="flex flex-wrap gap-2">
                     {['all', '30', '31-90', '91-120'].map((option) => {
                       const labels: { [key: string]: string } = {
@@ -1028,7 +1051,7 @@ export default function CustomersPage() {
                           className={`px-4 py-2 rounded-full text-sm font-medium transition ${
                             isSelected
                               ? 'text-white'
-                              : 'bg-white text-gray-700 dark:bg-gray-800 dark:text-gray-300 border border-gray-300 dark:border-gray-600'
+                              : 'bg-white text-gray-700 border border-gray-300'
                           }`}
                           style={isSelected ? { backgroundColor: '#6B6A5E' } : {}}
                         >
@@ -1041,7 +1064,7 @@ export default function CustomersPage() {
 
                 {/* Services Section */}
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Services</h3>
+                  <h3 className="text-sm font-semibold text-gray-900 mb-3">Services</h3>
                   <div className="space-y-3">
                     {[
                       { id: 'maintenance', label: 'Maintenance' },
@@ -1067,7 +1090,7 @@ export default function CustomersPage() {
                             }}
                             className="w-5 h-5 text-gray-900 border-gray-300 rounded focus:ring-gray-900"
                           />
-                          <span className="text-sm text-gray-700 dark:text-gray-300">{service.label}</span>
+                          <span className="text-sm text-gray-700">{service.label}</span>
                         </label>
                       );
                     })}
@@ -1076,7 +1099,7 @@ export default function CustomersPage() {
 
                 {/* Station Section */}
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Station</h3>
+                  <h3 className="text-sm font-semibold text-gray-900 mb-3">Station</h3>
                   <div className="flex flex-wrap gap-2">
                     {['all', 'in-shop', 'mobile'].map((option) => {
                       const labels: { [key: string]: string } = {
@@ -1092,7 +1115,7 @@ export default function CustomersPage() {
                           className={`px-4 py-2 rounded-full text-sm font-medium transition ${
                             isSelected
                               ? 'text-white'
-                              : 'bg-white text-gray-700 dark:bg-gray-800 dark:text-gray-300 border border-gray-300 dark:border-gray-600'
+                              : 'bg-white text-gray-700 border border-gray-300'
                           }`}
                           style={isSelected ? { backgroundColor: '#6B6A5E' } : {}}
                         >
@@ -1109,11 +1132,11 @@ export default function CustomersPage() {
 
         {/* Desktop Table View */}
         {loading ? (
-          <div className="hidden md:block text-center py-12 text-gray-600 dark:text-gray-400">Loading...</div>
+          <div className="hidden md:block text-center py-12 text-gray-600">Loading...</div>
         ) : error ? (
-          <div className="hidden md:block text-center py-12 text-red-600 dark:text-red-400">{error}</div>
+          <div className="hidden md:block text-center py-12 text-red-600">{error}</div>
         ) : sortedCustomers.length === 0 ? (
-          <div className="hidden md:block text-center py-12 text-gray-500 dark:text-gray-400">
+          <div className="hidden md:block text-center py-12 text-gray-500">
             {searchQuery.trim() 
               ? `No customers found matching "${searchQuery}". Try a different search term.`
               : 'No customers found. Click "Add Customer" to create one.'}
@@ -1121,9 +1144,9 @@ export default function CustomersPage() {
         ) : (
           <div className="hidden md:block overflow-x-auto">
             <table className="w-full table-fixed">
-              <thead className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-200">
+              <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-12">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-12">
                     <input
                       type="checkbox"
                       checked={selectedCustomers.size === customers.length && customers.length > 0}
@@ -1132,12 +1155,12 @@ export default function CustomersPage() {
                     />
                   </th>
                   {selectedCustomers.size > 0 && (
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-12">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-12">
                     #
                   </th>
                   )}
                   <th 
-                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition relative"
+                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition relative"
                     onClick={() => handleSort('customerName')}
                     style={{ width: columnWidths.name, minWidth: columnWidths.name, maxWidth: columnWidths.name }}
                   >
@@ -1151,7 +1174,7 @@ export default function CustomersPage() {
                     />
                   </th>
                   <th 
-                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition relative"
+                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition relative"
                     onClick={() => handleSort('customerPhone')}
                     style={{ width: columnWidths.phone, minWidth: columnWidths.phone, maxWidth: columnWidths.phone }}
                   >
@@ -1165,7 +1188,7 @@ export default function CustomersPage() {
                     />
                   </th>
                   <th 
-                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition relative"
+                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition relative"
                     onClick={() => handleSort('customerEmail')}
                     style={{ width: columnWidths.email, minWidth: columnWidths.email, maxWidth: columnWidths.email }}
                   >
@@ -1179,7 +1202,7 @@ export default function CustomersPage() {
                     />
                   </th>
                   <th 
-                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition relative"
+                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition relative"
                     onClick={() => handleSort('address')}
                     style={{ width: columnWidths.address, minWidth: columnWidths.address, maxWidth: columnWidths.address }}
                   >
@@ -1193,7 +1216,7 @@ export default function CustomersPage() {
                     />
                   </th>
                   <th 
-                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition relative"
+                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition relative"
                     onClick={() => handleSort('vehicle')}
                     style={{ width: columnWidths.vehicle, minWidth: columnWidths.vehicle, maxWidth: columnWidths.vehicle }}
                   >
@@ -1207,7 +1230,7 @@ export default function CustomersPage() {
                     />
                   </th>
                   <th 
-                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider relative"
+                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative"
                     style={{ width: columnWidths.services, minWidth: columnWidths.services, maxWidth: columnWidths.services }}
                   >
                     Service(s)
@@ -1217,18 +1240,18 @@ export default function CustomersPage() {
                     />
                   </th>
                   <th 
-                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider relative"
+                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative"
                     style={{ width: columnWidths.action, minWidth: columnWidths.action, maxWidth: columnWidths.action }}
                   >
                     Action
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white dark:bg-gray-950 divide-y divide-gray-200 dark:divide-gray-700">
+              <tbody className="bg-white divide-y divide-gray-200">
                 {sortedCustomers.map((customer, index) => (
                   <tr 
                     key={customer.id} 
-                    className="hover:bg-gray-50 dark:hover:bg-gray-900 transition cursor-pointer"
+                    className="hover:bg-gray-50 transition cursor-pointer"
                     onClick={() => handleCustomerClick(customer)}
                   >
                     <td className="px-4 py-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
@@ -1241,7 +1264,7 @@ export default function CustomersPage() {
                       />
                     </td>
                     {selectedCustomers.size > 0 && (
-                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
                       {index + 1}
                     </td>
                     )}
@@ -1250,18 +1273,18 @@ export default function CustomersPage() {
                       style={{ width: columnWidths.name, minWidth: columnWidths.name, maxWidth: columnWidths.name }}
                     >
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
-                          <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                        <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
+                          <span className="text-sm font-semibold text-gray-700">
                             {getInitials(customer.customerName)}
                           </span>
                         </div>
-                        <div className="font-medium text-gray-900 dark:text-white hover:text-gray-600 dark:hover:text-gray-300 transition truncate min-w-0">
+                        <div className="font-medium text-gray-900 hover:text-gray-600 transition truncate min-w-0">
                         {customer.customerName || '-'}
                         </div>
                       </div>
                     </td>
                     <td 
-                      className="px-4 py-4 text-sm text-gray-600 dark:text-gray-400 truncate"
+                      className="px-4 py-4 text-sm text-gray-600 truncate"
                       style={{ width: columnWidths.phone, minWidth: columnWidths.phone, maxWidth: columnWidths.phone }}
                     >
                       <span className="truncate block">{customer.customerPhone || '-'}</span>
@@ -1287,7 +1310,7 @@ export default function CustomersPage() {
                         }
                       }}
                     >
-                      <span className={`truncate block relative z-10 ${customer.customerEmail && customer.customerEmail !== '-' ? 'cursor-pointer text-gray-600 dark:text-gray-400 group-hover:text-black dark:group-hover:text-white' : 'text-gray-600 dark:text-gray-400'}`}>
+                      <span className={`truncate block relative z-10 ${customer.customerEmail && customer.customerEmail !== '-' ? 'cursor-pointer text-gray-600 group-hover:text-black' : 'text-gray-600'}`}>
                       {customer.customerEmail || '-'}
                       </span>
                       {customer.customerEmail && customer.customerEmail !== '-' && (
@@ -1315,7 +1338,7 @@ export default function CustomersPage() {
                         }
                       }}
                     >
-                      <span className={`truncate block relative z-10 ${customer.address && customer.address !== '-' ? 'cursor-pointer text-gray-600 dark:text-gray-400 group-hover:text-black dark:group-hover:text-white' : 'text-gray-600 dark:text-gray-400'}`}>
+                      <span className={`truncate block relative z-10 ${customer.address && customer.address !== '-' ? 'cursor-pointer text-gray-600 group-hover:text-black' : 'text-gray-600'}`}>
                       {customer.address || '-'}
                       </span>
                       {customer.address && customer.address !== '-' && (
@@ -1323,13 +1346,13 @@ export default function CustomersPage() {
                       )}
                     </td>
                     <td 
-                      className="px-4 py-4 text-sm text-gray-600 dark:text-gray-400 truncate"
+                      className="px-4 py-4 text-sm text-gray-600 truncate"
                       style={{ width: columnWidths.vehicle, minWidth: columnWidths.vehicle, maxWidth: columnWidths.vehicle }}
                     >
                       <span className="truncate block">{customer.vehicle || customer.vehicleModel || '-'}</span>
                     </td>
                     <td 
-                      className="px-4 py-4 text-sm text-gray-600 dark:text-gray-400 truncate"
+                      className="px-4 py-4 text-sm text-gray-600 truncate"
                       style={{ width: columnWidths.services, minWidth: columnWidths.services, maxWidth: columnWidths.services }}
                     >
                       <span className="truncate block">
@@ -1349,10 +1372,10 @@ export default function CustomersPage() {
                             e.stopPropagation();
                             handleCall(customer.customerPhone);
                           }}
-                          className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 flex items-center justify-center transition"
+                          className="w-10 h-10 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition"
                           title="Call"
                         >
-                          <svg className="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                           </svg>
                         </button>
@@ -1361,10 +1384,10 @@ export default function CustomersPage() {
                             e.stopPropagation();
                             handleSendSMS(customer);
                           }}
-                          className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 flex items-center justify-center transition"
+                          className="w-10 h-10 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition"
                           title="Send SMS"
                         >
-                          <svg className="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
                           </svg>
                         </button>
@@ -1380,15 +1403,23 @@ export default function CustomersPage() {
 
       {/* Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 flex items-center justify-center z-50 p-4 overflow-y-auto" style={{ backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', backgroundColor: 'rgba(0, 0, 0, 0.3)' }}>
-          <div className="rounded-xl shadow-xl max-w-2xl w-full p-6 my-8" style={{ backgroundColor: '#F8F8F7' }}>
+        <div 
+          className="fixed inset-0 flex items-center justify-center z-50 p-4 overflow-y-auto" 
+          style={{ backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', backgroundColor: 'rgba(0, 0, 0, 0.3)' }}
+          onClick={handleCloseModal}
+        >
+          <div 
+            className="rounded-xl shadow-xl max-w-2xl w-full p-6 my-8" 
+            style={{ backgroundColor: '#F8F8F7' }}
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+              <h2 className="text-xl font-bold text-gray-900">
               {editingCustomer ? 'Edit' : 'Add'} Customer
             </h2>
               <button
                 onClick={handleCloseModal}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                className="text-gray-400 hover:text-gray-600 transition-colors"
                 aria-label="Close modal"
               >
                 <XMarkIcon className="w-6 h-6" />
@@ -1397,70 +1428,74 @@ export default function CustomersPage() {
             
             <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
                   Phone Number *
                 </label>
                 <input
                   type="tel"
                   value={formData.customerPhone}
-                  onChange={(e) => setFormData({ ...formData, customerPhone: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-transparent dark:bg-gray-700 dark:text-white"
-                  placeholder="+1234567890"
+                  onChange={(e) => {
+                    const formatted = formatPhoneNumber(e.target.value);
+                    setFormData({ ...formData, customerPhone: formatted });
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                  placeholder="(---) --- ----"
+                  maxLength={16}
                   disabled={!!editingCustomer}
                 />
                 {editingCustomer && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  <p className="text-xs text-gray-500 mt-1">
                     Phone number cannot be changed
                   </p>
                 )}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
                   Name
                 </label>
                 <input
                   type="text"
                   value={formData.customerName}
                   onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                   placeholder="Customer name"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
                   Email
                 </label>
                 <input
                   type="email"
                   value={formData.customerEmail}
                   onChange={(e) => setFormData({ ...formData, customerEmail: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                   placeholder="customer@example.com"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
                   Address
                 </label>
                 <AddressAutocompleteInput
                   value={formData.address}
                   onChange={(value) => setFormData({ ...formData, address: value })}
                   placeholder="123 Main St, City, State ZIP"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
                   Location Type
                 </label>
                 <select
                   value={formData.locationType}
                   onChange={(e) => setFormData({ ...formData, locationType: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                 >
                   <option value="">Select location type</option>
                   <option value="pick up">Pick Up</option>
@@ -1469,13 +1504,13 @@ export default function CustomersPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
                   Customer Type
                 </label>
                 <select
                   value={formData.customerType}
                   onChange={(e) => setFormData({ ...formData, customerType: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                 >
                   <option value="">Select customer type</option>
                   <option value="new">New Customer</option>
@@ -1485,30 +1520,30 @@ export default function CustomersPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
                   Vehicle Model
                 </label>
                 <input
                   type="text"
                   value={formData.vehicleModel}
                   onChange={(e) => setFormData({ ...formData, vehicleModel: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                   placeholder="e.g., Camry, Civic, F-150, Model 3"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
                   Customer Notes
                 </label>
                 <textarea
                   value={formData.customerNotes}
                   onChange={(e) => setFormData({ ...formData, customerNotes: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                   placeholder="Add notes about the customer (e.g., preferences, behavior, reminders)..."
                   rows={4}
                 />
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                <p className="text-xs text-gray-500 mt-1">
                   Quick notes about customer preferences, behavior, or reminders for future reference
                 </p>
               </div>
@@ -1517,7 +1552,7 @@ export default function CustomersPage() {
             <div className="flex gap-3 mt-6">
               <button
                 onClick={handleCloseModal}
-                className="flex-1 px-6 py-2 border border-gray-300 dark:border-gray-600 rounded-xl text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition"
+                className="flex-1 px-6 py-2 border border-gray-300 rounded-xl text-gray-700 hover:bg-gray-50 transition"
               >
                 Cancel
               </button>
@@ -1537,7 +1572,7 @@ export default function CustomersPage() {
       {/* Hover Tooltip */}
       {hoveredCell && (
         <div
-          className="fixed z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl px-3 py-2 text-sm text-gray-900 dark:text-gray-100 max-w-md pointer-events-none"
+          className="fixed z-50 bg-white border border-gray-200 rounded-lg shadow-xl px-3 py-2 text-sm text-gray-900 max-w-md pointer-events-none"
           style={{
             left: `${hoveredCell.x}px`,
             top: `${hoveredCell.y - 5}px`,
@@ -1547,7 +1582,7 @@ export default function CustomersPage() {
           <div className="whitespace-normal break-words">
             {hoveredCell.content}
           </div>
-          <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-200 dark:border-t-gray-700" />
+          <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-200" />
         </div>
       )}
 
@@ -1556,12 +1591,12 @@ export default function CustomersPage() {
         <div className="fixed inset-0 flex items-center justify-center z-50 p-4 overflow-y-auto" style={{ backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', backgroundColor: 'rgba(0, 0, 0, 0.3)' }}>
           <div className="rounded-xl shadow-xl max-w-2xl w-full p-6 my-8" style={{ backgroundColor: '#F8F8F7' }}>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+              <h2 className="text-xl font-bold text-gray-900">
                 Import Customers
               </h2>
               <button
                 onClick={handleCloseImportModal}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                className="text-gray-400 hover:text-gray-600 transition-colors"
                 aria-label="Close modal"
               >
                 <XMarkIcon className="w-6 h-6" />
@@ -1593,17 +1628,17 @@ export default function CustomersPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   Select File (CSV or Excel)
                 </label>
                 <input
                   type="file"
                   accept=".csv,.xls,.xlsx,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                   onChange={handleFileSelect}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                 />
                 {importFile && (
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                  <p className="text-sm text-gray-600 mt-1">
                     Selected: {importFile.name}
                   </p>
                 )}
@@ -1635,7 +1670,7 @@ export default function CustomersPage() {
               <div className="flex gap-3 mt-6">
                 <button
                   onClick={handleCloseImportModal}
-                  className="flex-1 px-6 py-2 border border-gray-300 dark:border-gray-600 rounded-xl text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition"
+                  className="flex-1 px-6 py-2 border border-gray-300 rounded-xl text-gray-700 hover:bg-gray-50 transition"
                 >
                   {importResults ? 'Close' : 'Cancel'}
                 </button>

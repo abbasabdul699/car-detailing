@@ -84,9 +84,8 @@ export default function DetailerDashboardLayout({
   
   const navigation = [
     { name: "Calendar", href: "/detailer-dashboard/calendar", iconPath: "/icons/calendar (1).png" },
-    { name: "Messages", href: "/detailer-dashboard/messages", iconPath: "/icons/messages (1).png" },
-    { name: "Resources", href: "/detailer-dashboard/resources", iconPath: "/icons/users-alt-3.png" },
-    { name: "Customers", href: "/detailer-dashboard/customers", iconPath: "/icons/book-alt (1).png" },
+    { name: "Customer", href: "/detailer-dashboard/customers", iconPath: "/icons/book-alt (1).png" },
+    { name: "Conversation", href: "/detailer-dashboard/messages", iconPath: "/icons/messages (1).png" },
   ];
 
   const handleLogout = async () => {
@@ -103,7 +102,7 @@ export default function DetailerDashboardLayout({
   return (
     <ThemeProvider>
       <div className="detailer-dashboard-border-overlay"></div>
-      <div className="min-h-screen bg-white dark:bg-gray-950 flex overflow-hidden w-full max-w-full">
+      <div className="min-h-screen bg-white flex overflow-hidden w-full max-w-full">
           {/* Sidebar */}
           <div className="hidden md:flex w-16 flex-col h-screen md:fixed md:top-0 md:left-0" style={{ backgroundColor: '#F8F8F7', zIndex: 10, borderRight: '1px solid #E2E2DD', boxShadow: 'none' }}>
           {/* Logo at top */}
@@ -202,33 +201,50 @@ export default function DetailerDashboardLayout({
             {dropdownOpen && mounted && createPortal(
               <div 
                 ref={dropdownMenuRef}
-                className="fixed w-56 origin-bottom-left rounded-md bg-white dark:bg-gray-800 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-[9999]"
+                className="fixed w-56 origin-bottom-left rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-[9999]"
                 style={{
                   left: `${dropdownPosition.left}px`,
                   bottom: `${dropdownPosition.bottom}px`
                 }}
               >
                 <div className="py-1">
-                  <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center space-x-3">
+                  <div className="px-4 py-3 border-b border-gray-200 flex items-center space-x-3">
                     <div className="h-10 w-10 rounded-full overflow-hidden flex-shrink-0">
                       <img className="w-full h-full object-cover" src={session?.user?.image || '/images/default-avatar.png'} alt="User avatar" />
                     </div>
                     <div>
-                      <p className="text-sm font-semibold text-gray-900 dark:text-white">{session?.user?.businessName || session?.user?.name}</p>
-                      <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{session?.user?.name}</p>
+                      <p className="text-sm font-semibold text-gray-900">{session?.user?.businessName || session?.user?.name}</p>
+                      <p className="text-sm text-gray-500 truncate">{session?.user?.name}</p>
                     </div>
                   </div>
                   <Link 
                     href="/detailer-dashboard/profile" 
-                    className="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                     onClick={() => setDropdownOpen(false)}
                   >
                     <UserCircleIcon className="mr-3 h-5 w-5 text-gray-400" />
                     Edit profile
                   </Link>
                   <Link 
+                    href="/detailer-dashboard/resources" 
+                    className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                    onClick={() => setDropdownOpen(false)}
+                  >
+                    <div className="mr-3 flex items-center justify-center">
+                      <Image 
+                        src="/icons/users-alt-3.png" 
+                        alt="Resources" 
+                        width={20} 
+                        height={20}
+                        className="opacity-60"
+                        style={{ filter: 'grayscale(100%) brightness(0.6)' }}
+                      />
+                    </div>
+                    Resources
+                  </Link>
+                  <Link 
                     href="/detailer-dashboard/services" 
-                    className="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                     onClick={() => setDropdownOpen(false)}
                   >
                     <div className="mr-3 flex items-center justify-center">
@@ -245,7 +261,7 @@ export default function DetailerDashboardLayout({
                   </Link>
                   <Link 
                     href="/detailer-dashboard/images" 
-                    className="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                     onClick={() => setDropdownOpen(false)}
                   >
                     <PhotoIcon className="mr-3 h-5 w-5 text-gray-400" />
@@ -253,7 +269,7 @@ export default function DetailerDashboardLayout({
                   </Link>
                   <Link 
                     href="/detailer-dashboard/subscription" 
-                    className="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                     onClick={() => setDropdownOpen(false)}
                   >
                     <CreditCardIcon className="mr-3 h-5 w-5 text-gray-400" />
@@ -264,7 +280,7 @@ export default function DetailerDashboardLayout({
                       setDropdownOpen(false);
                       handleLogout();
                     }}
-                    className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                   >
                     <ArrowLeftStartOnRectangleIcon className="mr-3 h-5 w-5 text-gray-400" />
                     Sign out
@@ -283,7 +299,7 @@ export default function DetailerDashboardLayout({
             <div className="h-full min-w-0 overflow-hidden">
               <div className="h-full min-w-0 overflow-hidden">
                 {/* content wrapper */}
-                <div className="bg-white dark:bg-gray-800 h-full flex flex-col min-w-0 overflow-hidden">
+                <div className="bg-white h-full flex flex-col min-w-0 overflow-hidden">
                   {children}
                 </div>
               </div>

@@ -16,6 +16,8 @@ type NewCustomerModalProps = {
     onClose: () => void;
     onSuccess: (customer: { customerName: string; customerPhone: string; customerEmail?: string; address?: string }) => void;
     initialName?: string;
+    existingCustomer?: { customerName: string; customerPhone: string; customerAddress?: string };
+    isEditMode?: boolean;
 };
 
 // US States list
@@ -29,11 +31,26 @@ const US_STATES = [
     'Virginia', 'Washington', 'West Virginia', 'Wisconsin', 'Wyoming'
 ];
 
-export default function NewCustomerModal({ isOpen, onClose, onSuccess, initialName = '' }: NewCustomerModalProps) {
+// Format phone number as (XXX) XXX XXXX
+const formatPhoneNumber = (value: string): string => {
+    // Remove all non-digit characters
+    const digits = value.replace(/\D/g, '');
+    
+    // Limit to 10 digits
+    const limitedDigits = digits.slice(0, 10);
+    
+    // Format based on length
+    if (limitedDigits.length === 0) return '';
+    if (limitedDigits.length <= 3) return `(${limitedDigits}`;
+    if (limitedDigits.length <= 6) return `(${limitedDigits.slice(0, 3)}) ${limitedDigits.slice(3)}`;
+    return `(${limitedDigits.slice(0, 3)}) ${limitedDigits.slice(3, 6)} ${limitedDigits.slice(6)}`;
+};
+
+export default function NewCustomerModal({ isOpen, onClose, onSuccess, initialName = '', existingCustomer, isEditMode = false }: NewCustomerModalProps) {
     const { data: session } = useSession();
-    const [customerName, setCustomerName] = useState(initialName);
-    const [phoneNumber, setPhoneNumber] = useState('');
-    const [address, setAddress] = useState('');
+    const [customerName, setCustomerName] = useState(initialName || existingCustomer?.customerName || '');
+    const [phoneNumber, setPhoneNumber] = useState(existingCustomer?.customerPhone || '');
+    const [address, setAddress] = useState(existingCustomer?.customerAddress || '');
     const [city, setCity] = useState('');
     const [state, setState] = useState('');
     const [zipCode, setZipCode] = useState('');
@@ -142,9 +159,17 @@ export default function NewCustomerModal({ isOpen, onClose, onSuccess, initialNa
     // Reset form when modal opens/closes
     React.useEffect(() => {
         if (isOpen) {
-            setCustomerName(initialName);
-            setPhoneNumber('');
-            setAddress('');
+            if (isEditMode && existingCustomer) {
+                setCustomerName(existingCustomer.customerName || '');
+                // Format existing phone number if it exists
+                const existingPhone = existingCustomer.customerPhone || '';
+                setPhoneNumber(existingPhone ? formatPhoneNumber(existingPhone) : '');
+                setAddress(existingCustomer.customerAddress || '');
+            } else {
+                setCustomerName(initialName);
+                setPhoneNumber('');
+                setAddress('');
+            }
             setCity('');
             setState('');
             setZipCode('');
@@ -166,6 +191,13 @@ export default function NewCustomerModal({ isOpen, onClose, onSuccess, initialNa
             return;
         }
 
+        // Extract digits only from formatted phone number
+        const phoneDigits = phoneNumber.replace(/\D/g, '');
+        if (phoneDigits.length !== 10) {
+            setError('Phone number must be 10 digits');
+            return;
+        }
+
         setIsSubmitting(true);
 
         try {
@@ -180,7 +212,7 @@ export default function NewCustomerModal({ isOpen, onClose, onSuccess, initialNa
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    customerPhone: phoneNumber,
+                    customerPhone: phoneDigits,
                     customerName: customerName.trim(),
                     customerEmail: undefined, // Can be added later if needed
                     address: fullAddress || undefined,
@@ -201,7 +233,7 @@ export default function NewCustomerModal({ isOpen, onClose, onSuccess, initialNa
             // Call onSuccess with the created customer data
             onSuccess({
                 customerName: customerName.trim(),
-                customerPhone: phoneNumber,
+                customerPhone: phoneDigits,
                 customerEmail: undefined,
                 address: fullAddress || undefined,
             });
@@ -218,16 +250,24 @@ export default function NewCustomerModal({ isOpen, onClose, onSuccess, initialNa
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 flex items-center justify-center z-[60] p-4" style={{ backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', backgroundColor: 'rgba(0, 0, 0, 0.05)' }}>
-            <div className="rounded-xl shadow-xl" style={{ backgroundColor: '#F8F8F7', width: '500px' }}>
+        <div 
+            className="fixed inset-0 flex items-center justify-center z-[60] p-4" 
+            style={{ backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', backgroundColor: 'rgba(0, 0, 0, 0.05)' }}
+            onClick={onClose}
+        >
+            <div 
+                className="rounded-xl shadow-xl" 
+                style={{ backgroundColor: '#F8F8F7', width: '500px' }}
+                onClick={(e) => e.stopPropagation()}
+            >
                 {/* Header */}
-                <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-                    <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                        New customer
+                <div className="flex items-center justify-between p-6 border-b border-gray-200">
+                    <h2 className="text-xl font-bold text-gray-900">
+                        {isEditMode ? 'Edit customer' : 'New customer'}
                     </h2>
                     <button
                         onClick={onClose}
-                        className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
+                        className="p-1 rounded-full hover:bg-gray-100"
                     >
                         <XMarkIcon className="w-5 h-5 text-gray-500" />
                     </button>
@@ -236,14 +276,14 @@ export default function NewCustomerModal({ isOpen, onClose, onSuccess, initialNa
                 {/* Form */}
                 <form onSubmit={handleSubmit} className="p-6 space-y-4">
                     {error && (
-                        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
-                            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                            <p className="text-sm text-red-600">{error}</p>
                         </div>
                     )}
 
                     {/* Customer name */}
                     <div>
-                        <label htmlFor="customer-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        <label htmlFor="customer-name" className="block text-sm font-medium text-gray-700 mb-2">
                             Customer name
                         </label>
                         <input
@@ -251,7 +291,7 @@ export default function NewCustomerModal({ isOpen, onClose, onSuccess, initialNa
                             id="customer-name"
                             value={customerName}
                             onChange={(e) => setCustomerName(e.target.value)}
-                            className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                            className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                             placeholder="Select customer"
                             required
                         />
@@ -259,23 +299,27 @@ export default function NewCustomerModal({ isOpen, onClose, onSuccess, initialNa
 
                     {/* Phone number */}
                     <div>
-                        <label htmlFor="phone-number" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        <label htmlFor="phone-number" className="block text-sm font-medium text-gray-700 mb-2">
                             Phone number
                         </label>
                         <input
                             type="tel"
                             id="phone-number"
                             value={phoneNumber}
-                            onChange={(e) => setPhoneNumber(e.target.value)}
-                            className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                            onChange={(e) => {
+                                const formatted = formatPhoneNumber(e.target.value);
+                                setPhoneNumber(formatted);
+                            }}
+                            className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                             placeholder="(---) --- ----"
+                            maxLength={16}
                             required
                         />
                     </div>
 
                     {/* Address */}
                     <div>
-                        <label htmlFor="address" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        <label htmlFor="address" className="block text-sm font-medium text-gray-700 mb-2">
                             Address
                         </label>
                         <input
@@ -284,7 +328,7 @@ export default function NewCustomerModal({ isOpen, onClose, onSuccess, initialNa
                             id="address"
                             value={address}
                             onChange={(e) => handleAddressChange(e.target.value)}
-                            className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                            className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                             placeholder={isLoaded ? "123 Main St" : "Loading Google Maps..."}
                             autoComplete="off"
                             disabled={!isLoaded}
@@ -294,7 +338,7 @@ export default function NewCustomerModal({ isOpen, onClose, onSuccess, initialNa
                     {/* City & State */}
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label htmlFor="city" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            <label htmlFor="city" className="block text-sm font-medium text-gray-700 mb-2">
                                 City
                             </label>
                             <input
@@ -302,19 +346,19 @@ export default function NewCustomerModal({ isOpen, onClose, onSuccess, initialNa
                                 id="city"
                                 value={city}
                                 onChange={(e) => setCity(e.target.value)}
-                                className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                                 placeholder="City"
                             />
                         </div>
                         <div>
-                            <label htmlFor="state" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            <label htmlFor="state" className="block text-sm font-medium text-gray-700 mb-2">
                                 State
                             </label>
                             <select
                                 id="state"
                                 value={state}
                                 onChange={(e) => setState(e.target.value)}
-                                className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                                className="w-full px-2 py-2.5 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                             >
                                 <option value="">Select state</option>
                                 {US_STATES.map((stateName) => (
@@ -328,7 +372,7 @@ export default function NewCustomerModal({ isOpen, onClose, onSuccess, initialNa
 
                     {/* ZIP code */}
                     <div>
-                        <label htmlFor="zip-code" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        <label htmlFor="zip-code" className="block text-sm font-medium text-gray-700 mb-2">
                             ZIP code
                         </label>
                         <input
@@ -336,7 +380,7 @@ export default function NewCustomerModal({ isOpen, onClose, onSuccess, initialNa
                             id="zip-code"
                             value={zipCode}
                             onChange={(e) => setZipCode(e.target.value)}
-                            className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                            className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                             placeholder="02138"
                         />
                     </div>
@@ -346,7 +390,7 @@ export default function NewCustomerModal({ isOpen, onClose, onSuccess, initialNa
                         <button
                             type="button"
                             onClick={onClose}
-                            className="flex-1 px-6 py-2 border border-gray-300 dark:border-gray-600 rounded-xl text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                            className="flex-1 px-6 py-2 border border-gray-300 rounded-xl text-gray-700 hover:bg-gray-50"
                             disabled={isSubmitting}
                         >
                             Cancel
@@ -357,7 +401,7 @@ export default function NewCustomerModal({ isOpen, onClose, onSuccess, initialNa
                             disabled={isSubmitting}
                         >
                             <CheckIcon className="w-5 h-5" />
-                            <span>Add new customer</span>
+                            <span>{isEditMode ? 'Confirm edit' : 'Add new customer'}</span>
                         </button>
                     </div>
                 </form>

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { PrismaClient } from '@prisma/client';
+import { DateTime } from 'luxon';
+import { normalizeToE164 } from '@/lib/phone';
 
 const prisma = new PrismaClient();
 
@@ -88,7 +90,8 @@ export async function GET(request: NextRequest) {
         googleCalendarRefreshToken: true,
         syncAppointments: true,
         syncAvailability: true,
-        businessHours: true
+        businessHours: true,
+        timezone: true
       }
     });
 
@@ -96,12 +99,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Detailer not found' }, { status: 404 });
     }
 
+    // Get detailer's timezone (default to America/New_York if not set)
+    const detailerTimezone = detailer.timezone || 'America/New_York';
+
     let events = [];
     let localEvents = [];
 
       // First, fetch local events and bookings from our database
       try {
-        const [events, bookings, employees] = await Promise.all([
+        const [events, bookings, employees, customerSnapshots] = await Promise.all([
           prisma.event.findMany({
             where: { detailerId },
             orderBy: { date: 'asc' }
@@ -122,11 +128,34 @@ export async function GET(request: NextRequest) {
           prisma.employee.findMany({
             where: { detailerId },
             select: { id: true, name: true, color: true, imageUrl: true }
+          }),
+          prisma.customerSnapshot.findMany({
+            where: { detailerId },
+            select: { 
+              customerPhone: true, 
+              customerName: true, 
+              customerEmail: true, 
+              address: true,
+              locationType: true,
+              customerType: true,
+              vehicleModel: true,
+              services: true,
+              updatedAt: true
+            }
           })
         ]);
         
         // Create employee map for quick lookup
         const employeeMap = new Map(employees.map((emp: any) => [emp.id, emp]));
+        
+        // Create customer snapshot map by phone number (normalized) for quick lookup
+        const customerMap = new Map<string, any>();
+        customerSnapshots.forEach((customer: any) => {
+          if (customer.customerPhone) {
+            const normalizedPhone = normalizeToE164(customer.customerPhone) || customer.customerPhone;
+            customerMap.set(normalizedPhone, customer);
+          }
+        });
 
       // Helper function to get day of week name from date (using UTC to avoid timezone issues)
       const getDayOfWeek = (date: Date): string => {
@@ -261,8 +290,22 @@ export async function GET(request: NextRequest) {
             if (endPeriod === 'AM' && endHour === 12) endHour = 0;
             const endTime24 = `${String(endHour).padStart(2, '0')}:${String(endMin).padStart(2, '0')}:00`;
             
-            startDateTime = new Date(`${dateStr}T${startTime24}`);
-            endDateTime = new Date(`${dateStr}T${endTime24}`);
+            // Create dates in detailer's timezone, then convert to UTC
+            const [year, month, day] = dateStr.split('-').map(Number);
+            const [startHour24, startMin24] = startTime24.split(':').map(Number);
+            const [endHour24, endMin24] = endTime24.split(':').map(Number);
+            
+            const startDT = DateTime.fromObject(
+              { year, month, day, hour: startHour24, minute: startMin24 },
+              { zone: detailerTimezone }
+            );
+            startDateTime = startDT.toUTC().toJSDate();
+            
+            const endDT = DateTime.fromObject(
+              { year, month, day, hour: endHour24, minute: endMin24 },
+              { zone: detailerTimezone }
+            );
+            endDateTime = endDT.toUTC().toJSDate();
             
             // If parsing fails, fall back to event date
             if (isNaN(startDateTime.getTime())) {
@@ -292,8 +335,15 @@ export async function GET(request: NextRequest) {
               timeStr = `${timeStr}:00`;
             }
             
-            // dateStr is already extracted above using UTC
-            startDateTime = new Date(`${dateStr}T${timeStr}`);
+            // Create date in detailer's timezone, then convert to UTC
+            const [year, month, day] = dateStr.split('-').map(Number);
+            const [hour24, min24] = timeStr.split(':').map(Number);
+            
+            const startDT = DateTime.fromObject(
+              { year, month, day, hour: hour24, minute: min24 },
+              { zone: detailerTimezone }
+            );
+            startDateTime = startDT.toUTC().toJSDate();
             
             // If time parsing fails, fall back to event date
             if (isNaN(startDateTime.getTime())) {
@@ -336,6 +386,22 @@ export async function GET(request: NextRequest) {
             services = metadata.services || null;
           } catch (e) {
             // Ignore parse errors, use original description
+          }
+        }
+        
+        // Enrich with CustomerSnapshot data if available (source of truth)
+        if (customerPhone) {
+          const normalizedEventPhone = normalizeToE164(customerPhone) || customerPhone;
+          const customerSnapshot = customerMap.get(normalizedEventPhone);
+          if (customerSnapshot) {
+            // Use CustomerSnapshot as source of truth - it's always up-to-date
+            customerName = customerSnapshot.customerName || customerName;
+            customerAddress = customerSnapshot.address || customerAddress;
+            locationType = customerSnapshot.locationType || locationType;
+            customerType = customerSnapshot.customerType || customerType;
+            vehicleModel = customerSnapshot.vehicleModel || vehicleModel;
+            services = customerSnapshot.services || services;
+            // Keep the phone from metadata (it should match, but metadata is the source for phone)
           }
         }
 
@@ -406,7 +472,16 @@ export async function GET(request: NextRequest) {
           const dateStr = bookingDate.getUTCFullYear() + '-' + 
             String(bookingDate.getUTCMonth() + 1).padStart(2, '0') + '-' + 
             String(bookingDate.getUTCDate()).padStart(2, '0');
-          startDateTime = new Date(`${dateStr}T${timeStr}`);
+          
+          // Create date in detailer's timezone, then convert to UTC
+          const [year, month, day] = dateStr.split('-').map(Number);
+          const [hour24, min24] = timeStr.split(':').map(Number);
+          
+          const startDT = DateTime.fromObject(
+            { year, month, day, hour: hour24, minute: min24 },
+            { zone: detailerTimezone }
+          );
+          startDateTime = startDT.toUTC().toJSDate();
           
           // If time parsing fails, fall back to booking date
           if (isNaN(startDateTime.getTime())) {

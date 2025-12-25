@@ -412,14 +412,14 @@ export default function DetailerProfilePage() {
   const strengthLabels = ['Very Weak', 'Weak', 'Fair', 'Good', 'Strong'];
   const strengthColor = ['bg-red-500', 'bg-orange-500', 'bg-yellow-500', 'bg-blue-500', 'bg-black'];
 
-  if (loading) return <div className="min-h-screen bg-gray-50 dark:bg-gray-950 p-6 flex items-center justify-center">
+  if (loading) return <div className="min-h-screen bg-gray-50 p-6 flex items-center justify-center">
     <div className="text-center">
       <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
-      <p className="text-gray-600 dark:text-gray-400">Loading profile...</p>
+      <p className="text-gray-600">Loading profile...</p>
     </div>
   </div>;
   
-  if (error) return <div className="min-h-screen bg-gray-50 dark:bg-gray-950 p-6 flex items-center justify-center">
+  if (error) return <div className="min-h-screen bg-gray-50 p-6 flex items-center justify-center">
     <div className="text-center">
       <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
         <strong>Error:</strong> {error}
@@ -433,21 +433,21 @@ export default function DetailerProfilePage() {
     </div>
   </div>;
   
-  if (!profile) return <div className="min-h-screen bg-gray-50 dark:bg-gray-950 p-6 flex items-center justify-center">
+  if (!profile) return <div className="min-h-screen bg-gray-50 p-6 flex items-center justify-center">
     <div className="text-center">
-      <p className="text-gray-600 dark:text-gray-400">Profile not found</p>
+      <p className="text-gray-600">Profile not found</p>
     </div>
   </div>;
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 p-6">
+    <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-3xl mx-auto space-y-8">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">User Profile</h1>
+        <h1 className="text-2xl font-bold text-gray-900 mb-6">User Profile</h1>
         {/* My Profile Section */}
-        <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-6 mb-4">
+        <div className="bg-white rounded-xl shadow p-6 mb-4">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">My Profile</h2>
-            <button className="border border-gray-300 dark:border-gray-600 rounded-full px-4 py-1 text-sm flex items-center gap-2 text-gray-700 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800" onClick={() => setEditingSection('profile')}>✏️ Edit</button>
+            <h2 className="text-lg font-semibold text-gray-900">My Profile</h2>
+            <button className="border border-gray-300 rounded-full px-4 py-1 text-sm flex items-center gap-2 text-gray-700 hover:bg-gray-100" onClick={() => setEditingSection('profile')}>✏️ Edit</button>
           </div>
           <div className="flex items-center gap-6">
             <img
@@ -458,87 +458,87 @@ export default function DetailerProfilePage() {
               title="Change profile image"
             />
             <div className="flex flex-col gap-2">
-              <div className="font-bold text-xl text-gray-900 dark:text-gray-100">{profile.firstName} {profile.lastName}</div>
+              <div className="font-bold text-xl text-gray-900">{profile.firstName} {profile.lastName}</div>
               <div className="flex items-center gap-2">
-                <input type="text" value={profile.businessName || ''} disabled className="w-full border rounded p-2 bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-100 font-semibold text-lg" />
+                <input type="text" value={profile.businessName || ''} disabled className="w-full border rounded p-2 bg-gray-100 text-gray-900 font-semibold text-lg" />
               </div>
-              <div className="text-gray-500 dark:text-gray-400 text-sm">{profile.city}, {profile.state}</div>
+              <div className="text-gray-500 text-sm">{profile.city}, {profile.state}</div>
             </div>
           </div>
         </div>
         {/* Personal Information Section */}
-        <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-6 mb-4">
+        <div className="bg-white rounded-xl shadow p-6 mb-4">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Personal Information</h2>
-            <button className="border border-gray-300 dark:border-gray-600 rounded-full px-4 py-1 text-sm flex items-center gap-2 text-gray-700 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800" onClick={() => setEditingSection('personal')}>✏️ Edit</button>
+            <h2 className="text-lg font-semibold text-gray-900">Personal Information</h2>
+            <button className="border border-gray-300 rounded-full px-4 py-1 text-sm flex items-center gap-2 text-gray-700 hover:bg-gray-100" onClick={() => setEditingSection('personal')}>✏️ Edit</button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs text-gray-700 dark:text-gray-200">First Name</label>
-              <input type="text" value={profile.firstName || ''} disabled className="w-full border rounded p-2 bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-100" />
+              <label className="block text-xs text-gray-700">First Name</label>
+              <input type="text" value={profile.firstName || ''} disabled className="w-full border rounded p-2 bg-gray-100 text-gray-900" />
             </div>
             <div>
-              <label className="block text-xs text-gray-700 dark:text-gray-200">Last Name</label>
-              <input type="text" value={profile.lastName || ''} disabled className="w-full border rounded p-2 bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-100" />
+              <label className="block text-xs text-gray-700">Last Name</label>
+              <input type="text" value={profile.lastName || ''} disabled className="w-full border rounded p-2 bg-gray-100 text-gray-900" />
             </div>
             <div>
-              <label className="block text-xs text-gray-700 dark:text-gray-200">Email Address</label>
-              <input type="text" value={profile.email || ''} disabled className="w-full border rounded p-2 bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-100" />
+              <label className="block text-xs text-gray-700">Email Address</label>
+              <input type="text" value={profile.email || ''} disabled className="w-full border rounded p-2 bg-gray-100 text-gray-900" />
             </div>
             <div>
-              <label className="block text-xs text-gray-700 dark:text-gray-200">Phone Number</label>
-              <input type="text" value={profile.phone || ''} disabled className="w-full border rounded p-2 bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-100" />
+              <label className="block text-xs text-gray-700">Phone Number</label>
+              <input type="text" value={profile.phone || ''} disabled className="w-full border rounded p-2 bg-gray-100 text-gray-900" />
             </div>
             <div className="md:col-span-2">
-              <label className="block text-xs text-gray-700 dark:text-gray-200">Description</label>
-              <textarea value={profile.description || ''} disabled className="w-full border rounded p-2 bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-100" />
+              <label className="block text-xs text-gray-700">Description</label>
+              <textarea value={profile.description || ''} disabled className="w-full border rounded p-2 bg-gray-100 text-gray-900" />
             </div>
           </div>
         </div>
         {/* Address Section */}
-        <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-6 mb-4">
+        <div className="bg-white rounded-xl shadow p-6 mb-4">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Address</h2>
-            <button className="border border-gray-300 dark:border-gray-600 rounded-full px-4 py-1 text-sm flex items-center gap-2 text-gray-700 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800" onClick={() => setEditingSection('address')}>✏️ Edit</button>
+            <h2 className="text-lg font-semibold text-gray-900">Address</h2>
+            <button className="border border-gray-300 rounded-full px-4 py-1 text-sm flex items-center gap-2 text-gray-700 hover:bg-gray-100" onClick={() => setEditingSection('address')}>✏️ Edit</button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs text-gray-700 dark:text-gray-200">Address</label>
-              <input type="text" value={profile.address || ''} disabled className="w-full border rounded p-2 bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-100" />
+              <label className="block text-xs text-gray-700">Address</label>
+              <input type="text" value={profile.address || ''} disabled className="w-full border rounded p-2 bg-gray-100 text-gray-900" />
             </div>
             <div>
-              <label className="block text-xs text-gray-700 dark:text-gray-200">City</label>
-              <input type="text" value={profile.city || ''} disabled className="w-full border rounded p-2 bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-100" />
+              <label className="block text-xs text-gray-700">City</label>
+              <input type="text" value={profile.city || ''} disabled className="w-full border rounded p-2 bg-gray-100 text-gray-900" />
             </div>
             <div>
-              <label className="block text-xs text-gray-700 dark:text-gray-200">State</label>
-              <input type="text" value={profile.state || ''} disabled className="w-full border rounded p-2 bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-100" />
+              <label className="block text-xs text-gray-700">State</label>
+              <input type="text" value={profile.state || ''} disabled className="w-full border rounded p-2 bg-gray-100 text-gray-900" />
             </div>
             <div>
-              <label className="block text-xs text-gray-700 dark:text-gray-200">Postal Code</label>
-              <input type="text" value={profile.zipCode || ''} disabled className="w-full border rounded p-2 bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-100" />
+              <label className="block text-xs text-gray-700">Postal Code</label>
+              <input type="text" value={profile.zipCode || ''} disabled className="w-full border rounded p-2 bg-gray-100 text-gray-900" />
             </div>
           </div>
         </div>
         {/* Service Radius Section */}
-        <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-6 mb-4">
+        <div className="bg-white rounded-xl shadow p-6 mb-4">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Service Radius</h2>
-            <button className="border border-gray-300 dark:border-gray-600 rounded-full px-4 py-1 text-sm flex items-center gap-2 text-gray-700 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800" onClick={() => setShowServiceRadiusModal(true)}>✏️ Edit</button>
+            <h2 className="text-lg font-semibold text-gray-900">Service Radius</h2>
+            <button className="border border-gray-300 rounded-full px-4 py-1 text-sm flex items-center gap-2 text-gray-700 hover:bg-gray-100" onClick={() => setShowServiceRadiusModal(true)}>✏️ Edit</button>
           </div>
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Service Coverage Area</label>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Maximum distance you're willing to travel for service</p>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Service Coverage Area</label>
+                <p className="text-sm text-gray-500">Maximum distance you're willing to travel for service</p>
               </div>
               <div className="text-right">
-                <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{profile.serviceRadius || 25} miles</div>
-                <div className="text-xs text-gray-500 dark:text-gray-400">Current setting</div>
+                <div className="text-2xl font-bold text-blue-600">{profile.serviceRadius || 25} miles</div>
+                <div className="text-xs text-gray-500">Current setting</div>
               </div>
             </div>
             <div className="w-full">
-              <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mb-2">
+              <div className="flex justify-between text-xs text-gray-500 mb-2">
                 <span>1 mile</span>
                 <span>100 miles</span>
               </div>
@@ -549,18 +549,18 @@ export default function DetailerProfilePage() {
                   max="100"
                   value={profile.serviceRadius || 25}
                   disabled
-                  className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-not-allowed slider"
+                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-not-allowed slider"
                   style={{
                     background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${((profile.serviceRadius || 25) - 1) / 99 * 100}%, #e5e7eb ${((profile.serviceRadius || 25) - 1) / 99 * 100}%, #e5e7eb 100%)`
                   }}
                 />
-                <div className="absolute top-0 left-0 w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg pointer-events-none"></div>
+                <div className="absolute top-0 left-0 w-full h-2 bg-gray-200 rounded-lg pointer-events-none"></div>
               </div>
             </div>
-            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
               <div className="flex items-start gap-2">
-                <div className="text-blue-600 dark:text-blue-400 mt-0.5">ℹ️</div>
-                <div className="text-sm text-blue-800 dark:text-blue-200">
+                <div className="text-blue-600 mt-0.5">ℹ️</div>
+                <div className="text-sm text-blue-800">
                   <strong>How it works:</strong> When customers book appointments, the system automatically checks if their address is within your service radius. Customers outside this area will be politely informed that you don't service their location.
                 </div>
               </div>
@@ -568,48 +568,48 @@ export default function DetailerProfilePage() {
           </div>
         </div>
         {/* Social Media Section */}
-        <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-6 mb-4">
+        <div className="bg-white rounded-xl shadow p-6 mb-4">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Social Media</h2>
-            <button className="border border-gray-300 dark:border-gray-600 rounded-full px-4 py-1 text-sm flex items-center gap-2 text-gray-700 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800" onClick={() => setEditingSection('social')}>✏️ Edit</button>
+            <h2 className="text-lg font-semibold text-gray-900">Social Media</h2>
+            <button className="border border-gray-300 rounded-full px-4 py-1 text-sm flex items-center gap-2 text-gray-700 hover:bg-gray-100" onClick={() => setEditingSection('social')}>✏️ Edit</button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs text-gray-700 dark:text-gray-200">Facebook</label>
-              <input type="text" value={profile.facebook || ''} disabled className="w-full border rounded p-2 bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-100" />
+              <label className="block text-xs text-gray-700">Facebook</label>
+              <input type="text" value={profile.facebook || ''} disabled className="w-full border rounded p-2 bg-gray-100 text-gray-900" />
             </div>
             <div>
-              <label className="block text-xs text-gray-700 dark:text-gray-200">Instagram</label>
-              <input type="text" value={profile.instagram || ''} disabled className="w-full border rounded p-2 bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-100" />
+              <label className="block text-xs text-gray-700">Instagram</label>
+              <input type="text" value={profile.instagram || ''} disabled className="w-full border rounded p-2 bg-gray-100 text-gray-900" />
             </div>
             <div>
-              <label className="block text-xs text-gray-700 dark:text-gray-200">TikTok</label>
-              <input type="text" value={profile.tiktok || ''} disabled className="w-full border rounded p-2 bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-100" />
+              <label className="block text-xs text-gray-700">TikTok</label>
+              <input type="text" value={profile.tiktok || ''} disabled className="w-full border rounded p-2 bg-gray-100 text-gray-900" />
             </div>
             <div>
-              <label className="block text-xs text-gray-700 dark:text-gray-200">Website</label>
-              <input type="text" value={profile.website || ''} disabled className="w-full border rounded p-2 bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-100" />
+              <label className="block text-xs text-gray-700">Website</label>
+              <input type="text" value={profile.website || ''} disabled className="w-full border rounded p-2 bg-gray-100 text-gray-900" />
             </div>
           </div>
         </div>
 
         {/* Google Review Section */}
-        <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-6 mb-4">
+        <div className="bg-white rounded-xl shadow p-6 mb-4">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Google Review Link</h2>
-            <button className="border border-gray-300 dark:border-gray-600 rounded-full px-4 py-1 text-sm flex items-center gap-2 text-gray-700 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800" onClick={() => setEditingSection('googleReview')}>✏️ Edit</button>
+            <h2 className="text-lg font-semibold text-gray-900">Google Review Link</h2>
+            <button className="border border-gray-300 rounded-full px-4 py-1 text-sm flex items-center gap-2 text-gray-700 hover:bg-gray-100" onClick={() => setEditingSection('googleReview')}>✏️ Edit</button>
           </div>
           <div className="space-y-2">
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+            <p className="text-sm text-gray-600 mb-3">
               Add your Google Reviews link to make it easier for customers to leave reviews after their service.
             </p>
             <div>
-              <label className="block text-xs text-gray-700 dark:text-gray-200">Google Review Link</label>
+              <label className="block text-xs text-gray-700">Google Review Link</label>
               <input 
                 type="url" 
                 value={profile.googleReviewLink || ''} 
                 disabled 
-                className="w-full border rounded p-2 bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-100" 
+                className="w-full border rounded p-2 bg-gray-100 text-gray-900" 
                 placeholder="https://g.page/r/your-business/review"
               />
             </div>
@@ -632,23 +632,23 @@ export default function DetailerProfilePage() {
         </div>
 
         {/* Calendar Integration Section */}
-        <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-6 mb-4">
+        <div className="bg-white rounded-xl shadow p-6 mb-4">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Calendar Integration</h2>
+            <h2 className="text-lg font-semibold text-gray-900">Calendar Integration</h2>
           </div>
           
           <div className="space-y-4">
             {/* Google Calendar Connection */}
-            <div className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-xl">
+            <div className="flex items-center justify-between p-4 border border-gray-200 rounded-xl">
               <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900 rounded-xl flex items-center justify-center">
-                  <svg className="w-6 h-6 text-blue-600 dark:text-blue-400" viewBox="0 0 24 24" fill="currentColor">
+                <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
+                  <svg className="w-6 h-6 text-blue-600" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/>
                   </svg>
                 </div>
                 <div>
-                  <h3 className="font-medium text-gray-900 dark:text-gray-100">Google Calendar</h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                  <h3 className="font-medium text-gray-900">Google Calendar</h3>
+                  <p className="text-sm text-gray-600">
                     {profile?.googleCalendarConnected ? 'Connected' : 'Not connected'}
                   </p>
                 </div>
@@ -657,7 +657,7 @@ export default function DetailerProfilePage() {
               <div className="flex items-center space-x-2">
                 {profile?.googleCalendarConnected ? (
                   <>
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
                       ✓ Connected
                     </span>
                     <button
@@ -683,12 +683,12 @@ export default function DetailerProfilePage() {
 
             {/* Calendar Sync Status */}
             {profile?.googleCalendarConnected && (
-              <div className="bg-gray-50 dark:bg-gray-900/20 border border-gray-200 dark:border-gray-800 rounded-xl p-4">
+              <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
                 <div className="flex items-center space-x-2">
-                  <svg className="w-5 h-5 text-black dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <p className="text-sm text-gray-800 dark:text-gray-200">
+                  <p className="text-sm text-gray-800">
                     Your Google Calendar is synced. Appointments will automatically appear in your detailer dashboard calendar.
                   </p>
                 </div>
@@ -697,7 +697,7 @@ export default function DetailerProfilePage() {
 
             {/* Sync Settings */}
             <div className="space-y-3">
-              <h4 className="font-medium text-gray-900 dark:text-gray-100">Sync Settings</h4>
+              <h4 className="font-medium text-gray-900">Sync Settings</h4>
               <div className="space-y-2">
                 <label className="flex items-center space-x-2">
                   <input 
@@ -706,7 +706,7 @@ export default function DetailerProfilePage() {
                     onChange={(e) => handleSyncSettingChange('appointments', e.target.checked)}
                     className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                   />
-                  <span className="text-sm text-gray-700 dark:text-gray-300">
+                  <span className="text-sm text-gray-700">
                     Sync appointments to Google Calendar
                   </span>
                 </label>
@@ -717,7 +717,7 @@ export default function DetailerProfilePage() {
                     onChange={(e) => handleSyncSettingChange('availability', e.target.checked)}
                     className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                   />
-                  <span className="text-sm text-gray-700 dark:text-gray-300">
+                  <span className="text-sm text-gray-700">
                     Update availability based on Google Calendar
                   </span>
                 </label>
@@ -726,11 +726,11 @@ export default function DetailerProfilePage() {
 
             {/* Sync Existing Events Button */}
             {profile?.googleCalendarConnected && (
-              <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+              <div className="border-t border-gray-200 pt-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h4 className="font-medium text-gray-900 dark:text-gray-100">Sync Existing Events</h4>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                    <h4 className="font-medium text-gray-900">Sync Existing Events</h4>
+                    <p className="text-sm text-gray-600 mt-1">
                       Transfer all your existing Reeva calendar events to Google Calendar
                     </p>
                   </div>
@@ -760,14 +760,14 @@ export default function DetailerProfilePage() {
                 
                 {/* Sync Status Messages */}
                 {syncSuccess && (
-                  <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-900/20 border border-gray-200 dark:border-gray-800 rounded-lg">
-                    <p className="text-sm text-gray-800 dark:text-gray-200">{syncSuccess}</p>
+                  <div className="mt-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                    <p className="text-sm text-gray-800">{syncSuccess}</p>
                   </div>
                 )}
                 
                 {syncError && (
-                  <div className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                    <p className="text-sm text-red-800 dark:text-red-200">{syncError}</p>
+                  <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <p className="text-sm text-red-800">{syncError}</p>
                   </div>
                 )}
               </div>
@@ -776,14 +776,14 @@ export default function DetailerProfilePage() {
         </div>
 
         {/* Instagram Integration Section */}
-        <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-6 mb-4">
+        <div className="bg-white rounded-xl shadow p-6 mb-4">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Instagram Integration</h2>
+            <h2 className="text-lg font-semibold text-gray-900">Instagram Integration</h2>
           </div>
           
           <div className="space-y-4">
             {/* Instagram Connection */}
-            <div className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-xl">
+            <div className="flex items-center justify-between p-4 border border-gray-200 rounded-xl">
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center">
                   <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
@@ -791,8 +791,8 @@ export default function DetailerProfilePage() {
                   </svg>
                 </div>
                 <div>
-                  <h3 className="font-medium text-gray-900 dark:text-gray-100">Instagram Business</h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                  <h3 className="font-medium text-gray-900">Instagram Business</h3>
+                  <p className="text-sm text-gray-600">
                     {profile?.instagramConnected ? 'Connected' : 'Not connected'}
                   </p>
                 </div>
@@ -801,7 +801,7 @@ export default function DetailerProfilePage() {
               <div className="flex items-center space-x-2">
                 {profile?.instagramConnected ? (
                   <>
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
                       ✓ Connected
                     </span>
                     <button
@@ -824,12 +824,12 @@ export default function DetailerProfilePage() {
 
             {/* Instagram DM Settings */}
             {profile?.instagramConnected && (
-              <div className="p-4 bg-gray-50 dark:bg-gray-900/20 border border-gray-200 dark:border-gray-800 rounded-xl">
+              <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl">
                 <div className="flex items-center space-x-2">
-                  <svg className="w-5 h-5 text-black dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <p className="text-sm text-gray-800 dark:text-gray-200">
+                  <p className="text-sm text-gray-800">
                     Your Instagram Business account is connected. Enable AI to automatically respond to direct messages.
                   </p>
                 </div>
@@ -838,7 +838,7 @@ export default function DetailerProfilePage() {
 
             {/* AI DM Settings */}
             <div className="space-y-3">
-              <h4 className="font-medium text-gray-900 dark:text-gray-100">AI Direct Messages</h4>
+              <h4 className="font-medium text-gray-900">AI Direct Messages</h4>
               <div className="space-y-2">
                 <label className="flex items-center space-x-2">
                   <input 
@@ -848,11 +848,11 @@ export default function DetailerProfilePage() {
                     disabled={!profile?.instagramConnected}
                     className="rounded border-gray-300 text-purple-600 focus:ring-purple-500 disabled:opacity-50"
                   />
-                  <span className="text-sm text-gray-700 dark:text-gray-300">
+                  <span className="text-sm text-gray-700">
                     Enable AI to respond to Instagram direct messages
                   </span>
                 </label>
-                <p className="text-xs text-gray-500 dark:text-gray-400 ml-6">
+                <p className="text-xs text-gray-500 ml-6">
                   AI will automatically respond to customer inquiries via Instagram DMs
                 </p>
               </div>
@@ -861,50 +861,50 @@ export default function DetailerProfilePage() {
         </div>
 
         {/* Business Hours Section */}
-        <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-6 mb-4">
+        <div className="bg-white rounded-xl shadow p-6 mb-4">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Business Hours</h2>
-            <button className="border border-gray-300 dark:border-gray-600 rounded-full px-4 py-1 text-sm flex items-center gap-2 text-gray-700 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800" onClick={() => setEditingSection('businessHours')}>✏️ Edit</button>
+            <h2 className="text-lg font-semibold text-gray-900">Business Hours</h2>
+            <button className="border border-gray-300 rounded-full px-4 py-1 text-sm flex items-center gap-2 text-gray-700 hover:bg-gray-100" onClick={() => setEditingSection('businessHours')}>✏️ Edit</button>
           </div>
           <BusinessHoursPicker value={profile.businessHours} onChange={() => {}} />
         </div>
 
         {/* Timezone Section */}
-        <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-6 mb-4">
+        <div className="bg-white rounded-xl shadow p-6 mb-4">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Timezone</h2>
-            <button className="border border-gray-300 dark:border-gray-600 rounded-full px-4 py-1 text-sm flex items-center gap-2 text-gray-700 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800" onClick={() => setEditingSection('timezone')}>✏️ Edit</button>
+            <h2 className="text-lg font-semibold text-gray-900">Timezone</h2>
+            <button className="border border-gray-300 rounded-full px-4 py-1 text-sm flex items-center gap-2 text-gray-700 hover:bg-gray-100" onClick={() => setEditingSection('timezone')}>✏️ Edit</button>
           </div>
-          <div className="text-gray-700 dark:text-gray-300">
+          <div className="text-gray-700">
             {profile.timezone || 'America/New_York'} 
-            <span className="text-sm text-gray-500 dark:text-gray-400 ml-2">
+            <span className="text-sm text-gray-500 ml-2">
               (This determines the timezone for your business hours and appointments)
             </span>
           </div>
         </div>
 
         {/* Account Settings Section */}
-        <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-6 mb-4">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-6">Account Settings</h2>
+        <div className="bg-white rounded-xl shadow p-6 mb-4">
+          <h2 className="text-lg font-semibold text-gray-900 mb-6">Account Settings</h2>
 
           {/* Change Email Section */}
           <div className="mb-8">
-            <h3 className="text-md font-semibold text-gray-900 dark:text-gray-100 mb-4">Change Email</h3>
+            <h3 className="text-md font-semibold text-gray-900 mb-4">Change Email</h3>
             <form className="space-y-4" onSubmit={handleEmailChange}>
               <div>
-                <label className="block text-gray-700 dark:text-gray-200 mb-1">Current Email</label>
+                <label className="block text-gray-700 mb-1">Current Email</label>
                 <input
                   type="email"
-                  className="input input-bordered w-full bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                  className="input input-bordered w-full bg-gray-50 text-gray-900"
                   value={session?.user?.email || ''}
                   disabled
                 />
               </div>
               <div>
-                <label className="block text-gray-700 dark:text-gray-200 mb-1">New Email</label>
+                <label className="block text-gray-700 mb-1">New Email</label>
                 <input
                   type="email"
-                  className="input input-bordered w-full bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                  className="input input-bordered w-full bg-gray-50 text-gray-900"
                   placeholder="Enter new email"
                   value={newEmail}
                   onChange={e => setNewEmail(e.target.value)}
@@ -921,14 +921,14 @@ export default function DetailerProfilePage() {
 
           {/* Change Password Section */}
           <div>
-            <h3 className="text-md font-semibold text-gray-900 dark:text-gray-100 mb-4">Change Password</h3>
+            <h3 className="text-md font-semibold text-gray-900 mb-4">Change Password</h3>
             <form className="space-y-4" onSubmit={handlePasswordChange}>
               <div>
-                <label className="block text-gray-700 dark:text-gray-200 mb-1">Current Password</label>
+                <label className="block text-gray-700 mb-1">Current Password</label>
                 <div className="relative">
                   <input
                     type={showCurrent ? "text" : "password"}
-                    className="input input-bordered w-full bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 pr-10"
+                    className="input input-bordered w-full bg-gray-50 text-gray-900 pr-10"
                     placeholder="Enter current password"
                     value={currentPassword}
                     onChange={e => setCurrentPassword(e.target.value)}
@@ -951,11 +951,11 @@ export default function DetailerProfilePage() {
                 </div>
               </div>
               <div>
-                <label className="block text-gray-700 dark:text-gray-200 mb-1">New Password</label>
+                <label className="block text-gray-700 mb-1">New Password</label>
                 <div className="relative">
                   <input
                     type={showNew ? "text" : "password"}
-                    className="input input-bordered w-full bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 pr-10"
+                    className="input input-bordered w-full bg-gray-50 text-gray-900 pr-10"
                     placeholder="Enter new password"
                     value={newPassword}
                     onChange={e => setNewPassword(e.target.value)}
@@ -984,11 +984,11 @@ export default function DetailerProfilePage() {
                 )}
               </div>
               <div>
-                <label className="block text-gray-700 dark:text-gray-200 mb-1">Confirm New Password</label>
+                <label className="block text-gray-700 mb-1">Confirm New Password</label>
                 <div className="relative">
                   <input
                     type={showConfirm ? "text" : "password"}
-                    className="input input-bordered w-full bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 pr-10"
+                    className="input input-bordered w-full bg-gray-50 text-gray-900 pr-10"
                     placeholder="Confirm new password"
                     value={confirmPassword}
                     onChange={e => setConfirmPassword(e.target.value)}
@@ -1020,24 +1020,24 @@ export default function DetailerProfilePage() {
         </div>
 
         {/* Personal Assistant Section */}
-        <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-6 mb-4">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-6">Personal Assistant AI</h2>
+        <div className="bg-white rounded-xl shadow p-6 mb-4">
+          <h2 className="text-lg font-semibold text-gray-900 mb-6">Personal Assistant AI</h2>
           
           <div className="space-y-6">
             {/* Current Personal Phone */}
-            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
               <div className="flex items-center">
                 <div className="flex-shrink-0">
-                  <svg className="h-6 w-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                   </svg>
                 </div>
                 <div className="ml-3">
-                  <h3 className="text-sm font-medium text-blue-800 dark:text-blue-200">Personal Assistant Phone</h3>
-                  <p className="text-lg font-bold text-blue-900 dark:text-blue-100">
+                  <h3 className="text-sm font-medium text-blue-800">Personal Assistant Phone</h3>
+                  <p className="text-lg font-bold text-blue-900">
                     {profile?.personalPhoneNumber || 'Not set'}
                   </p>
-                  <p className="text-sm text-blue-700 dark:text-blue-300">
+                  <p className="text-sm text-blue-700">
                     Your personal phone number for AI assistant notifications and commands
                   </p>
                 </div>
@@ -1046,19 +1046,19 @@ export default function DetailerProfilePage() {
 
             {/* Update Personal Phone */}
             <div>
-              <h3 className="text-md font-semibold text-gray-900 dark:text-gray-100 mb-4">Update Personal Phone Number</h3>
+              <h3 className="text-md font-semibold text-gray-900 mb-4">Update Personal Phone Number</h3>
               <form className="space-y-4" onSubmit={handlePersonalPhoneChange}>
                 <div>
-                  <label className="block text-gray-700 dark:text-gray-200 mb-1">Personal Phone Number</label>
+                  <label className="block text-gray-700 mb-1">Personal Phone Number</label>
                   <input
                     type="tel"
-                    className="input input-bordered w-full bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                    className="input input-bordered w-full bg-gray-50 text-gray-900"
                     placeholder="Enter your personal phone number (e.g., +1234567890)"
                     value={personalPhone}
                     onChange={e => setPersonalPhone(e.target.value)}
                     required
                   />
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  <p className="text-xs text-gray-500 mt-1">
                     This number will receive AI assistant notifications and can send commands to manage your business
                   </p>
                 </div>
@@ -1071,9 +1071,9 @@ export default function DetailerProfilePage() {
             </div>
 
             {/* AI Assistant Features */}
-            <div className="bg-gray-50 dark:bg-gray-900/20 border border-gray-200 dark:border-gray-800 rounded-xl p-4">
-              <h4 className="font-medium text-gray-800 dark:text-gray-200 mb-3">AI Assistant Features</h4>
-              <div className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
+              <h4 className="font-medium text-gray-800 mb-3">AI Assistant Features</h4>
+              <div className="space-y-2 text-sm text-gray-700">
                 <div className="flex items-center">
                   <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
@@ -1111,7 +1111,7 @@ export default function DetailerProfilePage() {
         {/* Service Radius Edit Modal */}
         {showServiceRadiusModal && (
           <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-            <div className="bg-white dark:bg-gray-900 rounded-2xl shadow p-8 w-full max-w-md relative">
+            <div className="bg-white rounded-2xl shadow p-8 w-full max-w-md relative">
               <button className="absolute top-2 right-2 text-gray-500 hover:text-gray-700" onClick={() => setShowServiceRadiusModal(false)}>&times;</button>
               <h2 className="text-xl font-bold mb-6">Edit Service Radius</h2>
               <ServiceRadiusEditForm 
@@ -1128,7 +1128,7 @@ export default function DetailerProfilePage() {
         {/* Profile Image Modal */}
         {showProfileImageModal && (
           <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-            <div className="bg-white dark:bg-gray-900 rounded-2xl shadow p-8 w-full max-w-md relative">
+            <div className="bg-white rounded-2xl shadow p-8 w-full max-w-md relative">
               <button className="absolute top-2 right-2 text-gray-500 hover:text-gray-700" onClick={() => setShowProfileImageModal(false)}>&times;</button>
               <h2 className="text-xl font-bold mb-4">Change Profile Image</h2>
               <ImageUploader

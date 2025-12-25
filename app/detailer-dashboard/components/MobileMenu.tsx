@@ -86,12 +86,12 @@ export default function MobileMenu() {
         onClick={() => setIsMenuOpen(!isMenuOpen)}
         className={`md:hidden fixed top-4 left-4 z-50 w-8 h-8 flex items-center justify-center rounded-lg transition action-panel-hide ${
           isScrolled 
-            ? 'bg-white dark:bg-gray-800 shadow-sm' 
-            : 'hover:bg-gray-50 dark:hover:bg-gray-800'
+            ? 'bg-white shadow-sm' 
+            : 'hover:bg-gray-50'
         }`}
         aria-label="Menu"
       >
-        <Bars3Icon className="w-6 h-6 text-gray-700 dark:text-gray-300" />
+        <Bars3Icon className="w-6 h-6 text-gray-700" />
       </button>
 
       {/* Hamburger Menu - Mobile Only */}
@@ -103,18 +103,18 @@ export default function MobileMenu() {
           />
           <div
             ref={menuRef}
-            className="md:hidden fixed top-0 left-0 h-full w-80 bg-white dark:bg-gray-900 shadow-xl z-50 transform transition-transform"
+            className="md:hidden fixed top-0 left-0 h-full w-80 bg-white shadow-xl z-50 transform transition-transform"
           >
             <div className="flex flex-col h-full">
               {/* Menu Header */}
-              <div className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Menu</h2>
+              <div className="px-4 py-4 border-b border-gray-200 flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-gray-900">Menu</h2>
                 <button
                   onClick={() => setIsMenuOpen(false)}
-                  className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition"
+                  className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition"
                   aria-label="Close menu"
                 >
-                  <XMarkIcon className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+                  <XMarkIcon className="w-5 h-5 text-gray-600" />
                 </button>
               </div>
 
@@ -131,11 +131,11 @@ export default function MobileMenu() {
                         onClick={() => setIsMenuOpen(false)}
                         className={`flex items-center gap-3 px-4 py-3 rounded-lg transition ${
                           isActive
-                            ? "bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white"
-                            : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+                            ? "bg-gray-100 text-gray-900"
+                            : "text-gray-700 hover:bg-gray-100"
                         }`}
                       >
-                        <Icon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                        <Icon className="w-5 h-5 text-gray-500" />
                         <span className="font-medium">{item.name}</span>
                       </Link>
                     );
@@ -144,7 +144,7 @@ export default function MobileMenu() {
 
                 {/* Divider */}
                 <div className="my-4 px-2">
-                  <div className="border-t border-gray-200 dark:border-gray-700" />
+                  <div className="border-t border-gray-200" />
                 </div>
 
                 {/* Additional Actions */}
@@ -156,9 +156,9 @@ export default function MobileMenu() {
                         key={item.name}
                         href={item.href}
                         onClick={() => setIsMenuOpen(false)}
-                        className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition text-gray-700 dark:text-gray-300"
+                        className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-100 transition text-gray-700"
                       >
-                        <Icon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                        <Icon className="w-5 h-5 text-gray-500" />
                         <span className="font-medium">{item.name}</span>
                       </Link>
                     );
@@ -167,12 +167,12 @@ export default function MobileMenu() {
               </div>
 
               {/* Sign Out Button */}
-              <div className="flex-shrink-0 px-2 pb-4 pt-2 border-t border-gray-200 dark:border-gray-700">
+              <div className="flex-shrink-0 px-2 pb-4 pt-2 border-t border-gray-200">
                 <button
                   onClick={handleLogout}
-                  className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition text-gray-700 dark:text-gray-300"
+                  className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-100 transition text-gray-700"
                 >
-                  <ArrowLeftStartOnRectangleIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                  <ArrowLeftStartOnRectangleIcon className="w-5 h-5 text-gray-500" />
                   <span className="font-medium">Sign out</span>
                 </button>
               </div>

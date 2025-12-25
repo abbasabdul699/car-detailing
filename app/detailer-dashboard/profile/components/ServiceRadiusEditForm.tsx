@@ -55,15 +55,15 @@ export default function ServiceRadiusEditForm({ profile, onClose, onSave }: Serv
     <div className="space-y-6">
       <div className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-blue-700 dark:text-blue-300 mb-1">Service Radius (miles)</label>
+          <label className="block text-sm font-medium text-blue-700 mb-1">Service Radius (miles)</label>
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-blue-600 dark:text-blue-400">1 mile</span>
+              <span className="text-sm text-blue-600">1 mile</span>
               <div className="text-center">
-                <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{serviceRadius}</div>
-                <div className="text-xs text-blue-500 dark:text-blue-400">miles</div>
+                <div className="text-2xl font-bold text-blue-600">{serviceRadius}</div>
+                <div className="text-xs text-blue-500">miles</div>
               </div>
-              <span className="text-sm text-blue-600 dark:text-blue-400">100 miles</span>
+              <span className="text-sm text-blue-600">100 miles</span>
             </div>
             <input
               type="range"
@@ -71,19 +71,19 @@ export default function ServiceRadiusEditForm({ profile, onClose, onSave }: Serv
               onChange={(e) => setServiceRadius(parseInt(e.target.value))}
               min="1"
               max="100"
-              className="w-full h-2 bg-blue-200 dark:bg-blue-700 rounded-lg appearance-none cursor-pointer slider"
+              className="w-full h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer slider"
               style={{
                 background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${((serviceRadius - 1) / 99) * 100}%, #e5e7eb ${((serviceRadius - 1) / 99) * 100}%, #e5e7eb 100%)`
               }}
             />
-            <p className="text-xs text-blue-500 dark:text-blue-400">Maximum distance you're willing to travel for service</p>
+            <p className="text-xs text-blue-500">Maximum distance you're willing to travel for service</p>
           </div>
         </div>
         
-        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
           <div className="flex items-start gap-2">
-            <div className="text-blue-600 dark:text-blue-400 mt-0.5">ℹ️</div>
-            <div className="text-sm text-blue-800 dark:text-blue-200">
+            <div className="text-blue-600 mt-0.5">ℹ️</div>
+            <div className="text-sm text-blue-800">
               <strong>How it works:</strong> When customers book appointments, the system automatically checks if their address is within your service radius. Customers outside this area will be politely informed that you don't service their location.
             </div>
           </div>
@@ -93,7 +93,7 @@ export default function ServiceRadiusEditForm({ profile, onClose, onSave }: Serv
       <div className="flex justify-end gap-3">
         <button
           onClick={onClose}
-          className="px-4 py-2 border border-blue-300 dark:border-blue-600 rounded-lg text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-800 transition-colors"
+          className="px-4 py-2 border border-blue-300 rounded-lg text-blue-700 hover:bg-blue-50 transition-colors"
         >
           Cancel
         </button>

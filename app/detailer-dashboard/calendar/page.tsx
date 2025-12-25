@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useImperativeHandle, forwardRef } from "react";
 import { useSession } from "next-auth/react";
 import Image from "next/image";
 import { ChevronLeftIcon, ChevronRightIcon, PlusIcon } from "@heroicons/react/24/solid";
@@ -16,7 +16,9 @@ import {
   isToday,
   isSameDay,
   startOfMonth,
-  getDay
+  getDay,
+  isBefore,
+  startOfDay
 } from 'date-fns';
 import { ChevronDownIcon, Cog8ToothIcon, FunnelIcon, UsersIcon } from '@heroicons/react/24/outline';
 import { XMarkIcon, PencilIcon, CheckIcon } from '@heroicons/react/24/solid';
@@ -24,13 +26,76 @@ import EventModal from './components/EventModal';
 import AddressAutocompleteInput from './components/AddressAutocompleteInput';
 import NewCustomerModal from './components/NewCustomerModal';
 
+// Discard Changes Modal Component
+const DiscardChangesModal = ({ 
+  isOpen, 
+  onKeepEditing, 
+  onDiscard,
+  isCreating = false 
+}: { 
+  isOpen: boolean; 
+  onKeepEditing: (e?: React.MouseEvent) => void; 
+  onDiscard: () => void;
+  isCreating?: boolean;
+}) => {
+  if (!isOpen) return null;
+
+  return (
+    <div 
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100]"
+      onClick={(e) => {
+        // Prevent backdrop click from closing modal - user must choose an action
+        e.stopPropagation();
+      }}
+    >
+      <div 
+        className="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">
+            {isCreating ? 'Discard this event?' : 'Discard changes?'}
+          </h3>
+          <p className="text-sm text-gray-600 mb-6">
+            You have unsaved changes. Updates will be lost.
+          </p>
+          <div className="flex gap-3">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                onKeepEditing(e);
+              }}
+              className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 transition-colors"
+            >
+              Keep editing
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDiscard();
+              }}
+              className="flex-1 px-4 py-2 bg-red-500 text-white rounded-xl hover:bg-red-600 transition-colors"
+            >
+              Discard event
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // Event Edit Form Component
-const EventEditForm = ({ event, resources, onSave, onCancel }: { 
+const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () => void }, {
   event: any, 
   resources: Array<{ id: string, name: string, type: 'bay' | 'van' }>,
   onSave: (data: any) => void,
-  onCancel: () => void
-}) => {
+  onCancel: () => void,
+  onDirtyChange?: (isDirty: boolean) => void,
+  onRequestDiscard?: () => void,
+  onEditCustomer?: () => void
+}>(({ event, resources, onSave, onCancel, onDirtyChange, onRequestDiscard, onEditCustomer }, ref) => {
   const [selectedEmployeeId, setSelectedEmployeeId] = useState(event.employeeId || '');
   const [employees, setEmployees] = useState<Array<{ id: string; name: string; color: string; imageUrl?: string }>>([]);
   const [showEmployeeDropdown, setShowEmployeeDropdown] = useState(false);
@@ -130,6 +195,161 @@ const EventEditForm = ({ event, resources, onSave, onCancel }: {
   const [selectedServices, setSelectedServices] = useState<Array<{ id: string; name: string; type: 'service' | 'bundle' }>>([]);
   const [serviceSearch, setServiceSearch] = useState('');
   const [showServiceDropdown, setShowServiceDropdown] = useState(false);
+  
+  // Store initial values to detect changes
+  const initialValuesRef = useRef({
+    selectedEmployeeId: event.employeeId || '',
+    startDate: '',
+    startTime: '',
+    endTime: '',
+    isAllDay: event.allDay || false,
+    selectedResourceId: event.resourceId || '',
+    description: event.description || '',
+    customerName: event.customerName || '',
+    customerPhone: event.customerPhone || '',
+    customerAddress: event.customerAddress || '',
+    customerType: event.customerType || '',
+    locationType: event.locationType || '',
+    vehicles: [] as Array<{ id: string; model: string }>,
+    selectedServices: [] as Array<{ id: string; name: string; type: 'service' | 'bundle' }>
+  });
+
+  // Initialize initial values after state is set
+  useEffect(() => {
+    const eventDate = event.date || event.start;
+    let dateStr = '';
+    if (eventDate) {
+      if (typeof eventDate === 'string') {
+        if (eventDate.includes('T')) {
+          dateStr = eventDate.split('T')[0];
+        } else if (eventDate.match(/^\d{4}-\d{2}-\d{2}/)) {
+          dateStr = eventDate;
+        }
+      } else {
+        const date = new Date(eventDate);
+        const year = date.getUTCFullYear();
+        const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(date.getUTCDate()).padStart(2, '0');
+        dateStr = `${year}-${month}-${day}`;
+      }
+    }
+
+    let timeStr = '';
+    if (event.start && event.end && !event.allDay) {
+      timeStr = format(new Date(event.start), 'HH:mm');
+    }
+
+    let endTimeStr = '';
+    if (event.start && event.end && !event.allDay) {
+      endTimeStr = format(new Date(event.end), 'HH:mm');
+    }
+
+    let vehicleList: Array<{ id: string; model: string }> = [];
+    if (event.vehicles && Array.isArray(event.vehicles)) {
+      vehicleList = event.vehicles.map((v: string, idx: number) => ({ id: `vehicle-${idx}`, model: v }));
+    } else if (event.vehicleType || event.vehicleModel) {
+      const vehicleStr = event.vehicleType || event.vehicleModel || '';
+      if (vehicleStr.includes(',')) {
+        vehicleList = vehicleStr.split(',').map((v: string, idx: number) => ({ id: `vehicle-${idx}`, model: v.trim() })).filter((v: { id: string; model: string }) => v.model);
+      } else if (vehicleStr) {
+        vehicleList = [{ id: 'vehicle-0', model: vehicleStr }];
+      }
+    }
+
+    let servicesList: Array<{ id: string; name: string; type: 'service' | 'bundle' }> = [];
+    if (event.services) {
+      const eventServicesList = Array.isArray(event.services) ? event.services : [event.services];
+      servicesList = eventServicesList.map((serviceName: string) => ({ 
+        id: `temp-${serviceName}`, 
+        name: serviceName, 
+        type: 'service' as const 
+      }));
+    }
+
+    initialValuesRef.current = {
+      selectedEmployeeId: event.employeeId || '',
+      startDate: dateStr,
+      startTime: timeStr,
+      endTime: endTimeStr,
+      isAllDay: event.allDay || false,
+      selectedResourceId: event.resourceId || '',
+      description: event.description || '',
+      customerName: event.customerName || '',
+      customerPhone: event.customerPhone || '',
+      customerAddress: event.customerAddress || '',
+      customerType: event.customerType || '',
+      locationType: event.locationType || '',
+      vehicles: vehicleList,
+      selectedServices: servicesList
+    };
+  }, []);
+
+  // Update customer fields when event prop changes (e.g., after editing customer)
+  useEffect(() => {
+    setCustomerName(event.customerName || '');
+    setCustomerPhone(event.customerPhone || '');
+    setCustomerAddress(event.customerAddress || '');
+  }, [event.customerName, event.customerPhone, event.customerAddress]);
+
+  // Check if form has been modified
+  const checkIfDirty = () => {
+    const current = {
+      selectedEmployeeId,
+      startDate,
+      startTime,
+      endTime,
+      isAllDay,
+      selectedResourceId,
+      description,
+      customerName,
+      customerPhone,
+      customerAddress,
+      customerType,
+      locationType,
+      vehicles: vehicles.map(v => v.model).sort().join(','),
+      selectedServices: selectedServices.map(s => s.name).sort().join(',')
+    };
+
+    const initial = {
+      selectedEmployeeId: initialValuesRef.current.selectedEmployeeId,
+      startDate: initialValuesRef.current.startDate,
+      startTime: initialValuesRef.current.startTime,
+      endTime: initialValuesRef.current.endTime,
+      isAllDay: initialValuesRef.current.isAllDay,
+      selectedResourceId: initialValuesRef.current.selectedResourceId,
+      description: initialValuesRef.current.description,
+      customerName: initialValuesRef.current.customerName,
+      customerPhone: initialValuesRef.current.customerPhone,
+      customerAddress: initialValuesRef.current.customerAddress,
+      customerType: initialValuesRef.current.customerType,
+      locationType: initialValuesRef.current.locationType,
+      vehicles: initialValuesRef.current.vehicles.map(v => v.model).sort().join(','),
+      selectedServices: initialValuesRef.current.selectedServices.map(s => s.name).sort().join(',')
+    };
+
+    return JSON.stringify(current) !== JSON.stringify(initial);
+  };
+
+  // Track dirty state and notify parent
+  useEffect(() => {
+    if (onDirtyChange) {
+      const isDirty = checkIfDirty();
+      onDirtyChange(isDirty);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedEmployeeId, startDate, startTime, endTime, isAllDay, selectedResourceId, description, 
+      customerName, customerPhone, customerAddress, customerType, locationType, vehicles.length, selectedServices.length]);
+
+  // Handle cancel with dirty check
+  const handleCancel = () => {
+    if (checkIfDirty()) {
+      if (onRequestDiscard) {
+        onRequestDiscard();
+      }
+    } else {
+      onCancel();
+    }
+  };
   
   // Auto-generate title from selected services
   const title = selectedServices.map(s => s.name).join(', ') || '';
@@ -406,6 +626,12 @@ const EventEditForm = ({ event, resources, onSave, onCancel }: {
     });
   };
 
+  // Expose handlers via ref
+  useImperativeHandle(ref, () => ({
+    handleCancel,
+    handleSubmit
+  }));
+
   return (
     <div className="space-y-6">
       <div>
@@ -515,13 +741,13 @@ const EventEditForm = ({ event, resources, onSave, onCancel }: {
         )}
       </div>
 
-      {/* Customer Type and Location Type Selection */}
+      {/* Station and Arrival Selection */}
       <div className="pt-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Customer Type Dropdown */}
+          {/* Station Dropdown */}
           <div>
             <label htmlFor="customer-type-select" className="block text-sm font-semibold text-gray-900 mb-2">
-              Customer Type
+              Station
             </label>
             <select
               id="customer-type-select"
@@ -530,17 +756,16 @@ const EventEditForm = ({ event, resources, onSave, onCancel }: {
               className="w-full px-4 py-2.5 border rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
               style={{ borderColor: '#E2E2DD' }}
             >
-              <option value="">Select customer type</option>
+              <option value="">Select station</option>
               <option value="new">New Customer</option>
-              <option value="returning">Returning Customer</option>
-              <option value="maintenance">Maintenance Customer</option>
+              <option value="returning">Repeat Customer</option>
             </select>
           </div>
           
-          {/* Location Type Dropdown */}
+          {/* Arrival Dropdown */}
           <div>
             <label htmlFor="location-type-select" className="block text-sm font-semibold text-gray-900 mb-2">
-              Location Type
+              Arrival
             </label>
             <select
               id="location-type-select"
@@ -719,42 +944,46 @@ const EventEditForm = ({ event, resources, onSave, onCancel }: {
 
       {/* Customer Information */}
       <div className="border-t border-gray-200 pt-6">
-        <h3 className="text-sm font-semibold text-gray-900 mb-4">Customer Information</h3>
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Customer Name</label>
-              <input
-                type="text"
-                value={customerName}
-                onChange={e => setCustomerName(e.target.value)}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                placeholder="e.g., John Doe"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Customer Phone</label>
-              <input
-                type="tel"
-                value={customerPhone}
-                onChange={e => setCustomerPhone(e.target.value)}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                placeholder="e.g., (123) 456-7890"
-              />
+        <h3 className="text-sm font-semibold text-gray-900 mb-4">Customer</h3>
+        {(customerName || customerPhone || customerAddress) ? (
+          <div 
+            className="bg-gray-50 rounded-xl p-4 border relative" 
+            style={{ borderColor: '#E2E2DD' }}
+          >
+            <div className="flex items-start justify-between">
+              <div className="flex-1 pr-8">
+                <div className="flex items-start justify-between mb-2">
+                  <h4 className="font-semibold text-gray-900 text-base">
+                    {customerName || 'Unnamed Customer'}
+                  </h4>
+                  {customerPhone && (
+                    <span className="text-sm text-gray-600 ml-2">
+                      {customerPhone}
+                    </span>
+                  )}
+                </div>
+                {customerAddress && (
+                  <p className="text-sm text-gray-600">
+                    {customerAddress}
+                  </p>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {onEditCustomer && (
+                  <button
+                    onClick={onEditCustomer}
+                    className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                    title="Edit customer"
+                  >
+                    <PencilIcon className="w-4 h-4 text-gray-700" />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
-          <div>
-            <label htmlFor="customer-address" className="block text-sm font-medium text-gray-700 mb-2">Customer Address</label>
-            <AddressAutocompleteInput
-              id="customer-address"
-              value={customerAddress}
-              onChange={setCustomerAddress}
-              placeholder="Start typing address..."
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-            />
-            <p className="mt-1 text-xs text-gray-500">Used for marketing and determining closest location for van services</p>
-          </div>
-        </div>
+        ) : (
+          <div className="text-sm text-gray-500">No customer information available</div>
+        )}
       </div>
 
       {/* Vehicle Information */}
@@ -1032,27 +1261,9 @@ const EventEditForm = ({ event, resources, onSave, onCancel }: {
           <p className="mt-1 text-xs text-gray-500">Add quick notes about customer preferences, behavior, or reminders</p>
         </div>
       </div>
-
-      {/* Action Buttons */}
-      <div className="flex gap-3 pt-4 border-t border-gray-200">
-        <button
-          onClick={onCancel}
-          className="flex-1 px-6 py-2 border rounded-xl text-gray-700 hover:bg-gray-50 transition-colors"
-          style={{ borderColor: '#E2E2DD' }}
-        >
-          Cancel
-        </button>
-        <button
-          onClick={handleSubmit}
-          className="flex-1 px-6 py-2 bg-orange-500 text-white rounded-xl hover:bg-orange-600 transition-colors flex items-center justify-center gap-2"
-        >
-          <CheckIcon className="w-5 h-5" />
-          <span>Save</span>
-        </button>
-      </div>
     </div>
   );
-};
+});
 
 // #region Helper Functions & Components
 const daysOfWeek = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
@@ -1062,14 +1273,14 @@ function getDaysInMonth(year: number, month: number) {
 }
 
 const eventColors: { [key: string]: { bg: string, border: string } } = {
-  blue: { bg: 'bg-blue-100 dark:bg-blue-900', border: 'border-blue-500' },
-  green: { bg: 'bg-green-100 dark:bg-green-900', border: 'border-green-500' },
-  orange: { bg: 'bg-orange-100 dark:bg-orange-900', border: 'border-orange-500' },
-  red: { bg: 'bg-red-100 dark:bg-red-900', border: 'border-red-500' },
-  gray: { bg: 'bg-gray-100 dark:bg-gray-900', border: 'border-gray-500' },
+  blue: { bg: 'bg-blue-100', border: 'border-blue-500' },
+  green: { bg: 'bg-green-100', border: 'border-green-500' },
+  orange: { bg: 'bg-orange-100', border: 'border-orange-500' },
+  red: { bg: 'bg-red-100', border: 'border-red-500' },
+  gray: { bg: 'bg-gray-100', border: 'border-gray-500' },
 };
 
-const MonthView = ({ date, events, selectedEvent, onEventClick, scale = 1.0 }: { date: Date, events: any[], selectedEvent: string | null, onEventClick: (event: any) => void, scale?: number }) => {
+const MonthView = ({ date, events, selectedEvent, onEventClick, scale = 1.0, resources = [] }: { date: Date, events: any[], selectedEvent: string | null, onEventClick: (event: any) => void, scale?: number, resources?: Array<{ id: string, name: string, type: 'bay' | 'van' }> }) => {
     // Debug: Log first event with customer data
     if (events.length > 0) {
         const firstEvent = events[0];
@@ -1126,15 +1337,15 @@ const MonthView = ({ date, events, selectedEvent, onEventClick, scale = 1.0 }: {
     const scaledRowHeight = 160 * scale; // Base row height that scales with slider
     
     return (
-        <div className="grid grid-cols-7 border-t border-l border-gray-200 dark:border-gray-700 flex-1" style={{ gridAutoRows: `${scaledRowHeight}px` }}>
+        <div className="grid grid-cols-7 border-t border-l border-gray-200 flex-1">
             {daysOfWeek.map((day) => (
-                <div key={day} className="py-2 text-center font-semibold text-[10px] md:text-xs text-gray-600 dark:text-gray-300 uppercase tracking-wider border-r border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+                <div key={day} className="py-2 text-center font-semibold text-[10px] md:text-xs text-gray-600 uppercase tracking-wider border-r border-b border-gray-200 flex-shrink-0" style={{ height: '40px' }}>
                     <span className="md:hidden">{day.slice(0,3)}</span>
                     <span className="hidden md:inline">{day}</span>
                 </div>
             ))}
             {Array(firstDay).fill(null).map((_, index) => (
-                <div key={`empty-${index}`} className="border-r border-b border-gray-200 dark:border-gray-700"></div>
+                <div key={`empty-${index}`} className="border-r border-b border-gray-200" style={{ height: `${scaledRowHeight}px` }}></div>
             ))}
             {Array(daysInMonth).fill(null).map((_, index) => {
                 const day = index + 1;
@@ -1194,143 +1405,92 @@ const MonthView = ({ date, events, selectedEvent, onEventClick, scale = 1.0 }: {
                   return false;
                 });
                 const scaledPadding = 8 * scale; // Doubled from 4 to 8 (recalibrated baseline)
-                return (
-                    <div key={day} className="flex-1 border-r border-b border-gray-200 dark:border-gray-700 flex flex-col" style={{ padding: `${scaledPadding}px` }}>
-                        <div className="text-xs md:text-sm font-medium text-gray-800 dark:text-gray-200">{day}</div>
-                        <div className="mt-1 overflow-y-auto flex flex-col" style={{ gap: `${8 * scale}px` }}>
-                            {dayEvents.map((event, eventIndex) => {
-                                const isSelected = selectedEvent === event.id;
-                                const scaledEventPadding = 12 * scale; // Doubled from 6 to 12 (recalibrated baseline)
-                                const baseClasses = `${eventColors[event.color]?.bg} rounded-xl dark:text-white cursor-pointer transition-all duration-200 hover:shadow-md flex flex-col`;
-                                const selectedClasses = isSelected ? 'ring-2 ring-gray-400 ring-opacity-50 shadow-lg scale-105' : '';
-                                
-                                // For all-day events, show them at the top with a special indicator
-                                if (event.allDay) {
+                
+                // Check if this day is in the past
+                const today = startOfDay(new Date());
+                const dayDate = startOfDay(currentDate);
+                const isPast = isBefore(dayDate, today);
+                const isTodayDate = isToday(currentDate);
+                
+                // Count jobs and group by resource
+                const jobCount = dayEvents.length;
+                const isBusy = jobCount >= 6;
+                
+                // Group events by resource and count drop-offs/pick-ups
+                const resourceStats: Record<string, { dropOff: number; pickUp: number; name: string }> = {};
+                
+                dayEvents.forEach(event => {
+                    const resourceId = event.resourceId || 'unassigned';
+                    const resource = resources.find(r => r.id === resourceId);
+                    const resourceName = resource ? resource.name : 'Unassigned';
+                    
+                    if (!resourceStats[resourceId]) {
+                        resourceStats[resourceId] = { dropOff: 0, pickUp: 0, name: resourceName };
+                    }
+                    
+                    const locationType = event.locationType?.toLowerCase() || '';
+                    if (locationType === 'drop off' || locationType === 'dropoff') {
+                        resourceStats[resourceId].dropOff++;
+                    } else if (locationType === 'pick up' || locationType === 'pickup') {
+                        resourceStats[resourceId].pickUp++;
+                    }
+                });
+                
+                // Sort resources: Bays first, then Vans, by name
+                const sortedResources = Object.entries(resourceStats).sort(([idA, statsA], [idB, statsB]) => {
+                    const resourceA = resources.find(r => r.id === idA);
+                    const resourceB = resources.find(r => r.id === idB);
+                    if (resourceA?.type !== resourceB?.type) {
+                        if (resourceA?.type === 'bay') return -1;
+                        if (resourceB?.type === 'bay') return 1;
+                    }
+                    return statsA.name.localeCompare(statsB.name);
+                });
+                
                                     return (
-                                        <div 
-                                            key={eventIndex} 
-                                            className={`${baseClasses} ${selectedClasses} border-l-4 ${eventColors[event.color]?.border}`}
-                                            onClick={() => onEventClick(event)}
-                                            style={{ padding: `${scaledEventPadding}px` }}
-                                        >
-                                            <div className="flex items-center gap-1.5">
-                                            {event.employeeImageUrl ? (
-                                                <img 
-                                                    src={event.employeeImageUrl} 
-                                                    alt={event.employeeName || 'Employee'}
-                                                    className="rounded-full object-cover border border-gray-300 dark:border-gray-600 flex-shrink-0"
-                                                    style={{ width: `${8 * scale}px`, height: `${8 * scale}px` }}
-                                                />
-                                            ) : event.employeeName ? (
-                                                <div className="rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center border border-gray-300 dark:border-gray-600 flex-shrink-0" style={{ width: `${8 * scale}px`, height: `${8 * scale}px` }}>
-                                                    <span className="text-[7px] font-semibold text-gray-700 dark:text-gray-300">
-                                                        {event.employeeName.charAt(0).toUpperCase()}
+                    <div key={day} className={`flex-1 border-r border-b border-gray-200 flex flex-col relative ${isTodayDate ? 'bg-gray-100' : ''}`} style={{ padding: `${scaledPadding}px`, height: `${scaledRowHeight}px` }}>
+                        {/* Top row: Job count badge (left) and Day number (right) */}
+                        <div className="flex items-start justify-between mb-1">
+                            {/* Job count badge */}
+                            <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full ${
+                                jobCount === 0 
+                                    ? 'bg-gray-200 text-gray-600' 
+                                    : isBusy 
+                                    ? 'bg-gray-700 text-white' 
+                                    : 'bg-gray-200 text-gray-700'
+                            }`} style={{ opacity: isPast ? 0.5 : 1 }}>
+                                {jobCount === 0 ? '0 Jobs' : isBusy ? `${jobCount} Jobs (Busy)` : `${jobCount} Jobs`}
                                                     </span>
-                                                </div>
-                                            ) : null}
-                                            {event.source === 'google' && (
-                                                <svg className="text-gray-600 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor" style={{ width: `${6 * scale}px`, height: `${6 * scale}px` }}>
-                                                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                                                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                                                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                                                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                                                </svg>
-                                            )}
-                                                <span className="text-sm md:text-base font-semibold truncate">{event.title || event.eventName || (Array.isArray(event.services) ? event.services.join(' + ') : event.services) || 'Service'}</span>
+                            {/* Day number */}
+                            <span className={`text-xs md:text-sm font-medium ${isTodayDate ? 'w-6 h-6 rounded-full text-white flex items-center justify-center' : 'text-gray-800'}`} style={{ 
+                                opacity: isPast ? 0.5 : 1,
+                                backgroundColor: isTodayDate ? '#F97316' : undefined
+                            }}>
+                                {day}
+                            </span>
                                             </div>
-                                            {formatTimeRange(event) && (
-                                                <span className="text-xs font-semibold text-gray-700 dark:text-gray-300 mt-0.5 truncate">
-                                                    {formatTimeRange(event)}
-                                                </span>
-                                            )}
-                                            {(event.vehicleType || event.vehicleModel) ? (
-                                                <span className="text-xs font-semibold text-gray-600 dark:text-gray-400 mt-0.5 truncate">{event.vehicleType || event.vehicleModel}</span>
-                                            ) : null}
-                                            <div className="mt-auto pt-2">
-                                                {getCustomerType(event) === 'new' && (
-                                                    <span className="text-xs font-semibold bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300 px-1.5 py-0.5 rounded mt-0.5 inline-block">
-                                                        New customer
-                                                    </span>
-                                                )}
-                                                {getCustomerType(event) === 'repeat' && (
-                                                    <span className="text-xs font-semibold bg-purple-200 text-purple-800 dark:bg-purple-900 dark:text-purple-200 px-1.5 py-0.5 rounded mt-0.5 inline-block truncate">
-                                                        Repeat ...
-                                                    </span>
-                                                )}
-                                                {(event.customerName || event.customerPhone) && (
-                                                    <span className="text-xs text-gray-700 dark:text-gray-300 mt-0.5 truncate font-semibold block">
-                                                        {event.customerName || 'Customer'}{event.customerPhone ? ` (${event.customerPhone})` : ''}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-                                    );
-                                }
-                                
-                                // For timed events, show them normally with customer details
+                        
+                        {/* Resource breakdown */}
+                        <div className="flex-1 overflow-y-auto text-xs text-gray-600 space-y-0.5">
+                            {sortedResources.length > 0 ? (
+                                sortedResources.map(([resourceId, stats]) => {
+                                    const parts: string[] = [];
+                                    if (stats.dropOff > 0) {
+                                        parts.push(`${stats.dropOff} drop-off${stats.dropOff > 1 ? 's' : ''}`);
+                                    }
+                                    if (stats.pickUp > 0) {
+                                        parts.push(`${stats.pickUp} Pick-up${stats.pickUp > 1 ? 's' : ''}`);
+                                    }
+                                    const details = parts.length > 0 ? `: ${parts.join(', ')}` : ':';
                                 return (
-                                    <div 
-                                        key={eventIndex} 
-                                        className={`${baseClasses} ${selectedClasses} items-start`}
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            onEventClick(event);
-                                        }}
-                                        style={{ padding: `${scaledEventPadding}px` }}
-                                    >
-                                        <div className="flex items-center gap-1.5 w-full">
-                                        {event.employeeImageUrl ? (
-                                            <img 
-                                                src={event.employeeImageUrl} 
-                                                alt={event.employeeName || 'Employee'}
-                                                className="rounded-full object-cover border border-gray-300 dark:border-gray-600 flex-shrink-0"
-                                                style={{ width: `${12 * scale}px`, height: `${12 * scale}px` }}
-                                            />
-                                        ) : event.employeeName ? (
-                                            <div className="rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center border border-gray-300 dark:border-gray-600 flex-shrink-0" style={{ width: `${12 * scale}px`, height: `${12 * scale}px` }}>
-                                                <span className="text-[9px] font-semibold text-gray-700 dark:text-gray-300">
-                                                    {event.employeeName.charAt(0).toUpperCase()}
-                                                </span>
+                                        <div key={resourceId} className="truncate">
+                                            {stats.name}{details}
                                             </div>
+                                    );
+                                })
+                            ) : jobCount > 0 ? (
+                                <div className="text-gray-500">No resource assigned</div>
                                         ) : null}
-                                        {event.source === 'google' && (
-                                            <svg className="text-gray-600 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor" style={{ width: `${6 * scale}px`, height: `${6 * scale}px` }}>
-                                                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                                                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                                                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                                                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                                            </svg>
-                                        )}
-                                            <span className="truncate text-sm md:text-base font-semibold flex-1">{event.title || event.eventName || (Array.isArray(event.services) ? event.services.join(' + ') : event.services) || 'Service'}</span>
-                                        </div>
-                                        {formatTimeRange(event) && (
-                                            <span className="text-xs font-semibold text-gray-700 dark:text-gray-300 mt-0.5 truncate text-left w-full">
-                                                {formatTimeRange(event)}
-                                            </span>
-                                        )}
-                                        {(event.vehicleType || event.vehicleModel) ? (
-                                            <span className="text-xs font-semibold text-gray-600 dark:text-gray-400 mt-0.5 truncate text-left w-full">{event.vehicleType || event.vehicleModel}</span>
-                                        ) : null}
-                                        <div className="mt-auto pt-2 w-full">
-                                            {getCustomerType(event) === 'new' && (
-                                                <span className="text-xs font-semibold bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300 px-1.5 py-0.5 rounded mt-0.5 inline-block text-left">
-                                                    New customer
-                                                </span>
-                                            )}
-                                            {getCustomerType(event) === 'repeat' && (
-                                                <span className="text-xs font-semibold bg-purple-200 text-purple-800 dark:bg-purple-900 dark:text-purple-200 px-1.5 py-0.5 rounded mt-0.5 inline-block text-left truncate">
-                                                    Repeat ...
-                                                </span>
-                                            )}
-                                            {(event.customerName || event.customerPhone) && (
-                                                <span className="text-xs text-gray-700 dark:text-gray-300 mt-0.5 truncate font-semibold block text-left w-full">
-                                                    {event.customerName || 'Customer'}{event.customerPhone ? ` (${event.customerPhone})` : ''}
-                                                </span>
-                                            )}
-                                        </div>
-                                </div>
-                                );
-                            })}
                         </div>
                     </div>
                 );
@@ -1445,12 +1605,12 @@ const EventHoverPopup = ({
                         </span>
                     )}
                     {event.customerType === 'returning' && (
-                        <span className="text-xs font-semibold bg-purple-200 text-purple-800 dark:bg-purple-900 dark:text-purple-200 px-2 py-0.5 rounded">
-                            Returning Customer
+                        <span className="text-xs font-semibold bg-purple-200 text-purple-800 px-2 py-0.5 rounded">
+                            Repeat Customer
                         </span>
                     )}
                     {event.customerType === 'maintenance' && (
-                        <span className="text-xs font-semibold bg-blue-200 text-blue-800 dark:bg-blue-900 dark:text-blue-200 px-2 py-0.5 rounded">
+                        <span className="text-xs font-semibold bg-blue-200 text-blue-800 px-2 py-0.5 rounded">
                             Maintenance Customer
                         </span>
                     )}
@@ -1528,7 +1688,7 @@ const EventHoverPopup = ({
     );
 };
 
-const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, businessHours, onResourceSelect, onOpenModal, draftEvent, onDraftEventUpdate }: { 
+const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, businessHours, onResourceSelect, onOpenModal, draftEvent, onDraftEventUpdate, numberOfDays }: { 
   date: Date, 
   events: any[], 
   onEventClick: (event: any) => void, 
@@ -1538,7 +1698,8 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
   onResourceSelect?: (resource: { id: string, name: string, type: 'bay' | 'van' }) => void,
   onOpenModal?: (draftEvent?: { resourceId: string; startTime: string; endTime: string; date: Date }) => void,
   draftEvent?: { resourceId: string; startTime: string; endTime: string; date: Date } | null,
-  onDraftEventUpdate?: (draftEvent: { resourceId: string; startTime: string; endTime: string; date: Date }) => void
+  onDraftEventUpdate?: (draftEvent: { resourceId: string; startTime: string; endTime: string; date: Date }) => void,
+  numberOfDays?: number | null
 }) => {
     // Hover state for event popup
     const [hoveredEvent, setHoveredEvent] = useState<any | null>(null);
@@ -1687,9 +1848,17 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
         return 'repeat';
     };
 
+    // Calculate days based on numberOfDays parameter or default to week
+    let weekDays: Date[];
+    if (numberOfDays && numberOfDays >= 2 && numberOfDays <= 7) {
+      // Custom number of days starting from the current date
+      weekDays = Array.from({ length: numberOfDays }, (_, i) => addDays(date, i));
+    } else {
+      // Default to full week
     const weekStart = startOfWeek(date);
     const weekEnd = endOfWeek(date);
-    const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd });
+      weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd });
+    }
     
     // Helper function to parse hour from time slot string (e.g., "7am" -> 7, "12pm" -> 12, "1pm" -> 13)
     const parseSlotHour = (slot: string): number | null => {
@@ -1781,11 +1950,11 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
     const totalColumns = weekDays.length * displayResources.length;
 
     return (
-        <div className="flex border-t border-l border-gray-200 dark:border-gray-700 w-full h-full" style={{ height: '100%', overflow: 'visible' }}>
+        <div className="flex border-t border-l border-gray-200 w-full h-full" style={{ height: '100%', overflow: 'visible' }}>
             {/* Main scrollable container - contains both time column and main content */}
             <div 
                 ref={mainScrollRef}
-                className="flex-1 min-h-0 overflow-x-auto overflow-y-auto"
+                className="flex-1 min-h-0 overflow-y-auto"
                 id="week-view-scroll-container"
                 style={{ 
                     position: 'relative',
@@ -1798,7 +1967,7 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                 <div className="flex" style={{ minHeight: '100%' }}>
                     {/* Time column - sticky on left, inside scroll container */}
                     <div
-                      className="border-r border-gray-200 dark:border-gray-700 flex-shrink-0 flex flex-col bg-white dark:bg-gray-900"
+                      className="border-r border-gray-200 flex-shrink-0 flex flex-col bg-white"
                       style={{ 
                         position: 'sticky', 
                         left: 0, 
@@ -1809,7 +1978,7 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                     >
                         {/* Sticky header for time column - matches the height of the main header */}
                         <div 
-                          className="flex-shrink-0 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900" 
+                          className="flex-shrink-0 border-b border-gray-200 bg-white" 
                           style={{ 
                             height: `calc(${80 * scale}px + 2px)`, /* Adjusted for better alignment with calender slots during week view */
                             boxSizing: 'border-box',
@@ -1834,18 +2003,10 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                 }
                             }}
                         >
-                        {timeSlots.map((slot) => (
-                          <div
-                            key={slot}
-                            className="flex items-center justify-center text-xs text-gray-500 border-b border-gray-200 dark:border-gray-700"
-                            style={{
-                              height: `${scaledTimeSlotHeight}px`,
-                              fontSize: `${0.75 * scale}rem`,
-                              boxSizing: 'border-box',
-                            }}
-                          >
-                            <span>{formatSlotLabel(slot)}</span>
-                          </div>
+                        {timeSlots.map(slot => (
+                                <div key={slot} className="flex items-center justify-center text-xs text-gray-500 border-b border-gray-200 dark:border-gray-700" style={{ height: `${scaledTimeSlotHeight}px`, fontSize: `${0.75 * scale}rem`, boxSizing: 'border-box' }}>
+                                {slot}
+                            </div>
                         ))}
                       </div>
                     </div>
@@ -1854,18 +2015,17 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                     <div className="flex-1 min-w-0">
                         {/* Sticky header container - direct child of scroll container */}
                         <div 
-                          className="flex-shrink-0 sticky top-0 z-50 bg-white dark:bg-gray-900"
+                          className="flex-shrink-0 sticky top-0 z-50 bg-white w-full"
                           style={{ 
-                            minWidth: `calc(${totalColumns} * ${scaledColumnMinWidth}px)`,
                             boxShadow: '0 2px 4px rgba(0,0,0,0.08)',
                           }}
                         >
                     {/* First row: Day headers spanning all resources for each day */}
-                    <div className="grid border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900" style={{ gridTemplateColumns: `repeat(${totalColumns}, minmax(${scaledColumnMinWidth}px, 1fr))` }}>
+                    <div className="grid border-b border-gray-200 bg-white" style={{ gridTemplateColumns: `repeat(${totalColumns}, 1fr)` }}>
                         {weekDays.map(day => (
                             <div 
                                 key={`day-header-${day.toString()}`} 
-                                className="text-center flex items-center justify-center text-xs font-semibold uppercase border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900" 
+                                className="text-center flex items-center justify-center text-xs font-semibold uppercase border-r border-gray-200 bg-white" 
                                 style={{ 
                                     gridColumn: `span ${displayResources.length}`,
                                     height: `${40 * scale}px`, 
@@ -1878,63 +2038,59 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                     </div>
                     
                     {/* Second row: Resource headers for each day */}
-                    <div className="grid border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900" style={{ gridTemplateColumns: `repeat(${totalColumns}, minmax(${scaledColumnMinWidth}px, 1fr))` }}>
-                        {weekDays.map(day => 
-                            displayResources.map((resource, resourceIndex) => (
+                    <div className="grid border-b border-gray-200 bg-white" style={{ gridTemplateColumns: `repeat(${totalColumns}, 1fr)` }}>
+                        {weekDays.map((day, dayIndex) => 
+                            displayResources.map((resource, resourceIndex) => {
+                                const columnIndex = (dayIndex * displayResources.length) + resourceIndex;
+                                return (
                                 <div 
                                     key={`resource-header-${day.toString()}-${resource.id}`} 
-                                    className="text-center flex flex-row items-center justify-center gap-1 text-xs font-semibold border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900" 
+                                    className={`text-center flex flex-row items-center justify-center gap-1 text-xs font-semibold border-r border-gray-200 bg-white ${onOpenModal && onResourceSelect ? 'cursor-pointer hover:bg-gray-50 transition-colors' : ''}`}
                                     style={{ 
+                                        gridColumn: columnIndex + 1,
                                         height: `${40 * scale}px`, 
                                         boxSizing: 'border-box'
                                     }}
+                                    onClick={onOpenModal && onResourceSelect ? (e) => {
+                                        e.stopPropagation();
+                                        onResourceSelect(resource);
+                                        // Get first time slot hour for default start time
+                                        const firstSlotHour = parseSlotHour(timeSlots[0]) || 7;
+                                        const clickedDate = new Date(day);
+                                        clickedDate.setHours(firstSlotHour, 0, 0, 0);
+                                        const endDate = new Date(clickedDate);
+                                        endDate.setHours(firstSlotHour + 1, 0, 0, 0);
+                                        onOpenModal({
+                                            resourceId: resource.id,
+                                            startTime: clickedDate.toISOString(),
+                                            endTime: endDate.toISOString(),
+                                            date: day
+                                        });
+                                    } : undefined}
                                 >
                                     <span>{resource.name}</span>
                                     {onOpenModal && onResourceSelect && (
-                                        <button 
-                                            className="text-xs text-gray-600 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 relative" 
-                                            style={{ zIndex: 9999, position: 'relative' }}
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                onResourceSelect(resource);
-                                                // Get first time slot hour for default start time
-                                                const firstSlotHour = parseSlotHour(timeSlots[0]) || 7;
-                                                const clickedDate = new Date(day);
-                                                clickedDate.setHours(firstSlotHour, 0, 0, 0);
-                                                const endDate = new Date(clickedDate);
-                                                endDate.setHours(firstSlotHour + 1, 0, 0, 0);
-                                                onOpenModal({
-                                                    resourceId: resource.id,
-                                                    startTime: clickedDate.toISOString(),
-                                                    endTime: endDate.toISOString(),
-                                                    date: day
-                                                });
-                                            }}
-                                        >
-                                            <PlusIcon className="w-3 h-3 inline" />
-                                        </button>
+                                        <PlusIcon className="w-3 h-3 inline text-gray-600" />
                                     )}
                                 </div>
-                            ))
+                                );
+                            })
                         )}
                     </div>
                 </div>
                 
                 {/* Scrollable grid content */}
                 <div
-                  className="grid"
+                  className="grid w-full"
                   style={{
-                    gridTemplateColumns: `repeat(${totalColumns}, minmax(${scaledColumnMinWidth}px, 1fr))`,
-                    minWidth: `calc(${totalColumns} * ${scaledColumnMinWidth}px)`,
-                    width: 'max-content'
+                    gridTemplateColumns: `repeat(${totalColumns}, 1fr)`
                   }}
                 >
                     
                     {/* Time slot rows with events - each resource column gets its own wrapper */}
-                    {weekDays.map(day => 
+                    {weekDays.map((day, dayIndex) => 
                         displayResources.map((resource) => {
                             // Create a wrapper for this resource column that contains all time slots
-                            const dayIndex = weekDays.findIndex(d => format(d, 'yyyy-MM-dd') === format(day, 'yyyy-MM-dd'));
                             const resourceIndex = displayResources.findIndex(r => r.id === resource.id);
                             const columnIndex = (dayIndex * displayResources.length) + resourceIndex;
                             
@@ -1987,7 +2143,7 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                                 }}
                                                 onMouseEnter={(e) => handleEventMouseEnter(event, e.currentTarget)}
                                                 onMouseLeave={handleEventMouseLeave}
-                                                className={`absolute w-[95%] left-1 top-0 ${colorConfig.bg} p-1.5 rounded-xl flex flex-col items-start text-xs dark:text-white cursor-pointer hover:shadow-lg transition-all z-10`}
+                                                className={`absolute w-[95%] left-1 top-0 ${colorConfig.bg} p-1.5 rounded-xl flex flex-col items-start text-xs cursor-pointer hover:shadow-lg transition-all z-10`}
                                                 style={{
                                                     pointerEvents: 'auto',
                                                     height: `${totalTimeSlotHeight}px`,
@@ -2000,11 +2156,11 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                                         <img 
                                                             src={event.employeeImageUrl} 
                                                             alt={event.employeeName || 'Employee'}
-                                                            className="w-6 h-6 rounded-full object-cover border border-gray-300 dark:border-gray-600 flex-shrink-0"
+                                                            className="w-6 h-6 rounded-full object-cover border border-gray-300 flex-shrink-0"
                                                         />
                                                     ) : event.employeeName ? (
-                                                        <div className="w-6 h-6 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center border border-gray-300 dark:border-gray-600 flex-shrink-0">
-                                                            <span className="text-[9px] font-semibold text-gray-700 dark:text-gray-300">
+                                                        <div className="w-6 h-6 rounded-full bg-gray-300 flex items-center justify-center border border-gray-300 flex-shrink-0">
+                                                            <span className="text-[9px] font-semibold text-gray-700">
                                                                 {event.employeeName.charAt(0).toUpperCase()}
                                                             </span>
                                                         </div>
@@ -2020,30 +2176,30 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                                     <span className="truncate font-semibold text-sm md:text-base flex-1">{event.title || event.eventName || (Array.isArray(event.services) ? event.services.join(' + ') : event.services) || 'Service'}</span>
                                                 </div>
                                                 {(event.customerName || event.customerPhone) && (
-                                                    <span className="text-xs text-gray-700 dark:text-gray-300 mt-0.5 truncate font-semibold text-left w-full">
+                                                    <span className="text-xs text-gray-700 mt-0.5 truncate font-semibold text-left w-full">
                                                         {event.customerName || 'Customer'}{event.customerPhone ? ` (${event.customerPhone})` : ''}
                                                     </span>
                                                 )}
                                                 {getCustomerType(event) === 'new' && (
-                                                    <span className="text-xs font-semibold bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300 px-1.5 py-0.5 rounded mt-0.5 inline-block text-left">
+                                                    <span className="text-xs font-semibold bg-gray-200 text-gray-700 px-1.5 py-0.5 rounded mt-0.5 inline-block text-left">
                                                         New customer
                                                     </span>
                                                 )}
                                                 {getCustomerType(event) === 'repeat' && (
-                                                    <span className="text-xs font-semibold bg-purple-200 text-purple-800 dark:bg-purple-900 dark:text-purple-200 px-1.5 py-0.5 rounded mt-0.5 inline-block text-left truncate">
+                                                    <span className="text-xs font-semibold bg-purple-200 text-purple-800 px-1.5 py-0.5 rounded mt-0.5 inline-block text-left truncate">
                                                         Repeat ...
                                                     </span>
                                                 )}
                                                 {(event.vehicleType || event.vehicleModel) ? (
-                                                    <span className="text-xs font-semibold text-gray-600 dark:text-gray-400 mt-0.5 truncate text-left w-full">{event.vehicleType || event.vehicleModel}</span>
+                                                    <span className="text-xs font-semibold text-gray-600 mt-0.5 truncate text-left w-full">{event.vehicleType || event.vehicleModel}</span>
                                                 ) : null}
                                                 {event.services && (Array.isArray(event.services) ? event.services.length > 0 : event.services) ? (
-                                                    <span className="text-xs font-semibold text-gray-600 dark:text-gray-400 mt-0.5 truncate text-left w-full">
+                                                    <span className="text-xs font-semibold text-gray-600 mt-0.5 truncate text-left w-full">
                                                         {Array.isArray(event.services) ? event.services.join(', ') : event.services}
                                                     </span>
                                                 ) : null}
                                                 {formatTimeRange(event) && (
-                                                    <span className="text-xs font-semibold text-gray-700 dark:text-gray-300 mt-0.5 truncate text-left w-full">
+                                                    <span className="text-xs font-semibold text-gray-700 mt-0.5 truncate text-left w-full">
                                                         {formatTimeRange(event)}
                                                     </span>
                                                 )}
@@ -2061,10 +2217,10 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                         return (
                                             <div 
                                                 key={`${slot}-${day.toString()}-${resource.id}`} 
-                                                className={`border-r border-b border-gray-200 dark:border-gray-700 relative cursor-pointer transition-all ${
+                                                className={`border-r border-b border-gray-200 relative cursor-pointer transition-all ${
                                                     isSelected 
-                                                        ? 'bg-blue-50/30 dark:bg-blue-900/20 border-2 border-dashed border-blue-400' 
-                                                        : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                                                        ? 'bg-blue-50/30 border-2 border-dashed border-blue-400' 
+                                                        : 'hover:bg-gray-50'
                                                 }`}
                                                 style={{ 
                                                     height: `${scaledTimeSlotHeight}px`, 
@@ -2141,7 +2297,7 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                         
                                         return (
                                             <div
-                                                className="absolute w-[95%] left-1 rounded-xl border-2 border-dashed border-blue-400 bg-blue-50/30 dark:bg-blue-900/20 pointer-events-auto z-10"
+                                                className="absolute w-[95%] left-1 rounded-xl border-2 border-dashed border-blue-400 bg-blue-50/30 pointer-events-auto z-10"
                                                 style={{ 
                                                     top: `${top}px`,
                                                     height: `${height}px`,
@@ -2149,7 +2305,7 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                                 }}
                                             >
                                                 <div className="p-2 flex items-center justify-center h-full relative">
-                                                    <span className="text-sm font-medium text-blue-600 dark:text-blue-400">New event</span>
+                                                    <span className="text-sm font-medium text-blue-600">New event</span>
                                                     
                                                     {/* Drag handle on the right edge */}
                                                     {onDraftEventUpdate && (
@@ -2268,11 +2424,13 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                         key={`event-${i}-${event.id || i}-${resource.id}`}
                                         onClick={(e) => {
                                             e.stopPropagation();
+                                            e.preventDefault();
+                                            // Ensure event click works even when modal/draft is open
                                             onEventClick(event);
                                         }}
                                         onMouseEnter={(e) => handleEventMouseEnter(event, e.currentTarget)}
                                         onMouseLeave={handleEventMouseLeave}
-                                    className={`absolute w-[95%] left-1 ${colorConfig.bg} p-1.5 rounded-xl flex flex-col items-start text-xs dark:text-white cursor-pointer hover:shadow-lg transition-all z-10`}
+                                    className={`absolute w-[95%] left-1 ${colorConfig.bg} p-1.5 rounded-xl flex flex-col items-start text-xs cursor-pointer hover:shadow-lg transition-all z-20`}
                                     style={{ 
                                         pointerEvents: 'auto',
                                         top: `${top}px`,
@@ -2300,23 +2458,23 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                             const timeRange = formatTimeRange(event);
                                             const [startTime, endTime] = timeRange.split(' - ');
                                             return (
-                                                <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1 text-left w-full">
+                                                <div className="text-xs font-semibold text-gray-700 mb-1 text-left w-full">
                                                     <div>{startTime}</div>
-                                                    {endTime && <div className="text-gray-600 dark:text-gray-400">- {endTime}</div>}
+                                                    {endTime && <div className="text-gray-600">- {endTime}</div>}
                                                 </div>
                                             );
                                         })()}
                                         
                                         {/* Customer name */}
                                         {event.customerName && (
-                                            <span className="text-xs text-gray-700 dark:text-gray-300 mb-1 truncate font-semibold text-left w-full">
+                                            <span className="text-xs text-gray-700 mb-1 truncate font-semibold text-left w-full">
                                                 {event.customerName}
                                             </span>
                                         )}
                                         
                                         {/* Vehicle */}
                                         {(event.vehicleType || event.vehicleModel) && (
-                                            <span className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1 truncate text-left w-full">
+                                            <span className="text-xs font-semibold text-gray-600 mb-1 truncate text-left w-full">
                                                 {event.vehicleType || event.vehicleModel}
                                             </span>
                                         )}
@@ -2330,7 +2488,7 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                                         ? 'bg-blue-500 text-white'
                                                         : (event.locationType?.toLowerCase() === 'drop off' || event.locationType?.toLowerCase() === 'dropoff')
                                                         ? 'bg-pink-500 text-white'
-                                                        : 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+                                                        : 'bg-gray-200 text-gray-700'
                                                 }`}>
                                                     {event.locationType?.toLowerCase() === 'pickup' ? 'Pick Up' : 
                                                      event.locationType?.toLowerCase() === 'dropoff' ? 'Drop Off' :
@@ -2342,15 +2500,15 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                             {event.customerType && (
                                                 <span className={`text-xs font-semibold px-1.5 py-0.5 rounded inline-block text-center ${
                                                     event.customerType.toLowerCase() === 'new' 
-                                                        ? 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+                                                        ? 'bg-gray-200 text-gray-700'
                                                         : event.customerType.toLowerCase() === 'returning'
-                                                        ? 'bg-purple-200 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
+                                                        ? 'bg-purple-200 text-purple-800'
                                                         : event.customerType.toLowerCase() === 'maintenance'
-                                                        ? 'bg-blue-200 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
-                                                        : 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+                                                        ? 'bg-blue-200 text-blue-800'
+                                                        : 'bg-gray-200 text-gray-700'
                                                 }`}>
                                                     {event.customerType === 'new' ? 'New Customer' : 
-                                                     event.customerType === 'returning' ? 'Returning Customer' :
+                                                     event.customerType === 'returning' ? 'Repeat Customer' :
                                                      event.customerType === 'maintenance' ? 'Maintenance Customer' :
                                                      event.customerType}
                                             </span>
@@ -2358,7 +2516,7 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                             
                                             {/* Fallback: Show old customer type logic if customerType is not set */}
                                             {!event.customerType && getCustomerType(event) === 'repeat' && (
-                                                <span className="text-xs font-semibold bg-purple-200 text-purple-800 dark:bg-purple-900 dark:text-purple-200 px-1.5 py-0.5 rounded inline-block text-center">
+                                                <span className="text-xs font-semibold bg-purple-200 text-purple-800 px-1.5 py-0.5 rounded inline-block text-center">
                                                     Repeat ...
                                             </span>
                                         )}
@@ -2368,11 +2526,11 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                                 <img 
                                                     src={event.employeeImageUrl} 
                                                     alt={event.employeeName || 'Employee'}
-                                                    className="w-14 h-14 rounded-full object-cover border border-gray-300 dark:border-gray-600 flex-shrink-0"
+                                                    className="w-14 h-14 rounded-full object-cover border border-gray-300 flex-shrink-0"
                                                 />
                                             ) : event.employeeName ? (
-                                                <div className="w-14 h-14 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center border border-gray-300 dark:border-gray-600 flex-shrink-0">
-                                                    <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                                                <div className="w-14 h-14 rounded-full bg-gray-300 flex items-center justify-center border border-gray-300 flex-shrink-0">
+                                                    <span className="text-sm font-semibold text-gray-700">
                                                         {event.employeeName.charAt(0).toUpperCase()}
                                                     </span>
                                                 </div>
@@ -2409,17 +2567,19 @@ const DraftEventCard = ({
   width, 
   onDraftEventUpdate,
   date,
-  columnWidths
+  columnWidths,
+  scale = 1.0
 }: { 
   draftEvent: { resourceId: string; startTime: string; endTime: string },
   left: number,
   width: number,
   onDraftEventUpdate?: (draftEvent: { resourceId: string; startTime: string; endTime: string }) => void,
   date: Date,
-  columnWidths: number[]
+  columnWidths: number[],
+  scale?: number
 }) => {
-  // Calculate average hour width for drag calculations
-  const avgHourWidth = columnWidths.reduce((sum, w) => sum + w, 0) / columnWidths.length;
+  // Calculate average hour width for drag calculations (must account for scale)
+  const avgHourWidth = (columnWidths.reduce((sum, w) => sum + w, 0) / columnWidths.length) * scale;
   
   // Handle drag to extend event duration
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -2465,16 +2625,16 @@ const DraftEventCard = ({
   
   return (
     <div
-      className="absolute top-2 bottom-2 rounded-xl border-2 border-dashed border-blue-400 bg-blue-50/30 dark:bg-blue-900/20 pointer-events-none"
+      className="absolute top-2 bottom-2 rounded-xl border-2 border-dashed border-blue-400 bg-blue-50/30 pointer-events-none"
       style={{ 
         left: `${left}px`, 
         width: `${width}px`,
-        minWidth: '100px',
+        minWidth: '0px', // Don't enforce minimum - let width be exactly what it should be
         zIndex: 10
       }}
     >
       <div className="p-2 flex items-center justify-center h-full relative">
-        <span className="text-sm font-medium text-blue-600 dark:text-blue-400">New event</span>
+        <span className="text-sm font-medium text-blue-600">New event</span>
         
         {/* Drag handle on the right edge */}
         <div
@@ -2489,7 +2649,7 @@ const DraftEventCard = ({
   );
 };
 
-const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOpenModal, draftEvent, onDraftEventUpdate, scale = 1.0 }: { 
+const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOpenModal, draftEvent, onDraftEventUpdate, scale = 1.0, businessHours, onEventDrop, scrollToTime }: { 
   date: Date, 
   events: any[], 
   resources: Array<{ id: string, name: string, type: 'bay' | 'van' }>,
@@ -2498,11 +2658,17 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
   onOpenModal: (draftEvent?: { resourceId: string; startTime: string; endTime: string }) => void,
   draftEvent?: { resourceId: string; startTime: string; endTime: string } | null,
   onDraftEventUpdate?: (draftEvent: { resourceId: string; startTime: string; endTime: string }) => void,
-  scale?: number
+  scale?: number,
+  businessHours?: any,
+  onEventDrop?: (eventId: string, newResourceId: string) => Promise<void>,
+  scrollToTime?: number | null // Hour (0-23) to scroll to
 }) => {
+  const [draggedEventId, setDraggedEventId] = useState<string | null>(null);
+  const [dragOverResourceId, setDragOverResourceId] = useState<string | null>(null);
   const [containerHeight, setContainerHeight] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const hasScrolledTo6AM = useRef(false);
+  const hasScrolledToTime = useRef(false);
   // Store a single base width for all columns (uniform width)
   const [baseColumnWidth, setBaseColumnWidth] = useState<number>(() => {
     // Load from localStorage or default to 120px
@@ -2535,6 +2701,39 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
     timeSlots.push(`${hour12} ${period}`);
   }
 
+  // Helper function to check if an hour (0-23) is within working hours
+  const isWithinWorkingHours = (hour: number): boolean => {
+    // If no business hours configured, show all hours as working (white)
+    if (!businessHours) {
+      return true;
+    }
+
+    // Map JavaScript day index (0=Sunday) to full day names used in MongoDB
+    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const dayOfWeek = date.getDay();
+    const dayKey = dayNames[dayOfWeek];
+    const dayHours = businessHours[dayKey];
+
+    // If day is not set, closed, or invalid, all hours are non-working (grey)
+    if (!dayHours || !Array.isArray(dayHours) || dayHours.length < 2) {
+      return false;
+    }
+
+    const [openTime, closeTime] = dayHours;
+    
+    // If times are empty or invalid, day is closed - all hours are non-working (grey)
+    if (!openTime || !closeTime || openTime.trim() === '' || closeTime.trim() === '') {
+      return false;
+    }
+
+    // Parse times (format: "HH:MM" in 24-hour format, e.g., "07:00", "20:00")
+    const [openHour] = openTime.split(':').map(Number);
+    const [closeHour] = closeTime.split(':').map(Number);
+
+    // Check if hour is within working hours (openHour <= hour < closeHour)
+    return hour >= openHour && hour < closeHour;
+  };
+
   // Save base column width to localStorage
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -2543,8 +2742,11 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
   }, [baseColumnWidth]);
 
   // Calculate cumulative widths for event positioning (with scale applied)
+  // Ensure precision by rounding to avoid floating point errors
   const getCumulativeWidth = (index: number) => {
-    return columnWidths.slice(0, index).reduce((sum, width) => sum + (width * scale), 0);
+    const sum = columnWidths.slice(0, index).reduce((acc, width) => acc + (width * scale), 0);
+    // Round to 2 decimal places to avoid floating point precision issues
+    return Math.round(sum * 100) / 100;
   };
 
   // Calculate total width of all columns (with scale applied)
@@ -2609,25 +2811,64 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
     };
   }, [resources.length]); // Recalculate when resources change
 
-  // Scroll to 6 AM on initial load (6 AM is at index 6)
+  // Scroll to specific time if provided, otherwise scroll to 6 AM on initial load
   useEffect(() => {
-    if (containerRef.current && !hasScrolledTo6AM.current) {
+    if (containerRef.current) {
       const scrollContainer = containerRef.current;
-      // 6 AM is at index 6 (0=12 AM, 1=1 AM, ..., 6=6 AM)
-      const scrollTo6AM = () => {
-        scrollContainer.scrollLeft = getCumulativeWidth(6); // Scroll to 6 AM position
-        hasScrolledTo6AM.current = true;
-      };
-      // Use a small delay to ensure DOM is ready
-      const timeoutId = setTimeout(scrollTo6AM, 150);
-      return () => clearTimeout(timeoutId);
+      
+      // If scrollToTime is provided, scroll to that time
+      if (scrollToTime !== null && scrollToTime !== undefined && !hasScrolledToTime.current) {
+        const scrollToTimeSlot = () => {
+          const targetHour = Math.max(0, Math.min(23, scrollToTime)); // Clamp to 0-23
+          scrollContainer.scrollLeft = getCumulativeWidth(targetHour);
+          hasScrolledToTime.current = true;
+          hasScrolledTo6AM.current = true; // Mark as scrolled so 6 AM scroll doesn't override
+        };
+        const timeoutId = setTimeout(scrollToTimeSlot, 200);
+        return () => clearTimeout(timeoutId);
+      } 
+      // Otherwise, scroll to 6 AM on initial load (6 AM is at index 6)
+      else if (!hasScrolledTo6AM.current) {
+        const scrollTo6AM = () => {
+          scrollContainer.scrollLeft = getCumulativeWidth(6); // Scroll to 6 AM position
+          hasScrolledTo6AM.current = true;
+        };
+        const timeoutId = setTimeout(scrollTo6AM, 150);
+        return () => clearTimeout(timeoutId);
+      }
     }
-  }, [baseColumnWidth, scale]); // Re-run when base column width or scale changes
+  }, [baseColumnWidth, scale, scrollToTime]); // Re-run when base column width, scale, or scrollToTime changes
 
-  // Reset scroll flag when date changes
+  // Reset scroll flags when date changes
   useEffect(() => {
     hasScrolledTo6AM.current = false;
+    hasScrolledToTime.current = false;
   }, [date]);
+
+  // Calculate current time position for indicator line
+  // Note: new Date() uses the user's local timezone automatically
+  // getHours() and getMinutes() return local time values
+  const currentTime = new Date();
+  const isToday = isSameDay(date, currentTime);
+  const currentHour = currentTime.getHours(); // Local time hour (0-23)
+  const currentMinutes = currentTime.getMinutes(); // Local time minutes (0-59)
+  
+  // Calculate left position for current time line (similar to event positioning)
+  const getCurrentTimePosition = () => {
+    if (!isToday) return null;
+    
+    const dayStart = new Date(date);
+    dayStart.setHours(0, 0, 0, 0);
+    
+    let left = getCumulativeWidth(currentHour);
+    const hourFraction = currentMinutes / 60;
+    const hourWidth = columnWidths[currentHour] * scale;
+    left += hourWidth * hourFraction;
+    
+    return Math.round(left * 100) / 100;
+  };
+  
+  const currentTimeLeft = getCurrentTimePosition();
 
   // Filter events for the current day
   const dayEvents = events.filter(e => {
@@ -2656,18 +2897,26 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
     const endMinutes = endTime.getMinutes();
     
     // Calculate left position: sum of widths of all columns before start hour + fraction of start hour column
+    // Use exact same calculation as rendered columns: columnWidths[index] * scale
     let left = getCumulativeWidth(startHour);
     const startHourFraction = startMinutes / 60;
-    left += (columnWidths[startHour] * scale) * startHourFraction;
+    const startHourWidth = columnWidths[startHour] * scale;
+    left += startHourWidth * startHourFraction;
 
-    // Calculate width: from start to end
+    // Calculate end position: sum of widths up to end hour + fraction of end hour column
     let endPosition = getCumulativeWidth(endHour);
     const endHourFraction = endMinutes / 60;
-    endPosition += (columnWidths[endHour] * scale) * endHourFraction;
+    const endHourWidth = columnWidths[endHour] * scale;
+    endPosition += endHourWidth * endHourFraction;
     
-    const width = Math.max(100, endPosition - left);
+    // Width is the difference between end and start positions
+    // Ensure we use exact pixel values without rounding errors
+    const calculatedWidth = endPosition - left;
+    // Don't enforce minimum width - let it be exactly what it should be based on time duration
+    // At lower zoom levels, widths will be smaller, which is correct
+    const width = Math.round(calculatedWidth * 100) / 100; // Round to 2 decimal places for precision
     
-    return { left, width };
+    return { left: Math.round(left * 100) / 100, width };
   };
 
   // Determine customer type (new vs repeat) - check if customer has previous bookings
@@ -2726,23 +2975,38 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
   return (
     <div className="flex flex-col h-full max-h-full w-full overflow-hidden">
       {/* Scrollable container for header and rows */}
-      <div className="flex-1 min-h-0 min-w-0 overflow-x-auto overflow-y-auto" id="calendar-scroll-container" ref={containerRef} style={{ position: 'relative' }}>
+      <div className="flex-1 min-h-0 min-w-0 overflow-x-auto overflow-y-auto" id="calendar-scroll-container" ref={containerRef} style={{ position: 'relative', width: '100%' }}>
         <div style={{ minWidth: `${totalColumnWidth + 128}px` }}>
       {/* Header with time slots - sticky when scrolling down */}
-         <div className="flex bg-white dark:bg-white flex-shrink-0 sticky top-0 z-50" style={{ minWidth: `${totalColumnWidth + 128}px`, width: 'max-content', boxShadow: '0 2px 4px 0 rgba(0, 0, 0, 0.1)' }}>
-          <div className="w-32 flex-shrink-0 p-2 bg-white dark:bg-white sticky left-0 z-60" style={{ borderRight: '1px solid #F0F0EE' }}>
+         <div className="flex bg-white flex-shrink-0 sticky top-0 z-50" style={{ minWidth: `${totalColumnWidth + 128}px`, width: 'max-content', position: 'relative' }}>
+          <div className="w-32 flex-shrink-0 p-2 bg-white sticky left-0 z-[100] flex items-center justify-center" style={{ 
+            isolation: 'isolate', 
+            borderRight: '1px solid #F0F0EE', 
+            boxShadow: '2px 0 4px rgba(0,0,0,0.05)',
+            position: 'sticky',
+            backgroundColor: 'white',
+            transform: 'translateZ(0)',
+            willChange: 'transform'
+          }}>
+            <div className="text-xs font-semibold text-black">Station</div>
           </div>
-          <div className="flex flex-shrink-0" style={{ minWidth: `${totalColumnWidth}px`, width: `${totalColumnWidth}px` }}>
-            {timeSlots.map((slot, index) => (
-              <div 
-                key={slot} 
-                className="flex-shrink-0 p-2 bg-white dark:bg-white relative group"
-                style={{ 
-                  width: `${columnWidths[index] * scale}px`,
-                  borderRight: '1px solid #F0F0EE'
-                }}
-              >
-                <div className="text-xs font-semibold text-black text-left">
+          <div className="flex flex-shrink-0" style={{ minWidth: `${totalColumnWidth}px`, width: `${totalColumnWidth}px`, position: 'relative', zIndex: 1, transform: 'translateZ(0)' }}>
+            {timeSlots.map((slot, index) => {
+              const hour = index; // hour is 0-23 (0 = 12 AM, 23 = 11 PM)
+              const isWorkingHour = isWithinWorkingHours(hour);
+              const is12PM = slot === '12 PM';
+              return (
+                <div 
+                  key={slot} 
+                  className="flex-shrink-0 p-2 relative group"
+                  style={{ 
+                    width: `${columnWidths[index] * scale}px`,
+                    borderRight: '1px solid #F0F0EE',
+                    overflow: 'hidden',
+                    backgroundColor: isWorkingHour ? 'white' : '#F5F5F5'
+                  }}
+                >
+                <div className={`text-xs text-black text-left whitespace-nowrap ${is12PM ? 'font-bold' : 'font-semibold'}`} style={{ overflow: 'hidden', textOverflow: 'clip' }}>
                   {slot}
                 </div>
                 {/* Resize handle */}
@@ -2756,30 +3020,92 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
                   }}
                 />
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
         {/* Resource rows container - needs fixed height for percentage-based row heights */}
         <div 
-          className="flex flex-col"
+          className="flex flex-col relative"
           style={{ 
             minWidth: `${totalColumnWidth + 128}px`,
             height: containerHeight > 0 ? `${containerHeight}px` : 'auto'
           }}
         >
+          {/* Current time indicator line - spans all resources */}
+          {isToday && currentTimeLeft !== null && (
+            <div
+              className="absolute top-0 bottom-0 z-20 pointer-events-none"
+              style={{
+                left: `${currentTimeLeft + 128}px`, // 128px is the width of the resource name column (w-32 = 128px)
+                width: '3px',
+                backgroundColor: '#F97316', // Orange color
+              }}
+            >
+              <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-3 h-3 rounded-full bg-orange-500 -mt-1.5" />
+            </div>
+          )}
           {resources.map((resource, index) => {
           const resourceEvents = dayEvents.filter(e => e.resourceId === resource.id);
             const rowHeight = calculateRowHeight(index, resources.length);
+            const isDragOver = dragOverResourceId === resource.id;
           
           return (
             <div 
               key={resource.id} 
                 className="flex flex-shrink-0"
-                style={{ height: rowHeight, minHeight: `${120 * scale}px`, borderBottom: '1px solid #F0F0EE' }}
+                style={{ 
+                  height: rowHeight, 
+                  minHeight: `${120 * scale}px`, 
+                  borderBottom: '1px solid #F0F0EE',
+                  backgroundColor: isDragOver ? '#E0F2FE' : 'transparent',
+                  transition: 'background-color 0.2s'
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setDragOverResourceId(resource.id);
+                }}
+                onDragLeave={(e) => {
+                  // Only clear if we're leaving the entire row, not just moving to a child
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const x = e.clientX;
+                  const y = e.clientY;
+                  if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+                    setDragOverResourceId(null);
+                  }
+                }}
+                onDrop={async (e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setDragOverResourceId(null);
+                  
+                  const eventId = e.dataTransfer.getData('text/plain');
+                  if (eventId && draggedEventId === eventId && onEventDrop) {
+                    // Check if event is being moved to a different resource
+                    const event = dayEvents.find((ev: any) => ev.id === eventId);
+                    if (event && event.resourceId !== resource.id) {
+                      try {
+                        await onEventDrop(eventId, resource.id);
+                      } catch (error) {
+                        console.error('Error moving event:', error);
+                      }
+                    }
+                  }
+                  setDraggedEventId(null);
+                }}
             >
               {/* Resource name column */}
-                <div className="w-32 flex-shrink-0 p-3 bg-white dark:bg-white sticky left-0 z-20" style={{ isolation: 'isolate', borderRight: '1px solid #F0F0EE' }}>
+                <div 
+                  className="w-32 flex-shrink-0 p-3 bg-white sticky left-0 z-30 cursor-pointer hover:bg-gray-50 transition-colors"
+                  style={{ isolation: 'isolate', borderRight: '1px solid #F0F0EE' }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onResourceSelect(resource);
+                    onOpenModal();
+                  }}
+                >
                 <div className="flex items-center gap-2">
                   {resource.type === 'bay' ? (
                       <Image 
@@ -2802,17 +3128,9 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
                       <div className="text-sm font-semibold text-black">
                       {resource.name.toUpperCase()}
                     </div>
-                      <button 
-                        className="text-xs text-gray-600 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 mt-1 relative" 
-                        style={{ zIndex: 9999, position: 'relative' }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onResourceSelect(resource);
-                          onOpenModal();
-                        }}
-                      >
-                      <PlusIcon className="w-4 h-4 inline" /> Add
-                    </button>
+                      <div className="text-xs text-gray-600 mt-1">
+                        <PlusIcon className="w-4 h-4 inline" /> Add
+                      </div>
                   </div>
                 </div>
               </div>
@@ -2820,6 +3138,7 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
               {/* Time slots row with events */}
                 <div 
                   className="flex-1 min-w-0 relative"
+                  style={{ position: 'relative', left: 0, overflow: 'hidden' }}
                   onClick={(e) => {
                     // Only handle clicks on blank space, not on events
                     const target = e.target as HTMLElement;
@@ -2879,7 +3198,7 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
                   {timeSlots.map((slot, index) => (
                     <div 
                       key={slot} 
-                      className="time-slot-cell flex-shrink-0 h-full cursor-pointer hover:bg-[#F7F7F5] dark:hover:bg-[gray-800/50] transition-colors"
+                      className="time-slot-cell flex-shrink-0 h-full cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
                       style={{ 
                         width: `${columnWidths[index] * scale}px`,
                         borderRight: '1px solid #F0F0EE' 
@@ -2903,6 +3222,7 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
                         onDraftEventUpdate={onDraftEventUpdate}
                         date={date}
                         columnWidths={columnWidths}
+                        scale={scale}
                       />
                     );
                   })()}
@@ -2917,19 +3237,33 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
                     return (
                       <div
                         key={event.id}
+                        draggable={!isPending}
+                        onDragStart={(e) => {
+                          e.dataTransfer.effectAllowed = 'move';
+                          e.dataTransfer.setData('text/plain', event.id);
+                          setDraggedEventId(event.id);
+                        }}
+                        onDragEnd={(e) => {
+                          setDraggedEventId(null);
+                          setDragOverResourceId(null);
+                        }}
                         onClick={(e) => {
                           e.stopPropagation();
+                          e.preventDefault();
+                          // Ensure event click works even when modal/draft is open
                           onEventClick(event);
                         }}
-                        className={`absolute top-2 bottom-2 rounded-xl p-2 cursor-pointer transition-all hover:shadow-lg ${
+                        className={`absolute top-2 bottom-2 rounded-xl p-2 transition-all hover:shadow-lg ${
                           isPending 
-                            ? 'border-2 border-dashed border-gray-400 bg-white dark:bg-gray-700' 
-                            : `${eventColors[eventColor]?.bg || eventColors.blue.bg} border-l-4 ${eventColors[eventColor]?.border || eventColors.blue.border}`
-                        }`}
+                            ? 'border-2 border-dashed border-gray-400 bg-white cursor-not-allowed' 
+                            : `${eventColors[eventColor]?.bg || eventColors.blue.bg} border-l-4 ${eventColors[eventColor]?.border || eventColors.blue.border} cursor-move`
+                        } ${draggedEventId === event.id ? 'opacity-50' : ''}`}
                         style={{ 
-                          left: `${left}px`, 
+                          left: `${Math.max(0, left)}px`, 
                           width: `${width}px`,
-                          minWidth: '100px'
+                          minWidth: '100px',
+                          pointerEvents: 'auto',
+                          zIndex: draggedEventId === event.id ? 25 : 15
                         }}
                       >
                         <div className="flex items-center gap-2 mb-1">
@@ -2937,51 +3271,51 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
                             <img 
                               src={event.employeeImageUrl} 
                               alt={event.employeeName || 'Employee'}
-                              className="w-10 h-10 rounded-full object-cover border border-gray-300 dark:border-gray-600 flex-shrink-0"
+                              className="w-10 h-10 rounded-full object-cover border border-gray-300 flex-shrink-0"
                             />
                           ) : event.employeeName ? (
-                            <div className="w-10 h-10 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center border border-gray-300 dark:border-gray-600 flex-shrink-0">
-                              <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+                            <div className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center border border-gray-300 flex-shrink-0">
+                              <span className="text-xs font-semibold text-gray-700">
                                 {event.employeeName.charAt(0).toUpperCase()}
                               </span>
                             </div>
                           ) : null}
-                          <div className="text-base font-semibold text-gray-900 dark:text-white flex-1 truncate">
+                          <div className="text-base font-semibold text-gray-900 flex-1 truncate">
                             {Array.isArray(event.services) ? event.services.join(' + ') : event.services || 'Service'}
                           </div>
                         </div>
                         {formatTimeRange(event) && (
-                          <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                          <div className="text-xs font-semibold text-gray-700 mb-1">
                             {formatTimeRange(event)}
                           </div>
                         )}
-                        <div className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">
+                        <div className="text-xs font-semibold text-gray-600 mb-1">
                           {event.vehicleType || 'Vehicle'}
                         </div>
                         <div className="mt-auto pt-2">
                           {!isPending && customerType === 'new' && (
                             <div className="mb-1">
-                              <span className="text-xs font-semibold bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300 px-1.5 py-0.5 rounded">
+                              <span className="text-xs font-semibold bg-gray-200 text-gray-700 px-1.5 py-0.5 rounded">
                                 New customer
                               </span>
                             </div>
                           )}
                           {!isPending && customerType === 'repeat' && (
                             <div className="mb-1">
-                              <span className="text-xs font-semibold bg-purple-200 text-purple-800 dark:bg-purple-900 dark:text-purple-200 px-1.5 py-0.5 rounded">
+                              <span className="text-xs font-semibold bg-purple-200 text-purple-800 px-1.5 py-0.5 rounded">
                                 Repeat customer
                               </span>
                             </div>
                           )}
                           {(event.customerName || event.customerPhone) && (
-                            <div className="text-xs font-semibold text-gray-600 dark:text-gray-400">
+                            <div className="text-xs font-semibold text-gray-600">
                               {event.customerName || 'Customer'}{event.customerPhone ? ` (${event.customerPhone})` : ''}
                             </div>
                           )}
                         </div>
                         {isPending && (
                           <div className="absolute top-1 right-1">
-                            <span className="text-[10px] bg-yellow-200 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 px-1 rounded">
+                            <span className="text-[10px] bg-yellow-200 text-yellow-800 px-1 rounded">
                               Pending
                             </span>
                           </div>
@@ -3003,14 +3337,20 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
 // #endregion
 
 export default function CalendarPage() {
-  const [viewMode, setViewMode] = useState<'month' | 'week' | 'day'>('day');
+  const [viewMode, setViewMode] = useState<'month' | 'week' | 'day' | number>('day');
+  const [numberOfDays, setNumberOfDays] = useState<number | null>(null); // For custom day views (2-7)
+  const [isViewDropdownOpen, setIsViewDropdownOpen] = useState(false);
+  const [isDaysSubmenuOpen, setIsDaysSubmenuOpen] = useState(false);
+  const viewDropdownRef = useRef<HTMLDivElement>(null);
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [scrollToTime, setScrollToTime] = useState<number | null>(null); // Hour (0-23) to scroll to after event creation
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [selectedResource, setSelectedResource] = useState<{ id: string; name: string; type: 'bay' | 'van' } | null>(null);
   const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
-  const [draftEvent, setDraftEvent] = useState<{ resourceId: string; startTime: string; endTime: string } | null>(null);
+  const [draftEvent, setDraftEvent] = useState<{ resourceId: string; startTime: string; endTime: string; date?: Date } | null>(null);
+  const [pendingDraftEvent, setPendingDraftEvent] = useState<{ resourceId: string; startTime: string; endTime: string; date?: Date } | null>(null);
 
   const today = new Date();
   const [events, setEvents] = useState([
@@ -3026,8 +3366,13 @@ export default function CalendarPage() {
   const [selectedEvent, setSelectedEvent] = useState<string | null>(null);
   const [eventDetailsOpen, setEventDetailsOpen] = useState(false);
   const [selectedEventData, setSelectedEventData] = useState<any>(null);
+  const optimisticCustomerRemovalRef = useRef<string | null>(null); // Track event ID with optimistic customer removal
+  const optimisticCustomerUpdateRef = useRef<string | null>(null); // Track event ID with optimistic customer update
   const [isEditingEvent, setIsEditingEvent] = useState(false);
   const [editFormData, setEditFormData] = useState<any>(null);
+  const [isEditFormDirty, setIsEditFormDirty] = useState(false);
+  const [showDiscardModal, setShowDiscardModal] = useState(false);
+  const [showEventModalDiscardModal, setShowEventModalDiscardModal] = useState(false);
   const [customerPastJobs, setCustomerPastJobs] = useState<Array<{ id: string; date: string; services: string[]; vehicleModel?: string; employeeName?: string }>>([]);
   const [showEmployeeSwitchDropdown, setShowEmployeeSwitchDropdown] = useState(false);
   const [isEditingNotes, setIsEditingNotes] = useState(false);
@@ -3036,6 +3381,7 @@ export default function CalendarPage() {
   const employeeSwitchRef = useRef<HTMLDivElement>(null);
   const eventDetailsCustomerCardRef = useRef<HTMLDivElement>(null);
   const customerDetailsPopupRef = useRef<HTMLDivElement>(null);
+  const customerPopupTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [resources, setResources] = useState<Array<{ id: string, name: string, type: 'bay' | 'van' }>>([]);
   const [isLoadingResources, setIsLoadingResources] = useState(false);
   const [allEmployees, setAllEmployees] = useState<Array<{ id: string; name: string; color: string; imageUrl?: string }>>([]);
@@ -3047,10 +3393,17 @@ export default function CalendarPage() {
   const [isNewCustomerModalOpen, setIsNewCustomerModalOpen] = useState(false);
   const [newCustomerModalInitialName, setNewCustomerModalInitialName] = useState('');
   const [newCustomerData, setNewCustomerData] = useState<{ customerName: string; customerPhone: string; customerEmail?: string; address?: string } | null>(null);
+  const [editingCustomerData, setEditingCustomerData] = useState<{ customerName: string; customerPhone: string; customerAddress?: string } | null>(null);
+  const [isEditingCustomer, setIsEditingCustomer] = useState(false);
+  const [eventDetailsCustomers, setEventDetailsCustomers] = useState<Array<{ id: string; customerName?: string; customerPhone: string; customerEmail?: string; address?: string; locationType?: string; customerType?: string; vehicleModel?: string; services?: string[]; data?: any }>>([]);
+  const [eventDetailsCustomerSearch, setEventDetailsCustomerSearch] = useState('');
+  const [showEventDetailsCustomerSuggestions, setShowEventDetailsCustomerSuggestions] = useState(false);
+  const [selectedEventDetailsCustomerIndex, setSelectedEventDetailsCustomerIndex] = useState(-1);
   const datePickerRef = useRef<HTMLDivElement>(null);
   const teamDropdownRef = useRef<HTMLDivElement>(null);
   const actionSidebarRef = useRef<HTMLDivElement>(null);
   const bottomSheetRef = useRef<HTMLDivElement>(null);
+  const eventEditFormRef = useRef<{ handleCancel: () => void; handleSubmit: () => void } | null>(null);
   const notesSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const bottomSheetTouchStartRef = useRef<{ y: number; time: number } | null>(null);
   const session = useSession();
@@ -3464,6 +3817,112 @@ export default function CalendarPage() {
     }
   }, [selectedEventData?.customerPhone, allEmployees]);
 
+  // Fetch customers for Event Details panel when it opens or when customer is removed
+  useEffect(() => {
+    if (isActionSidebarOpen && selectedEventData && !isEditingEvent) {
+      // Fetch customers when Event Details panel is open
+      fetch('/api/detailer/customers')
+        .then(res => res.json())
+        .then(data => {
+          if (data.customers) {
+            setEventDetailsCustomers(data.customers);
+          }
+        })
+        .catch(err => console.error('Error fetching customers:', err));
+    }
+  }, [isActionSidebarOpen, selectedEventData, isEditingEvent]);
+
+  // Handle customer selection in Event Details panel
+  const handleEventDetailsCustomerSelect = async (customer: { id: string; customerName?: string; customerPhone: string; customerEmail?: string; address?: string; locationType?: string; customerType?: string; vehicleModel?: string; services?: string[]; data?: any }) => {
+    if (!selectedEventData || !selectedEventData.id) return;
+
+    const eventId = selectedEventData.id;
+
+    try {
+      const response = await fetch(`/api/detailer/events/${eventId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerName: customer.customerName || null,
+          customerPhone: customer.customerPhone,
+          customerAddress: customer.address || null
+        }),
+      });
+
+      if (response.ok) {
+        const responseData = await response.json();
+        console.log('Customer update response:', responseData);
+        
+        // Clear optimistic removal ref since we're adding a customer
+        optimisticCustomerRemovalRef.current = null;
+        
+        // Track optimistic customer update to prevent fetchCalendarEvents from overwriting
+        optimisticCustomerUpdateRef.current = eventId;
+        
+        // Clear search
+        setEventDetailsCustomerSearch('');
+        setShowEventDetailsCustomerSuggestions(false);
+        
+        // Use the server response to update state - this ensures we have the exact data the server saved
+        if (responseData.event) {
+          const serverEvent = responseData.event;
+          console.log('Server event customer data:', {
+            customerName: serverEvent.customerName,
+            customerPhone: serverEvent.customerPhone,
+            customerAddress: serverEvent.customerAddress
+          });
+          
+          const updatedEventData = {
+            ...selectedEventData,
+            customerName: serverEvent.customerName || null,
+            customerPhone: serverEvent.customerPhone || null,
+            customerAddress: serverEvent.customerAddress || null
+          };
+          setSelectedEventData(updatedEventData);
+          
+          // Also update the bookings state so the calendar card reflects the change immediately
+          setBookings((prevBookings) =>
+            prevBookings.map((event: any) =>
+              event.id === eventId
+                ? {
+                    ...event,
+                    customerName: serverEvent.customerName || null,
+                    customerPhone: serverEvent.customerPhone || null,
+                    customerAddress: serverEvent.customerAddress || null
+                  }
+                : event
+            )
+          );
+        } else {
+          console.error('No event in response:', responseData);
+        }
+        
+        // Clear the optimistic update ref after a delay to allow normal syncing to resume
+        // We don't need to call fetchCalendarEvents here since we've already updated state from the API response
+        // If something else triggers fetchCalendarEvents, the ref will prevent it from overwriting our state
+        setTimeout(() => {
+          if (optimisticCustomerUpdateRef.current === eventId) {
+            optimisticCustomerUpdateRef.current = null;
+          }
+        }, 3000);
+      } else {
+        const error = await response.json();
+        console.error('Failed to update customer:', error);
+        console.error('Response status:', response.status);
+        // Revert optimistic update on error
+        fetchCalendarEvents().catch(err => {
+          console.error('Failed to revert optimistic update:', err);
+        });
+      }
+    } catch (error) {
+      console.error('Error updating customer:', error);
+      // Revert optimistic update on error
+      fetchCalendarEvents().catch(err => {
+        console.error('Failed to revert optimistic update:', err);
+      });
+    }
+  };
+
   // Close team dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -3501,6 +3960,10 @@ export default function CalendarPage() {
   // Close action sidebar when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      // Don't close sidebar if discard modal is open or if we're editing with dirty changes
+      if (showDiscardModal || (isEditingEvent && isEditFormDirty)) {
+        return;
+      }
       if (actionSidebarRef.current && !actionSidebarRef.current.contains(event.target as Node)) {
         setIsActionSidebarOpen(false);
         setSelectedEventData(null);
@@ -3517,7 +3980,7 @@ export default function CalendarPage() {
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isActionSidebarOpen]);
+  }, [isActionSidebarOpen, showDiscardModal, isEditingEvent, isEditFormDirty]);
 
   // Hide hamburger menu when action panel is open
   useEffect(() => {
@@ -3531,30 +3994,32 @@ export default function CalendarPage() {
     };
   }, [isActionSidebarOpen]);
 
-  // Close customer details popup when clicking outside
+  // Close view dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Node;
-      // Check if click is outside both the customer card and the popup
-      if (
-        showCustomerDetailsPopup &&
-        eventDetailsCustomerCardRef.current &&
-        customerDetailsPopupRef.current &&
-        !eventDetailsCustomerCardRef.current.contains(target) &&
-        !customerDetailsPopupRef.current.contains(target)
-      ) {
-        setShowCustomerDetailsPopup(false);
+      if (viewDropdownRef.current && !viewDropdownRef.current.contains(event.target as Node)) {
+        setIsViewDropdownOpen(false);
+        setIsDaysSubmenuOpen(false);
       }
     };
 
-    if (showCustomerDetailsPopup) {
+    if (isViewDropdownOpen) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showCustomerDetailsPopup]);
+  }, [isViewDropdownOpen]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (customerPopupTimeoutRef.current) {
+        clearTimeout(customerPopupTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Cleanup notes save timeout on unmount or event change
   useEffect(() => {
@@ -3592,7 +4057,7 @@ export default function CalendarPage() {
   if (session.status === 'loading') {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-lg text-gray-600 dark:text-gray-400">Loading calendar...</div>
+        <div className="text-lg text-gray-600">Loading calendar...</div>
       </div>
     );
   }
@@ -3601,7 +4066,7 @@ export default function CalendarPage() {
   if (session.status === 'unauthenticated') {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-lg text-red-600 dark:text-red-400">Please log in to view your calendar.</div>
+        <div className="text-lg text-red-600">Please log in to view your calendar.</div>
       </div>
     );
   }
@@ -3636,9 +4101,43 @@ export default function CalendarPage() {
       console.log('Current month being fetched:', monthStr);
       console.log('Sample events:', allEvents.slice(0, 3));
       
-      // Set the events in state
-      console.log('About to call setBookings with:', allEvents.length, 'events');
-      setBookings(allEvents);
+      // If we have an optimistic customer update/removal, preserve it in the bookings array
+      setBookings((prevBookings) => {
+        const optimisticEventId = optimisticCustomerUpdateRef.current || optimisticCustomerRemovalRef.current;
+        if (optimisticEventId) {
+          // Find the optimistic update in the previous bookings state
+          let optimisticEvent = prevBookings.find((e: any) => e.id === optimisticEventId);
+          // If not found in prevBookings, try selectedEventData as fallback
+          if (!optimisticEvent && selectedEventData && selectedEventData.id === optimisticEventId) {
+            optimisticEvent = selectedEventData;
+          }
+          if (optimisticEvent) {
+            // Merge the optimistic event into the server events, preserving the optimistic customer data
+            const mergedEvents = allEvents.map((e: any) => 
+              e.id === optimisticEventId ? optimisticEvent : e
+            );
+            console.log('Preserving optimistic update for event:', optimisticEventId);
+            return mergedEvents;
+          }
+        }
+        // No optimistic update, use server data
+        console.log('About to call setBookings with:', allEvents.length, 'events');
+        return allEvents;
+      });
+      
+      // If we have a selected event, sync selectedEventData with fresh data from server
+      // BUT skip syncing if we have an optimistic customer update/removal in progress
+      if (selectedEventData && selectedEventData.id) {
+        // Don't sync if we have an optimistic customer removal or update for this event
+        if (!(optimisticCustomerRemovalRef.current === selectedEventData.id || 
+              optimisticCustomerUpdateRef.current === selectedEventData.id)) {
+          // Only sync if there's no optimistic update in progress
+          const updatedEvent = allEvents.find((e: any) => e.id === selectedEventData.id);
+          if (updatedEvent) {
+            setSelectedEventData(updatedEvent);
+          }
+        }
+      }
       
       // Filter today's events
       const today = new Date();
@@ -3669,11 +4168,113 @@ export default function CalendarPage() {
   };
 
   const handleAddEvent = (newEvent: any) => {
-    // Don't add to local events state - let fetchCalendarEvents handle it
+    // Navigate to the date of the newly created event
+    let eventDate: Date | null = null;
+    
+    // Prefer using the start string which contains the full datetime
+    if (newEvent.start) {
+      try {
+        // Parse the start string (format: "2025-12-26T12:00")
+        // Extract just the date part to avoid timezone conversion issues
+        const startStr = String(newEvent.start);
+        const dateMatch = startStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (dateMatch) {
+          // Create date in local timezone to avoid UTC conversion
+          const year = parseInt(dateMatch[1], 10);
+          const month = parseInt(dateMatch[2], 10) - 1; // Month is 0-indexed
+          const day = parseInt(dateMatch[3], 10);
+          eventDate = new Date(year, month, day);
+        }
+      } catch (e) {
+        console.error('Error parsing event start date:', e);
+      }
+    } else if (newEvent.date) {
+      // Fallback to date field if start is not available
+      if (newEvent.date instanceof Date) {
+        eventDate = newEvent.date;
+      } else {
+        // Parse date string and create in local timezone
+        const dateStr = String(newEvent.date);
+        const dateMatch = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (dateMatch) {
+          const year = parseInt(dateMatch[1], 10);
+          const month = parseInt(dateMatch[2], 10) - 1;
+          const day = parseInt(dateMatch[3], 10);
+          eventDate = new Date(year, month, day);
+        }
+      }
+    }
+    
+    if (eventDate && !isNaN(eventDate.getTime())) {
+      setCurrentDate(eventDate);
+    }
+    
+    // Extract hour from event start time to scroll to that time slot
+    if (newEvent.start) {
+      try {
+        const startStr = String(newEvent.start);
+        // Parse the time portion from the start string (format: "2025-12-26T12:00")
+        const timeMatch = startStr.match(/T(\d{2}):(\d{2})/);
+        if (timeMatch) {
+          const hour = parseInt(timeMatch[1], 10);
+          setScrollToTime(hour);
+          // Clear scrollToTime after a delay to allow the scroll to happen
+          setTimeout(() => {
+            setScrollToTime(null);
+          }, 1000);
+        }
+      } catch (e) {
+        console.error('Error parsing event start time for scroll:', e);
+      }
+    }
+    
     // Refresh the calendar events to include the new event from the database
     setTimeout(() => {
-    fetchCalendarEvents();
+      fetchCalendarEvents();
     }, 500); // Small delay to ensure database write is complete
+  };
+
+  const handleEventDrop = async (eventId: string, newResourceId: string) => {
+    // Optimistically update the local state immediately for instant UI feedback
+    setBookings((prevBookings) => 
+      prevBookings.map((event: any) => 
+        event.id === eventId 
+          ? { ...event, resourceId: newResourceId }
+          : event
+      )
+    );
+
+    // Update API in the background - don't await to avoid blocking
+    try {
+      const response = await fetch(`/api/detailer/events/${eventId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          resourceId: newResourceId
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        // Revert optimistic update on error
+        fetchCalendarEvents().catch(err => {
+          console.error('Failed to revert optimistic update:', err);
+        });
+        throw new Error(errorData.error || 'Failed to update event');
+      }
+      
+      // Success - no need to refresh since we already optimistically updated
+      // The optimistic update is sufficient for smooth UX
+    } catch (error) {
+      console.error('Error updating event resource:', error);
+      // Revert optimistic update on error by refreshing from server
+      fetchCalendarEvents().catch(err => {
+        console.error('Failed to revert optimistic update:', err);
+      });
+      throw error;
+    }
   };
 
   const handleEventClick = (event: any) => {
@@ -3685,10 +4286,35 @@ export default function CalendarPage() {
       allDay: event.allDay,
       rawEvent: event
     });
+    
+    // If we're creating a new event (modal open or draft exists), close it first
+    // The modal's own close handler will check for unsaved changes and show discard modal if needed
+    // We'll use a flag to indicate we want to switch to an existing event after closing
+    if (isModalOpen) {
+      // Trigger the modal's close handler which will check for dirty state
+      // We need to close the modal, but the modal should handle the discard check
+      // Since we can't directly call the modal's handleClose, we'll close it and let the modal handle it
+      // Actually, we should close the modal first, then open the event
+      // The modal's onClose will be called, which currently just closes it
+      // We need to update the modal's onClose to check for dirty state
+      setIsModalOpen(false);
+      setDraftEvent(null);
+      setSelectedResource(null);
+    } else if (draftEvent) {
+      // If draft exists but modal not open, just clear it
+      setDraftEvent(null);
+    }
+    
     setSelectedEvent(event.id);
     setSelectedEventData(event);
-    // Don't open action panel - bottom sheet will show event details
+    // Clear optimistic customer update refs when selecting a new event
+    optimisticCustomerRemovalRef.current = null;
+    optimisticCustomerUpdateRef.current = null;
+    // Open action panel on desktop - bottom sheet will show event details on mobile
+    setIsActionSidebarOpen(true); // Open the desktop action sidebar
     setEventDetailsOpen(false); // Close modal if it was open
+    setIsEditingEvent(false); // Always reset to Event Details view when clicking an event
+    setIsEditFormDirty(false); // Reset dirty state
     setIsEditingNotes(false); // Reset notes edit mode when selecting a new event
     setShowCustomerDetailsPopup(false); // Close customer popup when selecting a new event
     
@@ -3782,12 +4408,6 @@ export default function CalendarPage() {
 
   const handleDeleteEvent = async () => {
     if (!selectedEventData?.id) return;
-    
-    const confirmDelete = window.confirm(
-      'Are you sure you want to delete this event? This will remove it from both Reeva Detailer and Google Calendar.'
-    );
-    
-    if (!confirmDelete) return;
 
     try {
       const response = await fetch(`/api/detailer/events/${selectedEventData.id}`, {
@@ -3799,27 +4419,26 @@ export default function CalendarPage() {
         fetchCalendarEvents();
         // Close the modal
         handleCloseEventDetails();
-        // Show success message
-        alert('Event deleted successfully!');
       } else {
         const error = await response.json();
-        alert(`Failed to delete event: ${error.error}`);
+        console.error('Failed to delete event:', error.error);
       }
     } catch (error) {
       console.error('Error deleting event:', error);
-      alert('Failed to delete event. Please try again.');
     }
   };
 
   const handlePrev = () => {
       if (viewMode === 'month') setCurrentDate(subMonths(currentDate, 1));
       else if (viewMode === 'week') setCurrentDate(subDays(currentDate, 7));
+      else if (typeof viewMode === 'number') setCurrentDate(subDays(currentDate, viewMode));
       else setCurrentDate(subDays(currentDate, 1));
   };
 
   const handleNext = () => {
       if (viewMode === 'month') setCurrentDate(addMonths(currentDate, 1));
       else if (viewMode === 'week') setCurrentDate(addDays(currentDate, 7));
+      else if (typeof viewMode === 'number') setCurrentDate(addDays(currentDate, viewMode));
       else setCurrentDate(addDays(currentDate, 1));
   };
 
@@ -3829,6 +4448,10 @@ export default function CalendarPage() {
         const weekStart = startOfWeek(currentDate);
         const weekEnd = endOfWeek(currentDate);
         return `${format(weekStart, 'MMM d')} - ${format(weekEnd, 'd, yyyy')}`;
+    }
+    if (typeof viewMode === 'number') {
+        const endDate = addDays(currentDate, viewMode - 1);
+        return `${format(currentDate, 'MMM d')} - ${format(endDate, 'd, yyyy')}`;
     }
     // Day view: Show month, day of month, and year (e.g., "December 5, 2025")
     return format(currentDate, 'MMMM d, yyyy');
@@ -4133,10 +4756,10 @@ export default function CalendarPage() {
           {/* Filter Employee Button */}
           <button
             onClick={() => setIsTeamDropdownOpen(!isTeamDropdownOpen)}
-            className="w-14 h-14 bg-white dark:bg-gray-800 rounded-full shadow-lg flex items-center justify-center border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition"
+            className="w-14 h-14 bg-white rounded-full shadow-lg flex items-center justify-center border border-gray-200 hover:bg-gray-50 transition"
             aria-label="Filter employees"
           >
-            <FunnelIcon className="w-6 h-6 text-gray-700 dark:text-gray-300" />
+            <FunnelIcon className="w-6 h-6 text-gray-700" />
             {selectedTechnicians.length > 0 && (
               <span className="absolute -top-1 -right-1 w-5 h-5 bg-blue-500 text-white text-xs rounded-full flex items-center justify-center">
                 {selectedTechnicians.length}
@@ -4147,7 +4770,7 @@ export default function CalendarPage() {
           {/* Add Event Button */}
           <button
             onClick={() => setIsModalOpen(true)}
-            className="w-14 h-14 bg-black dark:bg-gray-900 rounded-full shadow-lg flex items-center justify-center hover:bg-gray-800 dark:hover:bg-gray-700 transition"
+            className="w-14 h-14 bg-black rounded-full shadow-lg flex items-center justify-center hover:bg-gray-800 transition"
             aria-label="Add event"
           >
             <PlusIcon className="w-7 h-7 text-white" />
@@ -4161,15 +4784,15 @@ export default function CalendarPage() {
               className="fixed inset-0 bg-black/40 backdrop-blur-sm z-30"
               onClick={() => setIsTeamDropdownOpen(false)}
             />
-            <div className="fixed bottom-24 right-6 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 z-40 w-64 max-h-96 overflow-y-auto">
-              <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="fixed bottom-24 right-6 bg-white rounded-2xl shadow-2xl border border-gray-200 z-40 w-64 max-h-96 overflow-y-auto">
+              <div className="p-4 border-b border-gray-200">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Filter Employees</h3>
+                  <h3 className="text-lg font-semibold text-gray-900">Filter Employees</h3>
           <button
                     onClick={() => setIsTeamDropdownOpen(false)}
-                    className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+                    className="p-1 rounded-lg hover:bg-gray-100"
           >
-                    <XMarkIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                    <XMarkIcon className="w-5 h-5 text-gray-500" />
           </button>
         </div>
               </div>
@@ -4182,7 +4805,7 @@ export default function CalendarPage() {
                   className={`w-full px-4 py-2 text-sm font-medium rounded-lg transition-colors text-left ${
                     selectedTechnicians.length === 0
                       ? 'bg-gray-900 text-white'
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
                   All Employees
@@ -4202,7 +4825,7 @@ export default function CalendarPage() {
                       className={`w-full px-4 py-2 text-sm font-medium rounded-lg transition-colors text-left flex items-center gap-3 ${
                         isSelected
                           ? 'bg-gray-900 text-white'
-                          : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                       }`}
                     >
                       {employee.imageUrl ? (
@@ -4212,8 +4835,8 @@ export default function CalendarPage() {
                           className="w-8 h-8 rounded-full object-cover"
                         />
                       ) : (
-                        <div className="w-8 h-8 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center">
-                          <UsersIcon className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+                        <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center">
+                          <UsersIcon className="w-5 h-5 text-gray-600" />
                         </div>
                       )}
                       <span>{employee.name}</span>
@@ -4253,19 +4876,34 @@ export default function CalendarPage() {
               setNewCustomerModalInitialName(initialName);
               setIsNewCustomerModalOpen(true);
             }}
+            onOpenEditCustomerModal={(customer) => {
+              console.log('onOpenEditCustomerModal called in CalendarPage with:', customer);
+              // Set up customer data for editing
+              setEditingCustomerData({
+                customerName: customer.customerName,
+                customerPhone: customer.customerPhone,
+                customerAddress: customer.customerAddress || ''
+              });
+              setIsEditingCustomer(true);
+              setIsNewCustomerModalOpen(true);
+              console.log('State updated - isEditingCustomer:', true, 'isNewCustomerModalOpen:', true);
+            }}
+            onRequestClose={() => {
+              setShowEventModalDiscardModal(true);
+            }}
             newCustomerData={newCustomerData}
         />
         {eventDetailsOpen && selectedEventData && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
               <div className="p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                  <h3 className="text-lg font-semibold text-gray-900">
                     {selectedEventData.title || selectedEventData.eventName}
                   </h3>
                   <button
                     onClick={handleCloseEventDetails}
-                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                    className="text-gray-400 hover:text-gray-600"
                   >
                     <XMarkIcon className="w-6 h-6" />
                   </button>
@@ -4273,7 +4911,7 @@ export default function CalendarPage() {
                 <div className="mt-6 flex justify-end space-x-3">
                   <button
                     onClick={handleCloseEventDetails}
-                    className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg"
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg"
                   >
                     Close
                   </button>
@@ -4466,36 +5104,26 @@ export default function CalendarPage() {
   }
 
   return (
-    <div className="bg-white dark:bg-gray-900 h-full flex flex-col overflow-hidden w-full max-w-full min-w-0" style={{ position: 'relative' }}>
+    <div className="bg-white h-full flex flex-col overflow-hidden w-full max-w-full min-w-0" style={{ position: 'relative' }}>
         <div className="flex items-center justify-between p-6 pb-4 flex-shrink-0 pr-24">
             <div className="flex items-center space-x-2 relative">
                 <button 
                   onClick={() => setIsDatePickerOpen(!isDatePickerOpen)}
-                  className="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800"
+                  className="p-2 rounded-md hover:bg-gray-100"
                 >
-                <h2 className="text-xl font-semibold text-gray-700 dark:text-gray-200">
+                <h2 className="text-xl font-semibold text-gray-700">
                     {renderHeaderDate()}
                 </h2>
-                </button>
-                <button onClick={handlePrev} className="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800">
-                    <ChevronLeftIcon className="w-5 h-5 text-gray-500 dark:text-gray-300" />
-                </button>
-                <button
-                  onClick={() => {
-                    setCurrentDate(new Date());
-                    setIsDatePickerOpen(false);
-                  }}
-                  className="px-3 py-1 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                >
-                  Today
-                </button>
-                <button onClick={handleNext} className="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800">
-                    <ChevronRightIcon className="w-5 h-5 text-gray-500 dark:text-gray-300" />
                 </button>
                 <div className="relative flex items-center gap-2 overflow-hidden" ref={teamDropdownRef}>
                   <button
                     onClick={() => setIsTeamDropdownOpen(!isTeamDropdownOpen)}
-                    className="px-3 py-1 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex items-center gap-1 flex-shrink-0"
+                    className="px-3 py-1 text-sm text-gray-600 hover:text-gray-900 rounded-full transition-colors flex items-center gap-1 flex-shrink-0"
+                    style={{
+                      backgroundColor: '#F3F4F6',
+                      border: '1px solid #E2E2DD',
+                      borderRadius: '9999px'
+                    }}
                   >
                     Team
                     {!isTeamDropdownOpen && <ChevronRightIcon className="w-4 h-4 transition-transform duration-300" />}
@@ -4522,7 +5150,7 @@ export default function CalendarPage() {
                         className={`px-3 py-1 text-xs font-medium rounded-full transition-colors flex-shrink-0 whitespace-nowrap ${
                           selectedTechnicians.length === 0
                             ? 'bg-gray-700 text-white'
-                            : 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                         }`}
                       >
                         All
@@ -4544,7 +5172,7 @@ export default function CalendarPage() {
                             className={`px-3 py-1 text-xs font-medium rounded-full transition-colors flex-shrink-0 whitespace-nowrap ${
                               isSelected
                                 ? 'bg-gray-700 text-white'
-                                : 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                             }`}
                             style={{
                               transitionDelay: isTeamDropdownOpen ? `${index * 30}ms` : '0ms',
@@ -4557,7 +5185,7 @@ export default function CalendarPage() {
                       {/* Left arrow at the end when open */}
                       <button
                         onClick={() => setIsTeamDropdownOpen(false)}
-                        className="px-2 py-1 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex-shrink-0"
+                        className="px-2 py-1 text-sm text-gray-600 hover:text-gray-900 rounded-md hover:bg-gray-100 transition-colors flex-shrink-0"
                       >
                         <ChevronLeftIcon className="w-4 h-4" />
                       </button>
@@ -4566,15 +5194,15 @@ export default function CalendarPage() {
                   
                   {/* Legacy Team Dropdown - keeping for now but can be removed */}
                   {false && isTeamDropdownOpen && (
-                    <div className="absolute top-full left-0 mt-2 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50 min-w-[320px] max-w-md max-h-[500px] overflow-y-auto">
+                    <div className="absolute top-full left-0 mt-2 bg-white rounded-lg shadow-xl border border-gray-200 z-50 min-w-[320px] max-w-md max-h-[500px] overflow-y-auto">
                       <div className="p-4">
-                        <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">
+                        <h3 className="text-sm font-semibold text-gray-900 mb-3">
                           Team - {format(currentDate, 'EEEE, MMMM d, yyyy')}
                         </h3>
                         {isLoadingEmployees ? (
-                          <div className="text-sm text-gray-500 dark:text-gray-400 py-4">Loading employees...</div>
+                          <div className="text-sm text-gray-500 py-4">Loading employees...</div>
                         ) : teamEmployees.length === 0 ? (
-                          <div className="text-sm text-gray-500 dark:text-gray-400 py-4">No employees found</div>
+                          <div className="text-sm text-gray-500 py-4">No employees found</div>
                         ) : (
                           <div className="space-y-3">
                             {teamEmployees.map((employee: any) => {
@@ -4599,27 +5227,27 @@ export default function CalendarPage() {
                               const employeeEvents = dayEvents; // Show all events for now
 
                               return (
-                                <div key={employee.id} className="border-b border-gray-200 dark:border-gray-700 pb-3 last:border-b-0 last:pb-0">
+                                <div key={employee.id} className="border-b border-gray-200 pb-3 last:border-b-0 last:pb-0">
                                   <div className="flex items-center gap-3 mb-2">
                                     {employee.imageUrl ? (
                                       <img 
                                         src={employee.imageUrl} 
                                         alt={employee.name}
-                                        className="w-10 h-10 rounded-full object-cover flex-shrink-0 border border-gray-200 dark:border-gray-700"
+                                        className="w-10 h-10 rounded-full object-cover flex-shrink-0 border border-gray-200"
                                       />
                                     ) : (
-                                      <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
-                                        <span className="text-gray-700 dark:text-gray-300 font-semibold text-sm">
+                                      <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
+                                        <span className="text-gray-700 font-semibold text-sm">
                                           {employee.name.charAt(0).toUpperCase()}
                                         </span>
             </div>
                                     )}
                                     <div className="flex-1 min-w-0">
-                                      <div className="font-medium text-gray-900 dark:text-white text-sm">
+                                      <div className="font-medium text-gray-900 text-sm">
                                         {employee.name}
                                       </div>
                                       {employee.email && (
-                                        <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                                        <div className="text-xs text-gray-500 truncate">
                                           {employee.email}
                                         </div>
                                       )}
@@ -4632,7 +5260,7 @@ export default function CalendarPage() {
                                         return (
                                           <div 
                                             key={event.id} 
-                                            className="text-xs px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
+                                            className="text-xs px-2 py-1 rounded bg-gray-100 text-gray-700"
                                           >
                                             {event.start && event.start.includes('T') ? (
                                               <span className="font-medium">{format(parseISO(event.start), 'h:mm a')}</span>
@@ -4640,7 +5268,7 @@ export default function CalendarPage() {
                                             {event.start && event.start.includes('T') ? ' - ' : ''}
                                             <span>{event.title || event.eventName || 'Untitled Event'}</span>
                                             {resource && (
-                                              <span className="ml-1 text-gray-500 dark:text-gray-400">
+                                              <span className="ml-1 text-gray-500">
                                                 ({resource.name})
                                               </span>
                                             )}
@@ -4649,7 +5277,7 @@ export default function CalendarPage() {
                                       })}
                                     </div>
                                   ) : (
-                                    <div className="ml-13 text-xs text-gray-400 dark:text-gray-500 italic">
+                                    <div className="ml-13 text-xs text-gray-400 italic">
                                       No jobs scheduled
                                     </div>
                                   )}
@@ -4665,28 +5293,28 @@ export default function CalendarPage() {
                 
                 {/* Mini Calendar Popup */}
                 {isDatePickerOpen && (
-                  <div ref={datePickerRef} className="absolute top-full left-0 mt-2 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50 p-4" style={{ minWidth: '280px' }}>
+                  <div ref={datePickerRef} className="absolute top-full left-0 mt-2 bg-white rounded-lg shadow-xl border border-gray-200 z-[100] p-4" style={{ minWidth: '280px' }}>
                     <div className="flex items-center justify-between mb-4">
                 <button
                         onClick={() => setCurrentDate(subMonths(currentDate, 1))}
-                        className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+                        className="p-1 rounded hover:bg-gray-100"
                 >
-                        <ChevronLeftIcon className="w-4 h-4 text-gray-600 dark:text-gray-300" />
+                        <ChevronLeftIcon className="w-4 h-4 text-gray-600" />
                 </button>
-                      <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+                      <h3 className="text-sm font-semibold text-gray-900">
                         {format(currentDate, 'MMMM yyyy')}
                       </h3>
                       <button
                         onClick={() => setCurrentDate(addMonths(currentDate, 1))}
-                        className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+                        className="p-1 rounded hover:bg-gray-100"
                       >
-                        <ChevronRightIcon className="w-4 h-4 text-gray-600 dark:text-gray-300" />
+                        <ChevronRightIcon className="w-4 h-4 text-gray-600" />
                       </button>
                     </div>
                     
                     <div className="grid grid-cols-7 gap-1 mb-2">
                       {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((day) => (
-                        <div key={day} className="text-xs font-medium text-gray-500 dark:text-gray-400 text-center py-1">
+                        <div key={day} className="text-xs font-medium text-gray-500 text-center py-1">
                           {day}
                         </div>
                       ))}
@@ -4712,12 +5340,12 @@ export default function CalendarPage() {
                               setCurrentDate(date);
                               setIsDatePickerOpen(false);
                             }}
-                            className={`text-xs p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${
+                            className={`text-xs p-2 rounded hover:bg-gray-100 transition-colors ${
                               isSelected
-                                ? 'bg-black text-white dark:bg-gray-600 dark:text-white'
+                                ? 'bg-black text-white'
                                 : isTodayDate
-                                ? 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white font-semibold'
-                                : 'text-gray-700 dark:text-gray-300'
+                                ? 'bg-gray-200 text-gray-900 font-semibold'
+                                : 'text-gray-700'
                             }`}
                           >
                             {day}
@@ -4729,41 +5357,128 @@ export default function CalendarPage() {
                 )}
             </div>
             <div className="flex items-center space-x-4">
-                <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-full p-1">
-                    {(['day', 'week', 'month'] as const).map(view => (
+                {/* Custom Days Dropdown - show when custom days selected, or as option next to week */}
+                <div className="relative" ref={viewDropdownRef}>
+                    {(typeof viewMode === 'number' || viewMode === 'week') && (
+                        <>
+                            {typeof viewMode === 'number' ? (
                          <button 
-                            key={view}
-                            onClick={() => setViewMode(view)}
-                            className={`px-3 py-1 text-sm font-medium rounded-full capitalize ${viewMode === view ? 'bg-white dark:bg-gray-700 text-gray-800 dark:text-white shadow' : 'text-gray-500 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
+                                    onClick={() => {
+                                        setIsViewDropdownOpen(!isViewDropdownOpen);
+                                        setIsDaysSubmenuOpen(false);
+                                    }}
+                                    className="px-3 py-1 text-sm font-medium text-gray-800 rounded-full hover:bg-gray-100 transition-colors flex items-center gap-1"
+                                    style={{ 
+                                        backgroundColor: '#F8F8F7',
+                                        border: '1px solid #E2E2DD',
+                                        borderRadius: '9999px'
+                                    }}
+                                >
+                                    {`${viewMode} days`}
+                                    <ChevronDownIcon className="w-4 h-4" />
+                        </button>
+                            ) : (
+                                <button
+                                    onClick={() => {
+                                        setIsViewDropdownOpen(!isViewDropdownOpen);
+                                        setIsDaysSubmenuOpen(false);
+                                    }}
+                                    className="px-2 py-1 text-sm text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100 transition-colors"
+                                    style={{
+                                        border: '1px solid #E2E2DD',
+                                        borderRadius: '9999px'
+                                    }}
+                                    title="Custom days"
+                                >
+                                    <ChevronDownIcon className="w-4 h-4" />
+                                </button>
+                            )}
+                        </>
+                    )}
+                    {isViewDropdownOpen && (
+                        <div 
+                            className="absolute top-full left-0 mt-1 rounded-lg shadow-lg z-[100] min-w-[140px]"
+                            style={{ backgroundColor: '#2B2B26', borderRadius: '8px' }}
                         >
-                            {view}
+                            <div className="py-1">
+                                {[2, 3, 4, 5, 6, 7].map((days) => (
+                                    <button
+                                        key={days}
+                                        onClick={() => {
+                                            setViewMode(days);
+                                            setNumberOfDays(days);
+                                            setIsViewDropdownOpen(false);
+                                        }}
+                                        className="w-full text-left py-2 text-sm text-white hover:bg-opacity-80 transition-colors flex items-center"
+                                        style={{ 
+                                            backgroundColor: 'transparent',
+                                            paddingLeft: '20px',
+                                            paddingRight: '16px'
+                                        }}
+                                        onMouseEnter={(e) => {
+                                            e.currentTarget.style.backgroundColor = '#40403A';
+                                        }}
+                                        onMouseLeave={(e) => {
+                                            e.currentTarget.style.backgroundColor = 'transparent';
+                                        }}
+                                    >
+                                        <span className="flex items-center gap-2 justify-between w-full">
+                                            <span>{days} days</span>
+                                            {viewMode === days && <CheckIcon className="w-4 h-4" />}
+                                        </span>
                         </button>
                     ))}
                 </div>
-                {/* Floating Zoom Slider */}
-                <div className="flex items-center gap-2 bg-white dark:bg-gray-800 rounded-full px-3 py-1.5 shadow-sm border border-gray-200 dark:border-gray-700">
-                    <Image 
-                        src="/icons/zoom-in.svg" 
-                        alt="Zoom" 
-                        width={16} 
-                        height={16}
-                        className="text-gray-500 dark:text-gray-400"
-                    />
-                    <input
-                        type="range"
-                        min="0.5"
-                        max="2.0"
-                        step="0.1"
-                        value={calendarScale}
-                        onChange={(e) => setCalendarScale(parseFloat(e.target.value))}
-                        className="w-24 h-1 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-gray-600 dark:accent-gray-400"
+                        </div>
+                    )}
+                </div>
+                {/* View Mode Toggle Buttons */}
+                <div className="flex items-center bg-gray-100 rounded-full p-1">
+                    {(['day', 'week', 'month'] as const).map(view => {
+                        const isActive = typeof viewMode === 'string' 
+                            ? viewMode === view 
+                            : view === 'week' && typeof viewMode === 'number';
+                        return (
+                <button
+                                key={view}
+                  onClick={() => {
+                                    setViewMode(view);
+                                    setNumberOfDays(null);
+                                }}
+                                className={`px-3 py-1 text-sm font-medium rounded-full capitalize ${
+                                    isActive
+                                        ? 'bg-white text-gray-800 shadow' 
+                                        : 'text-gray-500 hover:bg-gray-200'
+                                }`}
+                            >
+                                {view}
+                </button>
+                        );
+                    })}
+                </div>
+                <button
+                  onClick={() => {
+                    setCurrentDate(new Date());
+                    setIsDatePickerOpen(false);
+                  }}
+                  className="px-3 py-1 text-sm text-gray-600 hover:text-gray-900 rounded-full hover:bg-gray-100 transition-colors"
                         style={{
-                            background: `linear-gradient(to right, #4B5563 0%, #4B5563 ${((calendarScale - 0.5) / 1.5) * 100}%, #E5E7EB ${((calendarScale - 0.5) / 1.5) * 100}%, #E5E7EB 100%)`
-                        }}
-                    />
-                    <span className="text-xs text-gray-600 dark:text-gray-400 min-w-[2.5rem] text-right">
-                        {Math.round(calendarScale * 100)}%
-                    </span>
+                    backgroundColor: '#F8F8F7', 
+                    boxShadow: 'none', 
+                    borderRadius: '9999px',
+                    border: '1px solid #E2E2DD'
+                  }}
+                >
+                  Today
+                </button>
+                {/* Navigation Arrows */}
+                <div className="flex items-center space-x-1">
+                    <button onClick={handlePrev} className="p-2 rounded-full hover:bg-gray-100 transition-colors">
+                        <ChevronLeftIcon className="w-5 h-5 text-gray-500" />
+                    </button>
+                    <button onClick={handleNext} className="p-2 rounded-full hover:bg-gray-100 transition-colors">
+                        <ChevronRightIcon className="w-5 h-5 text-gray-500" />
+                    </button>
                 </div>
             </div>
         </div>
@@ -4774,12 +5489,12 @@ export default function CalendarPage() {
         >
           {isLoadingEvents ? (
             <div className="flex items-center justify-center h-64">
-              <div className="text-lg text-gray-600 dark:text-gray-400">Loading calendar events...</div>
+              <div className="text-lg text-gray-600">Loading calendar events...</div>
             </div>
           ) : (
             <>
-              {viewMode === 'month' && <MonthView date={currentDate} events={filteredBookings} selectedEvent={selectedEvent} onEventClick={handleEventClick} scale={calendarScale} />}
-              {viewMode === 'week' && <WeekView 
+              {viewMode === 'month' && <MonthView date={currentDate} events={filteredBookings} selectedEvent={selectedEvent} onEventClick={handleEventClick} scale={calendarScale} resources={resources.length > 0 ? resources : [{ id: 'station', name: 'Station', type: 'bay' }]} />}
+              {(viewMode === 'week' || typeof viewMode === 'number') && <WeekView 
                 date={currentDate} 
                 events={filteredBookings} 
                 onEventClick={handleEventClick} 
@@ -4792,7 +5507,8 @@ export default function CalendarPage() {
                     setDraftEvent({
                       resourceId: draft.resourceId,
                       startTime: draft.startTime,
-                      endTime: draft.endTime
+                      endTime: draft.endTime,
+                      date: draft.date
                     });
                   }
                   setIsModalOpen(true);
@@ -4801,15 +5517,17 @@ export default function CalendarPage() {
                   resourceId: draftEvent.resourceId,
                   startTime: draftEvent.startTime,
                   endTime: draftEvent.endTime,
-                  date: currentDate
+                  date: draftEvent.date || currentDate
                 } : null}
                 onDraftEventUpdate={(updatedDraft) => {
                   setDraftEvent({
                     resourceId: updatedDraft.resourceId,
                     startTime: updatedDraft.startTime,
-                    endTime: updatedDraft.endTime
+                    endTime: updatedDraft.endTime,
+                    date: updatedDraft.date
                   });
                 }}
+                numberOfDays={typeof viewMode === 'number' ? viewMode : null}
               />}
               {viewMode === 'day' && (
                 <DayView 
@@ -4822,11 +5540,27 @@ export default function CalendarPage() {
                   ]}
                   onEventClick={handleEventClick}
                   onResourceSelect={setSelectedResource}
+                  businessHours={businessHours}
+                  onEventDrop={handleEventDrop}
+                  scrollToTime={scrollToTime}
                   onOpenModal={(draft) => {
-                    if (draft) {
-                      setDraftEvent(draft);
+                    // Check for unsaved changes in edit form
+                    if (isEditingEvent && isEditFormDirty) {
+                      // Store the draft event to open after discard confirmation
+                      if (draft) {
+                        setPendingDraftEvent(draft);
+                      } else {
+                        setPendingDraftEvent(null);
+                      }
+                      // Show discard modal
+                      setShowDiscardModal(true);
+                    } else {
+                      // No unsaved changes, proceed with opening modal
+                      if (draft) {
+                        setDraftEvent(draft);
+                      }
+                      setIsModalOpen(true);
                     }
-                    setIsModalOpen(true);
                   }}
                   draftEvent={draftEvent}
                   onDraftEventUpdate={(updatedDraft) => {
@@ -4855,13 +5589,28 @@ export default function CalendarPage() {
               setNewCustomerModalInitialName(initialName);
               setIsNewCustomerModalOpen(true);
             }}
+            onOpenEditCustomerModal={(customer) => {
+              console.log('onOpenEditCustomerModal called in CalendarPage with:', customer);
+              // Set up customer data for editing
+              setEditingCustomerData({
+                customerName: customer.customerName,
+                customerPhone: customer.customerPhone,
+                customerAddress: customer.customerAddress || ''
+              });
+              setIsEditingCustomer(true);
+              setIsNewCustomerModalOpen(true);
+              console.log('State updated - isEditingCustomer:', true, 'isNewCustomerModalOpen:', true);
+            }}
+            onRequestClose={() => {
+              setShowEventModalDiscardModal(true);
+            }}
             newCustomerData={newCustomerData}
         />
 
         {/* Event Details Modal */}
         {eventDetailsOpen && selectedEventData && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
               <div className="p-6">
                 {/* Header */}
                 <div className="flex items-center justify-between mb-4">
@@ -4874,13 +5623,13 @@ export default function CalendarPage() {
                         <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
                       </svg>
                     )}
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                    <h3 className="text-lg font-semibold text-gray-900">
                       {selectedEventData.title || selectedEventData.eventName}
                     </h3>
                   </div>
                   <button
                     onClick={handleCloseEventDetails}
-                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                    className="text-gray-400 hover:text-gray-600"
                   >
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -4891,7 +5640,7 @@ export default function CalendarPage() {
                 {/* Event Details */}
                 <div className="space-y-4">
                   {/* Date and Time */}
-                  <div className="flex items-center space-x-2 text-gray-600 dark:text-gray-400">
+                  <div className="flex items-center space-x-2 text-gray-600">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
@@ -4904,7 +5653,7 @@ export default function CalendarPage() {
                   </div>
 
                   {/* Event Type */}
-                  <div className="flex items-center space-x-2 text-gray-600 dark:text-gray-400">
+                  <div className="flex items-center space-x-2 text-gray-600">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
                     </svg>
@@ -4914,7 +5663,7 @@ export default function CalendarPage() {
                   </div>
 
                   {/* Source */}
-                  <div className="flex items-center space-x-2 text-gray-600 dark:text-gray-400">
+                  <div className="flex items-center space-x-2 text-gray-600">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
                     </svg>
@@ -4926,8 +5675,8 @@ export default function CalendarPage() {
                   {/* Description if available */}
                   {selectedEventData.description && (
                     <div className="mt-4">
-                      <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">Description</h4>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">{selectedEventData.description}</p>
+                      <h4 className="text-sm font-medium text-gray-900 mb-2">Description</h4>
+                      <p className="text-sm text-gray-600">{selectedEventData.description}</p>
                     </div>
                   )}
                 </div>
@@ -4936,7 +5685,7 @@ export default function CalendarPage() {
                 <div className="mt-6 flex justify-end space-x-3">
                   <button
                     onClick={handleCloseEventDetails}
-                    className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
                   >
                     Close
                   </button>
@@ -4966,18 +5715,81 @@ export default function CalendarPage() {
           </div>
         )}
 
-        {/* Action Sidebar Backdrop */}
-        {isActionSidebarOpen && (
-          <div
-            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[85]"
-            onClick={() => setIsActionSidebarOpen(false)}
-          />
-        )}
+        {/* Action Sidebar Backdrop - removed blur and shadow per user request */}
+        {/* Click-outside functionality is handled by the useEffect hook */}
+        
+        {/* Modal Backdrop - removed blur and shadow per user request */}
+        {/* Note: Events have z-index 20, so they'll be above this backdrop (z-45) and clickable */}
+        {/* Backdrop removed - no blur or shadow outside Create Event modal */}
+
+        {/* Discard Changes Modal - Rendered at top level to appear centered on screen */}
+        <DiscardChangesModal
+          isOpen={showDiscardModal}
+          onKeepEditing={(e) => {
+            // Stop any event propagation to prevent click outside handlers
+            if (e) {
+              e.stopPropagation();
+              e.preventDefault();
+            }
+            // Just close the modal, keep everything else as is
+            // The sidebar and edit state should remain as they were
+            setShowDiscardModal(false);
+            // Clear any pending draft event since user chose to keep editing
+            setPendingDraftEvent(null);
+          }}
+          onDiscard={() => {
+            const wasEditing = isEditingEvent;
+            setShowDiscardModal(false);
+            setIsEditingEvent(false);
+            setIsEditFormDirty(false);
+            
+            // If there's a pending draft event (from clicking empty space while editing), open it now
+            if (pendingDraftEvent) {
+              setDraftEvent(pendingDraftEvent);
+              setIsModalOpen(true);
+              setPendingDraftEvent(null);
+            }
+            
+            // If closing from edit form cancel, just exit edit mode
+            // If closing from sidebar X, close the sidebar
+            if (!wasEditing && !pendingDraftEvent) {
+              setIsActionSidebarOpen(false);
+              setSelectedEventData(null);
+              setSelectedEvent(null);
+              setIsEditingNotes(false);
+              setShowCustomerDetailsPopup(false);
+            }
+          }}
+          isCreating={false}
+        />
+        
+        {/* Discard Changes Modal for Create Event Panel */}
+        <DiscardChangesModal
+          isOpen={showEventModalDiscardModal}
+          onKeepEditing={(e) => {
+            // Stop any event propagation to prevent click outside handlers
+            if (e) {
+              e.stopPropagation();
+              e.preventDefault();
+            }
+            // Just close the modal, keep EventModal open
+            setShowEventModalDiscardModal(false);
+          }}
+          onDiscard={() => {
+            setShowEventModalDiscardModal(false);
+            // Close EventModal
+            setIsModalOpen(false);
+            setSelectedResource(null);
+            setDraftEvent(null);
+            setNewCustomerData(null);
+          }}
+          isCreating={true}
+        />
         
         {/* Action Sidebar */}
         <div 
           ref={actionSidebarRef}
-          className={`fixed top-0 right-0 h-full w-full md:w-[400px] lg:w-[420px] shadow-2xl z-[90] transform transition-transform duration-300 ease-in-out ${
+          className={`fixed top-0 right-0 h-full w-full md:w-[400px] lg:w-[420px] z-[90] transform transition-transform duration-300 ease-in-out ${
             isActionSidebarOpen ? 'translate-x-0' : 'translate-x-full'
           }`} style={{ backgroundColor: '#F8F8F7', borderLeft: '1px solid #E2E2DD', boxShadow: 'none' }}>
           <div className="h-full flex flex-col overflow-hidden" style={{ backgroundColor: '#F8F8F7' }}>
@@ -5016,11 +5828,16 @@ export default function CalendarPage() {
                 </div>
                 <button
                   onClick={() => {
-                    setIsActionSidebarOpen(false);
-                    setSelectedEventData(null);
-                    setSelectedEvent(null);
-                    setIsEditingNotes(false); // Reset notes edit mode when closing sidebar
-                    setShowCustomerDetailsPopup(false); // Close customer popup when closing sidebar
+                    if (isEditingEvent && isEditFormDirty) {
+                      setShowDiscardModal(true);
+                    } else {
+                      setIsActionSidebarOpen(false);
+                      setSelectedEventData(null);
+                      setSelectedEvent(null);
+                      setIsEditingEvent(false);
+                      setIsEditingNotes(false);
+                      setShowCustomerDetailsPopup(false);
+                    }
                   }}
                   className="p-1 rounded-lg hover:bg-gray-100 transition-colors"
                 >
@@ -5030,14 +5847,27 @@ export default function CalendarPage() {
             </div>
 
             {/* Content - Show event details if event is selected, otherwise show today's events */}
-            <div className="flex-1 overflow-y-auto pb-4">
+            <div className="flex-1 overflow-y-auto">
               {selectedEventData ? (
                 isEditingEvent ? (
                   // Show edit form
                   <div className="p-6">
                   <EventEditForm
+                    ref={eventEditFormRef}
                     event={selectedEventData}
                     resources={resources}
+                    onDirtyChange={(isDirty) => setIsEditFormDirty(isDirty)}
+                    onRequestDiscard={() => setShowDiscardModal(true)}
+                    onEditCustomer={() => {
+                      // Set up customer data for editing
+                      setEditingCustomerData({
+                        customerName: selectedEventData.customerName || '',
+                        customerPhone: selectedEventData.customerPhone || '',
+                        customerAddress: selectedEventData.customerAddress || ''
+                      });
+                      setIsEditingCustomer(true);
+                      setIsNewCustomerModalOpen(true);
+                    }}
                     onSave={async (updatedData: any) => {
                       try {
                         const response = await fetch(`/api/detailer/events/${selectedEventData.id}`, {
@@ -5050,6 +5880,7 @@ export default function CalendarPage() {
                           const result = await response.json();
                           fetchCalendarEvents();
                           setIsEditingEvent(false);
+                          setIsEditFormDirty(false);
                           
                           // Construct start and end fields from the saved data for proper form initialization
                           let updatedEventData = { ...selectedEventData, ...updatedData };
@@ -5072,18 +5903,18 @@ export default function CalendarPage() {
                           
                           // Update selected event data with computed fields
                           setSelectedEventData(updatedEventData);
-                          alert('Event updated successfully!');
                         } else {
                           const error = await response.json();
-                          alert(`Failed to update event: ${error.error}`);
+                          console.error('Failed to update event:', error.error);
                         }
                       } catch (error) {
                         console.error('Error updating event:', error);
-                        alert('Failed to update event. Please try again.');
                       }
                     }}
                     onCancel={() => {
+                      // onCancel is called after user confirms discard in modal
                       setIsEditingEvent(false);
+                      setIsEditFormDirty(false);
                       setEditFormData(null);
                     }}
                   />
@@ -5095,76 +5926,310 @@ export default function CalendarPage() {
                       {/* Customer Information */}
                       <div className="pt-2">
                         <h3 className="text-sm font-semibold text-gray-900 mb-4">Customer</h3>
-                    {(selectedEventData.customerName || selectedEventData.customerPhone) ? (
+                    {selectedEventData.customerName || selectedEventData.customerPhone ? (
                       <div 
                         ref={eventDetailsCustomerCardRef}
-                        className="bg-gray-50 rounded-xl p-4 border relative cursor-pointer hover:bg-gray-100 transition-colors" 
+                        className="bg-gray-50 rounded-xl p-4 border relative" 
                         style={{ borderColor: '#E2E2DD' }}
-                        onClick={() => {
-                          if (eventDetailsCustomerCardRef.current) {
-                            const rect = eventDetailsCustomerCardRef.current.getBoundingClientRect();
-                            // Position popup to the left of the action panel, adjacent to customer box
-                            // Action panel is fixed right-0 with width 400px
-                            const actionPanelWidth = 400;
-                            const popupWidth = 320; // w-80 = 320px
-                            const gap = 4; // 4px gap between popup and action panel
-                            
-                            setCustomerPopupPosition({
-                              top: rect.top, // Align top with customer card
-                              right: actionPanelWidth + gap // Position to the left of action panel with gap
-                            });
-                          }
-                          setShowCustomerDetailsPopup(true);
-                        }}
                       >
-                        <div className="pr-8">
-                          <div className="flex items-start justify-between mb-2">
-                            <h4 className="font-semibold text-gray-900 text-base">
-                              {selectedEventData.customerName || 'Unnamed Customer'}
-                            </h4>
-                            {selectedEventData.customerPhone && (
-                              <span className="text-sm text-gray-600">
-                                {selectedEventData.customerPhone}
-                              </span>
-                            )}
-                      </div>
-                          
-                          {selectedEventData.customerAddress && (
-                            <p className="text-sm text-gray-600 mb-3">
-                              {selectedEventData.customerAddress}
-                            </p>
-                          )}
-                          
-                          {customerPastJobs && customerPastJobs.length > 0 && (
-                            <div className="mt-3">
-                              <p className="font-semibold text-sm text-gray-900 mb-1">
-                                {customerPastJobs.length} Past {customerPastJobs.length === 1 ? 'job' : 'jobs'}
-                              </p>
-                              {customerPastJobs[0] && customerPastJobs[0].date && (
-                                <p className="text-sm text-gray-600">
-                                  Last detail: {(() => {
-                                    try {
-                                      const date = new Date(customerPastJobs[0].date);
-                                      if (isNaN(date.getTime())) return 'Date unavailable';
-                                      return format(date, 'MMMM d, yyyy');
-                                    } catch (e) {
-                                      return 'Date unavailable';
-                                    }
-                                  })()}
-                                  {customerPastJobs[0].services && customerPastJobs[0].services.length > 0 && (
-                                    <span>, {Array.isArray(customerPastJobs[0].services) ? customerPastJobs[0].services.join(' + ') : customerPastJobs[0].services}</span>
-                                  )}
-                                  {customerPastJobs[0].vehicleModel && (
-                                    <span> on a {customerPastJobs[0].vehicleModel}</span>
-                                  )}
-                                </p>
+                        <div className="flex items-start justify-between">
+                          <div 
+                            className="flex-1 pr-8 hover:bg-gray-100 -m-2 p-2 rounded-lg transition-colors"
+                            onMouseEnter={() => {
+                              // Clear any pending timeout
+                              if (customerPopupTimeoutRef.current) {
+                                clearTimeout(customerPopupTimeoutRef.current);
+                                customerPopupTimeoutRef.current = null;
+                              }
+                              
+                              if (eventDetailsCustomerCardRef.current) {
+                                const rect = eventDetailsCustomerCardRef.current.getBoundingClientRect();
+                                // Position popup to the left of the action panel, adjacent to customer box
+                                // Action panel is fixed right-0 with width 400px
+                                const actionPanelWidth = 400;
+                                const popupWidth = 320; // w-80 = 320px
+                                const gap = 4; // 4px gap between popup and action panel
+                                
+                                setCustomerPopupPosition({
+                                  top: rect.top, // Align top with customer card
+                                  right: actionPanelWidth + gap // Position to the left of action panel with gap
+                                });
+                              }
+                              setShowCustomerDetailsPopup(true);
+                            }}
+                            onMouseLeave={() => {
+                              // Add a small delay before closing to allow moving to popup
+                              customerPopupTimeoutRef.current = setTimeout(() => {
+                                setShowCustomerDetailsPopup(false);
+                              }, 200);
+                            }}
+                          >
+                            <div className="flex items-start justify-between mb-2">
+                              <h4 className="font-semibold text-gray-900 text-base">
+                                {selectedEventData.customerName || 'Unnamed Customer'}
+                              </h4>
+                              {selectedEventData.customerPhone && (
+                                <span className="text-sm text-gray-600 ml-2">
+                                  {selectedEventData.customerPhone}
+                                </span>
                               )}
-                      </div>
-                          )}
+                            </div>
+                          
+                            {selectedEventData.customerAddress && (
+                              <p className="text-sm text-gray-600 mb-3">
+                                {selectedEventData.customerAddress}
+                              </p>
+                            )}
+                          
+                            {customerPastJobs && customerPastJobs.length > 0 && (
+                              <div className="mt-3">
+                                <p className="font-semibold text-sm text-gray-900 mb-1">
+                                  {customerPastJobs.length} Past {customerPastJobs.length === 1 ? 'job' : 'jobs'}
+                                </p>
+                                {customerPastJobs[0] && customerPastJobs[0].date && (
+                                  <p className="text-sm text-gray-600">
+                                    Last detail: {(() => {
+                                      try {
+                                        const date = new Date(customerPastJobs[0].date);
+                                        if (isNaN(date.getTime())) return 'Date unavailable';
+                                        return format(date, 'MMMM d, yyyy');
+                                      } catch (e) {
+                                        return 'Date unavailable';
+                                      }
+                                    })()}
+                                    {customerPastJobs[0].services && customerPastJobs[0].services.length > 0 && (
+                                      <span>, {Array.isArray(customerPastJobs[0].services) ? customerPastJobs[0].services.join(' + ') : customerPastJobs[0].services}</span>
+                                    )}
+                                    {customerPastJobs[0].vehicleModel && (
+                                      <span> on a {customerPastJobs[0].vehicleModel}</span>
+                                    )}
+                                  </p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                // Set up customer data for editing
+                                setEditingCustomerData({
+                                  customerName: selectedEventData.customerName || '',
+                                  customerPhone: selectedEventData.customerPhone || '',
+                                  customerAddress: selectedEventData.customerAddress || ''
+                                });
+                                setIsEditingCustomer(true);
+                                setIsNewCustomerModalOpen(true);
+                              }}
+                              className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                              title="Edit customer"
+                            >
+                              <PencilIcon className="w-4 h-4 text-gray-700" />
+                            </button>
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                e.preventDefault();
+                                
+                                // Remove customer from event
+                                if (selectedEventData && selectedEventData.id) {
+                                  try {
+                                    const response = await fetch(`/api/detailer/events/${selectedEventData.id}`, {
+                                      method: 'PATCH',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({
+                                        customerName: null,
+                                        customerPhone: null,
+                                        customerAddress: null
+                                      }),
+                                    });
+
+                                    if (response.ok) {
+                                      // Update local state immediately for responsive UI
+                                      const updatedEventData = {
+                                        ...selectedEventData,
+                                        customerName: null,
+                                        customerPhone: null,
+                                        customerAddress: null
+                                      };
+                                      setSelectedEventData(updatedEventData);
+                                      
+                                      // Clear optimistic customer update ref since we're removing
+                                      optimisticCustomerUpdateRef.current = null;
+                                      
+                                      // Track optimistic update to prevent fetchCalendarEvents from overwriting it
+                                      optimisticCustomerRemovalRef.current = selectedEventData.id;
+                                      
+                                      // Clear the ref after a delay to allow normal syncing again
+                                      setTimeout(() => {
+                                        if (optimisticCustomerRemovalRef.current === selectedEventData.id) {
+                                          optimisticCustomerRemovalRef.current = null;
+                                        }
+                                      }, 2000);
+                                      
+                                      // Clear search state so search bar is ready to use
+                                      setEventDetailsCustomerSearch('');
+                                      setShowEventDetailsCustomerSuggestions(false);
+                                      setSelectedEventDetailsCustomerIndex(-1);
+                                      
+                                      // Refresh customers list for search
+                                      fetch('/api/detailer/customers')
+                                        .then(res => res.json())
+                                        .then(data => {
+                                          if (data.customers) {
+                                            setEventDetailsCustomers(data.customers);
+                                          }
+                                        })
+                                        .catch(err => console.error('Error fetching customers:', err));
+                                    } else {
+                                      const error = await response.json();
+                                      console.error('Failed to remove customer:', error.error);
+                                    }
+                                  } catch (error) {
+                                    console.error('Error removing customer:', error);
+                                  }
+                                }
+                              }}
+                              className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                              title="Remove customer"
+                            >
+                              <XMarkIcon className="w-4 h-4 text-gray-500" />
+                            </button>
+                          </div>
                         </div>
                       </div>
                     ) : (
-                      <p className="text-sm text-gray-500 italic">No customer information available</p>
+                      <div className="space-y-3">
+                        {/* Search bar */}
+                        <div className="relative">
+                          <div className="relative">
+                            <input 
+                              type="text" 
+                              value={eventDetailsCustomerSearch} 
+                              onChange={e => {
+                                setEventDetailsCustomerSearch(e.target.value);
+                                setShowEventDetailsCustomerSuggestions(true);
+                                setSelectedEventDetailsCustomerIndex(-1);
+                              }}
+                              onFocus={() => {
+                                if (eventDetailsCustomerSearch.trim().length > 0) {
+                                  setShowEventDetailsCustomerSuggestions(true);
+                                }
+                              }}
+                              onBlur={() => {
+                                // Delay hiding suggestions to allow click on suggestion
+                                setTimeout(() => setShowEventDetailsCustomerSuggestions(false), 200);
+                              }}
+                              onKeyDown={(e) => {
+                                const filteredCustomers = eventDetailsCustomerSearch.trim()
+                                  ? eventDetailsCustomers.filter(customer => {
+                                      const name = (customer.customerName || '').toLowerCase();
+                                      const phone = (customer.customerPhone || '').toLowerCase();
+                                      const searchTerm = eventDetailsCustomerSearch.toLowerCase();
+                                      return name.includes(searchTerm) || phone.includes(searchTerm);
+                                    })
+                                  : [];
+                                const showAddNew = eventDetailsCustomerSearch.trim().length > 0;
+                                const totalSuggestions = filteredCustomers.length + (showAddNew ? 1 : 0);
+
+                                if (e.key === 'ArrowDown') {
+                                  e.preventDefault();
+                                  setSelectedEventDetailsCustomerIndex(prev => 
+                                    prev < totalSuggestions - 1 ? prev + 1 : prev
+                                  );
+                                } else if (e.key === 'ArrowUp') {
+                                  e.preventDefault();
+                                  setSelectedEventDetailsCustomerIndex(prev => prev > 0 ? prev - 1 : -1);
+                                } else if (e.key === 'Enter' && selectedEventDetailsCustomerIndex >= 0) {
+                                  e.preventDefault();
+                                  if (selectedEventDetailsCustomerIndex < filteredCustomers.length) {
+                                    handleEventDetailsCustomerSelect(filteredCustomers[selectedEventDetailsCustomerIndex]);
+                                  } else if (showAddNew) {
+                                    setNewCustomerModalInitialName(eventDetailsCustomerSearch);
+                                    setIsNewCustomerModalOpen(true);
+                                  }
+                                }
+                              }}
+                              className="w-full px-4 py-2.5 border rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent pl-10" 
+                              placeholder="Search existing customers"
+                              style={{ borderColor: '#E2E2DD' }}
+                            />
+                            <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                          </div>
+                          {showEventDetailsCustomerSuggestions && eventDetailsCustomerSearch.trim().length > 0 && (
+                            <div className="absolute z-10 w-full mt-1 bg-white border rounded-xl shadow-lg max-h-60 overflow-auto" style={{ borderColor: '#E2E2DD' }}>
+                              {eventDetailsCustomers.filter(customer => {
+                                const name = (customer.customerName || '').toLowerCase();
+                                const phone = (customer.customerPhone || '').toLowerCase();
+                                const searchTerm = eventDetailsCustomerSearch.toLowerCase();
+                                return name.includes(searchTerm) || phone.includes(searchTerm);
+                              }).map((customer, index) => (
+                                <div
+                                  key={customer.id}
+                                  onClick={() => handleEventDetailsCustomerSelect(customer)}
+                                  className={`px-4 py-2 cursor-pointer hover:bg-gray-100 ${
+                                    index === selectedEventDetailsCustomerIndex 
+                                      ? 'bg-gray-100' 
+                                      : ''
+                                  }`}
+                                >
+                                  <div className="font-medium text-gray-900">
+                                    {customer.customerName || 'Unnamed Customer'}
+                                  </div>
+                                  {customer.customerPhone && (
+                                    <div className="text-sm text-gray-500">
+                                      {customer.customerPhone}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                              {/* Always show "Add new customer" as the last option */}
+                              {eventDetailsCustomerSearch.trim().length > 0 && (
+                                <div
+                                  onClick={() => {
+                                    setNewCustomerModalInitialName(eventDetailsCustomerSearch);
+                                    setIsNewCustomerModalOpen(true);
+                                  }}
+                                  className={`px-4 py-2 cursor-pointer hover:bg-gray-100 border-t ${
+                                    eventDetailsCustomers.filter(customer => {
+                                      const name = (customer.customerName || '').toLowerCase();
+                                      const phone = (customer.customerPhone || '').toLowerCase();
+                                      const searchTerm = eventDetailsCustomerSearch.toLowerCase();
+                                      return name.includes(searchTerm) || phone.includes(searchTerm);
+                                    }).length === selectedEventDetailsCustomerIndex 
+                                      ? 'bg-gray-100' 
+                                      : ''
+                                  }`}
+                                  style={{ borderColor: '#E2E2DD' }}
+                                >
+                                  <div className="font-medium text-blue-600 flex items-center gap-2">
+                                    <span>+</span>
+                                    <span>Add new customer: "{eventDetailsCustomerSearch}"</span>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        
+                        {/* Always-visible "New customer" button */}
+                        <div className="flex justify-end">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setNewCustomerModalInitialName('');
+                              setIsNewCustomerModalOpen(true);
+                            }}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 border rounded-full text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                            style={{ borderColor: '#E2E2DD' }}
+                          >
+                            <span className="text-gray-600">+</span>
+                            <span>New customer</span>
+                          </button>
+                        </div>
+                      </div>
                     )}
                   </div>
 
@@ -5174,7 +6239,19 @@ export default function CalendarPage() {
                       {/* Popup Panel - Positioned to the left of action panel, adjacent to customer box */}
                       <div 
                         ref={customerDetailsPopupRef}
-                        className="fixed w-80 bg-white shadow-2xl z-[60] rounded-xl overflow-hidden" style={{ 
+                        className="fixed w-80 bg-white shadow-2xl z-[60] rounded-xl overflow-hidden" 
+                        onMouseEnter={() => {
+                          // Clear any pending timeout when hovering over popup
+                          if (customerPopupTimeoutRef.current) {
+                            clearTimeout(customerPopupTimeoutRef.current);
+                            customerPopupTimeoutRef.current = null;
+                          }
+                        }}
+                        onMouseLeave={() => {
+                          // Close popup when leaving
+                          setShowCustomerDetailsPopup(false);
+                        }}
+                        style={{ 
                           border: '1px solid #E2E2DD', 
                           backgroundColor: '#F8F8F7', 
                           maxHeight: '90vh',
@@ -5227,7 +6304,7 @@ export default function CalendarPage() {
                                     </p>
                                   </div>
                                   <div>
-                                    <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Location Type</label>
+                                    <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Arrival</label>
                                     <p className="text-sm text-gray-900 mt-0.5 capitalize">
                                       {selectedEventData.locationType || 'Not provided'}
                                     </p>
@@ -5296,15 +6373,15 @@ export default function CalendarPage() {
                           {selectedEventData.customerType && (
                             <span className={`text-xs font-semibold px-3 py-1.5 rounded-full inline-block ${
                               selectedEventData.customerType.toLowerCase() === 'new' 
-                                ? 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+                                ? 'bg-gray-200 text-gray-700'
                                 : selectedEventData.customerType.toLowerCase() === 'returning'
-                                ? 'bg-purple-200 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
+                                ? 'bg-purple-200 text-purple-800'
                                 : selectedEventData.customerType.toLowerCase() === 'maintenance'
-                                ? 'bg-blue-200 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
-                                : 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+                                ? 'bg-blue-200 text-blue-800'
+                                : 'bg-gray-200 text-gray-700'
                             }`}>
                               {selectedEventData.customerType === 'new' ? 'New Customer' : 
-                               selectedEventData.customerType === 'returning' ? 'Returning Customer' :
+                               selectedEventData.customerType === 'returning' ? 'Repeat Customer' :
                                selectedEventData.customerType === 'maintenance' ? 'Maintenance Customer' :
                                selectedEventData.customerType}
                             </span>
@@ -5317,7 +6394,7 @@ export default function CalendarPage() {
                                 ? 'bg-blue-500 text-white'
                                 : (selectedEventData.locationType?.toLowerCase() === 'drop off' || selectedEventData.locationType?.toLowerCase() === 'dropoff')
                                 ? 'bg-pink-500 text-white'
-                                : 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+                                : 'bg-gray-200 text-gray-700'
                             }`}>
                               {selectedEventData.locationType?.toLowerCase() === 'pickup' ? 'Pick Up' : 
                                selectedEventData.locationType?.toLowerCase() === 'dropoff' ? 'Drop Off' :
@@ -5813,11 +6890,10 @@ export default function CalendarPage() {
                                         setShowEmployeeSwitchDropdown(false);
                                       } else {
                                         const error = await response.json();
-                                        alert(`Failed to update employee: ${error.error}`);
+                                        console.error('Failed to update employee:', error.error);
                                       }
                                     } catch (error) {
                                       console.error('Error updating employee:', error);
-                                      alert('Failed to update employee. Please try again.');
                                     }
                                   }}
                                   className={`w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors ${
@@ -5899,11 +6975,10 @@ export default function CalendarPage() {
                                       setShowEmployeeSwitchDropdown(false);
                             } else {
                               const error = await response.json();
-                                      alert(`Failed to update employee: ${error.error}`);
+                                      console.error('Failed to update employee:', error.error);
                             }
                           } catch (error) {
                                     console.error('Error updating employee:', error);
-                                    alert('Failed to update employee. Please try again.');
                                   }
                                 }}
                                 className="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors"
@@ -6001,12 +7076,6 @@ export default function CalendarPage() {
                             onClick={async () => {
                               // Handle cancel/delete
                               if (event.id) {
-                                const confirmDelete = window.confirm(
-                                  'Are you sure you want to delete this event?'
-                                );
-                                
-                                if (!confirmDelete) return;
-                                
                                 try {
                                   const response = await fetch(`/api/detailer/events/${event.id}`, {
                                     method: 'DELETE',
@@ -6014,14 +7083,12 @@ export default function CalendarPage() {
 
                                   if (response.ok) {
                                     fetchCalendarEvents();
-                                    alert('Event deleted successfully!');
                                   } else {
                                     const error = await response.json();
-                                    alert(`Failed to delete event: ${error.error}`);
+                                    console.error('Failed to delete event:', error.error);
                                   }
                                 } catch (error) {
                                   console.error('Error deleting event:', error);
-                                  alert('Failed to delete event. Please try again.');
                                 }
                               }
                             }}
@@ -6055,19 +7122,16 @@ export default function CalendarPage() {
 
                                   if (response.ok) {
                                     fetchCalendarEvents();
-                                    alert('Booking confirmed successfully!');
                                   } else {
                                     const error = await response.json();
-                                    alert(`Failed to confirm booking: ${error.error}`);
+                                    console.error('Failed to confirm booking:', error.error);
                                   }
                                 } catch (error) {
                                   console.error('Error confirming booking:', error);
-                                  alert('Failed to confirm booking. Please try again.');
                                 }
                               } else if (event.status === 'pending') {
                                 // For events without bookingId, just refresh (they're already created)
                                 fetchCalendarEvents();
-                                alert('Event accepted!');
                               }
                             }}
                             className="px-4 py-2 bg-orange-500 hover:bg-orange-600 rounded-full flex items-center gap-2 transition-colors"
@@ -6176,12 +7240,6 @@ export default function CalendarPage() {
                   <button
                     onClick={async () => {
                       if (selectedEventData?.id) {
-                        const confirmDelete = window.confirm(
-                          'Are you sure you want to delete this event? This will remove it from both Reeva Detailer and Google Calendar.'
-                        );
-                        
-                        if (!confirmDelete) return;
-                        
                         try {
                           const response = await fetch(`/api/detailer/events/${selectedEventData.id}`, {
                             method: 'DELETE',
@@ -6192,14 +7250,12 @@ export default function CalendarPage() {
                             setSelectedEventData(null);
                             setSelectedEvent(null);
                             setIsActionSidebarOpen(false);
-                            alert('Event deleted successfully!');
                           } else {
                             const error = await response.json();
-                            alert(`Failed to delete event: ${error.error}`);
+                            console.error('Failed to delete event:', error.error);
                           }
                         } catch (error) {
                           console.error('Error deleting event:', error);
-                          alert('Failed to delete event. Please try again.');
                         }
                       }
                     }}
@@ -6281,6 +7337,36 @@ export default function CalendarPage() {
               </div>
             )}
           </div>
+
+          {/* Fixed Action Buttons - Only show when editing event */}
+          {isEditingEvent && selectedEventData && (
+            <div className="flex-shrink-0 p-6 border-t border-gray-200" style={{ backgroundColor: '#F8F8F7', position: 'sticky', bottom: 0, zIndex: 10 }}>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    if (eventEditFormRef.current) {
+                      eventEditFormRef.current.handleCancel();
+                    }
+                  }}
+                  className="flex-1 px-6 py-2 border rounded-xl text-gray-700 hover:bg-gray-50 transition-colors"
+                  style={{ borderColor: '#E2E2DD' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    if (eventEditFormRef.current) {
+                      eventEditFormRef.current.handleSubmit();
+                    }
+                  }}
+                  className="flex-1 px-6 py-2 bg-orange-500 text-white rounded-xl hover:bg-orange-600 transition-colors flex items-center justify-center gap-2"
+                >
+                  <CheckIcon className="w-5 h-5" />
+                  <span>Save</span>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Column Sidebar - Only show when action panel is closed */}
@@ -6308,16 +7394,214 @@ export default function CalendarPage() {
           onClose={() => {
             setIsNewCustomerModalOpen(false);
             setNewCustomerModalInitialName('');
+            setIsEditingCustomer(false);
+            setEditingCustomerData(null);
           }}
-          onSuccess={(customer) => {
-            // Store the new customer data to populate EventModal form
-            setNewCustomerData(customer);
+          onSuccess={async (customer) => {
+            if (isEditingCustomer) {
+              if (selectedEventData) {
+                // Update the event data with edited customer information
+                const updatedEventData = {
+                  ...selectedEventData,
+                  customerName: customer.customerName,
+                  customerPhone: customer.customerPhone,
+                  customerAddress: customer.address || ''
+                };
+                setSelectedEventData(updatedEventData);
+                
+                // If editing from Event Details view (not edit mode), save to database
+                if (!isEditingEvent && selectedEventData.id) {
+                  try {
+                    const eventId = selectedEventData.id;
+                    
+                    // Track optimistic customer update BEFORE making API call to prevent fetchCalendarEvents from overwriting
+                    optimisticCustomerUpdateRef.current = eventId;
+                    
+                    const response = await fetch(`/api/detailer/events/${eventId}`, {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        customerName: customer.customerName,
+                        customerPhone: customer.customerPhone,
+                        customerAddress: customer.address || ''
+                      }),
+                    });
+
+                    if (response.ok) {
+                      const responseData = await response.json();
+                      console.log('Customer edit response:', responseData);
+                      
+                      // Use the server response to update state - this ensures we have the exact data the server saved
+                      if (responseData.event) {
+                        const serverEvent = responseData.event;
+                        console.log('Server event customer data after edit:', {
+                          customerName: serverEvent.customerName,
+                          customerPhone: serverEvent.customerPhone,
+                          customerAddress: serverEvent.customerAddress
+                        });
+                        
+                        // Use server response data, fallback to customer data we sent if server data is missing
+                        const finalCustomerName = serverEvent.customerName !== undefined ? serverEvent.customerName : customer.customerName;
+                        const finalCustomerPhone = serverEvent.customerPhone !== undefined ? serverEvent.customerPhone : customer.customerPhone;
+                        const finalCustomerAddress = serverEvent.customerAddress !== undefined ? serverEvent.customerAddress : (customer.address || '');
+                        
+                        const updatedEventData = {
+                          ...selectedEventData,
+                          customerName: finalCustomerName || null,
+                          customerPhone: finalCustomerPhone || null,
+                          customerAddress: finalCustomerAddress || null
+                        };
+                        setSelectedEventData(updatedEventData);
+                        console.log('Updated selectedEventData with:', {
+                          customerName: updatedEventData.customerName,
+                          customerPhone: updatedEventData.customerPhone,
+                          customerAddress: updatedEventData.customerAddress
+                        });
+                        
+                        // Also update the bookings state so the calendar card reflects the change immediately
+                        setBookings((prevBookings) =>
+                          prevBookings.map((event: any) =>
+                            event.id === eventId
+                              ? {
+                                  ...event,
+                                  customerName: finalCustomerName || null,
+                                  customerPhone: finalCustomerPhone || null,
+                                  customerAddress: finalCustomerAddress || null
+                                }
+                              : event
+                          )
+                        );
+                      } else {
+                        console.error('No event in response after customer edit:', responseData);
+                        // Fallback: use the customer data we sent
+                        const updatedEventData = {
+                          ...selectedEventData,
+                          customerName: customer.customerName || null,
+                          customerPhone: customer.customerPhone || null,
+                          customerAddress: customer.address || null
+                        };
+                        setSelectedEventData(updatedEventData);
+                        setBookings((prevBookings) =>
+                          prevBookings.map((event: any) =>
+                            event.id === eventId
+                              ? {
+                                  ...event,
+                                  customerName: customer.customerName || null,
+                                  customerPhone: customer.customerPhone || null,
+                                  customerAddress: customer.address || null
+                                }
+                              : event
+                          )
+                        );
+                      }
+                      
+                      // Refresh customers list to show updated customer data
+                      fetch('/api/detailer/customers')
+                        .then(res => res.json())
+                        .then(data => {
+                          if (data.customers) {
+                            setEventDetailsCustomers(data.customers);
+                          }
+                        })
+                        .catch(err => console.error('Error fetching customers:', err));
+                      
+                      // Clear the optimistic update ref after a delay to allow normal syncing to resume
+                      setTimeout(() => {
+                        if (optimisticCustomerUpdateRef.current === eventId) {
+                          optimisticCustomerUpdateRef.current = null;
+                        }
+                      }, 3000);
+                    } else {
+                      const error = await response.json();
+                      console.error('Failed to update customer:', error);
+                      // Revert optimistic update on error
+                      fetchCalendarEvents().catch(err => {
+                        console.error('Failed to revert optimistic update:', err);
+                      });
+                    }
+                  } catch (error) {
+                    console.error('Error updating customer:', error);
+                    // Revert optimistic update on error
+                    fetchCalendarEvents().catch(err => {
+                      console.error('Failed to revert optimistic update:', err);
+                    });
+                  }
+                } else {
+                  // If in edit mode, mark form as dirty
+                  setIsEditFormDirty(true);
+                }
+              } else if (isModalOpen) {
+                // Editing customer from Create Event panel - update the customer data
+                setNewCustomerData(customer);
+              }
+            } else {
+              // New customer created (not editing)
+              if (selectedEventData && selectedEventData.id && !isEditingEvent) {
+                // If we're in Event Details panel and there's no customer, add the new customer to the event
+                if (!selectedEventData.customerName && !selectedEventData.customerPhone) {
+                  try {
+                    const response = await fetch(`/api/detailer/events/${selectedEventData.id}`, {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        customerName: customer.customerName,
+                        customerPhone: customer.customerPhone,
+                        customerAddress: customer.address || ''
+                      }),
+                    });
+
+                    if (response.ok) {
+                      // Update local state
+                      const updatedEventData = {
+                        ...selectedEventData,
+                        customerName: customer.customerName,
+                        customerPhone: customer.customerPhone,
+                        customerAddress: customer.address || ''
+                      };
+                      setSelectedEventData(updatedEventData);
+                      
+                      // Clear search
+                      setEventDetailsCustomerSearch('');
+                      setShowEventDetailsCustomerSuggestions(false);
+                      
+                      // Refresh customers list
+                      fetch('/api/detailer/customers')
+                        .then(res => res.json())
+                        .then(data => {
+                          if (data.customers) {
+                            setEventDetailsCustomers(data.customers);
+                          }
+                        })
+                        .catch(err => console.error('Error fetching customers:', err));
+                      
+                      // Refresh calendar to show updated data
+                      fetchCalendarEvents();
+                    } else {
+                      const error = await response.json();
+                      console.error('Failed to add customer to event:', error.error);
+                    }
+                  } catch (error) {
+                    console.error('Error adding customer to event:', error);
+                  }
+                } else {
+                  // Store the new customer data to populate EventModal form
+                  setNewCustomerData(customer);
+                }
+              } else {
+                // Store the new customer data to populate EventModal form
+                setNewCustomerData(customer);
+              }
+            }
             
             // Close modal
             setIsNewCustomerModalOpen(false);
             setNewCustomerModalInitialName('');
+            setIsEditingCustomer(false);
+            setEditingCustomerData(null);
           }}
           initialName={newCustomerModalInitialName}
+          existingCustomer={editingCustomerData || undefined}
+          isEditMode={isEditingCustomer}
         />
     </div>
   );

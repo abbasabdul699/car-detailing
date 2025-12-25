@@ -72,7 +72,7 @@ export default function MobileNav() {
 
   return (
     <nav
-      className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 shadow-lg"
+      className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 shadow-lg"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       aria-label="Mobile navigation"
     >
@@ -88,7 +88,7 @@ export default function MobileNav() {
       {/* Action Sheet */}
       {sheetOpen && (
         <div className="fixed bottom-16 left-0 right-0 z-[60] px-3">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+          <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden">
             {actions.map((a, idx) => (
               <button
                 key={idx}
@@ -96,9 +96,9 @@ export default function MobileNav() {
                   setSheetOpen(false);
                   a.onClick();
                 }}
-                className="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-gray-800 dark:text-gray-100 active:bg-gray-100 dark:active:bg-gray-700"
+                className="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-gray-800 active:bg-gray-100"
               >
-                {a.icon && <a.icon className="h-5 w-5 text-gray-500 dark:text-gray-400" />}
+                {a.icon && <a.icon className="h-5 w-5 text-gray-500" />}
                 <span>{a.label}</span>
               </button>
             ))}
@@ -118,7 +118,7 @@ export default function MobileNav() {
                 key={item.name}
                 href={item.href}
                 className={`flex flex-col items-center justify-center py-2 transition-all duration-200 ${
-                  active ? "text-gray-900 dark:text-white" : "text-gray-500 dark:text-gray-400"
+                  active ? "text-gray-900" : "text-gray-500"
                 }`}
               >
                 <IconComponent className={`h-6 w-6 ${active ? "scale-110" : "scale-100"}`} />
@@ -132,7 +132,7 @@ export default function MobileNav() {
             <button
               aria-label="Create"
               onClick={() => setSheetOpen((o) => !o)}
-              className="relative -mt-6 h-12 w-12 rounded-full bg-black dark:bg-gray-800 text-white shadow-xl active:scale-95 transition transform"
+              className="relative -mt-6 h-12 w-12 rounded-full bg-black text-white shadow-xl active:scale-95 transition transform"
             >
               <PlusIcon className="h-7 w-7 mx-auto" />
             </button>
@@ -147,7 +147,7 @@ export default function MobileNav() {
                 key={item.name}
                 href={item.href}
                 className={`flex flex-col items-center justify-center py-2 transition-all duration-200 ${
-                  active ? "text-gray-900 dark:text-white" : "text-gray-500 dark:text-gray-400"
+                  active ? "text-gray-900" : "text-gray-500"
                 }`}
               >
                 <IconComponent className={`h-6 w-6 ${active ? "scale-110" : "scale-100"}`} />

@@ -121,21 +121,21 @@ export function CommandPalette() {
             onValueChange={setSearch}
             onFocus={() => setFocused(true)}
             onBlur={() => setTimeout(() => setFocused(false), 100)}
-            className="w-full pl-10 pr-3 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none"
+            className="w-full pl-10 pr-3 py-2 text-sm rounded-md border border-gray-300 bg-white text-gray-900 focus:outline-none"
           />
         </div>
 
         {(search || focused) && (
-          <Command.List className="absolute z-20 mt-1 w-full rounded-md bg-white dark:bg-gray-800 shadow-lg border border-gray-200 dark:border-gray-700 max-h-60 overflow-auto">
+          <Command.List className="absolute z-20 mt-1 w-full rounded-md bg-white shadow-lg border border-gray-200 max-h-60 overflow-auto">
             {filteredNavigation.length > 0 && (
               <Command.Group heading="Navigation">
                 {filteredNavigation.map((item) => (
                   <Command.Item
                     key={item.href}
                     onSelect={() => handleSelect(item.href)}
-                    className="flex items-center gap-2 px-4 py-2 text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+                    className="flex items-center gap-2 px-4 py-2 text-sm cursor-pointer hover:bg-gray-100"
                   >
-                    <item.icon className="h-4 w-4 text-gray-500 dark:text-gray-300" />
+                    <item.icon className="h-4 w-4 text-gray-500" />
                     <span>{item.name}</span>
                   </Command.Item>
                 ))}
@@ -147,9 +147,9 @@ export function CommandPalette() {
                   <Command.Item
                     key={item.name}
                     onSelect={item.action}
-                    className="flex items-center gap-2 px-4 py-2 text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+                    className="flex items-center gap-2 px-4 py-2 text-sm cursor-pointer hover:bg-gray-100"
                   >
-                    <item.icon className="h-4 w-4 text-gray-500 dark:text-gray-300" />
+                    <item.icon className="h-4 w-4 text-gray-500" />
                     <span>{item.name}</span>
                   </Command.Item>
                 ))}

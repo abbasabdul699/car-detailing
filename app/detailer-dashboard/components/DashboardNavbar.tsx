@@ -28,7 +28,7 @@ export default function DashboardNavbar({ onLogout }: { onLogout: () => void }) 
 
 
     return (
-    <div className="sticky top-0 z-20 w-full h-16 border-b border-gray-200 bg-white dark:bg-gray-800 dark:border-gray-700 flex items-center justify-between px-4 sm:px-6 lg:px-8">
+    <div className="sticky top-0 z-20 w-full h-16 border-b border-gray-200 bg-white flex items-center justify-between px-4 sm:px-6 lg:px-8">
       {/* Left: Searchbar with icon and shortcut */}
       <div className="flex items-center gap-2 w-full max-w-md relative">
         <span className="absolute left-3 text-gray-400">
@@ -37,7 +37,7 @@ export default function DashboardNavbar({ onLogout }: { onLogout: () => void }) 
           </svg>
         </span>
         <CommandPalette />
-        <kbd className="ml-2 rounded bg-gray-100 px-2 py-1 text-xs text-gray-600 dark:bg-gray-700 dark:text-gray-300">⌘ K</kbd>
+        <kbd className="ml-2 rounded bg-gray-100 px-2 py-1 text-xs text-gray-600">⌘ K</kbd>
       </div>
 
       {/* Right: Theme, Bell, Avatar */}
@@ -45,7 +45,7 @@ export default function DashboardNavbar({ onLogout }: { onLogout: () => void }) 
         <button
           onClick={toggleTheme}
           type="button"
-          className="rounded-full p-2 text-gray-400 hover:text-gray-600 dark:text-gray-300 dark:hover:text-white focus:outline-none"
+          className="rounded-full p-2 text-gray-400 hover:text-gray-600 focus:outline-none"
         >
           {theme === 'dark' ? (
             <SunIcon className="h-6 w-6" />
@@ -65,7 +65,7 @@ export default function DashboardNavbar({ onLogout }: { onLogout: () => void }) 
                 alt="User avatar"
               />
             </div>
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300 hidden md:block">
+            <span className="text-sm font-medium text-gray-700 hidden md:block">
               {session?.user?.businessName || session?.user?.name}
             </span>
             <svg className={`h-5 w-5 text-gray-400 transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
@@ -74,32 +74,32 @@ export default function DashboardNavbar({ onLogout }: { onLogout: () => void }) 
           </button>
 
           {dropdownOpen && (
-            <div className="absolute right-0 mt-2 w-56 origin-top-right rounded-md bg-white dark:bg-gray-800 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
+            <div className="absolute right-0 mt-2 w-56 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
               <div className="py-1">
-                <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center space-x-3">
+                <div className="px-4 py-3 border-b border-gray-200 flex items-center space-x-3">
                   <div className="h-10 w-10 rounded-full overflow-hidden flex-shrink-0">
                     <img className="w-full h-full object-cover" src={session?.user?.image || '/images/default-avatar.png'} alt="User avatar" />
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-gray-900 dark:text-white">{session?.user?.businessName || session?.user?.name}</p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{session?.user?.name}</p>
+                    <p className="text-sm font-semibold text-gray-900">{session?.user?.businessName || session?.user?.name}</p>
+                    <p className="text-sm text-gray-500 truncate">{session?.user?.name}</p>
                   </div>
                 </div>
-                <Link href="/detailer-dashboard/profile" className="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
+                <Link href="/detailer-dashboard/profile" className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
                   <UserCircleIcon className="mr-3 h-5 w-5 text-gray-400" />
                   Edit profile
                 </Link>
-                <Link href="/detailer-dashboard/settings" className="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
+                <Link href="/detailer-dashboard/settings" className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
                   <Cog8ToothIcon className="mr-3 h-5 w-5 text-gray-400" />
                   Account settings
                 </Link>
-                <Link href="/help-page" className="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
+                <Link href="/help-page" className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
                   <QuestionMarkCircleIcon className="mr-3 h-5 w-5 text-gray-400" />
                   Support
                 </Link>
                 <button
                   onClick={onLogout}
-                  className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                 >
                   <ArrowLeftStartOnRectangleIcon className="mr-3 h-5 w-5 text-gray-400" />
                   Sign out

@@ -68,8 +68,8 @@ export default function ManageImagesPage() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto py-10 bg-white dark:bg-gray-900 rounded-xl shadow p-6">
-      <h1 className="text-2xl font-bold mb-6 text-gray-900 dark:text-gray-100">Manage Images</h1>
+    <div className="max-w-4xl mx-auto py-10 bg-white rounded-xl shadow p-6">
+      <h1 className="text-2xl font-bold mb-6 text-gray-900">Manage Images</h1>
       <div className="mb-6">
         <ImageUploader
           businessName="Demo Detailer"
@@ -87,7 +87,7 @@ export default function ManageImagesPage() {
       ) : (
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
           {images.map((img, idx) => (
-            <div key={img.id} className="relative group rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden bg-white flex flex-col aspect-[4/3]">
+            <div key={img.id} className="relative group rounded-2xl border border-gray-200 shadow-sm overflow-hidden bg-white flex flex-col aspect-[4/3]">
               <img 
                 src={img.url} 
                 alt={`Portfolio ${idx + 1}`} 
@@ -104,7 +104,7 @@ export default function ManageImagesPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
-            <div className="flex-1 flex items-center justify-center text-gray-700 dark:text-gray-200 text-sm font-medium p-2">
+            <div className="flex-1 flex items-center justify-center text-gray-700 text-sm font-medium p-2">
                 Portfolio {idx + 1}
             </div>
             <div className="bg-gray-700 text-white text-xs px-2 py-1 text-center">Portfolio</div>
