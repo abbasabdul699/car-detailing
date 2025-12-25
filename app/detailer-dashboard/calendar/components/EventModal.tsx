@@ -1002,99 +1002,103 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                     <div className="pt-2">
                         <h3 className="text-sm font-semibold text-gray-900 mb-4">Customer</h3>
                         
-                        {/* Search bar - always visible */}
-                        <div className="relative">
+                        {/* Search bar - only show when no customer is selected */}
+                        {!selectedCustomer && (
                             <div className="relative">
-                                <input 
-                                    type="text" 
-                                    id="customer-search" 
-                                    value={customerSearch} 
-                                    onChange={e => {
-                                        setCustomerSearch(e.target.value);
-                                        setShowCustomerSuggestions(true);
-                                        setSelectedCustomerIndex(-1);
-                                    }}
-                                    onFocus={() => {
-                                        if (customerSearch.trim().length > 0) {
+                                <div className="relative">
+                                    <input 
+                                        type="text" 
+                                        id="customer-search" 
+                                        value={customerSearch} 
+                                        onChange={e => {
+                                            setCustomerSearch(e.target.value);
                                             setShowCustomerSuggestions(true);
+                                            setSelectedCustomerIndex(-1);
+                                        }}
+                                        onFocus={() => {
+                                            if (customerSearch.trim().length > 0) {
+                                                setShowCustomerSuggestions(true);
+                                            }
+                                        }}
+                                        onBlur={() => {
+                                            // Delay hiding suggestions to allow click on suggestion
+                                            setTimeout(() => setShowCustomerSuggestions(false), 200);
+                                        }}
+                                        onKeyDown={handleCustomerSearchKeyDown}
+                                        className="w-full px-4 py-2.5 border rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent pl-10" 
+                                        placeholder="Search existing customers"
+                                        style={{ borderColor: '#E2E2DD' }}
+                                    />
+                                    <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                    </svg>
+                                </div>
+                                {showCustomerSuggestions && customerSearch.trim().length > 0 && (
+                                    <div className="absolute z-10 w-full mt-1 bg-white border rounded-xl shadow-lg max-h-60 overflow-auto" style={{ borderColor: '#E2E2DD' }}>
+                                        {filteredCustomers.map((customer, index) => (
+                                            <div
+                                                key={customer.id}
+                                                onClick={() => handleCustomerSelect(customer)}
+                                                className={`px-4 py-2 cursor-pointer hover:bg-gray-100 ${
+                                                    index === selectedCustomerIndex 
+                                                        ? 'bg-gray-100' 
+                                                        : ''
+                                                }`}
+                                            >
+                                                <div className="font-medium text-gray-900">
+                                                    {customer.customerName || 'Unnamed Customer'}
+                                                </div>
+                                                {customer.customerPhone && (
+                                                    <div className="text-sm text-gray-500">
+                                                        {customer.customerPhone}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                        {/* Always show "Add new customer" as the last option */}
+                                        {showAddNewCustomer && (
+                                            <div
+                                                onClick={handleAddNewCustomer}
+                                                className={`px-4 py-2 cursor-pointer hover:bg-gray-100 ${
+                                                    filteredCustomers.length > 0 ? 'border-t' : ''
+                                                } ${
+                                                    filteredCustomers.length === selectedCustomerIndex 
+                                                        ? 'bg-gray-100' 
+                                                        : ''
+                                                }`}
+                                                style={{ borderColor: '#E2E2DD' }}
+                                            >
+                                                <div className="font-medium text-blue-600 flex items-center gap-2">
+                                                    <span>+</span>
+                                                    <span>Add new customer: "{customerSearch}"</span>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                            
+                        {/* "New customer" button - only show when no customer is selected */}
+                        {!selectedCustomer && (
+                            <div className="mt-2 flex justify-end">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        if (onOpenNewCustomerModal) {
+                                            onOpenNewCustomerModal('');
                                         }
                                     }}
-                                    onBlur={() => {
-                                        // Delay hiding suggestions to allow click on suggestion
-                                        setTimeout(() => setShowCustomerSuggestions(false), 200);
-                                    }}
-                                    onKeyDown={handleCustomerSearchKeyDown}
-                                    className="w-full px-4 py-2.5 border rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent pl-10" 
-                                    placeholder="Search existing customers"
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 border rounded-full text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
                                     style={{ borderColor: '#E2E2DD' }}
-                                />
-                                <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                                </svg>
+                                >
+                                    <span className="text-gray-600">+</span>
+                                    <span>New customer</span>
+                                </button>
                             </div>
-                            {showCustomerSuggestions && customerSearch.trim().length > 0 && (
-                                <div className="absolute z-10 w-full mt-1 bg-white border rounded-xl shadow-lg max-h-60 overflow-auto" style={{ borderColor: '#E2E2DD' }}>
-                                    {filteredCustomers.map((customer, index) => (
-                                        <div
-                                            key={customer.id}
-                                            onClick={() => handleCustomerSelect(customer)}
-                                            className={`px-4 py-2 cursor-pointer hover:bg-gray-100 ${
-                                                index === selectedCustomerIndex 
-                                                    ? 'bg-gray-100' 
-                                                    : ''
-                                            }`}
-                                        >
-                                            <div className="font-medium text-gray-900">
-                                                {customer.customerName || 'Unnamed Customer'}
-                                            </div>
-                                            {customer.customerPhone && (
-                                                <div className="text-sm text-gray-500">
-                                                    {customer.customerPhone}
-                                                </div>
-                                            )}
-                                        </div>
-                                    ))}
-                                    {/* Always show "Add new customer" as the last option */}
-                                    {showAddNewCustomer && (
-                                        <div
-                                            onClick={handleAddNewCustomer}
-                                            className={`px-4 py-2 cursor-pointer hover:bg-gray-100 ${
-                                                filteredCustomers.length > 0 ? 'border-t' : ''
-                                            } ${
-                                                filteredCustomers.length === selectedCustomerIndex 
-                                                    ? 'bg-gray-100' 
-                                                    : ''
-                                            }`}
-                                            style={{ borderColor: '#E2E2DD' }}
-                                        >
-                                            <div className="font-medium text-blue-600 flex items-center gap-2">
-                                                <span>+</span>
-                                                <span>Add new customer: "{customerSearch}"</span>
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-                        </div>
+                        )}
                             
-                        {/* Always-visible "New customer" button */}
-                        <div className="mt-2 flex justify-end">
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    if (onOpenNewCustomerModal) {
-                                        onOpenNewCustomerModal('');
-                                    }
-                                }}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 border rounded-full text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-                                style={{ borderColor: '#E2E2DD' }}
-                            >
-                                <span className="text-gray-600">+</span>
-                                <span>New customer</span>
-                            </button>
-                        </div>
-                            
-                        {/* Customer card - show when customer is selected */}
+                        {/* Customer card - show when customer is selected (replaces search bar) */}
                         {selectedCustomer && (
                             <div 
                                 ref={customerCardRef}
@@ -1629,7 +1633,7 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                                     type="checkbox" 
                                     checked={isAllDay}
                                     onChange={(e) => setIsAllDay(e.target.checked)}
-                                    className="w-4 h-4 text-gray-900 border-gray-300 rounded focus:ring-gray-900 dark:bg-gray-700 dark:border-gray-600"
+                                    className="w-4 h-4 text-gray-900 border-gray-300 rounded focus:ring-gray-900"
                                 />
                                 <span className="text-sm font-medium text-gray-700">All-day event</span>
                             </label>
@@ -1638,7 +1642,7 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                                     type="checkbox" 
                                     checked={isMultiDay}
                                     onChange={(e) => setIsMultiDay(e.target.checked)}
-                                    className="w-4 h-4 text-gray-900 border-gray-300 rounded focus:ring-gray-900 dark:bg-gray-700 dark:border-gray-600"
+                                    className="w-4 h-4 text-gray-900 border-gray-300 rounded focus:ring-gray-900"
                                 />
                                 <span className="text-sm font-medium text-gray-700">Multi-day event</span>
                             </label>
@@ -1677,7 +1681,7 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                                 </div>
                             ) : (
                                 <div>
-                                    <label htmlFor="start-date" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    <label htmlFor="start-date" className="block text-sm font-medium text-gray-700 mb-2">
                                         Start Date *
                                     </label>
                                     <input 
@@ -1811,7 +1815,7 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
 
                             {/* Warning message only if no business hours */}
                             {isAllDay && startDate && (!startTime || !endTime) && (
-                                <div className="text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
+                                <div className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-lg p-3">
                                     No business hours set for this day. Please set business hours in your profile settings.
                                 </div>
                             )}

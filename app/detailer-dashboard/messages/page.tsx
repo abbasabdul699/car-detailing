@@ -384,15 +384,15 @@ export default function MessagesPage() {
         </div>
       )}
       {/* Conversations List */}
-      <div className={`${showConversationList ? 'flex' : 'hidden'} md:flex w-full md:w-1/3 border-r border-gray-200 dark:border-gray-700 flex-col`}>
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+      <div className={`${showConversationList ? 'flex' : 'hidden'} md:flex w-full md:w-1/3 border-r border-gray-200 flex-col`}>
+        <div className="p-4 border-b border-gray-200">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Messages</h1>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              <h1 className="text-xl font-semibold text-gray-900">Messages</h1>
+              <p className="text-sm text-gray-500 mt-1">
                 {searchQuery ? `${filteredConversations.length} of ${conversations.length}` : conversations.length} conversation{conversations.length !== 1 ? 's' : ''}
                 {isRefreshing && (
-                  <span className="ml-2 text-blue-600 dark:text-blue-400">
+                  <span className="ml-2 text-blue-600">
                     <svg className="inline w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                       <path className="opacity-75" fill="currentColor" d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -401,7 +401,7 @@ export default function MessagesPage() {
                   </span>
                 )}
               </p>
-              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+              <p className="text-xs text-gray-400 mt-1">
                 Last updated: {lastRefresh.toLocaleTimeString()}
               </p>
             </div>
@@ -417,7 +417,7 @@ export default function MessagesPage() {
               </button>
               <button
                 onClick={refreshConversations}
-                className="p-2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-colors"
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
                 title="Refresh conversations"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -441,12 +441,12 @@ export default function MessagesPage() {
                 placeholder="Search conversations..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white text-sm"
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
               />
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery('')}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
                 >
                   <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -456,13 +456,13 @@ export default function MessagesPage() {
             </div>
 
             {/* Channel Filter Tabs */}
-            <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-700 rounded-xl p-1">
+            <div className="flex items-center gap-2 bg-gray-100 rounded-xl p-1">
               <button
                 onClick={() => setChannelFilter('all')}
                 className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                   channelFilter === 'all'
-                    ? 'bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-400 shadow-sm'
-                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                    ? 'bg-white text-blue-600 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
                 }`}
               >
                 All
@@ -471,8 +471,8 @@ export default function MessagesPage() {
                 onClick={() => setChannelFilter('sms')}
                 className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                   channelFilter === 'sms'
-                    ? 'bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-400 shadow-sm'
-                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                    ? 'bg-white text-blue-600 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
                 }`}
               >
                 📱 SMS
@@ -481,8 +481,8 @@ export default function MessagesPage() {
                 onClick={() => setChannelFilter('phone')}
                 className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                   channelFilter === 'phone'
-                    ? 'bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-400 shadow-sm'
-                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                    ? 'bg-white text-blue-600 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
                 }`}
               >
                 📞 Calls
@@ -495,8 +495,8 @@ export default function MessagesPage() {
                 onClick={() => setShowDateFilter(!showDateFilter)}
                 className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm border transition-colors ${
                   dateFilter 
-                    ? 'bg-blue-100 dark:bg-blue-900/20 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300' 
-                    : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    ? 'bg-blue-100 border-blue-300 text-blue-700'
+                    : 'bg-gray-100 border-gray-300 text-gray-700 hover:bg-gray-200'
                 }`}
               >
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -508,7 +508,7 @@ export default function MessagesPage() {
               {dateFilter && (
                 <button
                   onClick={() => setDateFilter('')}
-                  className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  className="p-1 text-gray-400 hover:text-gray-600"
                   title="Clear date filter"
                 >
                   <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -520,18 +520,18 @@ export default function MessagesPage() {
 
             {/* Date Picker */}
             {showDateFilter && (
-              <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3 shadow-lg">
+              <div className="bg-white border border-gray-200 rounded-xl p-3 shadow-lg">
                 <div className="flex items-center gap-2">
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Select date:</label>
+                  <label className="text-sm font-medium text-gray-700">Select date:</label>
                   <input
                     type="date"
                     value={dateFilter}
                     onChange={(e) => setDateFilter(e.target.value)}
-                    className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white text-sm"
+                    className="px-3 py-1 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                   />
                   <button
                     onClick={() => setShowDateFilter(false)}
-                    className="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 text-sm"
+                    className="px-3 py-1 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm"
                   >
                     Done
                   </button>
@@ -542,7 +542,7 @@ export default function MessagesPage() {
                       const today = new Date();
                       setDateFilter(today.toISOString().split('T')[0]);
                     }}
-                    className="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/30"
+                    className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200"
                   >
                     Today
                   </button>
@@ -552,7 +552,7 @@ export default function MessagesPage() {
                       yesterday.setDate(yesterday.getDate() - 1);
                       setDateFilter(yesterday.toISOString().split('T')[0]);
                     }}
-                    className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600"
+                    className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
                   >
                     Yesterday
                   </button>
@@ -562,7 +562,7 @@ export default function MessagesPage() {
                       weekAgo.setDate(weekAgo.getDate() - 7);
                       setDateFilter(weekAgo.toISOString().split('T')[0]);
                     }}
-                    className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600"
+                    className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
                   >
                     Last week
                   </button>
@@ -574,7 +574,7 @@ export default function MessagesPage() {
         
         <div className="flex-1 overflow-y-auto">
           {filteredConversations.length === 0 ? (
-            <div className="p-4 text-center text-gray-500 dark:text-gray-400">
+            <div className="p-4 text-center text-gray-500">
               {searchQuery || dateFilter ? (
                 <>
                   <p>No conversations found</p>
@@ -599,15 +599,15 @@ export default function MessagesPage() {
               <div
                 key={conversation.id}
                 onClick={() => fetchConversationMessages(conversation.id)}
-                className={`p-4 border-b border-gray-100 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
-                  selectedConversation?.id === conversation.id ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800' : ''
+                className={`p-4 border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors ${
+                  selectedConversation?.id === conversation.id ? 'bg-blue-50 border-blue-200' : ''
                 }`}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       {conversation.channel === 'phone' && (
-                        <span className="flex items-center gap-1 text-xs bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full">
+                        <span className="flex items-center gap-1 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
                           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                           </svg>
@@ -615,7 +615,7 @@ export default function MessagesPage() {
                         </span>
                       )}
                       {conversation.channel === 'sms' && (
-                        <span className="flex items-center gap-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 px-2 py-0.5 rounded-full">
+                        <span className="flex items-center gap-1 text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
                           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
                           </svg>
@@ -623,49 +623,49 @@ export default function MessagesPage() {
                         </span>
                       )}
                       {conversation.metadata?.lastCallDuration && (
-                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                        <span className="text-xs text-gray-500">
                           {Math.floor(conversation.metadata.lastCallDuration / 60)}m {conversation.metadata.lastCallDuration % 60}s
                         </span>
                       )}
                     </div>
                     {conversation.customerName ? (
                       <>
-                        <h3 className="font-semibold text-gray-900 dark:text-gray-100 truncate text-base mt-1">
+                        <h3 className="font-semibold text-gray-900 truncate text-base mt-1">
                           {conversation.customerName}
                         </h3>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">
+                        <p className="text-xs text-gray-500 truncate mt-0.5">
                           {formatPhoneNumber(conversation.customerPhone)}
                         </p>
                       </>
                     ) : (
                       <>
-                        <h3 className="font-semibold text-gray-900 dark:text-gray-100 truncate text-base mt-1">
+                        <h3 className="font-semibold text-gray-900 truncate text-base mt-1">
                           {formatPhoneNumber(conversation.customerPhone)}
                         </h3>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">
+                        <p className="text-xs text-gray-500 truncate mt-0.5">
                           No name provided
                         </p>
                       </>
                     )}
-                    <p className="text-sm text-gray-500 dark:text-gray-400 truncate mt-1">
+                    <p className="text-sm text-gray-500 truncate mt-1">
                       {getLastMessagePreview(conversation.messages)}
                     </p>
                   </div>
-                  <div className="ml-2 text-xs text-gray-400 dark:text-gray-500">
+                  <div className="ml-2 text-xs text-gray-400">
                     {formatMessageTime(conversation.lastMessageAt)}
                   </div>
                 </div>
                 <div className="mt-2 flex items-center justify-between">
                   <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
                     conversation.status === 'active' 
-                      ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300' 
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
+                      ? 'bg-blue-100 text-blue-800'
+                      : 'bg-gray-100 text-gray-800'
                   }`}>
                     {conversation.status}
                   </span>
                   {previousMessageCounts[conversation.id] && 
                    previousMessageCounts[conversation.id] < conversation.messages.length && (
-                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 animate-pulse">
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 animate-pulse">
                       New
                     </span>
                   )}
@@ -681,13 +681,13 @@ export default function MessagesPage() {
         {selectedConversation ? (
           <>
             {/* Conversation Header */}
-            <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+            <div className="p-4 border-b border-gray-200 bg-gray-50">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   {/* Back button for mobile */}
                   <button
                     onClick={handleBackToList}
-                    className="md:hidden p-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-xl transition-colors"
+                    className="md:hidden p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded-xl transition-colors"
                     title="Back to conversations"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -697,19 +697,19 @@ export default function MessagesPage() {
                   <div>
                     {selectedConversation.customerName ? (
                       <>
-                        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                        <h2 className="text-lg font-semibold text-gray-900">
                           {selectedConversation.customerName}
                         </h2>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                        <p className="text-sm text-gray-500">
                           {formatPhoneNumber(selectedConversation.customerPhone)}
                         </p>
                       </>
                     ) : (
                       <>
-                        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                        <h2 className="text-lg font-semibold text-gray-900">
                           {formatPhoneNumber(selectedConversation.customerPhone)}
                         </h2>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                        <p className="text-sm text-gray-500">
                           Customer name not provided yet
                         </p>
                       </>
@@ -717,12 +717,12 @@ export default function MessagesPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <div className="text-sm text-gray-500 dark:text-gray-400">
+                  <div className="text-sm text-gray-500">
                     Last active: {formatMessageTime(selectedConversation.lastMessageAt)}
                   </div>
                   <button
                     onClick={clearConversation}
-                    className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors"
+                    className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-xl transition-colors"
                     title="Clear conversation"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -745,12 +745,12 @@ export default function MessagesPage() {
                       className={`max-w-xs lg:max-w-md px-4 py-2 rounded-xl ${
                         message.direction === 'outbound'
                           ? 'bg-blue-600 text-white'
-                          : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100'
+                          : 'bg-gray-200 text-gray-900'
                       }`}
                     >
                       <p className="text-sm">{message.content}</p>
                       <div className={`text-xs mt-1 ${
-                        message.direction === 'outbound' ? 'text-blue-100' : 'text-gray-500 dark:text-gray-400'
+                        message.direction === 'outbound' ? 'text-blue-100' : 'text-gray-500'
                       }`}>
                         {formatMessageTime(message.createdAt)}
                         {message.direction === 'outbound' && (
@@ -765,21 +765,21 @@ export default function MessagesPage() {
                   </div>
                 ))
               ) : (
-                <div className="flex items-center justify-center h-full text-gray-500 dark:text-gray-400">
+                <div className="flex items-center justify-center h-full text-gray-500">
                   <p>No messages yet. Start the conversation!</p>
                 </div>
               )}
             </div>
 
             {/* Message Input */}
-            <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+            <div className="p-4 border-t border-gray-200 bg-white">
               <div className="flex gap-2">
                 <textarea
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
                   onKeyPress={handleKeyPress}
                   placeholder="Type your message..."
-                  className="flex-1 resize-none border border-gray-300 dark:border-gray-600 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  className="flex-1 resize-none border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   rows={1}
                   disabled={sendingMessage}
                 />
@@ -803,17 +803,17 @@ export default function MessagesPage() {
                   )}
                 </button>
               </div>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+              <p className="text-xs text-gray-500 mt-2">
                 Press Enter to send, Shift+Enter for new line
               </p>
             </div>
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center text-gray-500 dark:text-gray-400">
+          <div className="flex-1 flex items-center justify-center text-gray-500">
             <div className="text-center">
               <div className="text-4xl mb-4">💬</div>
-              <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">Select a conversation</h3>
-              <p className="text-gray-500 dark:text-gray-400">Choose a conversation from the list to view messages</p>
+              <h3 className="text-lg font-medium mb-2 text-gray-900">Select a conversation</h3>
+              <p className="text-gray-500">Choose a conversation from the list to view messages</p>
             </div>
           </div>
         )}
@@ -822,14 +822,14 @@ export default function MessagesPage() {
       {/* New Conversation Modal */}
       {showNewConversationModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-md mx-4">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-4">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">
               Start New Conversation
             </h2>
             
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   Customer Phone Number *
                 </label>
                 <input
@@ -837,12 +837,12 @@ export default function MessagesPage() {
                   value={newCustomerPhone}
                   onChange={(e) => setNewCustomerPhone(e.target.value)}
                   placeholder="+1 (555) 123-4567"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-gray-100"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   Customer Name (Optional)
                 </label>
                 <input
@@ -850,7 +850,7 @@ export default function MessagesPage() {
                   value={newCustomerName}
                   onChange={(e) => setNewCustomerName(e.target.value)}
                   placeholder="John Doe"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-gray-100"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
             </div>
@@ -858,7 +858,7 @@ export default function MessagesPage() {
             <div className="flex justify-end gap-3 mt-6">
               <button
                 onClick={() => setShowNewConversationModal(false)}
-                className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
+                className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
               >
                 Cancel
               </button>

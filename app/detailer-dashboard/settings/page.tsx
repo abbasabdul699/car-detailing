@@ -82,26 +82,26 @@ export default function DetailerSettingsPage() {
   return (
     <div className="p-6">
       <div className="max-w-2xl mx-auto space-y-8">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">Settings</h1>
+        <h1 className="text-2xl font-bold text-gray-900 mb-6">Settings</h1>
 
         {/* Change Email Section */}
-        <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-6">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Change Email</h2>
+        <div className="bg-white rounded-xl shadow p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Change Email</h2>
           <form className="space-y-4" onSubmit={handleEmailChange}>
             <div>
-              <label className="block text-gray-700 dark:text-gray-200 mb-1">Current Email</label>
+              <label className="block text-gray-700 mb-1">Current Email</label>
               <input
                 type="email"
-                className="input input-bordered w-full bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                className="input input-bordered w-full bg-gray-50 text-gray-900"
                 value={session?.user?.email || ''}
                 disabled
               />
             </div>
             <div>
-              <label className="block text-gray-700 dark:text-gray-200 mb-1">New Email</label>
+              <label className="block text-gray-700 mb-1">New Email</label>
               <input
                 type="email"
-                className="input input-bordered w-full bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                className="input input-bordered w-full bg-gray-50 text-gray-900"
                 placeholder="Enter new email"
                 value={newEmail}
                 onChange={e => setNewEmail(e.target.value)}
@@ -117,15 +117,15 @@ export default function DetailerSettingsPage() {
         </div>
 
         {/* Change Password Section */}
-        <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-6">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Change Password</h2>
+        <div className="bg-white rounded-xl shadow p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Change Password</h2>
           <form className="space-y-4" onSubmit={handlePasswordChange}>
             <div>
-              <label className="block text-gray-700 dark:text-gray-200 mb-1">Current Password</label>
+              <label className="block text-gray-700 mb-1">Current Password</label>
               <div className="relative">
               <input
                   type={showCurrent ? "text" : "password"}
-                  className="input input-bordered w-full bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 pr-10"
+                  className="input input-bordered w-full bg-gray-50 text-gray-900 pr-10"
                 placeholder="Enter current password"
                   value={currentPassword}
                   onChange={e => setCurrentPassword(e.target.value)}
@@ -148,11 +148,11 @@ export default function DetailerSettingsPage() {
               </div>
             </div>
             <div>
-              <label className="block text-gray-700 dark:text-gray-200 mb-1">New Password</label>
+              <label className="block text-gray-700 mb-1">New Password</label>
               <div className="relative">
               <input
                   type={showNew ? "text" : "password"}
-                  className="input input-bordered w-full bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 pr-10"
+                  className="input input-bordered w-full bg-gray-50 text-gray-900 pr-10"
                 placeholder="Enter new password"
                   value={newPassword}
                   onChange={e => setNewPassword(e.target.value)}
@@ -181,11 +181,11 @@ export default function DetailerSettingsPage() {
               )}
             </div>
             <div>
-              <label className="block text-gray-700 dark:text-gray-200 mb-1">Confirm New Password</label>
+              <label className="block text-gray-700 mb-1">Confirm New Password</label>
               <div className="relative">
               <input
                   type={showConfirm ? "text" : "password"}
-                  className="input input-bordered w-full bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 pr-10"
+                  className="input input-bordered w-full bg-gray-50 text-gray-900 pr-10"
                 placeholder="Confirm new password"
                   value={confirmPassword}
                   onChange={e => setConfirmPassword(e.target.value)}

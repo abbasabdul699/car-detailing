@@ -21,16 +21,16 @@ import Link from "next/link";
 
 const ProfileCompletionCard = ({ percentage, message }: { percentage: number, message: string }) => {
   return (
-    <div className="bg-white dark:bg-gray-900 rounded-xl shadow p-6">
-      <h2 className="text-lg font-semibold mb-2 text-gray-900 dark:text-gray-100">Profile Completion</h2>
+    <div className="bg-white rounded-xl shadow p-6">
+      <h2 className="text-lg font-semibold mb-2 text-gray-900">Profile Completion</h2>
       <div className="flex items-center justify-between mb-2">
-        <span className="text-sm text-gray-600 dark:text-gray-400">{message}</span>
-        <span className="text-sm font-bold text-gray-900 dark:text-gray-100">{percentage}%</span>
+        <span className="text-sm text-gray-600">{message}</span>
+        <span className="text-sm font-bold text-gray-900">{percentage}%</span>
       </div>
-      <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
+      <div className="w-full bg-gray-200 rounded-full h-2.5">
         <div className="bg-blue-600 h-2.5 rounded-full" style={{ width: `${percentage}%` }}></div>
       </div>
-      <Link href="/detailer-dashboard/profile" className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline mt-3 inline-block">
+      <Link href="/detailer-dashboard/profile" className="text-sm font-medium text-blue-600 hover:underline mt-3 inline-block">
         Edit Profile
       </Link>
     </div>
@@ -82,7 +82,7 @@ export default function DetailerDashboardPage() {
   const maxVisitors = visitorsByMonth.length > 0 ? Math.max(...visitorsByMonth.map(v => v.visitors)) : 1;
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-gray-50">
       {/* Dark blue Header Section */}
       <div className="bg-gradient-to-r from-blue-800 to-blue-900 text-white rounded-b-3xl shadow-lg">
         <div className="p-6">
@@ -155,13 +155,13 @@ export default function DetailerDashboardPage() {
       <div className="p-6 -mt-4 space-y-6">
         {/* Profile Completion Progress - Only show if not 100% */}
         {profileCompletion.percentage < 100 && (
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6">
-            <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">Profile Completion</h2>
+          <div className="bg-white rounded-2xl shadow-lg p-6">
+            <h2 className="text-lg font-semibold mb-4 text-gray-900">Profile Completion</h2>
             <div className="flex items-center justify-between mb-3">
-              <span className="text-sm text-gray-600 dark:text-gray-400">{profileCompletion.message}</span>
-              <span className="text-sm font-bold text-gray-900 dark:text-gray-100">{profileCompletion.percentage}%</span>
+              <span className="text-sm text-gray-600">{profileCompletion.message}</span>
+              <span className="text-sm font-bold text-gray-900">{profileCompletion.percentage}%</span>
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-3 dark:bg-gray-700">
+            <div className="w-full bg-gray-200 rounded-full h-3">
               <div 
                 className="bg-gradient-to-r from-blue-500 to-blue-600 h-3 rounded-full transition-all duration-500" 
                 style={{ width: `${profileCompletion.percentage}%` }}
@@ -171,35 +171,35 @@ export default function DetailerDashboardPage() {
         )}
 
         {/* Client Contact Information Card */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6">
-          <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">Client Contact Information</h2>
+        <div className="bg-white rounded-2xl shadow-lg p-6">
+          <h2 className="text-lg font-semibold mb-4 text-gray-900">Client Contact Information</h2>
           <div className="space-y-4">
             {detailer?.twilioPhoneNumber && detailer?.smsEnabled ? (
-              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
                 <div className="flex items-center">
                   <div className="flex-shrink-0">
-                    <svg className="h-6 w-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                     </svg>
                   </div>
                   <div className="ml-3">
-                    <h3 className="text-sm font-medium text-blue-800 dark:text-blue-200">SMS & Phone Number for Clients</h3>
-                    <p className="text-lg font-bold text-blue-900 dark:text-blue-100">{detailer.twilioPhoneNumber}</p>
-                    <p className="text-sm text-blue-700 dark:text-blue-300">Give this number to clients for SMS communication and Phone Calls</p>
+                    <h3 className="text-sm font-medium text-blue-800">SMS & Phone Number for Clients</h3>
+                    <p className="text-lg font-bold text-blue-900">{detailer.twilioPhoneNumber}</p>
+                    <p className="text-sm text-blue-700">Give this number to clients for SMS communication and Phone Calls</p>
                   </div>
                 </div>
               </div>
             ) : (
-              <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-xl p-4">
+              <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
                 <div className="flex items-center">
                   <div className="flex-shrink-0">
-                    <svg className="h-6 w-6 text-yellow-600 dark:text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="h-6 w-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
                     </svg>
                   </div>
                   <div className="ml-3">
-                    <h3 className="text-sm font-medium text-yellow-800 dark:text-yellow-200">SMS Not Configured</h3>
-                    <p className="text-sm text-yellow-700 dark:text-yellow-300">Contact admin to set up SMS communication for clients</p>
+                    <h3 className="text-sm font-medium text-yellow-800">SMS Not Configured</h3>
+                    <p className="text-sm text-yellow-700">Contact admin to set up SMS communication for clients</p>
                   </div>
                 </div>
               </div>
@@ -210,10 +210,10 @@ export default function DetailerDashboardPage() {
         {/* Charts Section */}
         <div className="space-y-6">
           {/* Area Chart for Visitors Trend */}
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6">
+          <div className="bg-white rounded-2xl shadow-lg p-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Visitor Trend</h2>
-              <span className="text-sm text-gray-500 dark:text-gray-400">Last 6 months</span>
+              <h2 className="text-lg font-semibold text-gray-900">Visitor Trend</h2>
+              <span className="text-sm text-gray-500">Last 6 months</span>
             </div>
             <div style={{ width: '100%', height: 250 }}>
               <ResponsiveContainer width="100%" height="100%">
@@ -249,10 +249,10 @@ export default function DetailerDashboardPage() {
           </div>
 
           {/* Bar Chart for Monthly Comparison */}
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6">
+          <div className="bg-white rounded-2xl shadow-lg p-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Monthly Visitors</h2>
-              <span className="text-sm text-gray-500 dark:text-gray-400">By month</span>
+              <h2 className="text-lg font-semibold text-gray-900">Monthly Visitors</h2>
+              <span className="text-sm text-gray-500">By month</span>
             </div>
             <div style={{ width: '100%', height: 250 }}>
               <ResponsiveContainer width="100%" height="100%">

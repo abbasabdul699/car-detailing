@@ -110,6 +110,67 @@ export async function POST(request: NextRequest) {
       }
     });
 
+    // Update all events that reference this customer
+    try {
+      // Find all events for this detailer
+      const allEvents = await prisma.event.findMany({
+        where: { detailerId },
+        select: { id: true, description: true }
+      });
+
+      for (const event of allEvents) {
+        if (!event.description || !event.description.includes('__METADATA__:')) {
+          continue;
+        }
+
+        try {
+          const parts = event.description.split('__METADATA__:');
+          const metadataJson = parts[1] || '{}';
+          const metadata = JSON.parse(metadataJson);
+          
+          // Check if this event references the customer we're updating
+          const eventCustomerPhone = metadata.customerPhone;
+          if (eventCustomerPhone) {
+            const normalizedEventPhone = normalizeToE164(eventCustomerPhone) || eventCustomerPhone;
+            if (normalizedEventPhone === normalizedPhone) {
+              // Update the event's metadata with the new customer information
+              const updatedMetadata = {
+                ...metadata,
+                customerName: customerName !== undefined ? customerName : metadata.customerName,
+                customerPhone: normalizedPhone,
+                customerEmail: customerEmail !== undefined ? customerEmail : metadata.customerEmail,
+                customerAddress: address !== undefined ? address : metadata.customerAddress,
+                locationType: locationType !== undefined ? locationType : metadata.locationType,
+                customerType: customerType !== undefined ? customerType : metadata.customerType,
+                vehicleModel: vehicleModel !== undefined ? vehicleModel : metadata.vehicleModel,
+                services: services !== undefined ? services : metadata.services
+              };
+
+              const cleanDescription = parts[0].trim();
+              const newMetadataJson = JSON.stringify(updatedMetadata);
+              const newDescription = cleanDescription 
+                ? `${cleanDescription}\n\n__METADATA__:${newMetadataJson}`
+                : `__METADATA__:${newMetadataJson}`;
+
+              await prisma.event.update({
+                where: { id: event.id },
+                data: { description: newDescription }
+              });
+            }
+          }
+        } catch (parseError) {
+          // Skip events with invalid metadata
+          console.error(`Error parsing metadata for event ${event.id}:`, parseError);
+          continue;
+        }
+      }
+      
+      console.log(`✅ Updated events referencing customer phone: ${normalizedPhone}`);
+    } catch (eventUpdateError) {
+      console.error('Error updating events for customer:', eventUpdateError);
+      // Don't fail the customer update if event updates fail
+    }
+
     return NextResponse.json({ customer }, { status: 201 });
   } catch (error) {
     console.error('Error creating/updating customer:', error);

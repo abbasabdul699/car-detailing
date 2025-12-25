@@ -465,6 +465,16 @@ export async function PATCH(
       ? `${finalDescription}\n\n__METADATA__:${metadataJson}`
       : `__METADATA__:${metadataJson}`;
     
+    // Check if any customer-related fields are being updated
+    const hasCustomerUpdate = customerName !== undefined || 
+                              customerPhone !== undefined || 
+                              customerEmail !== undefined || 
+                              customerAddress !== undefined ||
+                              locationType !== undefined ||
+                              customerType !== undefined ||
+                              vehicleModel !== undefined ||
+                              services !== undefined;
+    
     // Update the event
     const updatedEvent = await prisma.event.update({
       where: { id: eventId },
@@ -475,7 +485,8 @@ export async function PATCH(
         ...(startDate && { date: startDateTime }),
         ...(time !== undefined && { time: startTime }),
         ...(isAllDay !== undefined && { allDay: isAllDay }),
-        ...(description !== undefined && { description: combinedDescription }),
+        // Update description if description is provided OR if customer fields are being updated
+        ...((description !== undefined || hasCustomerUpdate) && { description: combinedDescription }),
         ...(resourceId !== undefined && { resourceId: resourceId })
       }
     });
@@ -591,9 +602,33 @@ export async function PATCH(
       }
     }
 
+    // Parse metadata from description to include customer fields in response
+    let parsedMetadata: any = {};
+    if (updatedEvent.description && updatedEvent.description.includes('__METADATA__:')) {
+      const parts = updatedEvent.description.split('__METADATA__:');
+      try {
+        parsedMetadata = JSON.parse(parts[1] || '{}');
+      } catch (e) {
+        // Ignore parse errors
+      }
+    }
+    
+    // Return event with parsed customer fields
+    const eventResponse = {
+      ...updatedEvent,
+      customerName: parsedMetadata.customerName || null,
+      customerPhone: parsedMetadata.customerPhone || null,
+      customerEmail: parsedMetadata.customerEmail || null,
+      customerAddress: parsedMetadata.customerAddress || null,
+      locationType: parsedMetadata.locationType || null,
+      customerType: parsedMetadata.customerType || null,
+      vehicleModel: parsedMetadata.vehicleModel || null,
+      services: parsedMetadata.services || null
+    };
+
     return NextResponse.json({ 
       success: true,
-      event: updatedEvent
+      event: eventResponse
     });
   } catch (error) {
     console.error('Error updating event:', error);

@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { PrismaClient } from '@prisma/client';
 import { DateTime } from 'luxon';
+import { normalizeToE164 } from '@/lib/phone';
 
 const prisma = new PrismaClient();
 
@@ -106,7 +107,7 @@ export async function GET(request: NextRequest) {
 
       // First, fetch local events and bookings from our database
       try {
-        const [events, bookings, employees] = await Promise.all([
+        const [events, bookings, employees, customerSnapshots] = await Promise.all([
           prisma.event.findMany({
             where: { detailerId },
             orderBy: { date: 'asc' }
@@ -127,11 +128,34 @@ export async function GET(request: NextRequest) {
           prisma.employee.findMany({
             where: { detailerId },
             select: { id: true, name: true, color: true, imageUrl: true }
+          }),
+          prisma.customerSnapshot.findMany({
+            where: { detailerId },
+            select: { 
+              customerPhone: true, 
+              customerName: true, 
+              customerEmail: true, 
+              address: true,
+              locationType: true,
+              customerType: true,
+              vehicleModel: true,
+              services: true,
+              updatedAt: true
+            }
           })
         ]);
         
         // Create employee map for quick lookup
         const employeeMap = new Map(employees.map((emp: any) => [emp.id, emp]));
+        
+        // Create customer snapshot map by phone number (normalized) for quick lookup
+        const customerMap = new Map<string, any>();
+        customerSnapshots.forEach((customer: any) => {
+          if (customer.customerPhone) {
+            const normalizedPhone = normalizeToE164(customer.customerPhone) || customer.customerPhone;
+            customerMap.set(normalizedPhone, customer);
+          }
+        });
 
       // Helper function to get day of week name from date (using UTC to avoid timezone issues)
       const getDayOfWeek = (date: Date): string => {
@@ -362,6 +386,22 @@ export async function GET(request: NextRequest) {
             services = metadata.services || null;
           } catch (e) {
             // Ignore parse errors, use original description
+          }
+        }
+        
+        // Enrich with CustomerSnapshot data if available (source of truth)
+        if (customerPhone) {
+          const normalizedEventPhone = normalizeToE164(customerPhone) || customerPhone;
+          const customerSnapshot = customerMap.get(normalizedEventPhone);
+          if (customerSnapshot) {
+            // Use CustomerSnapshot as source of truth - it's always up-to-date
+            customerName = customerSnapshot.customerName || customerName;
+            customerAddress = customerSnapshot.address || customerAddress;
+            locationType = customerSnapshot.locationType || locationType;
+            customerType = customerSnapshot.customerType || customerType;
+            vehicleModel = customerSnapshot.vehicleModel || vehicleModel;
+            services = customerSnapshot.services || services;
+            // Keep the phone from metadata (it should match, but metadata is the source for phone)
           }
         }
 

@@ -163,10 +163,10 @@ export default function ManageServicesPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 p-6">
+    <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-5xl mx-auto space-y-8">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Services & Bundles</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Services & Bundles</h1>
           <div className="flex gap-2">
             {activeTab === 'services' && (
               <button className="bg-black text-white px-4 py-2 rounded-full font-semibold hover:bg-gray-800 transition">+ Add Service</button>
@@ -183,14 +183,14 @@ export default function ManageServicesPage() {
         </div>
 
         {/* Tab Navigation */}
-        <div className="bg-white dark:bg-gray-900 rounded-xl shadow">
-          <div className="flex border-b dark:border-gray-700">
+        <div className="bg-white rounded-xl shadow">
+          <div className="flex border-b">
             <button
               onClick={() => setActiveTab('services')}
               className={`px-6 py-3 font-medium text-sm ${
                 activeTab === 'services'
-                  ? 'text-blue-600 border-b-2 border-blue-600 dark:text-blue-400 dark:border-blue-400'
-                  : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                  ? 'text-blue-600 border-b-2 border-blue-600
+                  : 'text-gray-500 hover:text-gray-700
               }`}
             >
               Services
@@ -199,8 +199,8 @@ export default function ManageServicesPage() {
               onClick={() => setActiveTab('bundles')}
               className={`px-6 py-3 font-medium text-sm ${
                 activeTab === 'bundles'
-                  ? 'text-blue-600 border-b-2 border-blue-600 dark:text-blue-400 dark:border-blue-400'
-                  : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                  ? 'text-blue-600 border-b-2 border-blue-600
+                  : 'text-gray-500 hover:text-gray-700
               }`}
             >
               Bundles
@@ -261,7 +261,7 @@ function ServicesTable({ services, requestSort, getSortIcon }: {
   return (
     <table className="w-full text-sm">
       <thead>
-        <tr className="text-gray-500 dark:text-gray-400 border-b dark:border-gray-700">
+        <tr className="text-gray-500 border-b">
           <th className="text-left py-2 cursor-pointer" onClick={() => requestSort('name')}>
             <div className="flex items-center gap-2">
               <span>Name</span>
@@ -281,11 +281,11 @@ function ServicesTable({ services, requestSort, getSortIcon }: {
       </thead>
       <tbody>
         {services.map((service) => (
-          <tr key={service.id} className="border-t dark:border-gray-800">
-            <td className="py-2 font-medium text-gray-900 dark:text-gray-100">{service.name}</td>
-            <td className="py-2 text-gray-700 dark:text-gray-200">{service.description}</td>
-            <td className="py-2 text-gray-700 dark:text-gray-200">{service.category?.name}</td>
-            <td className="py-2 text-gray-700 dark:text-gray-200">{service.price}</td>
+          <tr key={service.id} className="border-t">
+            <td className="py-2 font-medium text-gray-900">{service.name}</td>
+            <td className="py-2 text-gray-700">{service.description}</td>
+            <td className="py-2 text-gray-700">{service.category?.name}</td>
+            <td className="py-2 text-gray-700">{service.price}</td>
             <td className="py-2 flex gap-2">
               <button className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition">Edit</button>
               <button className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 transition">Delete</button>
@@ -310,7 +310,7 @@ function BundlesTable({ bundles, onEdit, onDelete }: {
   return (
     <table className="w-full text-sm">
       <thead>
-        <tr className="text-gray-500 dark:text-gray-400 border-b dark:border-gray-700">
+        <tr className="text-gray-500 border-b">
           <th className="text-left py-2">Name</th>
           <th className="text-left py-2">Price</th>
           <th className="text-left py-2">Included Services</th>
@@ -319,10 +319,10 @@ function BundlesTable({ bundles, onEdit, onDelete }: {
       </thead>
       <tbody>
         {bundles.map((bundle) => (
-          <tr key={bundle.id} className="border-t dark:border-gray-800">
-            <td className="py-3 font-medium text-gray-900 dark:text-gray-100">{bundle.name}</td>
-            <td className="py-3 text-gray-700 dark:text-gray-200">${bundle.price?.toFixed(2)}</td>
-            <td className="py-3 text-gray-700 dark:text-gray-200">{bundle.services.map(s => s.service.name).join(', ')}</td>
+          <tr key={bundle.id} className="border-t">
+            <td className="py-3 font-medium text-gray-900">{bundle.name}</td>
+            <td className="py-3 text-gray-700">${bundle.price?.toFixed(2)}</td>
+            <td className="py-3 text-gray-700">{bundle.services.map(s => s.service.name).join(', ')}</td>
             <td className="py-3 flex gap-2">
               <button 
                 onClick={() => onEdit(bundle)} 
@@ -384,12 +384,12 @@ function BundleFormModal({ isOpen, onClose, onSave, bundle, allServices }: {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl p-8 w-full max-w-2xl relative max-h-[90vh] overflow-y-auto">
-        <button onClick={onClose} className="absolute top-3 right-3 text-2xl text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 transition-colors">&times;</button>
-        <h2 className="text-xl font-bold mb-6 text-gray-900 dark:text-gray-100">{bundle ? 'Edit Bundle' : 'Create New Bundle'}</h2>
+      <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-2xl relative max-h-[90vh] overflow-y-auto">
+        <button onClick={onClose} className="absolute top-3 right-3 text-2xl text-gray-500 hover:text-gray-800 transition-colors">&times;</button>
+        <h2 className="text-xl font-bold mb-6 text-gray-900">{bundle ? 'Edit Bundle' : 'Create New Bundle'}</h2>
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Bundle Image</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Bundle Image</label>
             <ImageUploader
               onUpload={handleImageUpload}
               businessName={(session?.user as any)?.businessName || 'bundle-image'}
@@ -400,21 +400,21 @@ function BundleFormModal({ isOpen, onClose, onSave, bundle, allServices }: {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Bundle Name</label>
-              <input value={name} onChange={e => setName(e.target.value)} className="w-full border rounded-lg p-2 dark:bg-gray-800 dark:border-gray-700 dark:text-white" required />
+              <label className="block text-sm font-medium text-gray-700 mb-1">Bundle Name</label>
+              <input value={name} onChange={e => setName(e.target.value)} className="w-full border rounded-lg p-2" required />
             </div>
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
-              <textarea value={description} onChange={e => setDescription(e.target.value)} className="w-full border rounded-lg p-2 h-24 dark:bg-gray-800 dark:border-gray-700 dark:text-white"></textarea>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+              <textarea value={description} onChange={e => setDescription(e.target.value)} className="w-full border rounded-lg p-2 h-24"></textarea>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Price</label>
-              <input type="number" value={price} onChange={e => setPrice(e.target.value)} className="w-full border rounded-lg p-2 dark:bg-gray-800 dark:border-gray-700 dark:text-white" required min="0" step="0.01" />
+              <label className="block text-sm font-medium text-gray-700 mb-1">Price</label>
+              <input type="number" value={price} onChange={e => setPrice(e.target.value)} className="w-full border rounded-lg p-2" required min="0" step="0.01" />
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Included Services</label>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 max-h-60 overflow-y-auto p-4 border rounded-lg dark:border-gray-700">
+            <label className="block text-sm font-medium text-gray-700 mb-2">Included Services</label>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 max-h-60 overflow-y-auto p-4 border rounded-lg">
               {allServices.map(service => (
                 <div key={service.id} className="flex items-center">
                   <input
@@ -424,13 +424,13 @@ function BundleFormModal({ isOpen, onClose, onSave, bundle, allServices }: {
                     onChange={() => handleServiceToggle(service.id)}
                     className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                   />
-                  <label htmlFor={`service-${service.id}`} className="ml-3 text-sm text-gray-700 dark:text-gray-300">{service.name}</label>
+                  <label htmlFor={`service-${service.id}`} className="ml-3 text-sm text-gray-700">{service.name}</label>
                 </div>
               ))}
             </div>
           </div>
           <div className="flex justify-end gap-4 pt-4">
-            <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600">Cancel</button>
+            <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg bg-gray-200 text-gray-800 hover:bg-gray-300">Cancel</button>
             <button type="submit" className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:bg-blue-400" disabled={saving}>
               {saving ? 'Saving...' : 'Save Bundle'}
             </button>

@@ -229,13 +229,13 @@ export default function NewCustomerModal({ isOpen, onClose, onSuccess, initialNa
         <div className="fixed inset-0 flex items-center justify-center z-[60] p-4" style={{ backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', backgroundColor: 'rgba(0, 0, 0, 0.05)' }}>
             <div className="rounded-xl shadow-xl" style={{ backgroundColor: '#F8F8F7', width: '500px' }}>
                 {/* Header */}
-                <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-                    <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                <div className="flex items-center justify-between p-6 border-b border-gray-200">
+                    <h2 className="text-xl font-bold text-gray-900">
                         {isEditMode ? 'Edit customer' : 'New customer'}
                     </h2>
                     <button
                         onClick={onClose}
-                        className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
+                        className="p-1 rounded-full hover:bg-gray-100"
                     >
                         <XMarkIcon className="w-5 h-5 text-gray-500" />
                     </button>
@@ -244,14 +244,14 @@ export default function NewCustomerModal({ isOpen, onClose, onSuccess, initialNa
                 {/* Form */}
                 <form onSubmit={handleSubmit} className="p-6 space-y-4">
                     {error && (
-                        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
-                            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                            <p className="text-sm text-red-600">{error}</p>
                         </div>
                     )}
 
                     {/* Customer name */}
                     <div>
-                        <label htmlFor="customer-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        <label htmlFor="customer-name" className="block text-sm font-medium text-gray-700 mb-2">
                             Customer name
                         </label>
                         <input
@@ -259,7 +259,7 @@ export default function NewCustomerModal({ isOpen, onClose, onSuccess, initialNa
                             id="customer-name"
                             value={customerName}
                             onChange={(e) => setCustomerName(e.target.value)}
-                            className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                            className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                             placeholder="Select customer"
                             required
                         />
@@ -267,7 +267,7 @@ export default function NewCustomerModal({ isOpen, onClose, onSuccess, initialNa
 
                     {/* Phone number */}
                     <div>
-                        <label htmlFor="phone-number" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        <label htmlFor="phone-number" className="block text-sm font-medium text-gray-700 mb-2">
                             Phone number
                         </label>
                         <input
@@ -275,7 +275,7 @@ export default function NewCustomerModal({ isOpen, onClose, onSuccess, initialNa
                             id="phone-number"
                             value={phoneNumber}
                             onChange={(e) => setPhoneNumber(e.target.value)}
-                            className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                            className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                             placeholder="(---) --- ----"
                             required
                         />
@@ -283,7 +283,7 @@ export default function NewCustomerModal({ isOpen, onClose, onSuccess, initialNa
 
                     {/* Address */}
                     <div>
-                        <label htmlFor="address" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        <label htmlFor="address" className="block text-sm font-medium text-gray-700 mb-2">
                             Address
                         </label>
                         <input
@@ -292,7 +292,7 @@ export default function NewCustomerModal({ isOpen, onClose, onSuccess, initialNa
                             id="address"
                             value={address}
                             onChange={(e) => handleAddressChange(e.target.value)}
-                            className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                            className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                             placeholder={isLoaded ? "123 Main St" : "Loading Google Maps..."}
                             autoComplete="off"
                             disabled={!isLoaded}
@@ -302,7 +302,7 @@ export default function NewCustomerModal({ isOpen, onClose, onSuccess, initialNa
                     {/* City & State */}
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label htmlFor="city" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            <label htmlFor="city" className="block text-sm font-medium text-gray-700 mb-2">
                                 City
                             </label>
                             <input
@@ -310,19 +310,19 @@ export default function NewCustomerModal({ isOpen, onClose, onSuccess, initialNa
                                 id="city"
                                 value={city}
                                 onChange={(e) => setCity(e.target.value)}
-                                className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                                 placeholder="City"
                             />
                         </div>
                         <div>
-                            <label htmlFor="state" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            <label htmlFor="state" className="block text-sm font-medium text-gray-700 mb-2">
                                 State
                             </label>
                             <select
                                 id="state"
                                 value={state}
                                 onChange={(e) => setState(e.target.value)}
-                                className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                             >
                                 <option value="">Select state</option>
                                 {US_STATES.map((stateName) => (
@@ -336,7 +336,7 @@ export default function NewCustomerModal({ isOpen, onClose, onSuccess, initialNa
 
                     {/* ZIP code */}
                     <div>
-                        <label htmlFor="zip-code" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        <label htmlFor="zip-code" className="block text-sm font-medium text-gray-700 mb-2">
                             ZIP code
                         </label>
                         <input
@@ -344,7 +344,7 @@ export default function NewCustomerModal({ isOpen, onClose, onSuccess, initialNa
                             id="zip-code"
                             value={zipCode}
                             onChange={(e) => setZipCode(e.target.value)}
-                            className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                            className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                             placeholder="02138"
                         />
                     </div>
@@ -354,7 +354,7 @@ export default function NewCustomerModal({ isOpen, onClose, onSuccess, initialNa
                         <button
                             type="button"
                             onClick={onClose}
-                            className="flex-1 px-6 py-2 border border-gray-300 dark:border-gray-600 rounded-xl text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                            className="flex-1 px-6 py-2 border border-gray-300 rounded-xl text-gray-700 hover:bg-gray-50"
                             disabled={isSubmitting}
                         >
                             Cancel

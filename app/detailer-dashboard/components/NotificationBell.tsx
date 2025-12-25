@@ -140,7 +140,7 @@ export default function NotificationBell({ detailerId }: NotificationBellProps) 
     <div className="relative">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+        className="relative p-2 text-gray-500 hover:text-gray-700 transition-colors"
       >
         {unreadCount > 0 ? (
           <BellIconSolid className="h-6 w-6 text-red-500" />
@@ -163,16 +163,16 @@ export default function NotificationBell({ detailerId }: NotificationBellProps) 
           />
           
           {/* Notification Panel */}
-          <div className="absolute right-0 top-full mt-2 w-80 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-20 max-h-96 overflow-hidden">
+          <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-lg shadow-lg border border-gray-200 z-20 max-h-96 overflow-hidden">
             {/* Header */}
-            <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+            <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-gray-900">
                 Notifications
               </h3>
               {unreadCount > 0 && (
                 <button
                   onClick={markAllAsRead}
-                  className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                  className="text-sm text-blue-600 hover:text-blue-800"
                 >
                   Mark all read
                 </button>
@@ -182,17 +182,17 @@ export default function NotificationBell({ detailerId }: NotificationBellProps) 
             {/* Notifications List */}
             <div className="max-h-80 overflow-y-auto">
               {notifications.length === 0 ? (
-                <div className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                <div className="px-4 py-8 text-center text-gray-500">
                   <BellIcon className="h-8 w-8 mx-auto mb-2 opacity-50" />
                   <p>No notifications yet</p>
                 </div>
               ) : (
-                <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                <div className="divide-y divide-gray-200">
                   {notifications.map((notification) => (
                     <div
                       key={notification.id}
-                      className={`px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors ${
-                        !notification.read ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+                      className={`px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors ${
+                        !notification.read ? 'bg-blue-50 : ''
                       }`}
                       onClick={() => {
                         markAsRead(notification.id);
@@ -206,10 +206,10 @@ export default function NotificationBell({ detailerId }: NotificationBellProps) 
                           {getNotificationIcon(notification.type)}
                         </span>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm text-gray-900 dark:text-gray-100">
+                          <p className="text-sm text-gray-900">
                             {notification.message}
                           </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          <p className="text-xs text-gray-500 mt-1">
                             {formatTimeAgo(notification.createdAt)}
                           </p>
                         </div>

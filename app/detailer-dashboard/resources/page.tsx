@@ -384,11 +384,11 @@ export default function ResourcesPage() {
 
   const getSortIcon = (key: string) => {
     if (!sortConfig || sortConfig.key !== key) {
-      return <BarsArrowUpIcon className="w-4 h-4 text-gray-400 dark:text-gray-500" />;
+      return <BarsArrowUpIcon className="w-4 h-4 text-gray-400" />;
     }
     return sortConfig.direction === 'asc' 
-      ? <BarsArrowUpIcon className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-      : <BarsArrowDownIcon className="w-4 h-4 text-gray-600 dark:text-gray-400" />;
+      ? <BarsArrowUpIcon className="w-4 h-4 text-gray-600" />
+      : <BarsArrowDownIcon className="w-4 h-4 text-gray-600" />;
   };
 
   const sortedEmployees = React.useMemo(() => {
@@ -436,13 +436,13 @@ export default function ResourcesPage() {
   const currentItems = activeTab === 'employees' ? employees : resources;
 
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-950">
+    <div className="min-h-screen bg-white">
       <div className="w-full">
         {/* Header Section */}
-        <div className="px-4 md:px-6 pt-4 md:pt-6 pb-4 border-b border-gray-200 dark:border-gray-700">
+        <div className="px-4 md:px-6 pt-4 md:pt-6 pb-4 border-b border-gray-200">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-gray-100 pl-10 md:pl-0">
+              <h1 className="text-2xl md:text-3xl font-bold text-gray-900 pl-10 md:pl-0">
                 Resources
               </h1>
             </div>
@@ -462,12 +462,12 @@ export default function ResourcesPage() {
               onClick={() => setActiveTab('employees')}
               className={`text-sm font-medium pb-2 flex items-center gap-2 ${
                 activeTab === 'employees'
-                  ? 'text-gray-900 dark:text-gray-100 border-b-2 border-gray-900 dark:border-gray-100'
-                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                  ? 'text-gray-900 border-b-2 border-gray-900'
+                  : 'text-gray-500 hover:text-gray-700'
               }`}
             >
               Employees
-              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs font-semibold shadow-sm">
+              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-200 text-gray-700 text-xs font-semibold shadow-sm">
                 {employees.length}
               </span>
             </button>
@@ -475,12 +475,12 @@ export default function ResourcesPage() {
               onClick={() => setActiveTab('bays')}
               className={`text-sm font-medium pb-2 flex items-center gap-2 ${
                 activeTab === 'bays'
-                  ? 'text-gray-900 dark:text-gray-100 border-b-2 border-gray-900 dark:border-gray-100'
-                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                  ? 'text-gray-900 border-b-2 border-gray-900'
+                  : 'text-gray-500 hover:text-gray-700'
               }`}
             >
               Bays
-              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs font-semibold shadow-sm">
+              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-200 text-gray-700 text-xs font-semibold shadow-sm">
                 {allResources.filter(r => r.type === 'bay').length}
               </span>
             </button>
@@ -488,12 +488,12 @@ export default function ResourcesPage() {
               onClick={() => setActiveTab('vans')}
               className={`text-sm font-medium pb-2 flex items-center gap-2 ${
                 activeTab === 'vans'
-                  ? 'text-gray-900 dark:text-gray-100 border-b-2 border-gray-900 dark:border-gray-100'
-                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                  ? 'text-gray-900 border-b-2 border-gray-900'
+                  : 'text-gray-500 hover:text-gray-700'
               }`}
             >
               Vans
-              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs font-semibold shadow-sm">
+              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-200 text-gray-700 text-xs font-semibold shadow-sm">
                 {allResources.filter(r => r.type === 'van').length}
               </span>
             </button>
@@ -548,19 +548,19 @@ export default function ResourcesPage() {
 
             {/* Table */}
             {loading ? (
-              <div className="text-center py-12 text-gray-600 dark:text-gray-400">Loading...</div>
+              <div className="text-center py-12 text-gray-600">Loading...</div>
             ) : error ? (
-              <div className="text-center py-12 text-red-600 dark:text-red-400">{error}</div>
+              <div className="text-center py-12 text-red-600">{error}</div>
             ) : employees.length === 0 ? (
-              <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+              <div className="text-center py-12 text-gray-500">
                 No employees found. Click "Add Employee" to create one.
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
+                  <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-12">
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-12">
                         <input
                           type="checkbox"
                           checked={selectedEmployees.size === employees.length && employees.length > 0}
@@ -568,11 +568,11 @@ export default function ResourcesPage() {
                           className="w-4 h-4 text-gray-900 border-gray-300 rounded focus:ring-gray-900"
                         />
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-12">
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-12">
                         #
                       </th>
                       <th 
-                        className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition"
+                        className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition"
                         onClick={() => handleSort('name')}
                       >
                         <div className="flex items-center gap-1">
@@ -581,7 +581,7 @@ export default function ResourcesPage() {
                         </div>
                       </th>
                       <th 
-                        className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition"
+                        className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition"
                         onClick={() => handleSort('email')}
                       >
                         <div className="flex items-center gap-1">
@@ -590,7 +590,7 @@ export default function ResourcesPage() {
                         </div>
                       </th>
                       <th 
-                        className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition"
+                        className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition"
                         onClick={() => handleSort('phone')}
                       >
                         <div className="flex items-center gap-1">
@@ -599,7 +599,7 @@ export default function ResourcesPage() {
                         </div>
                       </th>
                       <th 
-                        className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition"
+                        className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition"
                         onClick={() => handleSort('workHours')}
                       >
                         <div className="flex items-center gap-1">
@@ -607,11 +607,11 @@ export default function ResourcesPage() {
                           {getSortIcon('workHours')}
                         </div>
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Color
                       </th>
                       <th 
-                        className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition"
+                        className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition"
                         onClick={() => handleSort('isActive')}
                       >
                         <div className="flex items-center gap-1">
@@ -619,16 +619,16 @@ export default function ResourcesPage() {
                           {getSortIcon('isActive')}
                         </div>
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Actions
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white dark:bg-gray-950 divide-y divide-gray-200 dark:divide-gray-700">
+                  <tbody className="bg-white divide-y divide-gray-200">
                     {sortedEmployees.map((employee, index) => (
                       <tr 
                         key={employee.id} 
-                        className="hover:bg-gray-50 dark:hover:bg-gray-900 transition cursor-pointer"
+                        className="hover:bg-gray-50 transition cursor-pointer"
                         onClick={() => handleOpenModal(employee)}
                       >
                         <td className="px-4 py-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
@@ -640,7 +640,7 @@ export default function ResourcesPage() {
                             onClick={(e) => e.stopPropagation()}
                           />
                         </td>
-                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
                           {index + 1}
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap">
@@ -649,27 +649,27 @@ export default function ResourcesPage() {
                               <img 
                                 src={employee.imageUrl} 
                                 alt={employee.name}
-                                className="w-10 h-10 rounded-full object-cover flex-shrink-0 border border-gray-200 dark:border-gray-700"
+                                className="w-10 h-10 rounded-full object-cover flex-shrink-0 border border-gray-200"
                               />
                             ) : (
-                              <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
-                                <span className="text-gray-700 dark:text-gray-300 font-semibold text-sm">
+                              <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
+                                <span className="text-gray-700 font-semibold text-sm">
                                   {employee.name.charAt(0).toUpperCase()}
                                 </span>
                               </div>
                             )}
-                            <div className="font-medium text-gray-900 dark:text-white">
+                            <div className="font-medium text-gray-900">
                               {employee.name}
                             </div>
                           </div>
                         </td>
-                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
+                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-600">
                           {employee.email || '-'}
                         </td>
-                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
+                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-600">
                           {employee.phone || '-'}
                         </td>
-                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
+                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-600">
                           {formatWorkHours(employee.workHours)}
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap">
@@ -682,7 +682,7 @@ export default function ResourcesPage() {
                               employee.color === 'gray' ? 'bg-gray-500' :
                               'bg-blue-500'
                             }`}></span>
-                            <span className="text-xs text-gray-600 dark:text-gray-400 capitalize">
+                            <span className="text-xs text-gray-600 capitalize">
                               {employee.color || 'blue'}
                             </span>
                           </div>
@@ -690,8 +690,8 @@ export default function ResourcesPage() {
                         <td className="px-4 py-4 whitespace-nowrap">
                           <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                             employee.isActive 
-                              ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' 
-                              : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-red-100 text-red-800'
                           }`}>
                             {employee.isActive ? 'Active' : 'Inactive'}
                           </span>
@@ -700,14 +700,14 @@ export default function ResourcesPage() {
                           <div className="flex items-center gap-2">
                             <button
                               onClick={() => handleOpenModal(employee)}
-                              className="p-2 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 rounded transition"
+                              className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition"
                               title="Edit"
                             >
                               <FaEdit className="w-4 h-4" />
                             </button>
                             <button
                               onClick={() => handleDelete(employee.id)}
-                              className="p-2 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition"
+                              className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded transition"
                               title="Delete"
                             >
                               <FaTrash className="w-4 h-4" />
@@ -727,11 +727,11 @@ export default function ResourcesPage() {
         {activeTab !== 'employees' && (
           <div className="px-6 py-6">
             {loading ? (
-              <div className="text-center py-12 text-gray-600 dark:text-gray-400">Loading...</div>
+              <div className="text-center py-12 text-gray-600">Loading...</div>
             ) : error ? (
-              <div className="text-center py-12 text-red-600 dark:text-red-400">{error}</div>
+              <div className="text-center py-12 text-red-600">{error}</div>
             ) : resources.length === 0 ? (
-              <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+              <div className="text-center py-12 text-gray-500">
                 No {activeTab} found. Click "Add {activeTab === 'bays' ? 'Bay' : 'Van'}" to create one.
               </div>
             ) : (
@@ -739,7 +739,7 @@ export default function ResourcesPage() {
                 {resources.map((resource) => (
                   <div
                     key={resource.id}
-                    className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800"
+                    className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50"
                   >
                     <div className="flex items-center gap-3 flex-1">
                       {resource.type === 'bay' ? (
@@ -747,21 +747,21 @@ export default function ResourcesPage() {
                       ) : (
                         <Image src="/icons/van.svg" alt="Van" width={32} height={32} className="object-contain" />
                       )}
-                      <div className="font-semibold text-gray-900 dark:text-white">
+                      <div className="font-semibold text-gray-900">
                         {resource.name.toUpperCase()}
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => handleOpenModal(resource)}
-                        className="p-2 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
+                        className="p-2 text-gray-600 hover:text-gray-900"
                         title="Edit"
                       >
                         <FaEdit />
                       </button>
                       <button
                         onClick={() => handleDelete(resource.id)}
-                        className="p-2 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                        className="p-2 text-red-600 hover:text-red-700"
                         title="Delete"
                       >
                         <FaTrash />
@@ -787,21 +787,21 @@ export default function ResourcesPage() {
       {/* Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div className={`bg-white dark:bg-gray-800 rounded-xl shadow-lg ${activeTab === 'employees' ? 'max-w-2xl' : 'max-w-md'} w-full p-6 my-8`}>
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+          <div className={`bg-white rounded-xl shadow-lg ${activeTab === 'employees' ? 'max-w-2xl' : 'max-w-md'} w-full p-6 my-8`}>
+            <h2 className="text-xl font-bold text-gray-900 mb-4">
               {editingItem ? 'Edit' : 'Add'} {activeTab === 'employees' ? 'Employee' : activeTab === 'bays' ? 'Bay' : 'Van'}
             </h2>
             
             <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
                   Name *
                 </label>
                 <input
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                   placeholder={activeTab === 'employees' ? 'Employee name' : activeTab === 'bays' ? 'Bay name (e.g., Bay 1)' : 'Van name (e.g., Van 1)'}
                 />
               </div>
@@ -809,7 +809,7 @@ export default function ResourcesPage() {
               {activeTab === 'employees' && (
                 <>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
                       Profile Image
                     </label>
                     <div className="flex items-center gap-4">
@@ -817,11 +817,11 @@ export default function ResourcesPage() {
                         <img 
                           src={formData.imageUrl} 
                           alt="Employee"
-                          className="w-20 h-20 rounded-full object-cover border border-gray-300 dark:border-gray-600"
+                          className="w-20 h-20 rounded-full object-cover border border-gray-300"
                         />
                       ) : (
-                        <div className="w-20 h-20 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center border border-gray-300 dark:border-gray-600">
-                          <span className="text-gray-500 dark:text-gray-400 text-2xl font-semibold">
+                        <div className="w-20 h-20 rounded-full bg-gray-200 flex items-center justify-center border border-gray-300">
+                          <span className="text-gray-500 text-2xl font-semibold">
                             {formData.name.charAt(0).toUpperCase() || '?'}
                           </span>
                         </div>
@@ -834,26 +834,26 @@ export default function ResourcesPage() {
                     </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
                       Email
                     </label>
                     <input
                       type="email"
                       value={formData.email}
                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                       placeholder="employee@example.com"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
                       Phone
                     </label>
                     <input
                       type="tel"
                       value={formData.phone}
                       onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                       placeholder="(555) 123-4567"
                     />
                   </div>
@@ -865,15 +865,15 @@ export default function ResourcesPage() {
                       onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
                       className="w-4 h-4 text-gray-900 border-gray-300 rounded focus:ring-gray-900"
                     />
-                    <label htmlFor="isActive" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <label htmlFor="isActive" className="text-sm font-medium text-gray-700">
                       Active
                     </label>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
                       Calendar Color
                     </label>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                    <p className="text-xs text-gray-500 mb-3">
                       This color will be used for events assigned to this employee in the calendar.
                     </p>
                     <div className="grid grid-cols-5 gap-3">
@@ -888,8 +888,8 @@ export default function ResourcesPage() {
                           key={colorOption.value}
                           className={`flex flex-col items-center p-3 border-2 rounded-lg cursor-pointer transition-all ${
                             formData.color === colorOption.value
-                              ? 'border-gray-900 dark:border-gray-100 bg-gray-50 dark:bg-gray-700'
-                              : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
+                              ? 'border-gray-900 bg-gray-50'
+                              : 'border-gray-200 hover:border-gray-300'
                           }`}
                         >
                           <input
@@ -901,7 +901,7 @@ export default function ResourcesPage() {
                             className="hidden"
                           />
                           <span className={`w-6 h-6 rounded-full mb-1 ${colorOption.class}`}></span>
-                          <span className="text-xs font-medium text-gray-700 dark:text-gray-300 text-center">
+                          <span className="text-xs font-medium text-gray-700 text-center">
                             {colorOption.label}
                           </span>
                         </label>
@@ -909,10 +909,10 @@ export default function ResourcesPage() {
                     </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
                       Work Hours
                     </label>
-                    <div className="border border-gray-300 dark:border-gray-600 rounded-lg p-4 bg-gray-50 dark:bg-gray-700/50">
+                    <div className="border border-gray-300 rounded-lg p-4 bg-gray-50">
                       <BusinessHoursPicker
                         value={formData.workHours}
                         onChange={(hours) => setFormData({ ...formData, workHours: hours })}
@@ -924,13 +924,13 @@ export default function ResourcesPage() {
 
               {activeTab !== 'employees' && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
                     Type
                   </label>
                   <select
                     value={formData.type}
                     onChange={(e) => setFormData({ ...formData, type: e.target.value as 'bay' | 'van' })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                   >
                     <option value="bay">Bay</option>
                     <option value="van">Van</option>
@@ -942,7 +942,7 @@ export default function ResourcesPage() {
             <div className="flex justify-end gap-3 mt-6">
               <button
                 onClick={handleCloseModal}
-                className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"
+                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition"
               >
                 Cancel
               </button>
@@ -1042,18 +1042,18 @@ function EmployeeImageUploader({
         type="button"
         onClick={() => fileInputRef.current?.click()}
         disabled={uploading}
-        className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+        className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
       >
         {uploading ? 'Uploading...' : currentImageUrl ? 'Change Image' : 'Upload Image'}
       </button>
       {error && (
-        <p className="text-xs text-red-600 dark:text-red-400">{error}</p>
+        <p className="text-xs text-red-600">{error}</p>
       )}
       {currentImageUrl && (
         <button
           type="button"
           onClick={() => onUpload('')}
-          className="px-3 py-1 text-xs text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition"
+          className="px-3 py-1 text-xs text-red-600 hover:text-red-700 transition"
         >
           Remove Image
         </button>
