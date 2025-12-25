@@ -31,6 +31,21 @@ const US_STATES = [
     'Virginia', 'Washington', 'West Virginia', 'Wisconsin', 'Wyoming'
 ];
 
+// Format phone number as (XXX) XXX XXXX
+const formatPhoneNumber = (value: string): string => {
+    // Remove all non-digit characters
+    const digits = value.replace(/\D/g, '');
+    
+    // Limit to 10 digits
+    const limitedDigits = digits.slice(0, 10);
+    
+    // Format based on length
+    if (limitedDigits.length === 0) return '';
+    if (limitedDigits.length <= 3) return `(${limitedDigits}`;
+    if (limitedDigits.length <= 6) return `(${limitedDigits.slice(0, 3)}) ${limitedDigits.slice(3)}`;
+    return `(${limitedDigits.slice(0, 3)}) ${limitedDigits.slice(3, 6)} ${limitedDigits.slice(6)}`;
+};
+
 export default function NewCustomerModal({ isOpen, onClose, onSuccess, initialName = '', existingCustomer, isEditMode = false }: NewCustomerModalProps) {
     const { data: session } = useSession();
     const [customerName, setCustomerName] = useState(initialName || existingCustomer?.customerName || '');
@@ -146,7 +161,9 @@ export default function NewCustomerModal({ isOpen, onClose, onSuccess, initialNa
         if (isOpen) {
             if (isEditMode && existingCustomer) {
                 setCustomerName(existingCustomer.customerName || '');
-                setPhoneNumber(existingCustomer.customerPhone || '');
+                // Format existing phone number if it exists
+                const existingPhone = existingCustomer.customerPhone || '';
+                setPhoneNumber(existingPhone ? formatPhoneNumber(existingPhone) : '');
                 setAddress(existingCustomer.customerAddress || '');
             } else {
                 setCustomerName(initialName);
@@ -174,6 +191,13 @@ export default function NewCustomerModal({ isOpen, onClose, onSuccess, initialNa
             return;
         }
 
+        // Extract digits only from formatted phone number
+        const phoneDigits = phoneNumber.replace(/\D/g, '');
+        if (phoneDigits.length !== 10) {
+            setError('Phone number must be 10 digits');
+            return;
+        }
+
         setIsSubmitting(true);
 
         try {
@@ -188,7 +212,7 @@ export default function NewCustomerModal({ isOpen, onClose, onSuccess, initialNa
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    customerPhone: phoneNumber,
+                    customerPhone: phoneDigits,
                     customerName: customerName.trim(),
                     customerEmail: undefined, // Can be added later if needed
                     address: fullAddress || undefined,
@@ -209,7 +233,7 @@ export default function NewCustomerModal({ isOpen, onClose, onSuccess, initialNa
             // Call onSuccess with the created customer data
             onSuccess({
                 customerName: customerName.trim(),
-                customerPhone: phoneNumber,
+                customerPhone: phoneDigits,
                 customerEmail: undefined,
                 address: fullAddress || undefined,
             });
@@ -226,8 +250,16 @@ export default function NewCustomerModal({ isOpen, onClose, onSuccess, initialNa
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 flex items-center justify-center z-[60] p-4" style={{ backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', backgroundColor: 'rgba(0, 0, 0, 0.05)' }}>
-            <div className="rounded-xl shadow-xl" style={{ backgroundColor: '#F8F8F7', width: '500px' }}>
+        <div 
+            className="fixed inset-0 flex items-center justify-center z-[60] p-4" 
+            style={{ backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', backgroundColor: 'rgba(0, 0, 0, 0.05)' }}
+            onClick={onClose}
+        >
+            <div 
+                className="rounded-xl shadow-xl" 
+                style={{ backgroundColor: '#F8F8F7', width: '500px' }}
+                onClick={(e) => e.stopPropagation()}
+            >
                 {/* Header */}
                 <div className="flex items-center justify-between p-6 border-b border-gray-200">
                     <h2 className="text-xl font-bold text-gray-900">
@@ -274,9 +306,13 @@ export default function NewCustomerModal({ isOpen, onClose, onSuccess, initialNa
                             type="tel"
                             id="phone-number"
                             value={phoneNumber}
-                            onChange={(e) => setPhoneNumber(e.target.value)}
+                            onChange={(e) => {
+                                const formatted = formatPhoneNumber(e.target.value);
+                                setPhoneNumber(formatted);
+                            }}
                             className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                             placeholder="(---) --- ----"
+                            maxLength={16}
                             required
                         />
                     </div>
@@ -322,7 +358,7 @@ export default function NewCustomerModal({ isOpen, onClose, onSuccess, initialNa
                                 id="state"
                                 value={state}
                                 onChange={(e) => setState(e.target.value)}
-                                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                                className="w-full px-2 py-2.5 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                             >
                                 <option value="">Select state</option>
                                 {US_STATES.map((stateName) => (

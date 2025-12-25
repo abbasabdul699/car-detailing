@@ -16,7 +16,9 @@ import {
   isToday,
   isSameDay,
   startOfMonth,
-  getDay
+  getDay,
+  isBefore,
+  startOfDay
 } from 'date-fns';
 import { ChevronDownIcon, Cog8ToothIcon, FunnelIcon, UsersIcon } from '@heroicons/react/24/outline';
 import { XMarkIcon, PencilIcon, CheckIcon } from '@heroicons/react/24/solid';
@@ -1278,7 +1280,7 @@ const eventColors: { [key: string]: { bg: string, border: string } } = {
   gray: { bg: 'bg-gray-100', border: 'border-gray-500' },
 };
 
-const MonthView = ({ date, events, selectedEvent, onEventClick, scale = 1.0 }: { date: Date, events: any[], selectedEvent: string | null, onEventClick: (event: any) => void, scale?: number }) => {
+const MonthView = ({ date, events, selectedEvent, onEventClick, scale = 1.0, resources = [] }: { date: Date, events: any[], selectedEvent: string | null, onEventClick: (event: any) => void, scale?: number, resources?: Array<{ id: string, name: string, type: 'bay' | 'van' }> }) => {
     // Debug: Log first event with customer data
     if (events.length > 0) {
         const firstEvent = events[0];
@@ -1335,15 +1337,15 @@ const MonthView = ({ date, events, selectedEvent, onEventClick, scale = 1.0 }: {
     const scaledRowHeight = 160 * scale; // Base row height that scales with slider
     
     return (
-        <div className="grid grid-cols-7 border-t border-l border-gray-200 flex-1" style={{ gridAutoRows: `${scaledRowHeight}px` }}>
+        <div className="grid grid-cols-7 border-t border-l border-gray-200 flex-1">
             {daysOfWeek.map((day) => (
-                <div key={day} className="py-2 text-center font-semibold text-[10px] md:text-xs text-gray-600 uppercase tracking-wider border-r border-b border-gray-200 flex-shrink-0">
+                <div key={day} className="py-2 text-center font-semibold text-[10px] md:text-xs text-gray-600 uppercase tracking-wider border-r border-b border-gray-200 flex-shrink-0" style={{ height: '40px' }}>
                     <span className="md:hidden">{day.slice(0,3)}</span>
                     <span className="hidden md:inline">{day}</span>
                 </div>
             ))}
             {Array(firstDay).fill(null).map((_, index) => (
-                <div key={`empty-${index}`} className="border-r border-b border-gray-200"></div>
+                <div key={`empty-${index}`} className="border-r border-b border-gray-200" style={{ height: `${scaledRowHeight}px` }}></div>
             ))}
             {Array(daysInMonth).fill(null).map((_, index) => {
                 const day = index + 1;
@@ -1403,143 +1405,92 @@ const MonthView = ({ date, events, selectedEvent, onEventClick, scale = 1.0 }: {
                   return false;
                 });
                 const scaledPadding = 8 * scale; // Doubled from 4 to 8 (recalibrated baseline)
-                return (
-                    <div key={day} className="flex-1 border-r border-b border-gray-200 flex flex-col" style={{ padding: `${scaledPadding}px` }}>
-                        <div className="text-xs md:text-sm font-medium text-gray-800">{day}</div>
-                        <div className="mt-1 overflow-y-auto flex flex-col" style={{ gap: `${8 * scale}px` }}>
-                            {dayEvents.map((event, eventIndex) => {
-                                const isSelected = selectedEvent === event.id;
-                                const scaledEventPadding = 12 * scale; // Doubled from 6 to 12 (recalibrated baseline)
-                                const baseClasses = `${eventColors[event.color]?.bg} rounded-xl cursor-pointer transition-all duration-200 hover:shadow-md flex flex-col`;
-                                const selectedClasses = isSelected ? 'ring-2 ring-gray-400 ring-opacity-50 shadow-lg scale-105' : '';
-                                
-                                // For all-day events, show them at the top with a special indicator
-                                if (event.allDay) {
+                
+                // Check if this day is in the past
+                const today = startOfDay(new Date());
+                const dayDate = startOfDay(currentDate);
+                const isPast = isBefore(dayDate, today);
+                const isTodayDate = isToday(currentDate);
+                
+                // Count jobs and group by resource
+                const jobCount = dayEvents.length;
+                const isBusy = jobCount >= 6;
+                
+                // Group events by resource and count drop-offs/pick-ups
+                const resourceStats: Record<string, { dropOff: number; pickUp: number; name: string }> = {};
+                
+                dayEvents.forEach(event => {
+                    const resourceId = event.resourceId || 'unassigned';
+                    const resource = resources.find(r => r.id === resourceId);
+                    const resourceName = resource ? resource.name : 'Unassigned';
+                    
+                    if (!resourceStats[resourceId]) {
+                        resourceStats[resourceId] = { dropOff: 0, pickUp: 0, name: resourceName };
+                    }
+                    
+                    const locationType = event.locationType?.toLowerCase() || '';
+                    if (locationType === 'drop off' || locationType === 'dropoff') {
+                        resourceStats[resourceId].dropOff++;
+                    } else if (locationType === 'pick up' || locationType === 'pickup') {
+                        resourceStats[resourceId].pickUp++;
+                    }
+                });
+                
+                // Sort resources: Bays first, then Vans, by name
+                const sortedResources = Object.entries(resourceStats).sort(([idA, statsA], [idB, statsB]) => {
+                    const resourceA = resources.find(r => r.id === idA);
+                    const resourceB = resources.find(r => r.id === idB);
+                    if (resourceA?.type !== resourceB?.type) {
+                        if (resourceA?.type === 'bay') return -1;
+                        if (resourceB?.type === 'bay') return 1;
+                    }
+                    return statsA.name.localeCompare(statsB.name);
+                });
+                
                                     return (
-                                        <div 
-                                            key={eventIndex} 
-                                            className={`${baseClasses} ${selectedClasses} border-l-4 ${eventColors[event.color]?.border}`}
-                                            onClick={() => onEventClick(event)}
-                                            style={{ padding: `${scaledEventPadding}px` }}
-                                        >
-                                            <div className="flex items-center gap-1.5">
-                                            {event.employeeImageUrl ? (
-                                                <img 
-                                                    src={event.employeeImageUrl} 
-                                                    alt={event.employeeName || 'Employee'}
-                                                    className="rounded-full object-cover border border-gray-300 flex-shrink-0"
-                                                    style={{ width: `${8 * scale}px`, height: `${8 * scale}px` }}
-                                                />
-                                            ) : event.employeeName ? (
-                                                <div className="rounded-full bg-gray-300 flex items-center justify-center border border-gray-300 flex-shrink-0" style={{ width: `${8 * scale}px`, height: `${8 * scale}px` }}>
-                                                    <span className="text-[7px] font-semibold text-gray-700">
-                                                        {event.employeeName.charAt(0).toUpperCase()}
+                    <div key={day} className={`flex-1 border-r border-b border-gray-200 flex flex-col relative ${isTodayDate ? 'bg-gray-100' : ''}`} style={{ padding: `${scaledPadding}px`, height: `${scaledRowHeight}px` }}>
+                        {/* Top row: Job count badge (left) and Day number (right) */}
+                        <div className="flex items-start justify-between mb-1">
+                            {/* Job count badge */}
+                            <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full ${
+                                jobCount === 0 
+                                    ? 'bg-gray-200 text-gray-600' 
+                                    : isBusy 
+                                    ? 'bg-gray-700 text-white' 
+                                    : 'bg-gray-200 text-gray-700'
+                            }`} style={{ opacity: isPast ? 0.5 : 1 }}>
+                                {jobCount === 0 ? '0 Jobs' : isBusy ? `${jobCount} Jobs (Busy)` : `${jobCount} Jobs`}
                                                     </span>
-                                                </div>
-                                            ) : null}
-                                            {event.source === 'google' && (
-                                                <svg className="text-gray-600 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor" style={{ width: `${6 * scale}px`, height: `${6 * scale}px` }}>
-                                                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                                                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                                                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                                                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                                                </svg>
-                                            )}
-                                                <span className="text-sm md:text-base font-semibold truncate">{event.title || event.eventName || (Array.isArray(event.services) ? event.services.join(' + ') : event.services) || 'Service'}</span>
+                            {/* Day number */}
+                            <span className={`text-xs md:text-sm font-medium ${isTodayDate ? 'w-6 h-6 rounded-full text-white flex items-center justify-center' : 'text-gray-800'}`} style={{ 
+                                opacity: isPast ? 0.5 : 1,
+                                backgroundColor: isTodayDate ? '#F97316' : undefined
+                            }}>
+                                {day}
+                            </span>
                                             </div>
-                                            {formatTimeRange(event) && (
-                                                <span className="text-xs font-semibold text-gray-700 mt-0.5 truncate">
-                                                    {formatTimeRange(event)}
-                                                </span>
-                                            )}
-                                            {(event.vehicleType || event.vehicleModel) ? (
-                                                <span className="text-xs font-semibold text-gray-600 mt-0.5 truncate">{event.vehicleType || event.vehicleModel}</span>
-                                            ) : null}
-                                            <div className="mt-auto pt-2">
-                                                {getCustomerType(event) === 'new' && (
-                                                    <span className="text-xs font-semibold bg-gray-200 text-gray-700 px-1.5 py-0.5 rounded mt-0.5 inline-block">
-                                                        New customer
-                                                    </span>
-                                                )}
-                                                {getCustomerType(event) === 'repeat' && (
-                                                    <span className="text-xs font-semibold bg-purple-200 text-purple-800 px-1.5 py-0.5 rounded mt-0.5 inline-block truncate">
-                                                        Repeat ...
-                                                    </span>
-                                                )}
-                                                {(event.customerName || event.customerPhone) && (
-                                                    <span className="text-xs text-gray-700 mt-0.5 truncate font-semibold block">
-                                                        {event.customerName || 'Customer'}{event.customerPhone ? ` (${event.customerPhone})` : ''}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-                                    );
-                                }
-                                
-                                // For timed events, show them normally with customer details
+                        
+                        {/* Resource breakdown */}
+                        <div className="flex-1 overflow-y-auto text-xs text-gray-600 space-y-0.5">
+                            {sortedResources.length > 0 ? (
+                                sortedResources.map(([resourceId, stats]) => {
+                                    const parts: string[] = [];
+                                    if (stats.dropOff > 0) {
+                                        parts.push(`${stats.dropOff} drop-off${stats.dropOff > 1 ? 's' : ''}`);
+                                    }
+                                    if (stats.pickUp > 0) {
+                                        parts.push(`${stats.pickUp} Pick-up${stats.pickUp > 1 ? 's' : ''}`);
+                                    }
+                                    const details = parts.length > 0 ? `: ${parts.join(', ')}` : ':';
                                 return (
-                                    <div 
-                                        key={eventIndex} 
-                                        className={`${baseClasses} ${selectedClasses} items-start`}
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            onEventClick(event);
-                                        }}
-                                        style={{ padding: `${scaledEventPadding}px` }}
-                                    >
-                                        <div className="flex items-center gap-1.5 w-full">
-                                        {event.employeeImageUrl ? (
-                                            <img 
-                                                src={event.employeeImageUrl} 
-                                                alt={event.employeeName || 'Employee'}
-                                                className="rounded-full object-cover border border-gray-300 flex-shrink-0"
-                                                style={{ width: `${12 * scale}px`, height: `${12 * scale}px` }}
-                                            />
-                                        ) : event.employeeName ? (
-                                            <div className="rounded-full bg-gray-300 flex items-center justify-center border border-gray-300 flex-shrink-0" style={{ width: `${12 * scale}px`, height: `${12 * scale}px` }}>
-                                                <span className="text-[9px] font-semibold text-gray-700">
-                                                    {event.employeeName.charAt(0).toUpperCase()}
-                                                </span>
+                                        <div key={resourceId} className="truncate">
+                                            {stats.name}{details}
                                             </div>
+                                    );
+                                })
+                            ) : jobCount > 0 ? (
+                                <div className="text-gray-500">No resource assigned</div>
                                         ) : null}
-                                        {event.source === 'google' && (
-                                            <svg className="text-gray-600 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor" style={{ width: `${6 * scale}px`, height: `${6 * scale}px` }}>
-                                                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                                                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                                                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                                                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                                            </svg>
-                                        )}
-                                            <span className="truncate text-sm md:text-base font-semibold flex-1">{event.title || event.eventName || (Array.isArray(event.services) ? event.services.join(' + ') : event.services) || 'Service'}</span>
-                                        </div>
-                                        {formatTimeRange(event) && (
-                                            <span className="text-xs font-semibold text-gray-700 mt-0.5 truncate text-left w-full">
-                                                {formatTimeRange(event)}
-                                            </span>
-                                        )}
-                                        {(event.vehicleType || event.vehicleModel) ? (
-                                            <span className="text-xs font-semibold text-gray-600 mt-0.5 truncate text-left w-full">{event.vehicleType || event.vehicleModel}</span>
-                                        ) : null}
-                                        <div className="mt-auto pt-2 w-full">
-                                            {getCustomerType(event) === 'new' && (
-                                                <span className="text-xs font-semibold bg-gray-200 text-gray-700 px-1.5 py-0.5 rounded mt-0.5 inline-block text-left">
-                                                    New customer
-                                                </span>
-                                            )}
-                                            {getCustomerType(event) === 'repeat' && (
-                                                <span className="text-xs font-semibold bg-purple-200 text-purple-800 px-1.5 py-0.5 rounded mt-0.5 inline-block text-left truncate">
-                                                    Repeat ...
-                                                </span>
-                                            )}
-                                            {(event.customerName || event.customerPhone) && (
-                                                <span className="text-xs text-gray-700 mt-0.5 truncate font-semibold block text-left w-full">
-                                                    {event.customerName || 'Customer'}{event.customerPhone ? ` (${event.customerPhone})` : ''}
-                                                </span>
-                                            )}
-                                        </div>
-                                </div>
-                                );
-                            })}
                         </div>
                     </div>
                 );
@@ -2086,37 +2037,32 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                 return (
                                 <div 
                                     key={`resource-header-${day.toString()}-${resource.id}`} 
-                                    className="text-center flex flex-row items-center justify-center gap-1 text-xs font-semibold border-r border-gray-200 bg-white" 
+                                    className={`text-center flex flex-row items-center justify-center gap-1 text-xs font-semibold border-r border-gray-200 bg-white ${onOpenModal && onResourceSelect ? 'cursor-pointer hover:bg-gray-50 transition-colors' : ''}`}
                                     style={{ 
                                         gridColumn: columnIndex + 1,
                                         height: `${40 * scale}px`, 
                                         boxSizing: 'border-box'
                                     }}
+                                    onClick={onOpenModal && onResourceSelect ? (e) => {
+                                        e.stopPropagation();
+                                        onResourceSelect(resource);
+                                        // Get first time slot hour for default start time
+                                        const firstSlotHour = parseSlotHour(timeSlots[0]) || 7;
+                                        const clickedDate = new Date(day);
+                                        clickedDate.setHours(firstSlotHour, 0, 0, 0);
+                                        const endDate = new Date(clickedDate);
+                                        endDate.setHours(firstSlotHour + 1, 0, 0, 0);
+                                        onOpenModal({
+                                            resourceId: resource.id,
+                                            startTime: clickedDate.toISOString(),
+                                            endTime: endDate.toISOString(),
+                                            date: day
+                                        });
+                                    } : undefined}
                                 >
                                     <span>{resource.name}</span>
                                     {onOpenModal && onResourceSelect && (
-                                        <button 
-                                            className="text-xs text-gray-600 hover:text-gray-700 relative" 
-                                            style={{ zIndex: 9999, position: 'relative' }}
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                onResourceSelect(resource);
-                                                // Get first time slot hour for default start time
-                                                const firstSlotHour = parseSlotHour(timeSlots[0]) || 7;
-                                                const clickedDate = new Date(day);
-                                                clickedDate.setHours(firstSlotHour, 0, 0, 0);
-                                                const endDate = new Date(clickedDate);
-                                                endDate.setHours(firstSlotHour + 1, 0, 0, 0);
-                                                onOpenModal({
-                                                    resourceId: resource.id,
-                                                    startTime: clickedDate.toISOString(),
-                                                    endTime: endDate.toISOString(),
-                                                    date: day
-                                                });
-                                            }}
-                                        >
-                                            <PlusIcon className="w-3 h-3 inline" />
-                                        </button>
+                                        <PlusIcon className="w-3 h-3 inline text-gray-600" />
                                     )}
                                 </div>
                                 );
@@ -2891,6 +2837,31 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
     hasScrolledToTime.current = false;
   }, [date]);
 
+  // Calculate current time position for indicator line
+  // Note: new Date() uses the user's local timezone automatically
+  // getHours() and getMinutes() return local time values
+  const currentTime = new Date();
+  const isToday = isSameDay(date, currentTime);
+  const currentHour = currentTime.getHours(); // Local time hour (0-23)
+  const currentMinutes = currentTime.getMinutes(); // Local time minutes (0-59)
+  
+  // Calculate left position for current time line (similar to event positioning)
+  const getCurrentTimePosition = () => {
+    if (!isToday) return null;
+    
+    const dayStart = new Date(date);
+    dayStart.setHours(0, 0, 0, 0);
+    
+    let left = getCumulativeWidth(currentHour);
+    const hourFraction = currentMinutes / 60;
+    const hourWidth = columnWidths[currentHour] * scale;
+    left += hourWidth * hourFraction;
+    
+    return Math.round(left * 100) / 100;
+  };
+  
+  const currentTimeLeft = getCurrentTimePosition();
+
   // Filter events for the current day
   const dayEvents = events.filter(e => {
     let eventStartDate;
@@ -3015,6 +2986,7 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
             {timeSlots.map((slot, index) => {
               const hour = index; // hour is 0-23 (0 = 12 AM, 23 = 11 PM)
               const isWorkingHour = isWithinWorkingHours(hour);
+              const is12PM = slot === '12 PM';
               return (
                 <div 
                   key={slot} 
@@ -3026,7 +2998,7 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
                     backgroundColor: isWorkingHour ? 'white' : '#F5F5F5'
                   }}
                 >
-                <div className="text-xs font-semibold text-black text-left whitespace-nowrap" style={{ overflow: 'hidden', textOverflow: 'clip' }}>
+                <div className={`text-xs text-black text-left whitespace-nowrap ${is12PM ? 'font-bold' : 'font-semibold'}`} style={{ overflow: 'hidden', textOverflow: 'clip' }}>
                   {slot}
                 </div>
                 {/* Resize handle */}
@@ -3047,12 +3019,25 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
 
         {/* Resource rows container - needs fixed height for percentage-based row heights */}
         <div 
-          className="flex flex-col"
+          className="flex flex-col relative"
           style={{ 
             minWidth: `${totalColumnWidth + 128}px`,
             height: containerHeight > 0 ? `${containerHeight}px` : 'auto'
           }}
         >
+          {/* Current time indicator line - spans all resources */}
+          {isToday && currentTimeLeft !== null && (
+            <div
+              className="absolute top-0 bottom-0 z-20 pointer-events-none"
+              style={{
+                left: `${currentTimeLeft + 128}px`, // 128px is the width of the resource name column (w-32 = 128px)
+                width: '3px',
+                backgroundColor: '#F97316', // Orange color
+              }}
+            >
+              <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-3 h-3 rounded-full bg-orange-500 -mt-1.5" />
+            </div>
+          )}
           {resources.map((resource, index) => {
           const resourceEvents = dayEvents.filter(e => e.resourceId === resource.id);
             const rowHeight = calculateRowHeight(index, resources.length);
@@ -3104,7 +3089,15 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
                 }}
             >
               {/* Resource name column */}
-                <div className="w-32 flex-shrink-0 p-3 bg-white sticky left-0 z-30" style={{ isolation: 'isolate', borderRight: '1px solid #F0F0EE' }}>
+                <div 
+                  className="w-32 flex-shrink-0 p-3 bg-white sticky left-0 z-30 cursor-pointer hover:bg-gray-50 transition-colors"
+                  style={{ isolation: 'isolate', borderRight: '1px solid #F0F0EE' }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onResourceSelect(resource);
+                    onOpenModal();
+                  }}
+                >
                 <div className="flex items-center gap-2">
                   {resource.type === 'bay' ? (
                       <Image 
@@ -3127,17 +3120,9 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
                       <div className="text-sm font-semibold text-black">
                       {resource.name.toUpperCase()}
                     </div>
-                      <button 
-                        className="text-xs text-gray-600 hover:text-gray-700 mt-1 relative" 
-                        style={{ zIndex: 9999, position: 'relative' }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onResourceSelect(resource);
-                          onOpenModal();
-                        }}
-                      >
-                      <PlusIcon className="w-4 h-4 inline" /> Add
-                    </button>
+                      <div className="text-xs text-gray-600 mt-1">
+                        <PlusIcon className="w-4 h-4 inline" /> Add
+                      </div>
                   </div>
                 </div>
               </div>
@@ -5379,30 +5364,6 @@ export default function CalendarPage() {
                 )}
             </div>
             <div className="flex items-center space-x-4">
-                {/* View Mode Toggle Buttons */}
-                <div className="flex items-center bg-gray-100 rounded-full p-1">
-                    {(['day', 'week', 'month'] as const).map(view => {
-                        const isActive = typeof viewMode === 'string' 
-                            ? viewMode === view 
-                            : view === 'week' && typeof viewMode === 'number';
-                        return (
-                <button
-                                key={view}
-                  onClick={() => {
-                                    setViewMode(view);
-                                    setNumberOfDays(null);
-                                }}
-                                className={`px-3 py-1 text-sm font-medium rounded-full capitalize ${
-                                    isActive
-                                        ? 'bg-white text-gray-800 shadow' 
-                                        : 'text-gray-500 hover:bg-gray-200'
-                                }`}
-                            >
-                                {view}
-                </button>
-                        );
-                    })}
-                </div>
                 {/* Custom Days Dropdown - show when custom days selected, or as option next to week */}
                 <div className="relative" ref={viewDropdownRef}>
                     {(typeof viewMode === 'number' || viewMode === 'week') && (
@@ -5478,6 +5439,30 @@ export default function CalendarPage() {
                         </div>
                     )}
                 </div>
+                {/* View Mode Toggle Buttons */}
+                <div className="flex items-center bg-gray-100 rounded-full p-1">
+                    {(['day', 'week', 'month'] as const).map(view => {
+                        const isActive = typeof viewMode === 'string' 
+                            ? viewMode === view 
+                            : view === 'week' && typeof viewMode === 'number';
+                        return (
+                <button
+                                key={view}
+                  onClick={() => {
+                                    setViewMode(view);
+                                    setNumberOfDays(null);
+                                }}
+                                className={`px-3 py-1 text-sm font-medium rounded-full capitalize ${
+                                    isActive
+                                        ? 'bg-white text-gray-800 shadow' 
+                                        : 'text-gray-500 hover:bg-gray-200'
+                                }`}
+                            >
+                                {view}
+                </button>
+                        );
+                    })}
+                </div>
                 <button
                   onClick={() => {
                     setCurrentDate(new Date());
@@ -5515,7 +5500,7 @@ export default function CalendarPage() {
             </div>
           ) : (
             <>
-              {viewMode === 'month' && <MonthView date={currentDate} events={filteredBookings} selectedEvent={selectedEvent} onEventClick={handleEventClick} scale={calendarScale} />}
+              {viewMode === 'month' && <MonthView date={currentDate} events={filteredBookings} selectedEvent={selectedEvent} onEventClick={handleEventClick} scale={calendarScale} resources={resources.length > 0 ? resources : [{ id: 'station', name: 'Station', type: 'bay' }]} />}
               {(viewMode === 'week' || typeof viewMode === 'number') && <WeekView 
                 date={currentDate} 
                 events={filteredBookings} 

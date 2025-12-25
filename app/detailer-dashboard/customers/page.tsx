@@ -13,6 +13,21 @@ import {
   FunnelIcon,
 } from '@heroicons/react/24/outline';
 
+// Format phone number as (XXX) XXX XXXX
+const formatPhoneNumber = (value: string): string => {
+    // Remove all non-digit characters
+    const digits = value.replace(/\D/g, '');
+    
+    // Limit to 10 digits
+    const limitedDigits = digits.slice(0, 10);
+    
+    // Format based on length
+    if (limitedDigits.length === 0) return '';
+    if (limitedDigits.length <= 3) return `(${limitedDigits}`;
+    if (limitedDigits.length <= 6) return `(${limitedDigits.slice(0, 3)}) ${limitedDigits.slice(3)}`;
+    return `(${limitedDigits.slice(0, 3)}) ${limitedDigits.slice(3, 6)} ${limitedDigits.slice(6)}`;
+};
+
 interface Customer {
   id: string;
   customerPhone: string;
@@ -217,8 +232,9 @@ export default function CustomersPage() {
       const notes = (customer as any).data && typeof (customer as any).data === 'object' && (customer as any).data.notes 
         ? (customer as any).data.notes 
         : '';
+      const existingPhone = customer.customerPhone || '';
       setFormData({
-        customerPhone: customer.customerPhone || '',
+        customerPhone: existingPhone ? formatPhoneNumber(existingPhone) : '',
         customerName: customer.customerName || '',
         customerEmail: customer.customerEmail || '',
         address: customer.address || '',
@@ -332,6 +348,13 @@ export default function CustomersPage() {
       return;
     }
 
+    // Extract digits only from formatted phone number
+    const phoneDigits = formData.customerPhone.replace(/\D/g, '');
+    if (phoneDigits.length !== 10) {
+      alert('Phone number must be 10 digits');
+      return;
+    }
+
     try {
       const url = editingCustomer 
         ? `/api/detailer/customers/${editingCustomer.id}`
@@ -346,7 +369,7 @@ export default function CustomersPage() {
       }
       
       const body = {
-        customerPhone: formData.customerPhone,
+        customerPhone: phoneDigits,
         customerName: formData.customerName || undefined,
         customerEmail: formData.customerEmail || undefined,
         address: formData.address || undefined,
@@ -826,14 +849,14 @@ export default function CustomersPage() {
             <div className="flex items-center gap-2 flex-shrink-0">
               <button
                 onClick={handleBulkDelete}
-                className="px-2 md:px-3 py-1.5 text-xs md:text-sm font-medium bg-red-500 text-white hover:bg-red-600 rounded-lg transition"
+                className="px-2 md:px-3 py-1.5 text-xs md:text-sm font-medium bg-red-500 text-white hover:bg-red-600 rounded-xl transition"
               >
                 <span className="hidden sm:inline">Delete Selected</span>
                 <span className="sm:hidden">Delete</span>
               </button>
               <button
                 onClick={handleExportSelected}
-                className="px-2 md:px-3 py-1.5 text-xs md:text-sm font-medium bg-gray-600 text-white hover:bg-gray-700 rounded-lg transition hidden sm:block"
+                className="px-2 md:px-3 py-1.5 text-xs md:text-sm font-medium bg-gray-600 text-white hover:bg-gray-700 rounded-xl transition hidden sm:block"
               >
                 Export Selected
               </button>
@@ -845,7 +868,7 @@ export default function CustomersPage() {
                     setSelectedCustomers(new Set());
                   }
                 }}
-                className="px-2 md:px-3 py-1.5 text-xs md:text-sm font-medium bg-gray-600 text-white hover:bg-gray-700 rounded-lg transition"
+                className="px-2 md:px-3 py-1.5 text-xs md:text-sm font-medium bg-gray-600 text-white hover:bg-gray-700 rounded-xl transition"
               >
                 <span className="hidden sm:inline">{isMultiSelectMode ? 'Done' : 'Clear Selection'}</span>
                 <span className="sm:hidden">{isMultiSelectMode ? 'Done' : 'Clear'}</span>
@@ -1380,8 +1403,16 @@ export default function CustomersPage() {
 
       {/* Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 flex items-center justify-center z-50 p-4 overflow-y-auto" style={{ backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', backgroundColor: 'rgba(0, 0, 0, 0.3)' }}>
-          <div className="rounded-xl shadow-xl max-w-2xl w-full p-6 my-8" style={{ backgroundColor: '#F8F8F7' }}>
+        <div 
+          className="fixed inset-0 flex items-center justify-center z-50 p-4 overflow-y-auto" 
+          style={{ backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', backgroundColor: 'rgba(0, 0, 0, 0.3)' }}
+          onClick={handleCloseModal}
+        >
+          <div 
+            className="rounded-xl shadow-xl max-w-2xl w-full p-6 my-8" 
+            style={{ backgroundColor: '#F8F8F7' }}
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold text-gray-900">
               {editingCustomer ? 'Edit' : 'Add'} Customer
@@ -1403,9 +1434,13 @@ export default function CustomersPage() {
                 <input
                   type="tel"
                   value={formData.customerPhone}
-                  onChange={(e) => setFormData({ ...formData, customerPhone: e.target.value })}
+                  onChange={(e) => {
+                    const formatted = formatPhoneNumber(e.target.value);
+                    setFormData({ ...formData, customerPhone: formatted });
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                  placeholder="+1234567890"
+                  placeholder="(---) --- ----"
+                  maxLength={16}
                   disabled={!!editingCustomer}
                 />
                 {editingCustomer && (

@@ -786,8 +786,14 @@ export default function ResourcesPage() {
 
       {/* Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div className={`bg-white rounded-xl shadow-lg ${activeTab === 'employees' ? 'max-w-2xl' : 'max-w-md'} w-full p-6 my-8`}>
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto"
+          onClick={handleCloseModal}
+        >
+          <div 
+            className={`bg-white rounded-xl shadow-lg ${activeTab === 'employees' ? 'max-w-2xl' : 'max-w-md'} w-full p-6 my-8`}
+            onClick={(e) => e.stopPropagation()}
+          >
             <h2 className="text-xl font-bold text-gray-900 mb-4">
               {editingItem ? 'Edit' : 'Add'} {activeTab === 'employees' ? 'Employee' : activeTab === 'bays' ? 'Bay' : 'Van'}
             </h2>
