@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef, useMemo, useImperativeHandle, forwardRef } from "react";
 import { useSession } from "next-auth/react";
 import Image from "next/image";
-import { ChevronLeftIcon, ChevronRightIcon, PlusIcon } from "@heroicons/react/24/solid";
+import { ChevronLeftIcon, ChevronRightIcon, ChevronDownIcon as ChevronDownIconSolid, PlusIcon } from "@heroicons/react/24/solid";
 import { 
   format, 
   startOfWeek, 
@@ -16,6 +16,7 @@ import {
   isToday,
   isSameDay,
   startOfMonth,
+  endOfMonth,
   getDay,
   isBefore,
   startOfDay
@@ -1280,7 +1281,13 @@ const eventColors: { [key: string]: { bg: string, border: string } } = {
   gray: { bg: 'bg-gray-100', border: 'border-gray-500' },
 };
 
-const MonthView = ({ date, events, selectedEvent, onEventClick, scale = 1.0, resources = [] }: { date: Date, events: any[], selectedEvent: string | null, onEventClick: (event: any) => void, scale?: number, resources?: Array<{ id: string, name: string, type: 'bay' | 'van' }> }) => {
+const MonthView = ({ date, events, selectedEvent, onEventClick, scale = 1.0, resources = [], onDayClick, onOpenModal, onViewDay }: { date: Date, events: any[], selectedEvent: string | null, onEventClick: (event: any) => void, scale?: number, resources?: Array<{ id: string, name: string, type: 'bay' | 'van' }>, onDayClick?: (day: Date, dayEvents: any[]) => void, onOpenModal?: (draftEvent?: { resourceId: string; startTime: string; endTime: string; date: Date }) => void, onViewDay?: (day: Date) => void }) => {
+    const [focusedDayIndex, setFocusedDayIndex] = useState<number | null>(null);
+    const dayCellRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
+    const monthRef = useRef(date.getMonth());
+    const [contextMenu, setContextMenu] = useState<{ x: number; y: number; day: Date; dayEvents: any[] } | null>(null);
+    const contextMenuRef = useRef<HTMLDivElement>(null);
+    
     // Debug: Log first event with customer data
     if (events.length > 0) {
         const firstEvent = events[0];
@@ -1329,27 +1336,131 @@ const MonthView = ({ date, events, selectedEvent, onEventClick, scale = 1.0, res
 
     const year = date.getFullYear();
     const month = date.getMonth();
-    const daysInMonth = getDaysInMonth(year, month);
-    const firstDay = new Date(year, month, 1).getDay();
+    
+    // Get the first day of the month and the last day of the month
+    const firstDayOfMonth = startOfMonth(date);
+    const lastDayOfMonth = endOfMonth(date);
+    
+    // Get the start of the week for the first day of the month (Sunday = 0)
+    const calendarStart = startOfWeek(firstDayOfMonth, { weekStartsOn: 0 });
+    
+    // Get the end of the week for the last day of the month
+    const calendarEnd = endOfWeek(lastDayOfMonth, { weekStartsOn: 0 });
+    
+    // Generate all dates in the calendar view (including previous and next month dates)
+    const allDates = eachDayOfInterval({ start: calendarStart, end: calendarEnd });
+    
+    // Calculate number of weeks needed
+    const numWeeks = Math.ceil(allDates.length / 7);
+    
+    // Reset focus when month changes
+    useEffect(() => {
+        if (monthRef.current !== month) {
+            monthRef.current = month;
+            setFocusedDayIndex(null);
+            // Find first day of current month and set it as focusable
+            const firstCurrentMonthIndex = allDates.findIndex(d => 
+                d.getMonth() === month && d.getFullYear() === year
+            );
+            if (firstCurrentMonthIndex >= 0) {
+                setFocusedDayIndex(firstCurrentMonthIndex);
+            }
+        }
+    }, [month, year, allDates]);
+    
+    // Close context menu when clicking outside or pressing Escape
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (contextMenuRef.current && !contextMenuRef.current.contains(event.target as Node)) {
+                setContextMenu(null);
+            }
+        };
 
-    // Calculate row height based on scale - recalibrated so current 200% becomes new 100%
-    // Base values doubled: 80 -> 160, so 100% now = old 200%, and 200% will be even wider
-    const scaledRowHeight = 160 * scale; // Base row height that scales with slider
+        const handleEscape = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                setContextMenu(null);
+            }
+        };
+
+        if (contextMenu) {
+            document.addEventListener('mousedown', handleClickOutside);
+            document.addEventListener('keydown', handleEscape);
+        }
+
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+            document.removeEventListener('keydown', handleEscape);
+        };
+    }, [contextMenu]);
+    
+    // Handle keyboard navigation
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>, currentIndex: number, currentDate: Date, dayEvents: any[]) => {
+        let newIndex = currentIndex;
+        
+        switch (e.key) {
+            case 'ArrowRight':
+                e.preventDefault();
+                newIndex = Math.min(currentIndex + 1, allDates.length - 1);
+                break;
+            case 'ArrowLeft':
+                e.preventDefault();
+                newIndex = Math.max(currentIndex - 1, 0);
+                break;
+            case 'ArrowDown':
+                e.preventDefault();
+                newIndex = Math.min(currentIndex + 7, allDates.length - 1);
+                break;
+            case 'ArrowUp':
+                e.preventDefault();
+                newIndex = Math.max(currentIndex - 7, 0);
+                break;
+            case 'Enter':
+            case ' ':
+                e.preventDefault();
+                if (onDayClick) {
+                    onDayClick(currentDate, dayEvents);
+                }
+                return;
+            case 'Home':
+                e.preventDefault();
+                newIndex = 0;
+                break;
+            case 'End':
+                e.preventDefault();
+                newIndex = allDates.length - 1;
+                break;
+            default:
+                return;
+        }
+        
+        setFocusedDayIndex(newIndex);
+        // Focus the new day cell
+        setTimeout(() => {
+            const newCell = dayCellRefs.current[newIndex];
+            if (newCell) {
+                newCell.focus();
+            }
+        }, 0);
+    };
     
     return (
-        <div className="grid grid-cols-7 border-t border-l border-gray-200 flex-1">
+        <div 
+            className="grid grid-cols-7 border-t border-l border-gray-200 flex-1 h-full" 
+            style={{ 
+                gridTemplateRows: `40px repeat(${numWeeks}, minmax(0, 1fr))`,
+                minHeight: 0
+            }}
+        >
             {daysOfWeek.map((day) => (
                 <div key={day} className="py-2 text-center font-semibold text-[10px] md:text-xs text-gray-600 uppercase tracking-wider border-r border-b border-gray-200 flex-shrink-0" style={{ height: '40px' }}>
                     <span className="md:hidden">{day.slice(0,3)}</span>
                     <span className="hidden md:inline">{day}</span>
                 </div>
             ))}
-            {Array(firstDay).fill(null).map((_, index) => (
-                <div key={`empty-${index}`} className="border-r border-b border-gray-200" style={{ height: `${scaledRowHeight}px` }}></div>
-            ))}
-            {Array(daysInMonth).fill(null).map((_, index) => {
-                const day = index + 1;
-                const currentDate = new Date(year, month, day);
+            {allDates.map((currentDate, dateIndex) => {
+                // Check if this date is in the current month
+                const isCurrentMonth = currentDate.getMonth() === month && currentDate.getFullYear() === year;
+                const day = currentDate.getDate();
                 const dayEvents = events.filter(e => {
                   const currentDateStr = format(currentDate, 'yyyy-MM-dd');
                   
@@ -1447,30 +1558,93 @@ const MonthView = ({ date, events, selectedEvent, onEventClick, scale = 1.0, res
                     return statsA.name.localeCompare(statsB.name);
                 });
                 
+                                    const dateLabel = format(currentDate, 'MMMM d, yyyy');
+                                    const jobLabel = `${jobCount} ${jobCount === 1 ? 'job' : 'jobs'}`;
+                                    const ariaLabel = `${dateLabel}, ${jobLabel}`;
+                                    
+                                    // Make first day of current month focusable if no day is focused yet
+                                    const isFirstDayOfMonth = isCurrentMonth && dateIndex === allDates.findIndex(d => 
+                                        d.getMonth() === month && d.getFullYear() === year
+                                    );
+                                    const shouldBeFocusable = focusedDayIndex === dateIndex || (focusedDayIndex === null && isFirstDayOfMonth);
+                
                                     return (
-                    <div key={day} className={`flex-1 border-r border-b border-gray-200 flex flex-col relative ${isTodayDate ? 'bg-gray-100' : ''}`} style={{ padding: `${scaledPadding}px`, height: `${scaledRowHeight}px` }}>
-                        {/* Top row: Job count badge (left) and Day number (right) */}
-                        <div className="flex items-start justify-between mb-1">
-                            {/* Job count badge */}
-                            <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full ${
-                                jobCount === 0 
-                                    ? 'bg-gray-200 text-gray-600' 
-                                    : isBusy 
-                                    ? 'bg-gray-700 text-white' 
-                                    : 'bg-gray-200 text-gray-700'
-                            }`} style={{ opacity: isPast ? 0.5 : 1 }}>
-                                {jobCount === 0 ? '0 Jobs' : isBusy ? `${jobCount} Jobs (Busy)` : `${jobCount} Jobs`}
-                                                    </span>
-                            {/* Day number */}
-                            <span className={`text-xs md:text-sm font-medium ${isTodayDate ? 'w-6 h-6 rounded-full text-white flex items-center justify-center' : 'text-gray-800'}`} style={{ 
-                                opacity: isPast ? 0.5 : 1,
+                    <div 
+                        key={`${currentDate.getTime()}-${dateIndex}`} 
+                        ref={(el) => { dayCellRefs.current[dateIndex] = el; }}
+                        className="border-r border-b border-gray-200 flex flex-col relative hover:bg-gray-100 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-orange-300 focus:ring-offset-2 focus:z-10" 
+                        style={{ padding: `${scaledPadding}px`, minHeight: 0 }}
+                        onClick={() => {
+                            if (onDayClick) {
+                                onDayClick(currentDate, dayEvents);
+                            }
+                        }}
+                        onContextMenu={(e) => {
+                            e.preventDefault();
+                            // Calculate position, ensuring menu stays within viewport
+                            const menuWidth = 180;
+                            const menuHeight = 100; // Approximate height
+                            let x = e.clientX;
+                            let y = e.clientY;
+                            
+                            // Adjust if menu would overflow right edge
+                            if (x + menuWidth > window.innerWidth) {
+                                x = window.innerWidth - menuWidth - 8;
+                            }
+                            
+                            // Adjust if menu would overflow bottom edge
+                            if (y + menuHeight > window.innerHeight) {
+                                y = window.innerHeight - menuHeight - 8;
+                            }
+                            
+                            // Ensure menu doesn't go off left or top
+                            x = Math.max(8, x);
+                            y = Math.max(8, y);
+                            
+                            setContextMenu({
+                                x,
+                                y,
+                                day: currentDate,
+                                dayEvents: dayEvents
+                            });
+                        }}
+                        onKeyDown={(e) => handleKeyDown(e, dateIndex, currentDate, dayEvents)}
+                        tabIndex={shouldBeFocusable ? 0 : -1}
+                        role="button"
+                        aria-label={ariaLabel}
+                    >
+                        {/* Day number and Job count - stacked vertically */}
+                        <div className="flex flex-col mb-1">
+                            {/* Day number - centered */}
+                            <div className="flex justify-center">
+                                <span className={`text-xs md:text-sm font-medium ${isTodayDate ? 'w-6 h-6 rounded-full text-white flex items-center justify-center' : isCurrentMonth ? 'text-gray-800' : 'text-gray-400'}`} style={{ 
+                                    opacity: isPast && isCurrentMonth ? 0.5 : 1,
                                 backgroundColor: isTodayDate ? '#F97316' : undefined
                             }}>
                                 {day}
                             </span>
+                            </div>
+                            {/* Job count badge - only show for current month, left-aligned below date */}
+                            {isCurrentMonth && (
+                                <div className="flex items-center gap-1.5 mt-1" style={{ opacity: isPast ? 0.5 : 1 }}>
+                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-xs ${
+                                        jobCount === 0 
+                                            ? 'bg-gray-400' 
+                                            : isBusy 
+                                            ? 'bg-gray-800' 
+                                            : 'bg-gray-800'
+                                    }`} style={{ fontWeight: 900 }}>
+                                        {jobCount}
+                                    </div>
+                                    <span className="text-xs font-medium text-gray-700">
+                                        {jobCount === 1 ? 'Job' : 'Jobs'}
+                                    </span>
+                                </div>
+                            )}
                                             </div>
                         
-                        {/* Resource breakdown */}
+                        {/* Resource breakdown - only show for current month */}
+                        {isCurrentMonth && (
                         <div className="flex-1 overflow-y-auto text-xs text-gray-600 space-y-0.5">
                             {sortedResources.length > 0 ? (
                                 sortedResources.map(([resourceId, stats]) => {
@@ -1492,9 +1666,62 @@ const MonthView = ({ date, events, selectedEvent, onEventClick, scale = 1.0, res
                                 <div className="text-gray-500">No resource assigned</div>
                                         ) : null}
                         </div>
+                        )}
                     </div>
                 );
             })}
+            
+            {/* Context Menu */}
+            {contextMenu && (
+                <div
+                    ref={contextMenuRef}
+                    className="fixed bg-white shadow-lg rounded-xl border border-gray-200 py-1 z-[100] min-w-[180px]"
+                    style={{
+                        left: `${contextMenu.x}px`,
+                        top: `${contextMenu.y}px`,
+                        transform: 'translateY(-8px)'
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    {onOpenModal && (
+                        <button
+                            onClick={() => {
+                                const clickedDate = new Date(contextMenu.day);
+                                clickedDate.setHours(9, 0, 0, 0);
+                                const endDate = new Date(clickedDate);
+                                endDate.setHours(10, 0, 0, 0);
+                                
+                                onOpenModal({
+                                    resourceId: resources.length > 0 ? resources[0].id : '',
+                                    startTime: clickedDate.toISOString(),
+                                    endTime: endDate.toISOString(),
+                                    date: contextMenu.day
+                                });
+                                setContextMenu(null);
+                            }}
+                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors flex items-center gap-2"
+                        >
+                            <PlusIcon className="w-4 h-4" />
+                            Create event
+                        </button>
+                    )}
+                    {onViewDay && (
+                        <button
+                            onClick={() => {
+                                onViewDay(contextMenu.day);
+                                setContextMenu(null);
+                            }}
+                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors flex items-center gap-2"
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
+                            View in day-view
+                        </button>
+                    )}
+                </div>
+            )}
         </div>
     );
 };
@@ -1940,7 +2167,7 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
       const period = match[2].toUpperCase();
       return `${hour} ${period}`;
     };
-    
+
     const scaledTimeColumnWidth = 80 * scale;
     const scaledTimeSlotHeight = 96 * scale; // Increased from 64 to 96 for taller default boxes
     const scaledColumnMinWidth = 100 * scale;
@@ -1950,7 +2177,7 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
     const totalColumns = weekDays.length * displayResources.length;
 
     return (
-        <div className="flex border-t border-l border-gray-200 w-full h-full" style={{ height: '100%', overflow: 'visible' }}>
+        <div className="flex flex-col w-full h-full" style={{ height: '100%', maxHeight: '100%', overflow: 'hidden', borderRight: 'none' }}>
             {/* Main scrollable container - contains both time column and main content */}
             <div 
                 ref={mainScrollRef}
@@ -1963,6 +2190,105 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                     minWidth: 0
                 }}
             >
+                {/* Sticky header - must be inside scroll container */}
+                    <div
+                  className="flex-shrink-0 sticky top-0 z-40 bg-white"
+                      style={{ 
+                        position: 'sticky', 
+                    backgroundColor: 'white',
+                    isolation: 'isolate',
+                  }}
+                >
+                    {/* Inner flex container for time column header and main header */}
+                    <div className="flex border-b border-gray-200">
+                        {/* Time column header spacer */}
+                        <div
+                          className="border-r border-gray-200 flex-shrink-0 bg-white"
+                          style={{ 
+                            width: `${scaledTimeColumnWidth}px`,
+                            height: `${56 * scale}px`, 
+                            boxSizing: 'border-box',
+                          }}
+                        ></div>
+                        
+                        {/* Main header content */}
+                    <div className="flex-1 min-w-0">
+                    {/* First row: Day headers spanning all resources for each day */}
+                            <div className="grid border-b border-gray-200 bg-white" style={{ gridTemplateColumns: `repeat(${totalColumns}, 1fr)` }}>
+                        {weekDays.map(day => {
+                            const isCurrentDay = isToday(day);
+                            return (
+                            <div 
+                                key={`day-header-${day.toString()}`} 
+                                className="text-center flex items-center justify-center text-xs uppercase border-r border-gray-200 bg-white" 
+                                style={{ 
+                                    gridColumn: `span ${displayResources.length}`,
+                                    height: `${24 * scale}px`, 
+                                    boxSizing: 'border-box',
+                                    color: isCurrentDay ? '#57564D' : undefined,
+                                    fontSize: '10px',
+                                    fontFamily: 'Inter',
+                                    fontWeight: isCurrentDay ? '700' : '400',
+                                    wordWrap: 'break-word',
+                                    padding: isCurrentDay ? '10px 12px' : undefined
+                                }}
+                            >
+                                <span>{format(day, 'EEE')} {format(day, 'M/d')}</span>
+                            </div>
+                            );
+                        })}
+                    </div>
+                    
+                    {/* Second row: Resource headers for each day */}
+                    <div className="grid border-b border-gray-200 bg-white" style={{ gridTemplateColumns: `repeat(${totalColumns}, 1fr)` }}>
+                        {weekDays.map((day, dayIndex) => 
+                            displayResources.map((resource, resourceIndex) => {
+                                const columnIndex = (dayIndex * displayResources.length) + resourceIndex;
+                                return (
+                                <div 
+                                    key={`resource-header-${day.toString()}-${resource.id}`} 
+                                            className={`text-center flex flex-row items-center justify-center gap-1 border-r border-gray-200 bg-white ${onOpenModal && onResourceSelect ? 'cursor-pointer hover:bg-gray-50 transition-colors' : ''}`}
+                                    style={{ 
+                                        gridColumn: columnIndex + 1,
+                                        height: `${32 * scale}px`, 
+                                        boxSizing: 'border-box',
+                                        padding: '4px 8px',
+                                        color: '#57564D',
+                                        fontSize: '10px',
+                                        fontFamily: 'Helvetica Neue',
+                                        fontWeight: '400',
+                                        wordWrap: 'break-word'
+                                    }}
+                                            onClick={onOpenModal && onResourceSelect ? (e) => {
+                                                e.stopPropagation();
+                                                onResourceSelect(resource);
+                                                // Get first time slot hour for default start time
+                                                const firstSlotHour = parseSlotHour(timeSlots[0]) || 7;
+                                                const clickedDate = new Date(day);
+                                                clickedDate.setHours(firstSlotHour, 0, 0, 0);
+                                                const endDate = new Date(clickedDate);
+                                                endDate.setHours(firstSlotHour + 1, 0, 0, 0);
+                                                onOpenModal({
+                                                    resourceId: resource.id,
+                                                    startTime: clickedDate.toISOString(),
+                                                    endTime: endDate.toISOString(),
+                                                    date: day
+                                                });
+                                            } : undefined}
+                                        >
+                                            <span>{resource.name}</span>
+                                            {onOpenModal && onResourceSelect && (
+                                                <PlusIcon className="w-3 h-3 inline text-gray-600" />
+                                    )}
+                                </div>
+                                );
+                            })
+                        )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
                 {/* Inner flex container for time column and main content */}
                 <div className="flex" style={{ minHeight: '100%' }}>
                     {/* Time column - sticky on left, inside scroll container */}
@@ -1971,23 +2297,12 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                       style={{ 
                         position: 'sticky', 
                         left: 0, 
-                        zIndex: 60, 
+                        zIndex: 40, 
                         width: `${scaledTimeColumnWidth}px`,
-                        alignSelf: 'flex-start'
+                        alignSelf: 'flex-start',
+                        boxSizing: 'border-box'
                       }}
                     >
-                        {/* Sticky header for time column - matches the height of the main header */}
-                        <div 
-                          className="flex-shrink-0 border-b border-gray-200 bg-white" 
-                          style={{ 
-                            height: `calc(${80 * scale}px + 2px)`, /* Adjusted for better alignment with calender slots during week view */
-                            boxSizing: 'border-box',
-                            position: 'sticky',
-                            top: 0,
-                            zIndex: 70,
-                            boxShadow: '0 2px 4px rgba(0,0,0,0.08)'
-                          }}
-                        ></div>
                         {/* Time slots - these will scroll with the main content */}
                         <div 
                             ref={timeColumnScrollRef}
@@ -2004,88 +2319,106 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                             }}
                         >
                         {timeSlots.map(slot => (
-                                <div key={slot} className="flex items-center justify-center text-xs text-gray-500 border-b border-gray-200 dark:border-gray-700" style={{ height: `${scaledTimeSlotHeight}px`, fontSize: `${0.75 * scale}rem`, boxSizing: 'border-box' }}>
+                                <div key={slot} className="flex items-center justify-center text-xs text-gray-500 border-b border-gray-200" style={{ height: `${scaledTimeSlotHeight}px`, fontSize: `${0.75 * scale}rem`, boxSizing: 'border-box' }}>
                                 {slot}
                             </div>
                         ))}
-                      </div>
-                    </div>
-
-                    {/* Main content area */}
-                    <div className="flex-1 min-w-0">
-                        {/* Sticky header container - direct child of scroll container */}
-                        <div 
-                          className="flex-shrink-0 sticky top-0 z-50 bg-white w-full"
-                          style={{ 
-                            boxShadow: '0 2px 4px rgba(0,0,0,0.08)',
-                          }}
-                        >
-                    {/* First row: Day headers spanning all resources for each day */}
-                    <div className="grid border-b border-gray-200 bg-white" style={{ gridTemplateColumns: `repeat(${totalColumns}, 1fr)` }}>
-                        {weekDays.map(day => (
-                            <div 
-                                key={`day-header-${day.toString()}`} 
-                                className="text-center flex items-center justify-center text-xs font-semibold uppercase border-r border-gray-200 bg-white" 
-                                style={{ 
-                                    gridColumn: `span ${displayResources.length}`,
-                                    height: `${40 * scale}px`, 
-                                    boxSizing: 'border-box'
-                                }}
-                            >
-                                <span>{format(day, 'EEE')} {format(day, 'M/d')}</span>
-                            </div>
-                        ))}
+                        </div>
                     </div>
                     
-                    {/* Second row: Resource headers for each day */}
-                    <div className="grid border-b border-gray-200 bg-white" style={{ gridTemplateColumns: `repeat(${totalColumns}, 1fr)` }}>
-                        {weekDays.map((day, dayIndex) => 
-                            displayResources.map((resource, resourceIndex) => {
-                                const columnIndex = (dayIndex * displayResources.length) + resourceIndex;
-                                return (
-                                <div 
-                                    key={`resource-header-${day.toString()}-${resource.id}`} 
-                                    className={`text-center flex flex-row items-center justify-center gap-1 text-xs font-semibold border-r border-gray-200 bg-white ${onOpenModal && onResourceSelect ? 'cursor-pointer hover:bg-gray-50 transition-colors' : ''}`}
-                                    style={{ 
-                                        gridColumn: columnIndex + 1,
-                                        height: `${40 * scale}px`, 
-                                        boxSizing: 'border-box'
-                                    }}
-                                    onClick={onOpenModal && onResourceSelect ? (e) => {
-                                        e.stopPropagation();
-                                        onResourceSelect(resource);
-                                        // Get first time slot hour for default start time
-                                        const firstSlotHour = parseSlotHour(timeSlots[0]) || 7;
-                                        const clickedDate = new Date(day);
-                                        clickedDate.setHours(firstSlotHour, 0, 0, 0);
-                                        const endDate = new Date(clickedDate);
-                                        endDate.setHours(firstSlotHour + 1, 0, 0, 0);
-                                        onOpenModal({
-                                            resourceId: resource.id,
-                                            startTime: clickedDate.toISOString(),
-                                            endTime: endDate.toISOString(),
-                                            date: day
-                                        });
-                                    } : undefined}
-                                >
-                                    <span>{resource.name}</span>
-                                    {onOpenModal && onResourceSelect && (
-                                        <PlusIcon className="w-3 h-3 inline text-gray-600" />
-                                    )}
-                                </div>
-                                );
-                            })
-                        )}
-                    </div>
-                </div>
-                
+                    {/* Main content area */}
+                    <div className="flex-1 min-w-0 relative">
                 {/* Scrollable grid content */}
                 <div
-                  className="grid w-full"
+                  className="grid w-full relative"
                   style={{
                     gridTemplateColumns: `repeat(${totalColumns}, 1fr)`
                   }}
                 >
+                    {/* Current time indicator - spans across all columns for current day */}
+                    {(() => {
+                        const now = new Date();
+                        const currentDayIndex = weekDays.findIndex(day => isSameDay(day, now));
+                        if (currentDayIndex === -1) return null;
+                        
+                        const currentHour = now.getHours();
+                        const currentMinutes = now.getMinutes();
+                        
+                        // Find which time slot the current time falls into
+                        let slotIndex = -1;
+                        for (let i = 0; i < timeSlots.length; i++) {
+                            const slot = timeSlots[i];
+                            const slotHour = parseSlotHour(slot);
+                            if (slotHour !== null && currentHour >= slotHour) {
+                                slotIndex = i;
+                            } else if (slotHour !== null && currentHour < slotHour) {
+                                break;
+                            }
+                        }
+                        
+                        if (slotIndex === -1) return null;
+                        
+                        // Calculate vertical position
+                        const firstSlotHour = parseSlotHour(timeSlots[0]) || 0;
+                        const slotStartHour = parseSlotHour(timeSlots[slotIndex]) || firstSlotHour;
+                        const hoursFromSlotStart = currentHour - slotStartHour;
+                        const minutesOffset = (hoursFromSlotStart * 60 + currentMinutes) / 60;
+                        const top = (slotIndex * scaledTimeSlotHeight) + (minutesOffset * scaledTimeSlotHeight);
+                        
+                        // Calculate which columns to span (all resources for the current day)
+                        const dayStartColumn = currentDayIndex * displayResources.length;
+                        const dayEndColumn = dayStartColumn + displayResources.length;
+                        
+                        return (
+                            <div
+                                className="absolute z-30 pointer-events-none"
+                                style={{
+                                    top: `${top}px`,
+                                    left: `calc(${dayStartColumn} * (100% / ${totalColumns}))`,
+                                    width: `calc(${displayResources.length} * (100% / ${totalColumns}))`,
+                                    height: '2px'
+                                }}
+                            >
+                                {/* Vertical line on the left side - extends above and below */}
+                                <div
+                                    className="absolute"
+                                    style={{
+                                        left: '0',
+                                        top: '-10px',
+                                        width: '2px',
+                                        height: '22px',
+                                        backgroundColor: '#FF3700'
+                                    }}
+                                />
+                                {/* Divider before main indicator */}
+                                <div
+                                    className="absolute left-0 right-0"
+                                    style={{
+                                        top: '-1px',
+                                        height: '1px',
+                                        backgroundColor: 'rgba(255, 55, 0, 0.2)' // #FF3700 at 20% opacity
+                                    }}
+                                />
+                                {/* Main indicator line */}
+                                <div
+                                    className="absolute left-0 right-0"
+                                    style={{
+                                        height: '2px',
+                                        backgroundColor: '#FF3700'
+                                    }}
+                                />
+                                {/* Divider after main indicator */}
+                                <div
+                                    className="absolute left-0 right-0"
+                                    style={{
+                                        top: '2px',
+                                        height: '1px',
+                                        backgroundColor: 'rgba(255, 55, 0, 0.2)' // #FF3700 at 20% opacity
+                                    }}
+                                />
+                            </div>
+                        );
+                    })()}
                     
                     {/* Time slot rows with events - each resource column gets its own wrapper */}
                     {weekDays.map((day, dayIndex) => 
@@ -2134,6 +2467,11 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                         if (!event) return null;
                                         const eventColor = event.color || 'blue';
                                         const colorConfig = eventColors[eventColor] || eventColors.blue;
+                                        
+                                        // Check if event is in the past (on a past day)
+                                        const now = new Date();
+                                        const isPastDay = isBefore(day, now);
+                                        
                                         return (
                                             <div
                                                 key={`all-day-${i}-${event.id || i}`}
@@ -2148,7 +2486,8 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                                     pointerEvents: 'auto',
                                                     height: `${totalTimeSlotHeight}px`,
                                                     top: `${i * 40}px`, // Stack multiple all-day events vertically
-                                                    zIndex: 5
+                                                    zIndex: 5,
+                                                    opacity: isPastDay ? 0.5 : 1
                                                 }}
                                             >
                                                 <div className="flex items-center gap-1.5 w-full">
@@ -2307,23 +2646,23 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                                 <div className="p-2 flex items-center justify-center h-full relative">
                                                     <span className="text-sm font-medium text-blue-600">New event</span>
                                                     
-                                                    {/* Drag handle on the right edge */}
+                                                    {/* Drag handle on the bottom edge */}
                                                     {onDraftEventUpdate && (
                                                         <div
                                                             onMouseDown={(e) => {
                                                                 e.preventDefault();
                                                                 e.stopPropagation();
                                                                 
-                                                                const startX = e.clientX;
-                                                                const startWidth = scaledColumnMinWidth;
+                                                                const startY = e.clientY;
+                                                                const startHeight = height;
                                                                 const startTime = new Date(draftStart);
                                                                 const startEndTime = new Date(draftEnd);
                                                                 
                                                                 const handleMouseMove = (moveEvent: MouseEvent) => {
-                                                                    const deltaX = moveEvent.clientX - startX;
-                                                                    const newWidth = Math.max(avgHourWidth, startWidth + deltaX);
+                                                                    const deltaY = moveEvent.clientY - startY;
+                                                                    const newHeight = Math.max(scaledTimeSlotHeight * 0.5, startHeight + deltaY);
                                                                     
-                                                                    const hoursFromStart = newWidth / avgHourWidth;
+                                                                    const hoursFromStart = newHeight / scaledTimeSlotHeight;
                                                                     const roundedHours = Math.max(0.5, Math.round(hoursFromStart * 2) / 2);
                                                                     
                                                                     const newEnd = new Date(startTime);
@@ -2347,10 +2686,10 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                                                 document.addEventListener('mousemove', handleMouseMove);
                                                                 document.addEventListener('mouseup', handleMouseUp);
                                                             }}
-                                                            className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center cursor-ew-resize hover:bg-blue-600 transition-colors shadow-lg z-20"
-                                                            style={{ cursor: 'ew-resize' }}
+                                                            className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center cursor-ns-resize hover:bg-blue-600 transition-colors shadow-lg z-20"
+                                                            style={{ cursor: 'ns-resize' }}
                                                         >
-                                                            <ChevronRightIcon className="w-4 h-4 text-white" />
+                                                            <ChevronDownIconSolid className="w-4 h-4 text-white" />
                                                         </div>
                                                     )}
                                                 </div>
@@ -2419,6 +2758,11 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                         const eventColor = event.color || 'blue';
                                         const colorConfig = eventColors[eventColor] || eventColors.blue;
                                         
+                                        // Check if event is in the past (end time is before current time, or on a past day)
+                                        const now = new Date();
+                                        const isPastDay = isBefore(day, now);
+                                        const isPastEvent = isPastDay || (isSameDay(day, now) && endTime < now);
+                                        
                                         return (
                                     <div 
                                         key={`event-${i}-${event.id || i}-${resource.id}`}
@@ -2435,7 +2779,8 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                         pointerEvents: 'auto',
                                         top: `${top}px`,
                                         height: `${height}px`,
-                                        minHeight: `${scaledTimeSlotHeight * 0.5}px`
+                                        minHeight: `${scaledTimeSlotHeight * 0.5}px`,
+                                        opacity: isPastEvent ? 0.5 : 1
                                     }}
                                     >
                                         {/* Service name - large and bold */}
@@ -2988,7 +3333,7 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
             transform: 'translateZ(0)',
             willChange: 'transform'
           }}>
-            <div className="text-xs font-semibold text-black">Station</div>
+            <div className="text-xs font-semibold text-black"></div>
           </div>
           <div className="flex flex-shrink-0" style={{ minWidth: `${totalColumnWidth}px`, width: `${totalColumnWidth}px`, position: 'relative', zIndex: 1, transform: 'translateZ(0)' }}>
             {timeSlots.map((slot, index) => {
@@ -3039,11 +3384,50 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
               className="absolute top-0 bottom-0 z-20 pointer-events-none"
               style={{
                 left: `${currentTimeLeft + 128}px`, // 128px is the width of the resource name column (w-32 = 128px)
-                width: '3px',
-                backgroundColor: '#F97316', // Orange color
+                width: '2px',
+                backgroundColor: '#FF3700',
               }}
             >
-              <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-3 h-3 rounded-full bg-orange-500 -mt-1.5" />
+              {/* Horizontal line indicator on the left side at the top */}
+              <div
+                className="absolute"
+                style={{
+                  left: '-10px',
+                  top: '0',
+                  width: '10px',
+                  height: '2px',
+                  backgroundColor: '#FF3700'
+                }}
+              />
+              {/* Horizontal line indicator on the right side at the top */}
+              <div
+                className="absolute"
+                style={{
+                  right: '-10px',
+                  top: '0',
+                  width: '10px',
+                  height: '2px',
+                  backgroundColor: '#FF3700'
+                }}
+              />
+              {/* Divider before main indicator */}
+              <div
+                className="absolute left-0 right-0"
+                style={{
+                  top: '-1px',
+                  height: '1px',
+                  backgroundColor: 'rgba(255, 55, 0, 0.2)' // #FF3700 at 20% opacity
+                }}
+              />
+              {/* Divider after main indicator */}
+              <div
+                className="absolute left-0 right-0"
+                style={{
+                  top: '2px',
+                  height: '1px',
+                  backgroundColor: 'rgba(255, 55, 0, 0.2)' // #FF3700 at 20% opacity
+                }}
+              />
             </div>
           )}
           {resources.map((resource, index) => {
@@ -3129,7 +3513,7 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
                       {resource.name.toUpperCase()}
                     </div>
                       <div className="text-xs text-gray-600 mt-1">
-                        <PlusIcon className="w-4 h-4 inline" /> Add
+                      <PlusIcon className="w-4 h-4 inline" /> Add
                       </div>
                   </div>
                 </div>
@@ -3196,11 +3580,11 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
                 <div className="flex relative h-full flex-shrink-0" style={{ minWidth: `${totalColumnWidth}px`, width: `${totalColumnWidth}px` }}>
                   {/* Time slot columns */}
                   {timeSlots.map((slot, index) => (
-                    <div 
-                      key={slot} 
-                      className="time-slot-cell flex-shrink-0 h-full cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
-                      style={{ 
-                        width: `${columnWidths[index] * scale}px`,
+                      <div 
+                        key={slot} 
+                      className="time-slot-cell flex-shrink-0 h-full cursor-pointer hover:bg-gray-50 transition-colors"
+                        style={{ 
+                          width: `${columnWidths[index] * scale}px`,
                         borderRight: '1px solid #F0F0EE' 
                       }}
                     />
@@ -3234,6 +3618,15 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
                     const isPending = event.status === 'pending';
                     const eventColor = event.color || 'blue'; // Use employee's color, default to blue
                     
+                    // Check if event is in the past (end time is before current time, or on a past day)
+                    const now = new Date();
+                    const isPastDay = isBefore(date, now);
+                    let isPastEvent = isPastDay;
+                    if (!isPastDay && event.end) {
+                        const eventEndTime = new Date(event.end);
+                        isPastEvent = eventEndTime < now;
+                    }
+                    
                     return (
                       <div
                         key={event.id}
@@ -3257,13 +3650,14 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
                           isPending 
                             ? 'border-2 border-dashed border-gray-400 bg-white cursor-not-allowed' 
                             : `${eventColors[eventColor]?.bg || eventColors.blue.bg} border-l-4 ${eventColors[eventColor]?.border || eventColors.blue.border} cursor-move`
-                        } ${draggedEventId === event.id ? 'opacity-50' : ''}`}
+                        }`}
                         style={{ 
                           left: `${Math.max(0, left)}px`, 
                           width: `${width}px`,
                           minWidth: '100px',
                           pointerEvents: 'auto',
-                          zIndex: draggedEventId === event.id ? 25 : 15
+                          zIndex: draggedEventId === event.id ? 25 : 15,
+                          opacity: isPastEvent || draggedEventId === event.id ? 0.5 : 1
                         }}
                       >
                         <div className="flex items-center gap-2 mb-1">
@@ -3293,6 +3687,24 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
                           {event.vehicleType || 'Vehicle'}
                         </div>
                         <div className="mt-auto pt-2">
+                          {/* Location Type Tag - Only for Bay resources */}
+                          {resource.type === 'bay' && event.locationType && (
+                            <div className="mb-1">
+                              <span className={`text-xs font-semibold px-1.5 py-0.5 rounded inline-block ${
+                                (event.locationType?.toLowerCase() === 'pick up' || event.locationType?.toLowerCase() === 'pickup')
+                                  ? 'bg-blue-500 text-white'
+                                  : (event.locationType?.toLowerCase() === 'drop off' || event.locationType?.toLowerCase() === 'dropoff')
+                                  ? 'bg-pink-500 text-white'
+                                  : 'bg-gray-200 text-gray-700'
+                              }`}>
+                                {event.locationType?.toLowerCase() === 'pickup' ? 'Pick Up' : 
+                                 event.locationType?.toLowerCase() === 'dropoff' ? 'Drop Off' :
+                                 event.locationType?.toLowerCase() === 'pick up' ? 'Pick Up' :
+                                 event.locationType?.toLowerCase() === 'drop off' ? 'Drop Off' :
+                                 event.locationType}
+                              </span>
+                            </div>
+                          )}
                           {!isPending && customerType === 'new' && (
                             <div className="mb-1">
                               <span className="text-xs font-semibold bg-gray-200 text-gray-700 px-1.5 py-0.5 rounded">
@@ -3338,7 +3750,7 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
 
 export default function CalendarPage() {
   const [viewMode, setViewMode] = useState<'month' | 'week' | 'day' | number>('day');
-  const [numberOfDays, setNumberOfDays] = useState<number | null>(null); // For custom day views (2-7)
+  const [numberOfDays, setNumberOfDays] = useState<number | null>(7); // For custom day views (2-7), preset to 7 for week view
   const [isViewDropdownOpen, setIsViewDropdownOpen] = useState(false);
   const [isDaysSubmenuOpen, setIsDaysSubmenuOpen] = useState(false);
   const viewDropdownRef = useRef<HTMLDivElement>(null);
@@ -3387,6 +3799,8 @@ export default function CalendarPage() {
   const [allEmployees, setAllEmployees] = useState<Array<{ id: string; name: string; color: string; imageUrl?: string }>>([]);
   const [isActionSidebarOpen, setIsActionSidebarOpen] = useState(false);
   const [todayEvents, setTodayEvents] = useState<any[]>([]);
+  const [selectedDay, setSelectedDay] = useState<Date | null>(null);
+  const [selectedDayEvents, setSelectedDayEvents] = useState<any[]>([]);
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [isTeamDropdownOpen, setIsTeamDropdownOpen] = useState(false);
   const [selectedTechnicians, setSelectedTechnicians] = useState<string[]>([]); // Array of employee IDs
@@ -3498,6 +3912,15 @@ export default function CalendarPage() {
   
   // Get the current scale based on view mode
   const calendarScale = viewMode === 'day' ? dayScale : viewMode === 'week' ? weekScale : monthScale;
+
+  // Ensure numberOfDays is set to 7 when in week view
+  useEffect(() => {
+    if (viewMode === 'week' && numberOfDays !== 7) {
+      setNumberOfDays(7);
+    } else if (viewMode !== 'week' && typeof viewMode !== 'number' && numberOfDays !== null) {
+      setNumberOfDays(null);
+    }
+  }, [viewMode, numberOfDays]);
   
   // Set the current scale based on view mode
   const setCalendarScale = (value: number) => {
@@ -3970,6 +4393,8 @@ export default function CalendarPage() {
         setSelectedEvent(null);
         setIsEditingNotes(false); // Reset notes edit mode when closing sidebar
         setShowCustomerDetailsPopup(false); // Close customer popup when closing sidebar
+        setSelectedDay(null);
+        setSelectedDayEvents([]);
       }
     };
 
@@ -4443,18 +4868,16 @@ export default function CalendarPage() {
   };
 
   const renderHeaderDate = () => {
-    if (viewMode === 'month') return format(currentDate, 'MMMM yyyy');
+    if (viewMode === 'month') return format(currentDate, 'MMMM, yyyy');
     if (viewMode === 'week') {
-        const weekStart = startOfWeek(currentDate);
-        const weekEnd = endOfWeek(currentDate);
-        return `${format(weekStart, 'MMM d')} - ${format(weekEnd, 'd, yyyy')}`;
+        return format(currentDate, 'MMMM, yyyy');
     }
     if (typeof viewMode === 'number') {
         const endDate = addDays(currentDate, viewMode - 1);
         return `${format(currentDate, 'MMM d')} - ${format(endDate, 'd, yyyy')}`;
     }
-    // Day view: Show month, day of month, and year (e.g., "December 5, 2025")
-    return format(currentDate, 'MMMM d, yyyy');
+    // Day view: Show day of week, month, and day (e.g., "Wednesday, November 17")
+    return format(currentDate, 'EEEE, MMMM d');
   };
 
   // Mobile calendar view render function
@@ -4583,7 +5006,7 @@ export default function CalendarPage() {
         {/* Header */}
         <div className="flex items-center justify-between px-4 pt-4 pb-2">
           <div className="flex items-center gap-3">
-            <h1 className="font-bold text-gray-900 pl-12 md:pl-0" style={{ fontFamily: 'Helvetica Neue', fontSize: '20px' }}>{renderHeaderDate()}</h1>
+            <h1 className="font-bold text-gray-900 pl-12 md:pl-0 text-[20px] md:text-xl" style={{ fontFamily: 'Helvetica Neue' }}>{renderHeaderDate()}</h1>
             </div>
           <div className="flex items-center gap-3">
             {/* Today Button - Shows current day number */}
@@ -5383,13 +5806,15 @@ export default function CalendarPage() {
                                         setIsViewDropdownOpen(!isViewDropdownOpen);
                                         setIsDaysSubmenuOpen(false);
                                     }}
-                                    className="px-2 py-1 text-sm text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100 transition-colors"
-                                    style={{
+                                    className="px-3 py-1 text-sm font-medium text-gray-800 rounded-full hover:bg-gray-100 transition-colors flex items-center gap-1"
+                                    style={{ 
+                                        backgroundColor: '#F8F8F7',
                                         border: '1px solid #E2E2DD',
                                         borderRadius: '9999px'
                                     }}
                                     title="Custom days"
                                 >
+                                    <span>7 days</span>
                                     <ChevronDownIcon className="w-4 h-4" />
                                 </button>
                             )}
@@ -5432,6 +5857,19 @@ export default function CalendarPage() {
                         </div>
                     )}
                 </div>
+                {/* Add Event Button (Month View Only) */}
+                {viewMode === 'month' && (
+                  <button
+                    onClick={() => setIsModalOpen(true)}
+                    className="w-8 h-8 rounded-full flex items-center justify-center transition-colors mr-2"
+                    style={{ backgroundColor: '#1f2a38' }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#2a3644'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#1f2a38'}
+                    aria-label="Add event"
+                  >
+                    <PlusIcon className="w-5 h-5 text-white" />
+                  </button>
+                )}
                 {/* View Mode Toggle Buttons */}
                 <div className="flex items-center bg-gray-100 rounded-full p-1">
                     {(['day', 'week', 'month'] as const).map(view => {
@@ -5443,7 +5881,11 @@ export default function CalendarPage() {
                                 key={view}
                   onClick={() => {
                                     setViewMode(view);
-                                    setNumberOfDays(null);
+                                    if (view === 'week') {
+                                        setNumberOfDays(7);
+                                    } else {
+                                        setNumberOfDays(null);
+                                    }
                                 }}
                                 className={`px-3 py-1 text-sm font-medium rounded-full capitalize ${
                                     isActive
@@ -5484,8 +5926,8 @@ export default function CalendarPage() {
         </div>
         
         <div 
-          className={`flex-1 min-h-0 ${viewMode === 'month' ? 'min-w-0 overflow-hidden' : 'min-w-0'} ${isActionSidebarOpen ? 'pr-0 md:pr-[400px] lg:pr-[420px]' : 'pr-16'}`}
-          style={{ transition: 'padding-right 0.3s ease-in-out' }}
+          className={`flex-1 min-h-0 ${viewMode === 'month' ? 'min-w-0 overflow-hidden' : viewMode === 'week' || typeof viewMode === 'number' ? 'min-w-0 overflow-hidden' : 'min-w-0'} ${isActionSidebarOpen ? 'pr-0 md:pr-[400px] lg:pr-[420px]' : 'pr-16'}`}
+          style={{ transition: 'padding-right 0.3s ease-in-out', height: '100%', maxHeight: '100%' }}
         >
           {isLoadingEvents ? (
             <div className="flex items-center justify-center h-64">
@@ -5493,7 +5935,50 @@ export default function CalendarPage() {
             </div>
           ) : (
             <>
-              {viewMode === 'month' && <MonthView date={currentDate} events={filteredBookings} selectedEvent={selectedEvent} onEventClick={handleEventClick} scale={calendarScale} resources={resources.length > 0 ? resources : [{ id: 'station', name: 'Station', type: 'bay' }]} />}
+              {viewMode === 'month' && <MonthView 
+                date={currentDate} 
+                events={filteredBookings} 
+                selectedEvent={selectedEvent} 
+                onEventClick={handleEventClick} 
+                scale={calendarScale} 
+                resources={resources.length > 0 ? resources : [{ id: 'station', name: 'Station', type: 'bay' }]}
+                onDayClick={(day, dayEvents) => {
+                  setSelectedDay(day);
+                  setSelectedDayEvents(dayEvents);
+                  setIsActionSidebarOpen(true);
+                  setSelectedEventData(null);
+                  setSelectedEvent(null);
+                  setIsEditingEvent(false);
+                }}
+                onOpenModal={(draft) => {
+                  // Check for unsaved changes in edit form
+                  if (isEditingEvent && isEditFormDirty) {
+                    // Store the draft event to open after discard confirmation
+                    if (draft) {
+                      setPendingDraftEvent(draft);
+                    } else {
+                      setPendingDraftEvent(null);
+                    }
+                    // Show discard modal
+                    setShowDiscardModal(true);
+                  } else {
+                    // No unsaved changes, proceed with opening modal
+                    if (draft) {
+                      setDraftEvent({
+                        resourceId: draft.resourceId,
+                        startTime: draft.startTime,
+                        endTime: draft.endTime,
+                        date: draft.date
+                      });
+                    }
+                    setIsModalOpen(true);
+                  }
+                }}
+                onViewDay={(day) => {
+                  setCurrentDate(day);
+                  setViewMode('day');
+                }}
+              />}
               {(viewMode === 'week' || typeof viewMode === 'number') && <WeekView 
                 date={currentDate} 
                 events={filteredBookings} 
@@ -5791,7 +6276,11 @@ export default function CalendarPage() {
           ref={actionSidebarRef}
           className={`fixed top-0 right-0 h-full w-full md:w-[400px] lg:w-[420px] z-[90] transform transition-transform duration-300 ease-in-out ${
             isActionSidebarOpen ? 'translate-x-0' : 'translate-x-full'
-          }`} style={{ backgroundColor: '#F8F8F7', borderLeft: '1px solid #E2E2DD', boxShadow: 'none' }}>
+          }`} style={{ 
+            backgroundColor: '#F8F8F7', 
+            borderLeft: (viewMode === 'week' || typeof viewMode === 'number') ? 'none' : '1px solid #E2E2DD', 
+            boxShadow: 'none' 
+          }}>
           <div className="h-full flex flex-col overflow-hidden" style={{ backgroundColor: '#F8F8F7' }}>
             {/* Header */}
             <div className="flex-shrink-0 px-6 pt-6 pb-2">
@@ -5809,7 +6298,9 @@ export default function CalendarPage() {
                   </div>
                   <div className="flex items-center gap-3">
                     <h2 className="text-xl font-bold text-gray-900">
-                      Event Details
+                      {viewMode === 'month' && selectedDay && !selectedEventData 
+                        ? format(selectedDay, 'MMMM d, yyyy')
+                        : 'Event Details'}
                     </h2>
                     {selectedEventData?.resourceId && (() => {
                       const resource = resources.find(r => r.id === selectedEventData.resourceId);
@@ -5837,6 +6328,8 @@ export default function CalendarPage() {
                       setIsEditingEvent(false);
                       setIsEditingNotes(false);
                       setShowCustomerDetailsPopup(false);
+                      setSelectedDay(null);
+                      setSelectedDayEvents([]);
                     }
                   }}
                   className="p-1 rounded-lg hover:bg-gray-100 transition-colors"
@@ -5846,7 +6339,7 @@ export default function CalendarPage() {
               </div>
             </div>
 
-            {/* Content - Show event details if event is selected, otherwise show today's events */}
+            {/* Content - Show event details if event is selected, otherwise show selected day's events (month view) or today's events */}
             <div className="flex-1 overflow-y-auto">
               {selectedEventData ? (
                 isEditingEvent ? (
@@ -7001,6 +7494,124 @@ export default function CalendarPage() {
                       </div>
                     )}
                   </div>
+                    </div>
+                  </div>
+                )
+              ) : (viewMode === 'month' && selectedDay) ? (
+                selectedDayEvents.length === 0 ? (
+                  <div className="p-6 text-center text-gray-500 mt-8">
+                    <p>No events for {format(selectedDay, 'MMMM d, yyyy')}</p>
+                  </div>
+                ) : (
+                  <div className="p-6">
+                    <h3 className="text-lg font-bold text-gray-900 mb-4">
+                      {format(selectedDay, 'EEEE, MMMM d, yyyy')}
+                    </h3>
+                    <div className="space-y-4">
+                      {selectedDayEvents.map((event, index) => {
+                        // Format time range
+                        let timeRange = '';
+                        if (event.start && event.end) {
+                          const startTime = new Date(event.start);
+                          const endTime = new Date(event.end);
+                          const startFormatted = format(startTime, 'h:mm a');
+                          const endFormatted = format(endTime, 'h:mm a');
+                          timeRange = `${startFormatted} - ${endFormatted}`;
+                        } else if (event.time) {
+                          timeRange = event.time;
+                        }
+                        
+                        // Get service name
+                        const serviceName = Array.isArray(event.services) 
+                          ? event.services.join(' + ') 
+                          : event.services || event.title || 'Service';
+                        
+                        // Get vehicle type
+                        const vehicleType = event.vehicleType || 'Vehicle';
+                        
+                        // Get customer info
+                        const customerName = event.customerName || 'Customer';
+                        const customerPhone = event.customerPhone || event.phone || '';
+                        
+                        return (
+                          <div key={event.id || index} className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+                            {/* Service name with red bullet */}
+                            <div className="flex items-start gap-2 mb-2">
+                              <div className="w-2 h-2 bg-red-500 rounded-full mt-2 flex-shrink-0"></div>
+                              <div className="font-bold text-gray-900 text-sm">
+                                {serviceName}
+                              </div>
+                            </div>
+                            
+                            {/* Time */}
+                            {timeRange && (
+                              <div className="text-xs text-gray-500 mb-1 ml-4">
+                                {timeRange}
+                              </div>
+                            )}
+                            
+                            {/* Vehicle */}
+                            <div className="text-xs text-gray-500 mb-16 ml-4">
+                              {vehicleType}
+                            </div>
+                            
+                            {/* Customer info and Action buttons - aligned horizontally */}
+                            <div className="flex items-center justify-between ml-4">
+                              <div className="flex flex-col">
+                                {customerPhone && (
+                                  <div className="text-sm text-gray-500 mb-1">
+                                    {customerPhone}
+                                  </div>
+                                )}
+                                <div className="text-gray-900 font-semibold" style={{ fontSize: '18px' }}>
+                                  {customerName}
+                                </div>
+                              </div>
+                              
+                              {/* Action buttons */}
+                              <div className="flex gap-2 items-center">
+                                <button 
+                                  onClick={async () => {
+                                    // Handle cancel/delete
+                                    if (event.id) {
+                                      try {
+                                        const response = await fetch(`/api/detailer/events/${event.id}`, {
+                                          method: 'DELETE',
+                                        });
+
+                                        if (response.ok) {
+                                          fetchCalendarEvents();
+                                          // Update selected day events
+                                          setSelectedDayEvents(selectedDayEvents.filter(e => e.id !== event.id));
+                                        } else {
+                                          const error = await response.json();
+                                          console.error('Failed to delete event:', error.error);
+                                        }
+                                      } catch (error) {
+                                        console.error('Error deleting event:', error);
+                                      }
+                                    }
+                                  }}
+                                  className="w-8 h-8 bg-gray-200 hover:bg-gray-300 rounded-full flex items-center justify-center transition-colors"
+                                >
+                                  <XMarkIcon className="w-4 h-4 text-gray-700" />
+                                </button>
+                                <button 
+                                  onClick={() => {
+                                    // Handle edit - show event details
+                                    setSelectedEventData(event);
+                                    setSelectedEvent(event.id);
+                                    setIsEditingEvent(false);
+                                  }}
+                                  className="w-8 h-8 bg-gray-200 hover:bg-gray-300 rounded-full flex items-center justify-center transition-colors"
+                                >
+                                  <PencilIcon className="w-4 h-4 text-gray-700" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )

@@ -251,8 +251,8 @@ export default function NewCustomerModal({ isOpen, onClose, onSuccess, initialNa
 
     return (
         <div 
-            className="fixed inset-0 flex items-center justify-center z-[60] p-4" 
-            style={{ backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', backgroundColor: 'rgba(0, 0, 0, 0.05)' }}
+            className="fixed inset-0 flex items-center justify-center z-50 p-4" 
+            style={{ backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', backgroundColor: 'rgba(0, 0, 0, 0.3)' }}
             onClick={onClose}
         >
             <div 

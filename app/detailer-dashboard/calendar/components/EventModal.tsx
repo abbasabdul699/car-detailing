@@ -487,11 +487,7 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
             return;
         }
 
-        // Validate that a resource is selected
-        if (!selectedResourceId) {
-            alert('Please select a resource (Bay or Van) for this event.');
-            return;
-        }
+        // Resource is optional - no validation needed
 
         // For timed events, validate that times are provided
         if (!isAllDay && (!startTime || !endTime)) {
@@ -784,7 +780,26 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                 return; // Don't fetch from API, we already have the updated data
             }
             
-            // Find the newly created customer in the list
+            // For newly created customers, use the data directly and fetch full customer details
+            // First, set the customer immediately with the data we have
+            const tempCustomerId = `temp-${Date.now()}`;
+            setSelectedCustomer({
+                id: tempCustomerId,
+                customerName: newCustomerData.customerName,
+                customerPhone: newCustomerData.customerPhone,
+                customerEmail: newCustomerData.customerEmail,
+                address: newCustomerData.address,
+                pastJobs: []
+            });
+            
+            // Populate form fields immediately
+            setCustomerName(newCustomerData.customerName || '');
+            setCustomerPhone(newCustomerData.customerPhone || '');
+            setCustomerEmail(newCustomerData.customerEmail || '');
+            setCustomerAddress(newCustomerData.address || '');
+            setCustomerSearch(''); // Clear search to show customer card
+            
+            // Then fetch full customer details from API to get ID and other fields
             fetch('/api/detailer/customers')
                 .then(res => res.json())
                 .then(async (data) => {
@@ -795,7 +810,7 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                             c.customerPhone === newCustomerData.customerPhone
                         );
                         if (newCustomer) {
-                            // Fetch past jobs and set selected customer
+                            // Fetch past jobs and set selected customer with full details
                             const pastJobs = await fetchCustomerPastJobs(newCustomer.id, newCustomer.customerPhone);
                             setSelectedCustomer({
                                 id: newCustomer.id,
@@ -813,7 +828,7 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                                 }))
                             });
                             
-                            // Populate form fields
+                            // Update form fields with full customer data
                             setCustomerName(newCustomer.customerName || newCustomer.customerPhone || '');
                             setCustomerPhone(newCustomer.customerPhone || '');
                             setCustomerEmail(newCustomer.customerEmail || '');
@@ -854,7 +869,6 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                             } else {
                                 setSelectedServices([]);
                             }
-                            setCustomerSearch('');
                             
                             // Update initial values after state is set
                             setTimeout(() => {
@@ -986,7 +1000,7 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                             className="mt-3 px-3 py-2 text-sm border rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                             style={{ borderColor: '#E2E2DD' }}
                             >
-                                <option value="">Select a resource (optional)</option>
+                                <option value="">Select a resource (required)</option>
                                 {resources.map((resource) => (
                                     <option key={resource.id} value={resource.id}>
                                         {resource.name} ({resource.type === 'bay' ? 'Bay' : 'Van'})
