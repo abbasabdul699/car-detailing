@@ -6,7 +6,6 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { 
-  QuestionMarkCircleIcon,
   Cog8ToothIcon,
   ArrowLeftStartOnRectangleIcon,
   UserCircleIcon,
@@ -15,10 +14,11 @@ import {
   BookOpenIcon
 } from "@heroicons/react/24/outline";
 import MobileMenu from "./components/MobileMenu";
-import { useSession } from "next-auth/react";
+import { useSession, signOut } from "next-auth/react";
 import { ThemeProvider } from "@/app/components/ThemeContext";
 import PlanSelectionModal from "@/app/components/PlanSelectionModal";
 import { usePlanSelection } from "@/app/hooks/usePlanSelection";
+import DetailerSessionProvider from "@/app/components/DetailerSessionProvider";
 
 export default function DetailerDashboardLayout({
   children,
@@ -90,19 +90,24 @@ export default function DetailerDashboardLayout({
 
   const handleLogout = async () => {
     try {
-      await fetch("/api/detailer/auth/logout", {
-        method: "POST",
+      await signOut({ 
+        callbackUrl: "/detailer-login",
+        redirect: false // Handle redirect manually to ensure correct destination
       });
+      // Manually redirect to detailer login page
       window.location.href = "/detailer-login";
     } catch (error) {
       console.error("Logout failed:", error);
+      // Even if signOut fails, redirect to login page
+      window.location.href = "/detailer-login";
     }
   };
 
   return (
+    <DetailerSessionProvider>
     <ThemeProvider>
       <div className="detailer-dashboard-border-overlay"></div>
-      <div className="min-h-screen bg-white flex overflow-hidden w-full max-w-full">
+      <div className="h-screen bg-white flex overflow-hidden w-full max-w-full">
           {/* Sidebar */}
           <div className="hidden md:flex w-16 flex-col h-screen md:fixed md:top-0 md:left-0" style={{ backgroundColor: '#F8F8F7', zIndex: 10, borderRight: '1px solid #E2E2DD', boxShadow: 'none' }}>
           {/* Logo at top */}
@@ -152,7 +157,6 @@ export default function DetailerDashboardLayout({
                       }`}
                     />
                   </div>
-                  <span className="text-[10px] mt-1 font-medium">{item.name}</span>
                 </Link>
               );
             })}
@@ -160,26 +164,20 @@ export default function DetailerDashboardLayout({
           
           {/* Profile dropdown at bottom */}
           <div className="flex flex-shrink-0 p-4 flex-col items-center space-y-3 relative" ref={dropdownRef}>
-            {/* Support button */}
+            {/* Resources button */}
             <Link
-              href="/help-page"
+              href="/detailer-dashboard/resources"
               className="flex flex-col items-center justify-center text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-all focus:outline-none"
-              title="Support"
+              title="Resources"
             >
               <div className="flex items-center justify-center w-10 h-10 rounded-full">
-                <QuestionMarkCircleIcon className="w-6 h-6" aria-hidden="true" />
-              </div>
-          
-            </Link>
-            
-            {/* Settings button */}
-            <Link
-              href="/detailer-dashboard/settings"
-              className="flex flex-col items-center justify-center text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-all focus:outline-none"
-              title="Settings"
-            >
-              <div className="flex items-center justify-center w-10 h-10 rounded-full">
-                <Cog8ToothIcon className="w-6 h-6" aria-hidden="true" />
+                <Image 
+                  src="/icons/users-alt-3.png" 
+                  alt="Resources" 
+                  width={24} 
+                  height={24}
+                  className="opacity-75"
+                />
               </div>
             </Link>
             
@@ -226,21 +224,12 @@ export default function DetailerDashboardLayout({
                     Edit profile
                   </Link>
                   <Link 
-                    href="/detailer-dashboard/resources" 
+                    href="/detailer-dashboard/settings" 
                     className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                     onClick={() => setDropdownOpen(false)}
                   >
-                    <div className="mr-3 flex items-center justify-center">
-                      <Image 
-                        src="/icons/users-alt-3.png" 
-                        alt="Resources" 
-                        width={20} 
-                        height={20}
-                        className="opacity-60"
-                        style={{ filter: 'grayscale(100%) brightness(0.6)' }}
-                      />
-                    </div>
-                    Resources
+                    <Cog8ToothIcon className="mr-3 h-5 w-5 text-gray-400" />
+                    Settings
                   </Link>
                   <Link 
                     href="/detailer-dashboard/services" 
@@ -317,5 +306,6 @@ export default function DetailerDashboardLayout({
         />
       </div>
     </ThemeProvider>
+    </DetailerSessionProvider>
   );
 } 

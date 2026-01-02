@@ -1,17 +1,23 @@
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { adminAuthOptions } from "@/app/api/auth-admin/[...nextauth]/route";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import AdminNavbar from "@/app/components/AdminNavbar";
+import AdminSessionProvider from "@/app/components/AdminSessionProvider";
 
 export default async function AdminHomePage() {
-  const session = await getServerSession(authOptions);
+  const session = await getServerSession(adminAuthOptions);
   if (!session) {
-    redirect("/api/auth/signin");
+    redirect("/signin");
+  }
+  
+  // Check if user is admin
+  if ((session.user as any)?.role !== 'admin') {
+    redirect("/signin");
   }
 
   return (
-    <>
+    <AdminSessionProvider>
       <AdminNavbar />
       <div className="max-w-2xl mx-auto py-16">
         <h1 className="text-3xl font-bold mb-8 text-center">Admin Dashboard</h1>
@@ -42,6 +48,6 @@ export default async function AdminHomePage() {
           </div>
         </div>
       </div>
-    </>
+    </AdminSessionProvider>
   );
 } 

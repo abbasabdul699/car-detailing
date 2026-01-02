@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { detailerAuthOptions } from '@/app/api/auth-detailer/[...nextauth]/route';
 import { PrismaClient } from '@prisma/client';
 import { normalizeToE164 } from '@/lib/phone';
 import { upsertCustomerSnapshot } from '@/lib/customerSnapshot';
@@ -13,7 +13,7 @@ export async function DELETE(
   { params }: { params: Promise<{ eventId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getServerSession(detailerAuthOptions);
     
     if (!session || !session.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -266,7 +266,7 @@ export async function PATCH(
   { params }: { params: Promise<{ eventId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getServerSession(detailerAuthOptions);
     
     if (!session || !session.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -275,7 +275,7 @@ export async function PATCH(
     const { eventId } = await params;
     const detailerId = session.user.id;
     const body = await request.json();
-    const { title, color, employeeId, startDate, endDate, isAllDay, description, resourceId, time, startTime: startTimeParam, endTime: endTimeParam, customerName, customerPhone, customerEmail, customerAddress, locationType, customerType, vehicleModel, services } = body;
+    const { title, color, employeeId, startDate, endDate, isAllDay, isMultiDay, description, resourceId, time, startTime: startTimeParam, endTime: endTimeParam, customerName, customerPhone, customerEmail, customerAddress, locationType, customerType, vehicleModel, services } = body;
 
     if (!eventId) {
       return NextResponse.json({ error: 'Event ID is required' }, { status: 400 });
@@ -456,7 +456,8 @@ export async function PATCH(
       locationType: locationType !== undefined ? (locationType || null) : existingMetadata.locationType,
       customerType: customerType !== undefined ? (customerType || null) : existingMetadata.customerType,
       vehicleModel: vehicleModel !== undefined ? (vehicleModel || null) : existingMetadata.vehicleModel,
-      services: services !== undefined ? (services || null) : existingMetadata.services
+      services: services !== undefined ? (services || null) : existingMetadata.services,
+      endDate: (isMultiDay && endDateTime) ? endDateTime.toISOString() : (existingMetadata.endDate || null)
     };
     
     // Combine description with metadata

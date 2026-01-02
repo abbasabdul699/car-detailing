@@ -1936,19 +1936,22 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {/* Station Dropdown */}
                             <div>
-                                <label htmlFor="customer-type" className="block text-sm font-semibold text-gray-900 mb-2">
+                                <label htmlFor="station-select" className="block text-sm font-semibold text-gray-900 mb-2">
                                     Station
                                 </label>
                                 <select
-                                    id="customer-type"
-                                    value={customerType}
-                                    onChange={e => setCustomerType(e.target.value)}
+                                    id="station-select"
+                                    value={selectedResourceId}
+                                    onChange={e => setSelectedResourceId(e.target.value)}
                                     className="w-full px-4 py-2.5 border rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                                     style={{ borderColor: '#E2E2DD' }}
                                 >
                                     <option value="">Select station</option>
-                                    <option value="new">New Customer</option>
-                                    <option value="returning">Repeat Customer</option>
+                                    {resources.map((resource) => (
+                                        <option key={resource.id} value={resource.id}>
+                                            {resource.name}
+                                        </option>
+                                    ))}
                                 </select>
                             </div>
                             
@@ -1961,7 +1964,8 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                                     id="location-type"
                                     value={locationType}
                                     onChange={e => setLocationType(e.target.value)}
-                                    className="w-full px-4 py-2.5 border rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                                    disabled={selectedResourceId ? resources.find(r => r.id === selectedResourceId)?.type === 'van' : false}
+                                    className="w-full px-4 py-2.5 border rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-500"
                                     style={{ borderColor: '#E2E2DD' }}
                                 >
                                     <option value="">Select location type</option>

@@ -25,11 +25,16 @@ body:has(.detailer-dashboard-border) {
   margin: 0 !important;
   padding: 0 !important;
   overflow-x: hidden;
+  overflow-y: hidden;
+  height: 100vh;
 }
 
 html:has(.detailer-dashboard-border) {
   margin: 0 !important;
   padding: 0 !important;
+  overflow-x: hidden;
+  overflow-y: hidden;
+  height: 100%;
 }
 
 /* Remove spacing from root layout wrappers for detailer dashboard */

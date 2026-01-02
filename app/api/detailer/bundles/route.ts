@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { detailerAuthOptions } from "@/app/api/auth-detailer/[...nextauth]/route";
 import { prisma } from '@/lib/prisma';
 
 // GET: Fetch all bundles for the logged-in detailer
 export async function GET() {
-  const session = await getServerSession(authOptions);
+  const session = await getServerSession(detailerAuthOptions);
   if (!session || !session.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -32,7 +32,7 @@ export async function GET() {
 
 // POST: Create a new bundle for the logged-in detailer
 export async function POST(request: Request) {
-  const session = await getServerSession(authOptions);
+  const session = await getServerSession(detailerAuthOptions);
   if (!session || !session.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -76,7 +76,7 @@ export async function POST(request: Request) {
 }
 
 export async function PUT(req: NextRequest) {
-  const session = await getServerSession(authOptions);
+  const session = await getServerSession(detailerAuthOptions);
   if (!session?.user?.id) {
     return new NextResponse(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
   }
@@ -137,7 +137,7 @@ export async function PUT(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-    const session = await getServerSession(authOptions);
+    const session = await getServerSession(detailerAuthOptions);
     if (!session?.user?.id) {
       return new NextResponse(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
     }

@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { signOut } from "next-auth/react";
 import { XMarkIcon, Bars3Icon, ArrowLeftStartOnRectangleIcon } from "@heroicons/react/24/outline";
 import {
   UsersIcon,
@@ -52,30 +53,32 @@ export default function MobileMenu() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const navigationItems = [
+  // Menu items matching Figma design
+  // Top items: Calendar, Customers, Messages - 20px font, white
+  // Bottom items: Profile, Settings - 16px font, gray (#ababab)
+  const topNavigationItems = [
     { name: "Calendar", href: "/detailer-dashboard/calendar", icon: CalendarDaysIcon },
-    { name: "Resources", href: "/detailer-dashboard/resources", icon: UsersIcon },
-    { name: "Messages", href: "/detailer-dashboard/messages", icon: ChatBubbleLeftRightIcon },
     { name: "Customers", href: "/detailer-dashboard/customers", icon: UserGroupIcon },
-    { name: "Profile", href: "/detailer-dashboard/profile", icon: UserIcon },
+    { name: "Messages", href: "/detailer-dashboard/messages", icon: ChatBubbleLeftRightIcon },
   ];
 
-  const additionalItems = [
-    { name: "Services", href: "/detailer-dashboard/services", icon: CubeIcon },
-    { name: "Manage Images", href: "/detailer-dashboard/images?upload=1", icon: PhotoIcon },
-    { name: "Subscription", href: "/detailer-dashboard/subscription", icon: CreditCardIcon },
+  const bottomNavigationItems = [
+    { name: "Profile", href: "/detailer-dashboard/profile", icon: UserIcon },
     { name: "Settings", href: "/detailer-dashboard/settings", icon: Cog8ToothIcon },
-    { name: "Help & Support", href: "/help-page", icon: QuestionMarkCircleIcon },
   ];
 
   const handleLogout = async () => {
     try {
-      await fetch("/api/detailer/auth/logout", {
-        method: "POST",
+      await signOut({ 
+        callbackUrl: "/detailer-login",
+        redirect: false // Handle redirect manually to ensure correct destination
       });
+      // Manually redirect to detailer login page
       window.location.href = "/detailer-login";
     } catch (error) {
       console.error("Logout failed:", error);
+      // Even if signOut fails, redirect to login page
+      window.location.href = "/detailer-login";
     }
   };
 
@@ -103,25 +106,25 @@ export default function MobileMenu() {
           />
           <div
             ref={menuRef}
-            className="md:hidden fixed top-0 left-0 h-full w-80 bg-white shadow-xl z-50 transform transition-transform"
+            className="md:hidden fixed top-0 left-0 h-full w-80 bg-black shadow-xl z-50 transform transition-transform"
           >
             <div className="flex flex-col h-full">
-              {/* Menu Header */}
-              <div className="px-4 py-4 border-b border-gray-200 flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-gray-900">Menu</h2>
+              {/* Close Button - Top Left */}
+              <div className="px-6 pt-6 pb-4">
                 <button
                   onClick={() => setIsMenuOpen(false)}
-                  className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition"
+                  className="w-8 h-8 flex items-center justify-center hover:bg-gray-800 transition rounded-lg"
                   aria-label="Close menu"
                 >
-                  <XMarkIcon className="w-5 h-5 text-gray-600" />
+                  <XMarkIcon className="w-6 h-6 text-white" />
                 </button>
               </div>
 
               {/* Navigation Items */}
-              <div className="flex-1 overflow-y-auto py-4">
-                <div className="space-y-1 px-2">
-                  {navigationItems.map((item) => {
+              <div className="flex-1 overflow-y-auto px-6 py-4">
+                {/* Top items - 20px font, white text */}
+                <div className="space-y-1">
+                  {topNavigationItems.map((item) => {
                     const Icon = item.icon;
                     const isActive = pathname === item.href;
                     return (
@@ -129,52 +132,67 @@ export default function MobileMenu() {
                         key={item.name}
                         href={item.href}
                         onClick={() => setIsMenuOpen(false)}
-                        className={`flex items-center gap-3 px-4 py-3 rounded-lg transition ${
+                        className={`flex items-center gap-3 px-4 py-3 transition ${
                           isActive
-                            ? "bg-gray-100 text-gray-900"
-                            : "text-gray-700 hover:bg-gray-100"
+                            ? "bg-gray-800 text-white"
+                            : "text-white hover:bg-gray-800"
                         }`}
                       >
-                        <Icon className="w-5 h-5 text-gray-500" />
-                        <span className="font-medium">{item.name}</span>
+                        <Icon className="w-6 h-6 flex-shrink-0" />
+                        <span 
+                          className="font-normal"
+                          style={{
+                            fontFamily: "'Helvetica Neue', sans-serif",
+                            fontSize: '20px',
+                            lineHeight: 'normal',
+                            color: 'white'
+                          }}
+                        >
+                          {item.name}
+                        </span>
+                        {isActive && (
+                          <div className="ml-auto w-2 h-2 rounded-full bg-white"></div>
+                        )}
                       </Link>
                     );
                   })}
                 </div>
 
-                {/* Divider */}
-                <div className="my-4 px-2">
-                  <div className="border-t border-gray-200" />
-                </div>
-
-                {/* Additional Actions */}
-                <div className="space-y-1 px-2">
-                  {additionalItems.map((item) => {
+                {/* Bottom items - 16px font, gray text (#ababab) */}
+                <div className="space-y-1 mt-6">
+                  {bottomNavigationItems.map((item) => {
                     const Icon = item.icon;
+                    const isActive = pathname === item.href;
                     return (
                       <Link
                         key={item.name}
                         href={item.href}
                         onClick={() => setIsMenuOpen(false)}
-                        className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-100 transition text-gray-700"
+                        className={`flex items-center gap-3 px-4 py-3 transition ${
+                          isActive
+                            ? "bg-gray-800"
+                            : "hover:bg-gray-800"
+                        }`}
                       >
-                        <Icon className="w-5 h-5 text-gray-500" />
-                        <span className="font-medium">{item.name}</span>
+                        <Icon 
+                          className="w-6 h-6 flex-shrink-0" 
+                          style={{ color: isActive ? 'white' : '#ababab' }}
+                        />
+                        <span 
+                          className="font-normal"
+                          style={{
+                            fontFamily: "'Helvetica Neue', sans-serif",
+                            fontSize: '16px',
+                            lineHeight: 'normal',
+                            color: isActive ? 'white' : '#ababab'
+                          }}
+                        >
+                          {item.name}
+                        </span>
                       </Link>
                     );
                   })}
                 </div>
-              </div>
-
-              {/* Sign Out Button */}
-              <div className="flex-shrink-0 px-2 pb-4 pt-2 border-t border-gray-200">
-                <button
-                  onClick={handleLogout}
-                  className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-100 transition text-gray-700"
-                >
-                  <ArrowLeftStartOnRectangleIcon className="w-5 h-5 text-gray-500" />
-                  <span className="font-medium">Sign out</span>
-                </button>
               </div>
             </div>
           </div>

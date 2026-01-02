@@ -8,39 +8,27 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-export const authOptions: NextAuthOptions = {
+export const detailerAuthOptions: NextAuthOptions = {
   pages: {
-    signIn: '/signin',
+    signIn: '/detailer-login',
   },
   session: {
     strategy: "jwt",
     maxAge: 30 * 24 * 60 * 60, // 30 days default (keep logged in)
   },
-  providers: [
-    // Admin credentials provider (used by /signin)
-    CredentialsProvider({
-      id: "credentials",
-      name: "Admin Credentials",
-      credentials: {
-        email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" }
+  cookies: {
+    sessionToken: {
+      name: `next-auth.detailer.session-token`,
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: process.env.NODE_ENV === 'production',
       },
-      async authorize(credentials) {
-        console.log("ENV EMAIL", process.env.ADMIN_EMAIL);
-        console.log("ENV PASSWORD", process.env.ADMIN_PASSWORD);
-        console.log("FORM EMAIL", credentials?.email);
-        // Validate admin only
-        if (
-          credentials &&
-          credentials.email === process.env.ADMIN_EMAIL &&
-          credentials.password === process.env.ADMIN_PASSWORD
-        ) {
-          return { id: "admin", name: "Admin", email: credentials.email, role: "admin" } as unknown as User;
-        }
-        return null;
-      }
-    }),
-    // Detailer credentials provider (used by /detailer-login)
+    },
+  },
+  providers: [
+    // Detailer credentials provider only
     CredentialsProvider({
       id: "detailer",
       name: "Detailer Credentials",
@@ -60,9 +48,7 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
-        // Temporary validation strategy:
-        // - Find detailer by email
-        // - Compare against a shared password env (until per-detailer passwords are implemented)
+        // Find detailer by email
         const detailer = await prisma.detailer.findFirst({
           where: { email: credentials.email },
           select: { id: true, email: true, businessName: true }
@@ -96,16 +82,6 @@ export const authOptions: NextAuthOptions = {
   ],
   callbacks: {
     async session({ session, token }: { session: Session; token: JWT }) {
-      if (token.role === 'admin') {
-        if (session.user) {
-          session.user.name = 'Admin';
-          session.user.email = process.env.ADMIN_EMAIL;
-          (session.user as any).role = 'admin';
-          (session.user as any).id = 'admin';
-        }
-        return session;
-      }
-
       if (!token.id) return session;
       const detailer = await prisma.detailer.findUnique({
         where: { id: token.id as string },
@@ -136,9 +112,6 @@ export const authOptions: NextAuthOptions = {
         (token as any).id = (user as any).id;
         (token as any).businessName = (user as any).businessName;
         (token as any).imageUrl = (user as any).image;
-        // Set token expiration based on keepLoggedIn preference
-        // If keepLoggedIn is not set in sessionStorage, default to 30 days anyway
-        // This ensures the "keep me logged in" checkbox works as expected
         token.exp = Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60); // 30 days
       }
       return token;
@@ -146,36 +119,24 @@ export const authOptions: NextAuthOptions = {
     async redirect({ url, baseUrl, token }: { url: string; baseUrl: string; token?: JWT }) {
       try {
         const target = new URL(url, baseUrl);
-        // If a callbackUrl is provided, NextAuth passes it in the "callbackUrl" param
         const cb = target.searchParams.get('callbackUrl');
         if (cb) {
-          // Decode the callback URL
-          const decodedCb = decodeURIComponent(cb);
-          return decodedCb;
+          return decodeURIComponent(cb);
         }
         
-        // Check if this is a sign-out redirect (url contains /api/auth/signout)
-        if (url.includes('/api/auth/signout') || target.pathname.includes('/api/auth/signout')) {
-          // For sign-out, check if there's a callbackUrl in the query params
+        if (url.includes('/api/auth-detailer/signout') || target.pathname.includes('/api/auth-detailer/signout')) {
           const signoutCallback = target.searchParams.get('callbackUrl');
           if (signoutCallback) {
             return decodeURIComponent(signoutCallback);
           }
-          // Default sign-out redirect to detailer login if no callback specified
           return `${baseUrl}/detailer-login`;
         }
       } catch {}
       
-      // Check token role to determine default redirect (only for sign-in, not sign-out)
-      if (token?.role === 'detailer') {
-        return `${baseUrl}/detailer-dashboard/calendar`;
-      }
-      
-      // Default to admin for admin users (only for sign-in)
-      return `${baseUrl}/admin`;
+      return `${baseUrl}/detailer-dashboard/calendar`;
     },
   },
 };
 
-const handler = NextAuth(authOptions);
-export { handler as GET, handler as POST }; 
+const handler = NextAuth(detailerAuthOptions);
+export { handler as GET, handler as POST };

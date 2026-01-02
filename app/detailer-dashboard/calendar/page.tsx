@@ -87,6 +87,17 @@ const DiscardChangesModal = ({
   );
 };
 
+// Helper function to extract clean description from event description (handle both clean and metadata formats)
+const getCleanDescription = (desc: string | null | undefined): string => {
+  if (!desc) return '';
+  // If description contains metadata marker, extract the clean part
+  if (desc.includes('__METADATA__:')) {
+    const parts = desc.split('__METADATA__:');
+    return parts[0].trim();
+  }
+  return desc;
+};
+
 // Event Edit Form Component
 const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () => void }, {
   event: any, 
@@ -164,10 +175,39 @@ const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () =>
     return '';
   });
   const [isAllDay, setIsAllDay] = useState(event.allDay || false);
-  const [isMultiDay, setIsMultiDay] = useState(false);
-  const [endDate, setEndDate] = useState('');
+  const [isMultiDay, setIsMultiDay] = useState(() => {
+    // Check if event spans multiple days
+    if (event.start && event.end) {
+      const start = new Date(event.start);
+      const end = new Date(event.end);
+      start.setHours(0, 0, 0, 0);
+      end.setHours(0, 0, 0, 0);
+      return start.getTime() !== end.getTime();
+    }
+    return false;
+  });
+  const [endDate, setEndDate] = useState(() => {
+    // Extract end date from event.end
+    if (event.end) {
+      const eventEndDate = event.end;
+      if (typeof eventEndDate === 'string') {
+        if (eventEndDate.includes('T')) {
+          return eventEndDate.split('T')[0];
+        }
+        if (eventEndDate.match(/^\d{4}-\d{2}-\d{2}/)) {
+          return eventEndDate;
+        }
+      }
+      const date = new Date(eventEndDate);
+      const year = date.getUTCFullYear();
+      const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+      const day = String(date.getUTCDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+    return '';
+  });
   const [selectedResourceId, setSelectedResourceId] = useState(event.resourceId || '');
-  const [description, setDescription] = useState(event.description || '');
+  const [description, setDescription] = useState(getCleanDescription(event.description));
   const [businessHours, setBusinessHours] = useState<any>(null);
   const [customerName, setCustomerName] = useState(event.customerName || '');
   const [customerPhone, setCustomerPhone] = useState(event.customerPhone || '');
@@ -475,6 +515,12 @@ const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () =>
     }
   }, [event.date, event.start, event.end, event.time, event.allDay]);
 
+  // Update description when event changes (e.g., after saving)
+  useEffect(() => {
+    const cleanDesc = getCleanDescription(event.description);
+    setDescription(cleanDesc);
+  }, [event.description]);
+
   // Fetch business hours
   useEffect(() => {
     fetch('/api/detailer/profile')
@@ -573,6 +619,7 @@ const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () =>
     }
 
     // Construct the start and end datetime strings
+    // For the API, we need to send date and time separately when we have time fields
     let startDateTime = startDate;
     let endDateTime = isMultiDay ? (endDate || startDate) : startDate;
     let timeToStore = null;
@@ -583,26 +630,29 @@ const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () =>
     const formatTo12Hour = (time24: string): string => {
       if (!time24) return '';
       const [hours, minutes] = time24.split(':').map(Number);
+      // Handle edge cases: 12:00-12:59 is PM, 0:00-11:59 is AM
       const period = hours >= 12 ? 'PM' : 'AM';
-      const hours12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+      // Convert to 12-hour format: 0->12, 1-11->1-11, 12->12, 13-23->1-11
+      const hours12 = hours === 0 ? 12 : hours === 12 ? 12 : hours > 12 ? hours - 12 : hours;
       return `${hours12}:${String(minutes).padStart(2, '0')} ${period}`;
     };
 
     if (isAllDay && startTime && endTime) {
       startDateTime = `${startDate}T${startTime}`;
-      endDateTime = `${startDate}T${endTime}`;
+      endDateTime = isMultiDay ? `${endDate}T${endTime}` : `${startDate}T${endTime}`;
       timeToStore = startTime;
     } else if (!isAllDay && startTime && endTime) {
-      // For timed events, send times separately to avoid timezone issues
-      startDateTime = `${startDate}T${startTime}`;
+      // For timed events, send date and time separately to avoid timezone issues
+      // The API expects: startDate (date only), endDate (date only), startTime (HH:mm), endTime (HH:mm)
+      startDateTime = startDate; // Keep as date only (YYYY-MM-DD)
       const endDateForTime = isMultiDay ? (endDate || startDate) : startDate;
-      endDateTime = `${endDateForTime}T${endTime}`;
+      endDateTime = endDateForTime; // Keep as date only (YYYY-MM-DD)
       // Format as time range: "7:00 AM to 12:00 PM"
       const startTime12 = formatTo12Hour(startTime);
       const endTime12 = formatTo12Hour(endTime);
       timeToStore = `${startTime12} to ${endTime12}`;
-      startTimeToSend = startTime;
-      endTimeToSend = endTime;
+      startTimeToSend = startTime; // Send as HH:mm format
+      endTimeToSend = endTime; // Send as HH:mm format
     }
 
     onSave({
@@ -611,6 +661,7 @@ const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () =>
       startDate: startDateTime,
       endDate: endDateTime,
       isAllDay,
+      isMultiDay: isMultiDay, // Send isMultiDay flag
       time: timeToStore,
       startTime: startTimeToSend || undefined, // Send start time separately for timed events
       endTime: endTimeToSend || undefined, // Send end time separately for timed events
@@ -639,127 +690,71 @@ const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () =>
         <h3 className="text-xl font-bold text-gray-900 mb-4">Edit Event</h3>
       </div>
 
-
-      {/* Employee Selection */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">Assign Employee</label>
-        {employees.length === 0 ? (
-          <p className="text-sm text-gray-500 mb-2">
-            No active employees found. Please add employees in the Resources page.
-          </p>
-        ) : (
-          <div className="relative" ref={employeeDropdownRef}>
-            {selectedEmployeeId ? (() => {
-              const selectedEmployee = employees.find(e => e.id === selectedEmployeeId);
-              return selectedEmployee ? (
+      {/* Customer Information */}
+      <div className="pt-2">
+        <h3 className="text-sm font-semibold text-gray-900 mb-4">Customer</h3>
+        {(customerName || customerPhone || customerAddress) ? (
                 <div 
-                  className="bg-white rounded-xl p-4 border flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors"
+            className="bg-gray-50 rounded-xl p-4 border relative" 
                   style={{ borderColor: '#E2E2DD' }}
-                  onClick={() => setShowEmployeeDropdown(!showEmployeeDropdown)}
                 >
-                  <div className="flex items-center gap-3">
-                    {selectedEmployee.imageUrl ? (
-                      <img 
-                        src={selectedEmployee.imageUrl} 
-                        alt={selectedEmployee.name}
-                        className="w-10 h-10 rounded-full object-cover flex-shrink-0 border"
-                        style={{ borderColor: '#E2E2DD' }}
-                      />
-                    ) : (
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold ${
-                        selectedEmployee.color === 'blue' ? 'bg-blue-500' :
-                        selectedEmployee.color === 'green' ? 'bg-green-500' :
-                        selectedEmployee.color === 'orange' ? 'bg-orange-500' :
-                        selectedEmployee.color === 'red' ? 'bg-red-500' :
-                        selectedEmployee.color === 'gray' ? 'bg-gray-500' :
-                        'bg-blue-500'
-                      }`}>
-                        {selectedEmployee.name.charAt(0).toUpperCase()}
-                      </div>
-                    )}
-                    <span className="text-sm font-medium text-gray-900">
-                      {selectedEmployee.name}
+            <div className="flex items-start justify-between">
+              <div className="flex-1 pr-8">
+                <div className="flex items-start justify-between mb-2">
+                  <h4 className="font-semibold text-gray-900 text-base">
+                    {customerName || 'Unnamed Customer'}
+                  </h4>
+                  {customerPhone && (
+                    <span className="text-sm text-gray-600 ml-2">
+                      {customerPhone}
                     </span>
+                  )}
                   </div>
-                  <ChevronDownIcon className={`w-5 h-5 text-gray-500 transition-transform ${showEmployeeDropdown ? 'rotate-180' : ''}`} />
-                </div>
-              ) : null;
-            })() : (
-              <div 
-                className="bg-white rounded-xl p-4 border flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors"
-                style={{ borderColor: '#E2E2DD' }}
-                onClick={() => setShowEmployeeDropdown(!showEmployeeDropdown)}
-              >
-                <span className="text-sm text-gray-500">No employee assigned</span>
-                <ChevronDownIcon className={`w-5 h-5 text-gray-500 transition-transform ${showEmployeeDropdown ? 'rotate-180' : ''}`} />
-              </div>
+                {customerAddress && (
+                  <p className="text-sm text-gray-600">
+                    {customerAddress}
+                  </p>
             )}
-            
-            {/* Employee Dropdown */}
-            {showEmployeeDropdown && (
-              <div className="absolute z-50 mt-2 w-full bg-white rounded-xl border shadow-lg max-h-60 overflow-y-auto" style={{ borderColor: '#E2E2DD' }}>
-                {employees.map((employee) => (
-                  <button
-                    key={employee.id}
-                    onClick={() => {
-                      setSelectedEmployeeId(employee.id);
-                      setShowEmployeeDropdown(false);
-                    }}
-                    className={`w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors ${
-                      selectedEmployeeId === employee.id ? 'bg-gray-50' : ''
-                    }`}
-                  >
-                    {employee.imageUrl ? (
-                      <img 
-                        src={employee.imageUrl} 
-                        alt={employee.name}
-                        className="w-8 h-8 rounded-full object-cover flex-shrink-0 border"
-                        style={{ borderColor: '#E2E2DD' }}
-                      />
-                    ) : (
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold ${
-                        employee.color === 'blue' ? 'bg-blue-500' :
-                        employee.color === 'green' ? 'bg-green-500' :
-                        employee.color === 'orange' ? 'bg-orange-500' :
-                        employee.color === 'red' ? 'bg-red-500' :
-                        employee.color === 'gray' ? 'bg-gray-500' :
-                        'bg-blue-500'
-                      }`}>
-                        {employee.name.charAt(0).toUpperCase()}
-                      </div>
-                    )}
-                    <span className="text-sm text-gray-900">{employee.name}</span>
-                    {selectedEmployeeId === employee.id && (
-                      <svg className="w-4 h-4 text-gray-600 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                    )}
-                  </button>
-                ))}
               </div>
+              <div className="flex items-center gap-2">
+                {onEditCustomer && (
+                  <button
+                    onClick={onEditCustomer}
+                    className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                    title="Edit customer"
+                  >
+                    <PencilIcon className="w-4 h-4 text-gray-700" />
+                  </button>
             )}
           </div>
+            </div>
+          </div>
+        ) : (
+          <div className="text-sm text-gray-500">No customer information available</div>
         )}
       </div>
 
       {/* Station and Arrival Selection */}
-      <div className="pt-4">
+      <div className="pt-2">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Station Dropdown */}
           <div>
-            <label htmlFor="customer-type-select" className="block text-sm font-semibold text-gray-900 mb-2">
+            <label htmlFor="station-select" className="block text-sm font-semibold text-gray-900 mb-2">
               Station
             </label>
             <select
-              id="customer-type-select"
-              value={customerType}
-              onChange={e => setCustomerType(e.target.value)}
+              id="station-select"
+              value={selectedResourceId}
+              onChange={e => setSelectedResourceId(e.target.value)}
               className="w-full px-4 py-2.5 border rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
               style={{ borderColor: '#E2E2DD' }}
             >
               <option value="">Select station</option>
-              <option value="new">New Customer</option>
-              <option value="returning">Repeat Customer</option>
+              {resources.map((resource) => (
+                <option key={resource.id} value={resource.id}>
+                  {resource.name}
+                </option>
+              ))}
             </select>
           </div>
           
@@ -772,7 +767,8 @@ const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () =>
               id="location-type-select"
               value={locationType}
               onChange={e => setLocationType(e.target.value)}
-              className="w-full px-4 py-2.5 border rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+              disabled={selectedResourceId ? resources.find(r => r.id === selectedResourceId)?.type === 'van' : false}
+              className="w-full px-4 py-2.5 border rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-500"
               style={{ borderColor: '#E2E2DD' }}
             >
               <option value="">Select location type</option>
@@ -781,210 +777,6 @@ const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () =>
             </select>
           </div>
         </div>
-      </div>
-
-      {/* Date and Time Section */}
-      <div className="border-t border-gray-200 pt-6">
-        <h3 className="text-sm font-semibold text-gray-900 mb-4">Scheduling</h3>
-        
-        {/* All-Day and Multi-Day Toggles */}
-        <div className="mb-4 flex items-center gap-6">
-          <label className="flex items-center space-x-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={isAllDay}
-              onChange={(e) => setIsAllDay(e.target.checked)}
-              className="w-4 h-4 text-gray-900 border-gray-300 rounded focus:ring-gray-900"
-            />
-            <span className="text-sm font-medium text-gray-700">All-day event</span>
-          </label>
-          <label className="flex items-center space-x-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={isMultiDay}
-              onChange={(e) => setIsMultiDay(e.target.checked)}
-              className="w-4 h-4 text-gray-900 border-gray-300 rounded focus:ring-gray-900"
-            />
-            <span className="text-sm font-medium text-gray-700">Multi-day event</span>
-          </label>
-        </div>
-
-        {/* Date and Time Inputs */}
-        <div className="space-y-4">
-          {/* First Row: Dates */}
-          {isMultiDay ? (
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Start Date *</label>
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={e => setStartDate(e.target.value)}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">End Date *</label>
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={e => setEndDate(e.target.value)}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                />
-              </div>
-            </div>
-          ) : (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Start Date *</label>
-              <input
-                type="date"
-                value={startDate}
-                onChange={e => setStartDate(e.target.value)}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-              />
-            </div>
-          )}
-
-          {/* Second Row: Times */}
-          {isMultiDay && !isAllDay && (
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Start Time *</label>
-                <input
-                  type="time"
-                  value={startTime}
-                  onChange={e => setStartTime(e.target.value)}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">End Time *</label>
-                <input
-                  type="time"
-                  value={endTime}
-                  onChange={e => setEndTime(e.target.value)}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                />
-              </div>
-            </div>
-          )}
-
-          {!isMultiDay && !isAllDay && (
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Start Time *</label>
-                <input
-                  type="time"
-                  value={startTime}
-                  onChange={e => setStartTime(e.target.value)}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">End Time *</label>
-                <input
-                  type="time"
-                  value={endTime}
-                  onChange={e => setEndTime(e.target.value)}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                />
-              </div>
-            </div>
-          )}
-
-          {/* All-day: Show business hours (disabled) */}
-          {isAllDay && (
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Start Time (Business Hours)</label>
-                <input
-                  type="time"
-                  value={startTime}
-                  disabled
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-gray-50 text-gray-600 cursor-not-allowed"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">End Time (Business Hours)</label>
-                <input
-                  type="time"
-                  value={endTime}
-                  disabled
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-gray-50 text-gray-600 cursor-not-allowed"
-                />
-              </div>
-            </div>
-          )}
-
-          {isAllDay && startDate && (!startTime || !endTime) && (
-            <div className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-lg p-3">
-              No business hours set for this day. Please set business hours in your profile settings.
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Resource */}
-      {resources.length > 0 && (
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Resource</label>
-          <select
-            value={selectedResourceId}
-            onChange={(e) => setSelectedResourceId(e.target.value)}
-            className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-          >
-            <option value="">No resource</option>
-            {resources.map((resource) => (
-              <option key={resource.id} value={resource.id}>
-                {resource.name} ({resource.type === 'bay' ? 'Bay' : 'Van'})
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-
-      {/* Customer Information */}
-      <div className="border-t border-gray-200 pt-6">
-        <h3 className="text-sm font-semibold text-gray-900 mb-4">Customer</h3>
-        {(customerName || customerPhone || customerAddress) ? (
-          <div 
-            className="bg-gray-50 rounded-xl p-4 border relative" 
-            style={{ borderColor: '#E2E2DD' }}
-          >
-            <div className="flex items-start justify-between">
-              <div className="flex-1 pr-8">
-                <div className="flex items-start justify-between mb-2">
-                  <h4 className="font-semibold text-gray-900 text-base">
-                    {customerName || 'Unnamed Customer'}
-                  </h4>
-                  {customerPhone && (
-                    <span className="text-sm text-gray-600 ml-2">
-                      {customerPhone}
-                    </span>
-                  )}
-                </div>
-                {customerAddress && (
-                  <p className="text-sm text-gray-600">
-                    {customerAddress}
-                  </p>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                {onEditCustomer && (
-                  <button
-                    onClick={onEditCustomer}
-                    className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-                    title="Edit customer"
-                  >
-                    <PencilIcon className="w-4 h-4 text-gray-700" />
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="text-sm text-gray-500">No customer information available</div>
-        )}
       </div>
 
       {/* Vehicle Information */}
@@ -1247,6 +1039,249 @@ const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () =>
         </div>
       </div>
 
+      {/* Employee Selection */}
+      <div className="border-t border-gray-200 pt-6">
+        <label className="block text-sm font-medium text-gray-700 mb-2">Assign Employee</label>
+        {employees.length === 0 ? (
+          <p className="text-sm text-gray-500 mb-2">
+            No active employees found. Please add employees in the Resources page.
+          </p>
+        ) : (
+          <div className="relative" ref={employeeDropdownRef}>
+            {selectedEmployeeId ? (() => {
+              const selectedEmployee = employees.find(e => e.id === selectedEmployeeId);
+              return selectedEmployee ? (
+                <div 
+                  className="bg-white rounded-xl p-4 border flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors"
+                  style={{ borderColor: '#E2E2DD' }}
+                  onClick={() => setShowEmployeeDropdown(!showEmployeeDropdown)}
+                >
+                  <div className="flex items-center gap-3">
+                    {selectedEmployee.imageUrl ? (
+                      <img 
+                        src={selectedEmployee.imageUrl} 
+                        alt={selectedEmployee.name}
+                        className="w-10 h-10 rounded-full object-cover flex-shrink-0 border"
+                        style={{ borderColor: '#E2E2DD' }}
+                      />
+                    ) : (
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold ${
+                        selectedEmployee.color === 'blue' ? 'bg-blue-500' :
+                        selectedEmployee.color === 'green' ? 'bg-green-500' :
+                        selectedEmployee.color === 'orange' ? 'bg-orange-500' :
+                        selectedEmployee.color === 'red' ? 'bg-red-500' :
+                        selectedEmployee.color === 'gray' ? 'bg-gray-500' :
+                        'bg-blue-500'
+                      }`}>
+                        {selectedEmployee.name.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <span className="text-sm font-medium text-gray-900">
+                      {selectedEmployee.name}
+                    </span>
+                  </div>
+                  <ChevronDownIcon className={`w-5 h-5 text-gray-500 transition-transform ${showEmployeeDropdown ? 'rotate-180' : ''}`} />
+                </div>
+              ) : null;
+            })() : (
+              <div 
+                className="bg-white rounded-xl p-4 border flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors"
+                style={{ borderColor: '#E2E2DD' }}
+                onClick={() => setShowEmployeeDropdown(!showEmployeeDropdown)}
+              >
+                <span className="text-sm text-gray-500">No employee assigned</span>
+                <ChevronDownIcon className={`w-5 h-5 text-gray-500 transition-transform ${showEmployeeDropdown ? 'rotate-180' : ''}`} />
+              </div>
+            )}
+            
+            {/* Employee Dropdown */}
+            {showEmployeeDropdown && (
+              <div className="absolute z-50 mt-2 w-full bg-white rounded-xl border shadow-lg max-h-60 overflow-y-auto" style={{ borderColor: '#E2E2DD' }}>
+                {employees.map((employee) => (
+                  <button
+                    key={employee.id}
+                    onClick={() => {
+                      setSelectedEmployeeId(employee.id);
+                      setShowEmployeeDropdown(false);
+                    }}
+                    className={`w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors ${
+                      selectedEmployeeId === employee.id ? 'bg-gray-50' : ''
+                    }`}
+                  >
+                    {employee.imageUrl ? (
+                      <img 
+                        src={employee.imageUrl} 
+                        alt={employee.name}
+                        className="w-8 h-8 rounded-full object-cover flex-shrink-0 border"
+                        style={{ borderColor: '#E2E2DD' }}
+                      />
+                    ) : (
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold ${
+                        employee.color === 'blue' ? 'bg-blue-500' :
+                        employee.color === 'green' ? 'bg-green-500' :
+                        employee.color === 'orange' ? 'bg-orange-500' :
+                        employee.color === 'red' ? 'bg-red-500' :
+                        employee.color === 'gray' ? 'bg-gray-500' :
+                        'bg-blue-500'
+                      }`}>
+                        {employee.name.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <span className="text-sm text-gray-900">{employee.name}</span>
+                    {selectedEmployeeId === employee.id && (
+                      <svg className="w-4 h-4 text-gray-600 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Date and Time Section */}
+      <div className="border-t border-gray-200 pt-6">
+        <h3 className="text-sm font-semibold text-gray-900 mb-4">Scheduling</h3>
+        
+        {/* All-Day and Multi-Day Toggles */}
+        <div className="mb-4 flex items-center gap-6">
+          <label className="flex items-center space-x-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={isAllDay}
+              onChange={(e) => setIsAllDay(e.target.checked)}
+              className="w-4 h-4 text-gray-900 border-gray-300 rounded focus:ring-gray-900"
+            />
+            <span className="text-sm font-medium text-gray-700">All-day event</span>
+          </label>
+          <label className="flex items-center space-x-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={isMultiDay}
+              onChange={(e) => setIsMultiDay(e.target.checked)}
+              className="w-4 h-4 text-gray-900 border-gray-300 rounded focus:ring-gray-900"
+            />
+            <span className="text-sm font-medium text-gray-700">Multi-day event</span>
+          </label>
+        </div>
+
+        {/* Date and Time Inputs */}
+        <div className="space-y-4">
+          {/* First Row: Dates */}
+          {isMultiDay ? (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Start Date *</label>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={e => setStartDate(e.target.value)}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">End Date *</label>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={e => setEndDate(e.target.value)}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                />
+              </div>
+            </div>
+          ) : (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Start Date *</label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={e => setStartDate(e.target.value)}
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+              />
+            </div>
+          )}
+
+          {/* Second Row: Times */}
+          {isMultiDay && !isAllDay && (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Start Time *</label>
+                <input
+                  type="time"
+                  value={startTime}
+                  onChange={e => setStartTime(e.target.value)}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">End Time *</label>
+                <input
+                  type="time"
+                  value={endTime}
+                  onChange={e => setEndTime(e.target.value)}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                />
+              </div>
+            </div>
+          )}
+
+          {!isMultiDay && !isAllDay && (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Start Time *</label>
+                <input
+                  type="time"
+                  value={startTime}
+                  onChange={e => setStartTime(e.target.value)}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">End Time *</label>
+                <input
+                  type="time"
+                  value={endTime}
+                  onChange={e => setEndTime(e.target.value)}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* All-day: Show business hours (disabled) */}
+          {isAllDay && (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Start Time (Business Hours)</label>
+                <input
+                  type="time"
+                  value={startTime}
+                  disabled
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-gray-50 text-gray-600 cursor-not-allowed"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">End Time (Business Hours)</label>
+                <input
+                  type="time"
+                  value={endTime}
+                  disabled
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-gray-50 text-gray-600 cursor-not-allowed"
+                />
+              </div>
+            </div>
+          )}
+
+          {isAllDay && startDate && (!startTime || !endTime) && (
+            <div className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-lg p-3">
+              No business hours set for this day. Please set business hours in your profile settings.
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Customer Notes */}
       <div className="border-t border-gray-200 pt-6">
         <h3 className="text-sm font-semibold text-gray-900 mb-4">Customer Notes</h3>
@@ -1462,58 +1497,38 @@ const MonthView = ({ date, events, selectedEvent, onEventClick, scale = 1.0, res
                 const isCurrentMonth = currentDate.getMonth() === month && currentDate.getFullYear() === year;
                 const day = currentDate.getDate();
                 const dayEvents = events.filter(e => {
+                  if (!e) return false;
                   const currentDateStr = format(currentDate, 'yyyy-MM-dd');
                   
-                  // For local events (including bookings and google-synced), use the date field
-                  if ((e.source === 'local' || e.source === 'local-booking' || e.source === 'local-google-synced') && e.date) {
-                    let eventDate;
-                    if (typeof e.date === 'string') {
-                      eventDate = e.date; // Already in YYYY-MM-DD format
-                    } else {
-                      eventDate = format(e.date, 'yyyy-MM-dd');
-                    }
-                    return eventDate === currentDateStr;
-                  }
-                  
-                  // For Google Calendar events, use start/end dates
-                  if (e.source === 'google' && e.start) {
-                    // Extract date from start time (handle both datetime and date-only formats)
-                    let eventStartDate;
-                    if (e.start.includes('T')) {
-                      // DateTime format: "2025-01-15T10:00:00Z" -> "2025-01-15"
-                      eventStartDate = e.start.split('T')[0];
-                    } else {
-                      // Date-only format: "2025-01-15" -> "2025-01-15"
-                      eventStartDate = e.start;
-                    }
-                    return eventStartDate === currentDateStr;
-                  }
-                  
-                  // Check if this is a multi-day event by comparing start and end dates
+                  // First check if this is a multi-day event that spans this date
                   if (e.start && e.end) {
                     const eventStart = new Date(e.start);
                     const eventEnd = new Date(e.end);
-                    
-                    // Check if current day falls within the event's date range
                     const currentDay = new Date(currentDate);
                     currentDay.setHours(0, 0, 0, 0);
                     eventStart.setHours(0, 0, 0, 0);
                     eventEnd.setHours(0, 0, 0, 0);
-                    return currentDay >= eventStart && currentDay <= eventEnd;
-                  }
-                  
-                  // For single-day events with date field, use the existing logic
-                  if (e.date) {
-                    let eventDate;
-                    if (typeof e.date === 'string') {
-                      eventDate = e.date; // Already in YYYY-MM-DD format
-                    } else {
-                      eventDate = format(e.date, 'yyyy-MM-dd');
+                    if (currentDay >= eventStart && currentDay <= eventEnd) {
+                      return true;
                     }
-                    return eventDate === currentDateStr;
                   }
                   
-                  return false;
+                  // Extract event date - check start first, then date field (matching WeekView logic)
+                  let eventStartDate;
+                  if (e.start) {
+                    if (e.start.includes('T')) {
+                      eventStartDate = e.start.split('T')[0];
+                    } else {
+                      eventStartDate = e.start;
+                    }
+                  } else if (e.date) {
+                    eventStartDate = typeof e.date === 'string' ? e.date : format(e.date, 'yyyy-MM-dd');
+                  } else {
+                    return false;
+                  }
+                  
+                  // Check if event matches current date
+                  return eventStartDate === currentDateStr;
                 });
                 const scaledPadding = 8 * scale; // Doubled from 4 to 8 (recalibrated baseline)
                 
@@ -1528,7 +1543,7 @@ const MonthView = ({ date, events, selectedEvent, onEventClick, scale = 1.0, res
                 const isBusy = jobCount >= 6;
                 
                 // Group events by resource and count drop-offs/pick-ups
-                const resourceStats: Record<string, { dropOff: number; pickUp: number; name: string }> = {};
+                const resourceStats: Record<string, { dropOff: number; pickUp: number; name: string; total: number }> = {};
                 
                 dayEvents.forEach(event => {
                     const resourceId = event.resourceId || 'unassigned';
@@ -1536,8 +1551,11 @@ const MonthView = ({ date, events, selectedEvent, onEventClick, scale = 1.0, res
                     const resourceName = resource ? resource.name : 'Unassigned';
                     
                     if (!resourceStats[resourceId]) {
-                        resourceStats[resourceId] = { dropOff: 0, pickUp: 0, name: resourceName };
+                        resourceStats[resourceId] = { dropOff: 0, pickUp: 0, name: resourceName, total: 0 };
                     }
+                    
+                    // Count all events for this resource
+                    resourceStats[resourceId].total++;
                     
                     const locationType = event.locationType?.toLowerCase() || '';
                     if (locationType === 'drop off' || locationType === 'dropoff') {
@@ -1648,14 +1666,32 @@ const MonthView = ({ date, events, selectedEvent, onEventClick, scale = 1.0, res
                         <div className="flex-1 overflow-y-auto text-xs text-gray-600 space-y-0.5">
                             {sortedResources.length > 0 ? (
                                 sortedResources.map(([resourceId, stats]) => {
-                                    const parts: string[] = [];
-                                    if (stats.dropOff > 0) {
-                                        parts.push(`${stats.dropOff} drop-off${stats.dropOff > 1 ? 's' : ''}`);
+                                    // Show total count with location type breakdown if applicable
+                                    // If all jobs are the same type, show just that type
+                                    // Otherwise show the breakdown
+                                    let details = '';
+                                    if (stats.total === stats.pickUp && stats.pickUp > 0) {
+                                        // All jobs are Pick-up
+                                        details = `: ${stats.total} Pick-up${stats.total > 1 ? 's' : ''}`;
+                                    } else if (stats.total === stats.dropOff && stats.dropOff > 0) {
+                                        // All jobs are Drop-off
+                                        details = `: ${stats.total} Drop-off${stats.total > 1 ? 's' : ''}`;
+                                    } else {
+                                        // Mixed or unknown types - show breakdown
+                                        const parts: string[] = [];
+                                        if (stats.dropOff > 0) {
+                                            parts.push(`${stats.dropOff} Drop-off${stats.dropOff > 1 ? 's' : ''}`);
+                                        }
+                                        if (stats.pickUp > 0) {
+                                            parts.push(`${stats.pickUp} Pick-up${stats.pickUp > 1 ? 's' : ''}`);
+                                        }
+                                        // If there are jobs without a locationType, show the total
+                                        const jobsWithoutType = stats.total - stats.dropOff - stats.pickUp;
+                                        if (jobsWithoutType > 0) {
+                                            parts.push(`${jobsWithoutType} Job${jobsWithoutType > 1 ? 's' : ''}`);
+                                        }
+                                        details = parts.length > 0 ? `: ${parts.join(', ')}` : `: ${stats.total} Job${stats.total > 1 ? 's' : ''}`;
                                     }
-                                    if (stats.pickUp > 0) {
-                                        parts.push(`${stats.pickUp} Pick-up${stats.pickUp > 1 ? 's' : ''}`);
-                                    }
-                                    const details = parts.length > 0 ? `: ${parts.join(', ')}` : ':';
                                 return (
                                         <div key={resourceId} className="truncate">
                                             {stats.name}{details}
@@ -1732,6 +1768,7 @@ const EventHoverPopup = ({
     position, 
     formatTimeRange, 
     getCustomerType,
+    resources,
     onMouseEnter,
     onMouseLeave 
 }: { 
@@ -1739,6 +1776,7 @@ const EventHoverPopup = ({
     position: { top: number; left: number } | null;
     formatTimeRange: (event: any) => string;
     getCustomerType: (event: any) => string;
+    resources?: Array<{ id: string, name: string, type: 'bay' | 'van' }>;
     onMouseEnter: () => void;
     onMouseLeave: () => void;
 }) => {
@@ -1763,6 +1801,10 @@ const EventHoverPopup = ({
     const customerType = getCustomerType(event);
     const paymentStatus = event.paymentStatus || event.status;
     const bookingSource = event.source;
+    
+    // Find the resource for this event to check if it's a van
+    const eventResource = resources?.find(r => r.id === event.resourceId);
+    const isVan = eventResource?.type === 'van';
 
     return (
         <div
@@ -1811,7 +1853,12 @@ const EventHoverPopup = ({
 
                 {/* Tags */}
                 <div className="flex flex-wrap items-center gap-2">
-                    {event.locationType && (
+                    {/* Show "Van" tag for van resources, or locationType (Drop off/Pick up) for bay resources */}
+                    {isVan ? (
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded bg-gray-100 text-gray-700">
+                            Van
+                        </span>
+                    ) : event.locationType ? (
                         <span className={`text-xs font-semibold px-2 py-0.5 rounded ${
                             event.locationType.toLowerCase() === 'pick up' || event.locationType.toLowerCase() === 'pickup'
                                 ? 'bg-blue-100 text-blue-700'
@@ -1825,7 +1872,7 @@ const EventHoverPopup = ({
                              event.locationType?.toLowerCase() === 'drop off' ? 'Drop Off' :
                              event.locationType}
                         </span>
-                    )}
+                    ) : null}
                     {event.customerType === 'new' && (
                         <span className="text-xs font-semibold bg-gray-200 text-gray-700 px-2 py-0.5 rounded">
                             New Customer
@@ -1932,7 +1979,6 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
     const [hoveredEvent, setHoveredEvent] = useState<any | null>(null);
     const [popupPosition, setPopupPosition] = useState<{ top: number; left: number } | null>(null);
     const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-    const timeColumnScrollRef = useRef<HTMLDivElement>(null);
     const mainScrollRef = useRef<HTMLDivElement>(null);
     // Selected cell state for highlighting
     const [selectedCell, setSelectedCell] = useState<{ day: Date; resourceId: string; slotIndex: number } | null>(null);
@@ -2022,25 +2068,6 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
         };
     }, []);
 
-    // Sync time column scroll with main content scroll
-    useEffect(() => {
-        const mainScroll = mainScrollRef.current;
-        const timeColumnScroll = timeColumnScrollRef.current;
-        
-        if (!mainScroll || !timeColumnScroll) return;
-
-        const handleScroll = () => {
-            if (timeColumnScroll.scrollTop !== mainScroll.scrollTop) {
-                timeColumnScroll.scrollTop = mainScroll.scrollTop;
-            }
-        };
-
-        mainScroll.addEventListener('scroll', handleScroll, { passive: true });
-        
-        return () => {
-            mainScroll.removeEventListener('scroll', handleScroll);
-        };
-    }, []);
 
     // Format time range for event cards (e.g., "9:00 AM - 11:00 AM")
     const formatTimeRange = (event: any): string => {
@@ -2067,6 +2094,41 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
             return event.time;
         }
         return '';
+    };
+
+    // Format date and time range for hover popup (includes dates for multi-day events)
+    const formatDateTimeRange = (event: any): string => {
+        if (!event.start || !event.end) return formatTimeRange(event);
+        
+        try {
+            const startTime = new Date(event.start);
+            const endTime = new Date(event.end);
+            
+            // Check if it's a multi-day event
+            const startDate = new Date(startTime);
+            startDate.setHours(0, 0, 0, 0);
+            const endDate = new Date(endTime);
+            endDate.setHours(0, 0, 0, 0);
+            const isMultiDay = startDate.getTime() !== endDate.getTime();
+            
+            if (isMultiDay) {
+                // Format as: "Wednesday, December 31, 2025 - Friday, January 2, 2026 @ 7:00 AM - 6:00 PM"
+                const startDateFormatted = format(startTime, 'EEEE, MMMM d, yyyy');
+                const endDateFormatted = format(endTime, 'EEEE, MMMM d, yyyy');
+                const startTimeFormatted = format(startTime, 'h:mm a');
+                const endTimeFormatted = format(endTime, 'h:mm a');
+                return `${startDateFormatted} - ${endDateFormatted} @ ${startTimeFormatted} - ${endTimeFormatted}`;
+            } else {
+                // Single day: format as: "Wednesday, December 31, 2025 @ 7:00 AM - 6:00 PM"
+                const dateFormatted = format(startTime, 'EEEE, MMMM d, yyyy');
+                const startTimeFormatted = format(startTime, 'h:mm a');
+                const endTimeFormatted = format(endTime, 'h:mm a');
+                return `${dateFormatted} @ ${startTimeFormatted} - ${endTimeFormatted}`;
+            }
+        } catch (e) {
+            console.error('Error formatting date time range:', e);
+            return formatTimeRange(event);
+        }
     };
 
     // Get customer type for event
@@ -2097,6 +2159,39 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
         if (period === 'pm' && hour !== 12) hour += 12;
         if (period === 'am' && hour === 12) hour = 0;
         return hour;
+    };
+    
+    // Helper function to check if an hour (0-23) on a specific day is within working hours
+    const isWithinWorkingHours = (hour: number, day: Date): boolean => {
+        // If no business hours configured, show all hours as working (white)
+        if (!businessHours) {
+            return true;
+        }
+
+        // Map JavaScript day index (0=Sunday) to full day names used in MongoDB
+        const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+        const dayOfWeek = day.getDay();
+        const dayKey = dayNames[dayOfWeek];
+        const dayHours = businessHours[dayKey];
+
+        // If day is not set, closed, or invalid, all hours are non-working (grey)
+        if (!dayHours || !Array.isArray(dayHours) || dayHours.length < 2) {
+            return false;
+        }
+
+        const [openTime, closeTime] = dayHours;
+        
+        // If times are empty or invalid, day is closed - all hours are non-working (grey)
+        if (!openTime || !closeTime || openTime.trim() === '' || closeTime.trim() === '') {
+            return false;
+        }
+
+        // Parse times (format: "HH:MM" in 24-hour format, e.g., "07:00", "20:00")
+        const [openHour] = openTime.split(':').map(Number);
+        const [closeHour] = closeTime.split(':').map(Number);
+
+        // Check if hour is within working hours (openHour <= hour < closeHour)
+        return hour >= openHour && hour < closeHour;
     };
     
     // Generate time slots based on business hours
@@ -2177,7 +2272,7 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
     const totalColumns = weekDays.length * displayResources.length;
 
     return (
-        <div className="flex flex-col w-full h-full" style={{ height: '100%', maxHeight: '100%', overflow: 'hidden', borderRight: 'none' }}>
+        <div className="flex flex-col w-full h-full overflow-hidden" style={{ height: '100%', maxHeight: '100%', overflow: 'hidden', borderRight: 'none' }}>
             {/* Main scrollable container - contains both time column and main content */}
             <div 
                 ref={mainScrollRef}
@@ -2187,27 +2282,33 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                     position: 'relative',
                     height: '100%',
                     maxHeight: '100%',
-                    minWidth: 0
+                    minWidth: 0,
+                    overflowY: 'auto',
+                    overflowX: 'hidden'
                 }}
             >
                 {/* Sticky header - must be inside scroll container */}
                     <div
-                  className="flex-shrink-0 sticky top-0 z-40 bg-white"
+                  className="flex-shrink-0 sticky top-0 z-50 bg-white"
                       style={{ 
                         position: 'sticky', 
                     backgroundColor: 'white',
                     isolation: 'isolate',
+                    top: 0,
+                    zIndex: 50,
+                    boxShadow: 'none'
                   }}
                 >
                     {/* Inner flex container for time column header and main header */}
                     <div className="flex border-b border-gray-200">
                         {/* Time column header spacer */}
                         <div
-                          className="border-r border-gray-200 flex-shrink-0 bg-white"
+                          className="flex-shrink-0 bg-white"
                           style={{ 
                             width: `${scaledTimeColumnWidth}px`,
                             height: `${56 * scale}px`, 
                             boxSizing: 'border-box',
+                            boxShadow: 'none'
                           }}
                         ></div>
                         
@@ -2217,74 +2318,124 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                             <div className="grid border-b border-gray-200 bg-white" style={{ gridTemplateColumns: `repeat(${totalColumns}, 1fr)` }}>
                         {weekDays.map(day => {
                             const isCurrentDay = isToday(day);
+                            const fullDayName = format(day, 'EEEE');
+                            const dayNameMap: { [key: string]: string } = {
+                                'Monday': 'Mon',
+                                'Tuesday': 'Tues',
+                                'Wednesday': 'Wed',
+                                'Thursday': 'Thu',
+                                'Friday': 'Fri',
+                                'Saturday': 'Sat',
+                                'Sunday': 'Sun'
+                            };
+                            const dayName = dayNameMap[fullDayName] || fullDayName;
+                            const dayNumber = format(day, 'd');
                             return (
                             <div 
                                 key={`day-header-${day.toString()}`} 
-                                className="text-center flex items-center justify-center text-xs uppercase border-r border-gray-200 bg-white" 
+                                className="text-center flex items-center justify-center text-xs bg-white"
                                 style={{ 
                                     gridColumn: `span ${displayResources.length}`,
                                     height: `${24 * scale}px`, 
                                     boxSizing: 'border-box',
                                     color: isCurrentDay ? '#57564D' : undefined,
-                                    fontSize: '10px',
+                                    fontSize: '11px',
                                     fontFamily: 'Inter',
                                     fontWeight: isCurrentDay ? '700' : '400',
                                     wordWrap: 'break-word',
                                     padding: isCurrentDay ? '10px 12px' : undefined
                                 }}
                             >
-                                <span>{format(day, 'EEE')} {format(day, 'M/d')}</span>
+                                <span className="flex items-center" style={{ gap: '4px' }}>
+                                    {dayName} {isCurrentDay ? (
+                                        <span 
+                                            style={{
+                                                backgroundColor: '#FF3700',
+                                                color: '#FFFFFF',
+                                                borderRadius: '4px',
+                                                padding: '2px 6px',
+                                                fontSize: '12px',
+                                                fontWeight: '700'
+                                            }}
+                                        >
+                                            {dayNumber}
+                                        </span>
+                                    ) : (
+                                        dayNumber
+                                    )}
+                                </span>
                             </div>
                             );
                         })}
                     </div>
                     
                     {/* Second row: Resource headers for each day */}
-                    <div className="grid border-b border-gray-200 bg-white" style={{ gridTemplateColumns: `repeat(${totalColumns}, 1fr)` }}>
+                    <div className="relative grid border-b border-gray-200 bg-white" style={{ gridTemplateColumns: `repeat(${totalColumns}, 1fr)` }}>
+                        {/* Station header cell - positioned absolutely to align with time column */}
+                        <div
+                            className="absolute bg-white border-r border-gray-200 text-center flex flex-row items-center justify-center z-10"
+                            style={{ 
+                                left: `-${scaledTimeColumnWidth}px`,
+                                width: `${scaledTimeColumnWidth}px`,
+                                height: `${32 * scale}px`, 
+                                boxSizing: 'border-box',
+                                padding: '4px 8px',
+                                color: '#57564D',
+                                fontSize: '10px',
+                                fontFamily: 'Helvetica Neue',
+                                fontWeight: '400',
+                                wordWrap: 'break-word'
+                            }}
+                        >
+                            <span>Station</span>
+                        </div>
+                        
+                        {/* Resource headers grid */}
                         {weekDays.map((day, dayIndex) => 
                             displayResources.map((resource, resourceIndex) => {
                                 const columnIndex = (dayIndex * displayResources.length) + resourceIndex;
+                                const isFirstResource = dayIndex === 0 && resourceIndex === 0;
                                 return (
                                 <div 
                                     key={`resource-header-${day.toString()}-${resource.id}`} 
-                                            className={`text-center flex flex-row items-center justify-center gap-1 border-r border-gray-200 bg-white ${onOpenModal && onResourceSelect ? 'cursor-pointer hover:bg-gray-50 transition-colors' : ''}`}
-                                    style={{ 
-                                        gridColumn: columnIndex + 1,
-                                        height: `${32 * scale}px`, 
-                                        boxSizing: 'border-box',
-                                        padding: '4px 8px',
-                                        color: '#57564D',
-                                        fontSize: '10px',
-                                        fontFamily: 'Helvetica Neue',
-                                        fontWeight: '400',
-                                        wordWrap: 'break-word'
-                                    }}
-                                            onClick={onOpenModal && onResourceSelect ? (e) => {
-                                                e.stopPropagation();
-                                                onResourceSelect(resource);
-                                                // Get first time slot hour for default start time
-                                                const firstSlotHour = parseSlotHour(timeSlots[0]) || 7;
-                                                const clickedDate = new Date(day);
-                                                clickedDate.setHours(firstSlotHour, 0, 0, 0);
-                                                const endDate = new Date(clickedDate);
-                                                endDate.setHours(firstSlotHour + 1, 0, 0, 0);
-                                                onOpenModal({
-                                                    resourceId: resource.id,
-                                                    startTime: clickedDate.toISOString(),
-                                                    endTime: endDate.toISOString(),
-                                                    date: day
-                                                });
-                                            } : undefined}
-                                        >
-                                            <span>{resource.name}</span>
-                                            {onOpenModal && onResourceSelect && (
-                                                <PlusIcon className="w-3 h-3 inline text-gray-600" />
-                                    )}
-                                </div>
-                                );
-                            })
-                        )}
-                            </div>
+                                            className={`text-center flex flex-row items-center justify-center gap-1 ${isFirstResource ? 'border-l border-gray-200 ' : ''}border-r border-gray-200 bg-white ${onOpenModal && onResourceSelect ? 'cursor-pointer hover:bg-gray-50 transition-colors' : ''}`}
+                                        style={{ 
+                                            gridColumn: columnIndex + 1,
+                                            height: `${32 * scale}px`, 
+                                            boxSizing: 'border-box',
+                                            padding: '4px 8px',
+                                            color: '#57564D',
+                                            fontSize: '10px',
+                                            fontFamily: 'Helvetica Neue',
+                                            fontWeight: '400',
+                                            wordWrap: 'break-word'
+                                        }}
+                                                onClick={onOpenModal && onResourceSelect ? (e) => {
+                                                    e.stopPropagation();
+                                                    onResourceSelect(resource);
+                                                    // Get first time slot hour for default start time
+                                                    const firstSlotHour = parseSlotHour(timeSlots[0]) || 7;
+                                                    const clickedDate = new Date(day);
+                                                    clickedDate.setHours(firstSlotHour, 0, 0, 0);
+                                                    const endDate = new Date(clickedDate);
+                                                    endDate.setHours(firstSlotHour + 1, 0, 0, 0);
+                                                    onOpenModal({
+                                                        resourceId: resource.id,
+                                                        startTime: clickedDate.toISOString(),
+                                                        endTime: endDate.toISOString(),
+                                                        date: day
+                                                    });
+                                                } : undefined}
+                                            >
+                                                <span>{resource.name === 'Station' ? '' : resource.name}</span>
+                                                {onOpenModal && onResourceSelect && (
+                                                    <PlusIcon className="w-3 h-3 inline text-gray-600" />
+                                        )}
+                                    </div>
+                                    );
+                                })
+                            )}
+                    </div>
                         </div>
                     </div>
                 </div>
@@ -2300,27 +2451,20 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                         zIndex: 40, 
                         width: `${scaledTimeColumnWidth}px`,
                         alignSelf: 'flex-start',
-                        boxSizing: 'border-box'
+                        boxSizing: 'border-box',
+                        boxShadow: 'none'
                       }}
                     >
                         {/* Time slots - these will scroll with the main content */}
                         <div 
-                            ref={timeColumnScrollRef}
-                            className="flex-1 overflow-y-auto"
+                            className="flex-1"
                             style={{ 
-                                minHeight: `${timeSlots.length * scaledTimeSlotHeight}px`,
-                                scrollbarWidth: 'thin'
-                            }}
-                            onScroll={(e) => {
-                                // Sync main content scroll with time column scroll
-                                if (mainScrollRef.current && e.currentTarget.scrollTop !== mainScrollRef.current.scrollTop) {
-                                    mainScrollRef.current.scrollTop = e.currentTarget.scrollTop;
-                                }
+                                minHeight: `${timeSlots.length * scaledTimeSlotHeight}px`
                             }}
                         >
-                        {timeSlots.map(slot => (
-                                <div key={slot} className="flex items-center justify-center text-xs text-gray-500 border-b border-gray-200" style={{ height: `${scaledTimeSlotHeight}px`, fontSize: `${0.75 * scale}rem`, boxSizing: 'border-box' }}>
-                                {slot}
+                        {timeSlots.map((slot, index) => (
+                                <div key={slot} style={{ height: `${scaledTimeSlotHeight}px`, display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-end', paddingRight: '8px', color: '#57564D', fontSize: 10, fontFamily: 'Inter', fontWeight: '400', wordWrap: 'break-word', boxSizing: 'border-box' }}>
+                                <span style={{ lineHeight: 1, margin: 0, padding: 0, marginTop: '-2px' }}>{index === 0 ? '' : formatSlotLabel(slot)}</span>
                             </div>
                         ))}
                         </div>
@@ -2344,6 +2488,18 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                         const currentHour = now.getHours();
                         const currentMinutes = now.getMinutes();
                         
+                        // Check if current time is within the visible time slots range
+                        if (timeSlots.length === 0) return null;
+                        const firstSlotHour = parseSlotHour(timeSlots[0]) || 0;
+                        const lastSlotHour = parseSlotHour(timeSlots[timeSlots.length - 1]);
+                        
+                        if (lastSlotHour === null) return null;
+                        
+                        // Check if current time is within the displayed hours
+                        // The last slot represents the hour before closing, so we check up to lastSlotHour
+                        // If current time is past lastSlotHour, it's outside the visible range, so don't show
+                        if (currentHour < firstSlotHour || currentHour > lastSlotHour) return null;
+                        
                         // Find which time slot the current time falls into
                         let slotIndex = -1;
                         for (let i = 0; i < timeSlots.length; i++) {
@@ -2359,7 +2515,6 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                         if (slotIndex === -1) return null;
                         
                         // Calculate vertical position
-                        const firstSlotHour = parseSlotHour(timeSlots[0]) || 0;
                         const slotStartHour = parseSlotHour(timeSlots[slotIndex]) || firstSlotHour;
                         const hoursFromSlotStart = currentHour - slotStartHour;
                         const minutesOffset = (hoursFromSlotStart * 60 + currentMinutes) / 60;
@@ -2422,10 +2577,12 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                     
                     {/* Time slot rows with events - each resource column gets its own wrapper */}
                     {weekDays.map((day, dayIndex) => 
-                        displayResources.map((resource) => {
+                        displayResources.map((resource, resourceIndex) => {
                             // Create a wrapper for this resource column that contains all time slots
-                            const resourceIndex = displayResources.findIndex(r => r.id === resource.id);
                             const columnIndex = (dayIndex * displayResources.length) + resourceIndex;
+                            const isFirstResource = dayIndex === 0 && resourceIndex === 0;
+                            const isFirstResourceOfDay = resourceIndex === 0;
+                            const isDayBoundary = dayIndex > 0 && isFirstResourceOfDay;
                             
                             // Filter events for this day and resource
                             const dayEvents = (events || []).filter(e => {
@@ -2433,7 +2590,23 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                 // Filter by resource
                                 if (e.resourceId && e.resourceId !== resource.id) return false;
                                 
-                                // Check if event is on the current day
+                                const currentDateStr = format(day, 'yyyy-MM-dd');
+                                
+                                // Check if this is a multi-day event that spans this date
+                                if (e.start && e.end) {
+                                    const eventStart = new Date(e.start);
+                                    const eventEnd = new Date(e.end);
+                                    const currentDay = new Date(day);
+                                    currentDay.setHours(0, 0, 0, 0);
+                                    eventStart.setHours(0, 0, 0, 0);
+                                    eventEnd.setHours(0, 0, 0, 0);
+                                    // Check if current day is within the event's date range
+                                    if (currentDay >= eventStart && currentDay <= eventEnd) {
+                                        return true;
+                                    }
+                                }
+                                
+                                // Check if event is on the current day (single-day events)
                                         let eventStartDate;
                                 if (e.start) {
                                         if (e.start.includes('T')) {
@@ -2447,7 +2620,6 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                     eventStartDate = '';
                                 }
                                 
-                                const currentDateStr = format(day, 'yyyy-MM-dd');
                                 return eventStartDate === currentDateStr;
                             });
                             
@@ -2460,7 +2632,11 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                 <div
                                     key={`resource-column-${day.toString()}-${resource.id}`}
                                     className="relative"
-                                    style={{ gridColumn: columnIndex + 1 }}
+                                    style={{ 
+                                        gridColumn: columnIndex + 1,
+                                        height: `${totalTimeSlotHeight}px`,
+                                        overflow: 'hidden'
+                                    }}
                                 >
                                     {/* Render all-day events as blocks spanning entire day height */}
                                     {allDayEvents.map((event, i) => {
@@ -2553,17 +2729,21 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                             selectedCell?.slotIndex === slotIndex &&
                                             format(selectedCell.day, 'yyyy-MM-dd') === format(day, 'yyyy-MM-dd');
                                         
+                                        const slotHour = parseSlotHour(slot);
+                                        const isWorkingHour = slotHour !== null ? isWithinWorkingHours(slotHour, day) : true;
+                                        
                                         return (
                                             <div 
                                                 key={`${slot}-${day.toString()}-${resource.id}`} 
-                                                className={`border-r border-b border-gray-200 relative cursor-pointer transition-all ${
+                                                className={`${isFirstResource ? 'border-l border-gray-200 ' : ''}${isDayBoundary ? 'border-l-2 border-gray-300 ' : ''}border-r border-b border-gray-200 relative cursor-pointer transition-all ${
                                                     isSelected 
                                                         ? 'bg-blue-50/30 border-2 border-dashed border-blue-400' 
                                                         : 'hover:bg-gray-50'
                                                 }`}
                                                 style={{ 
                                                     height: `${scaledTimeSlotHeight}px`, 
-                                                    boxSizing: 'border-box'
+                                                    boxSizing: 'border-box',
+                                                    backgroundColor: isSelected ? undefined : (isWorkingHour ? 'white' : '#F5F5F5')
                                                 }}
                                                 onClick={(e) => {
                                                     // Only handle clicks on blank space, not on events
@@ -2701,8 +2881,124 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                     {timedEvents.map((event, i) => {
                                         if (!event || !event.start || !event.end) return null;
                                         // Calculate position and height based on actual start/end times
-                                        const startTime = new Date(event.start);
-                                        const endTime = new Date(event.end);
+                                        const eventStartTime = new Date(event.start);
+                                        const eventEndTime = new Date(event.end);
+                                        
+                                        // For multi-day events, adjust start/end times based on current day
+                                        const currentDayStart = new Date(day);
+                                        currentDayStart.setHours(0, 0, 0, 0);
+                                        const currentDayEnd = new Date(day);
+                                        currentDayEnd.setHours(23, 59, 59, 999);
+                                        
+                                        const eventStartDay = new Date(eventStartTime);
+                                        eventStartDay.setHours(0, 0, 0, 0);
+                                        const eventEndDay = new Date(eventEndTime);
+                                        eventEndDay.setHours(0, 0, 0, 0);
+                                        
+                                        // Determine if this is a multi-day event and which day we're on
+                                        const isMultiDayEvent = eventStartDay.getTime() !== eventEndDay.getTime();
+                                        const isStartDay = currentDayStart.getTime() === eventStartDay.getTime();
+                                        const isEndDay = currentDayStart.getTime() === eventEndDay.getTime();
+                                        const isIntermediateDay = isMultiDayEvent && !isStartDay && !isEndDay;
+                                        
+                                        // Helper function to get business hours bounds for a specific day
+                                        const getBusinessHoursBounds = (date: Date): { open: Date; close: Date } | null => {
+                                            if (!businessHours) return null;
+                                            const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+                                            const dayOfWeek = days[date.getDay()];
+                                            const dayHours = businessHours[dayOfWeek];
+                                            
+                                            if (!dayHours) return null;
+                                            
+                                            let openTime: string | undefined;
+                                            let closeTime: string | undefined;
+                                            
+                                            if (Array.isArray(dayHours) && dayHours.length >= 2) {
+                                                [openTime, closeTime] = dayHours;
+                                            } else if (typeof dayHours === 'object' && dayHours !== null) {
+                                                openTime = (dayHours as any).open || (dayHours as any)[0];
+                                                closeTime = (dayHours as any).close || (dayHours as any)[1];
+                                            }
+                                            
+                                            if (!openTime || !closeTime) return null;
+                                            
+                                            // Parse time strings (e.g., "7:00 AM" or "07:00")
+                                            const parseTime = (timeStr: string): { hour: number; minute: number } => {
+                                                let hour = 0;
+                                                let minute = 0;
+                                                
+                                                // Check if 12-hour format
+                                                const pmMatch = timeStr.match(/(\d+):(\d+)\s*PM/i);
+                                                const amMatch = timeStr.match(/(\d+):(\d+)\s*AM/i);
+                                                
+                                                if (pmMatch) {
+                                                    hour = parseInt(pmMatch[1]);
+                                                    minute = parseInt(pmMatch[2]);
+                                                    if (hour !== 12) hour += 12;
+                                                } else if (amMatch) {
+                                                    hour = parseInt(amMatch[1]);
+                                                    minute = parseInt(amMatch[2]);
+                                                    if (hour === 12) hour = 0;
+                                                } else {
+                                                    // 24-hour format
+                                                    const parts = timeStr.split(':');
+                                                    hour = parseInt(parts[0]);
+                                                    minute = parseInt(parts[1] || '0');
+                                                }
+                                                
+                                                return { hour, minute };
+                                            };
+                                            
+                                            const open = parseTime(openTime);
+                                            const close = parseTime(closeTime);
+                                            
+                                            const openDate = new Date(date);
+                                            openDate.setHours(open.hour, open.minute, 0, 0);
+                                            
+                                            const closeDate = new Date(date);
+                                            closeDate.setHours(close.hour, close.minute, 0, 0);
+                                            
+                                            return { open: openDate, close: closeDate };
+                                        };
+                                        
+                                        // Calculate the actual start and end times for this day, clamped to business hours
+                                        let startTime: Date;
+                                        let endTime: Date;
+                                        
+                                        const businessBounds = getBusinessHoursBounds(day);
+                                        
+                                        if (isStartDay) {
+                                            // On start day: use event start time, end at business close or event end if same day
+                                            startTime = eventStartTime;
+                                            if (isEndDay) {
+                                                endTime = eventEndTime;
+                                            } else if (businessBounds) {
+                                                endTime = businessBounds.close;
+                                            } else {
+                                                endTime = currentDayEnd;
+                                            }
+                                        } else if (isEndDay) {
+                                            // On end day: start at business open, use event end time
+                                            if (businessBounds) {
+                                                startTime = businessBounds.open;
+                                            } else {
+                                                startTime = currentDayStart;
+                                            }
+                                            endTime = eventEndTime;
+                                        } else if (isIntermediateDay) {
+                                            // On intermediate days: span from business open to business close
+                                            if (businessBounds) {
+                                                startTime = businessBounds.open;
+                                                endTime = businessBounds.close;
+                                            } else {
+                                                startTime = currentDayStart;
+                                                endTime = currentDayEnd;
+                                            }
+                                        } else {
+                                            // Single day event
+                                            startTime = eventStartTime;
+                                            endTime = eventEndTime;
+                                        }
                                         
                                         let startHour = startTime.getHours();
                                         let startMinutes = startTime.getMinutes();
@@ -2758,10 +3054,62 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                         const eventColor = event.color || 'blue';
                                         const colorConfig = eventColors[eventColor] || eventColors.blue;
                                         
+                                        // Map event colors to light background colors for cards
+                                        const eventBackgroundColors: { [key: string]: string } = {
+                                            blue: '#def2ff',   // Light blue (original)
+                                            green: '#dcfce7',   // Light green
+                                            orange: '#ffedd5',  // Light orange
+                                            red: '#fee2e2',     // Light red
+                                            gray: '#f3f4f6',    // Light gray
+                                        };
+                                        const cardBackgroundColor = eventBackgroundColors[eventColor] || eventBackgroundColors.blue;
+                                        
                                         // Check if event is in the past (end time is before current time, or on a past day)
                                         const now = new Date();
-                                        const isPastDay = isBefore(day, now);
+                                        const todayStart = startOfDay(now);
+                                        const dayStart = startOfDay(day);
+                                        const isPastDay = isBefore(dayStart, todayStart);
                                         const isPastEvent = isPastDay || (isSameDay(day, now) && endTime < now);
+                                        
+                                        // Adaptive content visibility based on card height (in pixels) - matching Figma designs
+                                        // If card is less than or equal to one hour tall, hide time, employee image, and comments
+                                        // Use actual duration in hours, not calculated height, to avoid Math.max precision issues
+                                        const oneHourHeight = scaledTimeSlotHeight; // Height of one hour in pixels (e.g., 96px)
+                                        // Hide time, notes, and employee image when duration is <= 1 hour
+                                        // Only show these elements when duration is strictly greater than 1 hour
+                                        const isAtLeastOneHour = durationHours > 1.0;
+                                        
+                                        // Smallest (< 25px): Title + pink indicator bar
+                                        // 2nd (>= 25px): Title + Time + Drop-off button
+                                        // 3rd (>= 55px): Title + Time + Vehicle + Notes + Both buttons
+                                        // 4th (>= 85px): Title + Time + Vehicle + Notes + Customer name + Both buttons + Profile picture
+                                        // Largest (>= 100px): Title + Time + Vehicle + Notes + Customer name + Customer phone + Both buttons + Profile picture
+                                        const isSmallest = height < 25; // Show only title + indicator bar
+                                        
+                                        // Hide time, notes, and employee image if card is less than one hour tall
+                                        // These elements require the card to be at least one hour tall to display
+                                        const showTime = height >= 25 && isAtLeastOneHour;
+                                        const showLocationButton = height >= 25; // Show location button starting from 2nd design
+                                        const showVehicle = height >= 55; // Show vehicle starting from 3rd design
+                                        const showNotes = height >= 55 && isAtLeastOneHour; // Hide notes if less than one hour
+                                        const showRepeatButton = height >= 55; // Show repeat button starting from 3rd design
+                                        const showCustomerName = height >= 85; // Show customer name starting from 4th design
+                                        const showTechPicture = height >= 85 && isAtLeastOneHour; // Hide employee image if less than one hour
+                                        const showCustomerPhone = height >= 100; // Show customer phone starting from largest design
+                                        
+                                        // Calculate max lines for notes (max 2 lines)
+                                        const notesMaxLines = height >= 45 ? 2 : 0;
+                                        
+                                        // Format time for display (ensure format: 9:00 - 10:00 AM)
+                                        const formatTimeDisplay = (timeRange: string) => {
+                                            if (!timeRange) return '';
+                                            // Format should be: "9:00 AM - 10:00 AM"
+                                            // If already in correct format, return as is
+                                            if (timeRange.includes('AM') || timeRange.includes('PM')) {
+                                                return timeRange;
+                                            }
+                                            return timeRange;
+                                        };
                                         
                                         return (
                                     <div 
@@ -2774,17 +3122,25 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                         }}
                                         onMouseEnter={(e) => handleEventMouseEnter(event, e.currentTarget)}
                                         onMouseLeave={handleEventMouseLeave}
-                                    className={`absolute w-[95%] left-1 ${colorConfig.bg} p-1.5 rounded-xl flex flex-col items-start text-xs cursor-pointer hover:shadow-lg transition-all z-20`}
+                                    className={`absolute w-[95%] left-1 rounded-[6px] flex flex-col items-start cursor-pointer hover:shadow-lg transition-all z-20`}
                                     style={{ 
                                         pointerEvents: 'auto',
                                         top: `${top}px`,
                                         height: `${height}px`,
                                         minHeight: `${scaledTimeSlotHeight * 0.5}px`,
-                                        opacity: isPastEvent ? 0.5 : 1
+                                        opacity: isPastEvent ? 0.5 : 1,
+                                        backgroundColor: cardBackgroundColor,
+                                        paddingTop: '8px',
+                                        paddingBottom: '8px',
+                                        paddingLeft: '7px',
+                                        paddingRight: '7px',
+                                        justifyContent: 'space-between'
                                     }}
                                     >
-                                        {/* Service name - large and bold */}
-                                        <div className="flex items-center gap-1.5 w-full mb-1">
+                                        {/* Top Section: Title, Time, Vehicle, Notes */}
+                                        <div className="flex flex-col items-start w-full" style={{ gap: '4px' }}>
+                                            {/* 1. Service/Title - Always visible */}
+                                            <div className="flex items-center gap-1.5 w-full">
                                         {event.source === 'google' && (
                                             <svg className="w-3 h-3 text-gray-600 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
                                                 <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -2793,93 +3149,291 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                                 <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
                                             </svg>
                                         )}
-                                            <span className="truncate font-bold text-lg md:text-xl flex-1">
+                                            <span 
+                                                className="truncate flex-1"
+                                                style={{
+                                                    fontSize: '12px',
+                                                        fontFamily: "'Helvetica Neue', sans-serif",
+                                                    fontWeight: 500,
+                                                    color: '#062F4B',
+                                                        lineHeight: 'normal',
+                                                        whiteSpace: 'nowrap'
+                                                }}
+                                            >
                                                 {event.title || event.eventName || (Array.isArray(event.services) ? event.services.join(' + ') : event.services) || 'Service'}
                                             </span>
                                         </div>
                                         
-                                        {/* Time range - split into two lines */}
-                                        {formatTimeRange(event) && (() => {
-                                            const timeRange = formatTimeRange(event);
-                                            const [startTime, endTime] = timeRange.split(' - ');
-                                            return (
-                                                <div className="text-xs font-semibold text-gray-700 mb-1 text-left w-full">
-                                                    <div>{startTime}</div>
-                                                    {endTime && <div className="text-gray-600">- {endTime}</div>}
+                                            {/* Time - Show if height >= 25px */}
+                                            {showTime && formatTimeRange(event) && (
+                                                <div 
+                                                    style={{
+                                                        fontSize: '10px',
+                                                        fontFamily: "'Inter', sans-serif",
+                                                        fontWeight: 500,
+                                                        color: '#062F4B',
+                                                        lineHeight: 'normal'
+                                                    }}
+                                                >
+                                                    {formatTimeDisplay(formatTimeRange(event))}
                                                 </div>
-                                            );
-                                        })()}
-                                        
-                                        {/* Customer name */}
-                                        {event.customerName && (
-                                            <span className="text-xs text-gray-700 mb-1 truncate font-semibold text-left w-full">
-                                                {event.customerName}
-                                            </span>
-                                        )}
-                                        
-                                        {/* Vehicle */}
-                                        {(event.vehicleType || event.vehicleModel) && (
-                                            <span className="text-xs font-semibold text-gray-600 mb-1 truncate text-left w-full">
-                                                {event.vehicleType || event.vehicleModel}
-                                            </span>
-                                        )}
-                                        
-                                        {/* Customer Type Tag, Location Type Tag, and Technician icon at bottom */}
-                                        <div className="mt-auto flex flex-col items-center w-full pt-1 gap-1">
-                                            {/* Location Type Tag - Only for Bay columns, above customer type */}
-                                            {resource.type === 'bay' && event.locationType && (
-                                                <span className={`text-xs font-semibold px-1.5 py-0.5 rounded inline-block text-center ${
-                                                    (event.locationType?.toLowerCase() === 'pick up' || event.locationType?.toLowerCase() === 'pickup')
-                                                        ? 'bg-blue-500 text-white'
-                                                        : (event.locationType?.toLowerCase() === 'drop off' || event.locationType?.toLowerCase() === 'dropoff')
-                                                        ? 'bg-pink-500 text-white'
-                                                        : 'bg-gray-200 text-gray-700'
-                                                }`}>
-                                                    {event.locationType?.toLowerCase() === 'pickup' ? 'Pick Up' : 
-                                                     event.locationType?.toLowerCase() === 'dropoff' ? 'Drop Off' :
-                                                     event.locationType}
-                                            </span>
-                                        )}
-                                            
-                                            {/* Customer Type Tag - Below location type (if present) */}
-                                            {event.customerType && (
-                                                <span className={`text-xs font-semibold px-1.5 py-0.5 rounded inline-block text-center ${
-                                                    event.customerType.toLowerCase() === 'new' 
-                                                        ? 'bg-gray-200 text-gray-700'
-                                                        : event.customerType.toLowerCase() === 'returning'
-                                                        ? 'bg-purple-200 text-purple-800'
-                                                        : event.customerType.toLowerCase() === 'maintenance'
-                                                        ? 'bg-blue-200 text-blue-800'
-                                                        : 'bg-gray-200 text-gray-700'
-                                                }`}>
-                                                    {event.customerType === 'new' ? 'New Customer' : 
-                                                     event.customerType === 'returning' ? 'Repeat Customer' :
-                                                     event.customerType === 'maintenance' ? 'Maintenance Customer' :
-                                                     event.customerType}
-                                            </span>
                                             )}
-                                            
-                                            {/* Fallback: Show old customer type logic if customerType is not set */}
-                                            {!event.customerType && getCustomerType(event) === 'repeat' && (
-                                                <span className="text-xs font-semibold bg-purple-200 text-purple-800 px-1.5 py-0.5 rounded inline-block text-center">
-                                                    Repeat ...
-                                            </span>
+                                        
+                                            {/* Vehicle - Show if height >= 55px */}
+                                        {showVehicle && (event.vehicleType || event.vehicleModel) && (
+                                                <div 
+                                                    className="w-full"
+                                                style={{
+                                                    fontSize: '10px',
+                                                        fontFamily: "'Inter', sans-serif",
+                                                        fontWeight: 500,
+                                                    color: '#062F4B',
+                                                        lineHeight: 'normal'
+                                                }}
+                                            >
+                                                {event.vehicleType || event.vehicleModel}
+                                                </div>
                                         )}
+                                        
+                                            {/* Notes - Show if height >= 55px */}
+                                            {showNotes && event.description && (
+                                            <div 
+                                                    className="w-full"
+                                                style={{
+                                                    fontSize: '10px',
+                                                        fontFamily: "'Inter', sans-serif",
+                                                        fontWeight: 500,
+                                                    color: 'rgba(6, 47, 75, 0.70)',
+                                                        lineHeight: 'normal'
+                                                }}
+                                            >
+                                                    {event.description}
+                                            </div>
+                                        )}
+                                        </div>
+                                        
+                                        {/* Bottom Section: Customer Info, Action Buttons, Profile Picture */}
+                                        <div className="flex flex-col items-start w-full" style={{ gap: '8px' }}>
+                                            {/* Customer Name + Phone - Show name if height >= 85px, phone if height >= 100px */}
+                                            {(showCustomerName || showCustomerPhone) && (event.customerName || event.customerPhone) && (
+                                                <div className="flex flex-col items-start w-full" style={{ gap: '2px' }}>
+                                                    {showCustomerName && event.customerName && (
+                                                    <div 
+                                                            className="w-full"
+                                                        style={{
+                                                            fontSize: '10px',
+                                                                fontFamily: "'Inter', sans-serif",
+                                                                fontWeight: 500,
+                                                            color: '#062F4B',
+                                                                lineHeight: 'normal'
+                                                        }}
+                                                    >
+                                                        {event.customerName}
+                                                    </div>
+                                                )}
+                                                    {showCustomerPhone && event.customerPhone && (
+                                                    <div 
+                                                            className="w-full"
+                                                        style={{
+                                                            fontSize: '10px',
+                                                                fontFamily: "'Inter', sans-serif",
+                                                                fontWeight: 500,
+                                                                color: 'rgba(6, 47, 75, 0.70)',
+                                                                lineHeight: 'normal'
+                                                        }}
+                                                    >
+                                                        {event.customerPhone}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                        
+                                            {/* Action Buttons */}
+                                            {(() => {
+                                                // Smallest design: show pink indicator bar
+                                                if (isSmallest) {
+                                                    return (
+                                                        <div className="w-full" style={{ height: '8px', display: 'flex', alignItems: 'flex-end' }}>
+                                                            <div 
+                                                    style={{
+                                                                    height: '3px',
+                                                                    width: '100%',
+                                                                    backgroundColor: '#d43b88',
+                                                                    borderRadius: '2px'
+                                                                }}
+                                                            />
+                                                        </div>
+                                                    );
+                                                }
+                                                
+                                                // 2nd design and up: show location button(s)
+                                                if (showLocationButton || showRepeatButton) {
+                                                    return (
+                                                        <div className="flex flex-col items-start w-full" style={{ gap: '4px' }}>
+                                                            {/* Location Button - Show if height >= 25px */}
+                                                            {showLocationButton && (() => {
+                                                                if (resource.type === 'bay' && event.locationType) {
+                                                                    const locationLower = event.locationType.toLowerCase();
+                                                                    const isPickup = locationLower === 'pick up' || locationLower === 'pickup';
+                                                                    const isDropoff = locationLower === 'drop off' || locationLower === 'dropoff';
+                                                                    return (
+                                                                        <div 
+                                                                            className="flex items-center justify-center w-full"
+                                                    style={{
+                                                                                height: '15px',
+                                                                                backgroundColor: isPickup ? '#3B82F6' : isDropoff ? '#d43b88' : '#E5E7EB',
+                                                                                borderRadius: '2px',
+                                                                                paddingLeft: '3px',
+                                                                                paddingRight: '3px',
+                                                                                paddingTop: '2px',
+                                                                                paddingBottom: '2px'
+                                                                            }}
+                                                                        >
+                                                                            <span 
+                                                                                style={{
+                                                                                    fontSize: '10px',
+                                                                                    fontFamily: "'Inter', sans-serif",
+                                                                                    fontWeight: 600,
+                                                                                    color: 'white',
+                                                                                    lineHeight: 'normal',
+                                                                                    textAlign: 'center',
+                                                                                    whiteSpace: 'nowrap',
+                                                                                    overflow: 'hidden',
+                                                                                    textOverflow: 'ellipsis',
+                                                                                    width: '100%'
+                                                                                }}
+                                                                            >
+                                                                                {isPickup ? 'Pick Up' : isDropoff ? 'Drop Off' : event.locationType}
+                                            </span>
+                                                                        </div>
+                                                                    );
+                                                                } else if (resource.type === 'van') {
+                                                                    return (
+                                                                        <div 
+                                                                            className="flex items-center justify-center w-full"
+                                                                            style={{
+                                                                                height: '15px',
+                                                                                backgroundColor: '#E5E7EB',
+                                                                                borderRadius: '2px',
+                                                                                paddingLeft: '3px',
+                                                                                paddingRight: '3px',
+                                                                                paddingTop: '2px',
+                                                                                paddingBottom: '2px'
+                                                                            }}
+                                                                        >
+                                                                            <span 
+                                                                                style={{
+                                                                                    fontSize: '10px',
+                                                                                    fontFamily: "'Inter', sans-serif",
+                                                                                    fontWeight: 600,
+                                                                                    color: '#374151',
+                                                                                    lineHeight: 'normal',
+                                                                                    textAlign: 'center',
+                                                                                    whiteSpace: 'nowrap'
+                                                                                }}
+                                                                            >
+                                                    Van
+                                            </span>
+                                                                        </div>
+                                                                    );
+                                                                }
+                                                                return null;
+                                                            })()}
                                             
-                                            {/* Technician icon */}
+                                                            {/* Repeat/New Customer Button - Show if height >= 55px */}
+                                                            {showRepeatButton && (() => {
+                                                const customerType = event.customerType || getCustomerType(event);
+                                                if (customerType === 'repeat' || customerType === 'returning') {
+                                                    return (
+                                                                        <div 
+                                                                            className="flex items-center justify-center w-full"
+                                                                            style={{
+                                                                                height: '15px',
+                                                                                backgroundColor: '#ae5aef',
+                                                                                borderRadius: '2px',
+                                                                                paddingLeft: '3px',
+                                                                                paddingRight: '3px',
+                                                                                paddingTop: '2px',
+                                                                                paddingBottom: '2px'
+                                                                            }}
+                                                                        >
+                                                                            <span 
+                                                                                style={{
+                                                                                    fontSize: '10px',
+                                                                                    fontFamily: "'Inter', sans-serif",
+                                                                                    fontWeight: 600,
+                                                                                    color: 'white',
+                                                                                    lineHeight: 'normal',
+                                                                                    textAlign: 'center',
+                                                                                    whiteSpace: 'nowrap',
+                                                                                    overflow: 'hidden',
+                                                                                    textOverflow: 'ellipsis',
+                                                                                    width: '100%'
+                                                                                }}
+                                                                            >
+                                                                                Repeat...
+                                            </span>
+                                                                        </div>
+                                                    );
+                                                } else if (customerType === 'new') {
+                                                    return (
+                                                                        <div 
+                                                                            className="flex items-center justify-center w-full"
+                                                                            style={{
+                                                                                height: '15px',
+                                                                                backgroundColor: '#ae5aef',
+                                                                                borderRadius: '2px',
+                                                                                paddingLeft: '3px',
+                                                                                paddingRight: '3px',
+                                                                                paddingTop: '2px',
+                                                                                paddingBottom: '2px'
+                                                                            }}
+                                                                        >
+                                                                            <span 
+                                                                                style={{
+                                                                                    fontSize: '10px',
+                                                                                    fontFamily: "'Inter', sans-serif",
+                                                                                    fontWeight: 600,
+                                                                                    color: 'white',
+                                                                                    lineHeight: 'normal',
+                                                                                    textAlign: 'center',
+                                                                                    whiteSpace: 'nowrap',
+                                                                                    overflow: 'hidden',
+                                                                                    textOverflow: 'ellipsis',
+                                                                                    width: '100%'
+                                                                                }}
+                                                                            >
+                                                            New Customer
+                                                        </span>
+                                                                        </div>
+                                                    );
+                                                }
+                                                return null;
+                                            })()}
+                                        </div>
+                                                    );
+                                                }
+                                                return null;
+                                            })()}
+                                        
+                                            {/* Profile Picture - Show if height >= 85px */}
+                                        {showTechPicture && (
+                                                <div className="relative shrink-0" style={{ width: '24px', height: '24px' }}>
                                             {event.employeeImageUrl ? (
                                                 <img 
                                                     src={event.employeeImageUrl} 
                                                     alt={event.employeeName || 'Employee'}
-                                                    className="w-14 h-14 rounded-full object-cover border border-gray-300 flex-shrink-0"
+                                                            className="w-full h-full rounded-full object-cover"
                                                 />
                                             ) : event.employeeName ? (
-                                                <div className="w-14 h-14 rounded-full bg-gray-300 flex items-center justify-center border border-gray-300 flex-shrink-0">
-                                                    <span className="text-sm font-semibold text-gray-700">
+                                                        <div className="w-full h-full rounded-full bg-gray-300 flex items-center justify-center">
+                                                            <span style={{ fontSize: '9px', fontWeight: 600, color: '#374151' }}>
                                                         {event.employeeName.charAt(0).toUpperCase()}
                                                     </span>
                                                 </div>
                                             ) : null}
+                                        </div>
+                                        )}
                                         </div>
                                     </div>
                                         );
@@ -2896,8 +3450,9 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
             <EventHoverPopup
                 event={hoveredEvent}
                 position={popupPosition}
-                formatTimeRange={formatTimeRange}
+                formatTimeRange={formatDateTimeRange}
                 getCustomerType={getCustomerType}
+                resources={displayResources}
                 onMouseEnter={handlePopupMouseEnter}
                 onMouseLeave={handlePopupMouseLeave}
             />
@@ -3217,24 +3772,159 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
 
   // Filter events for the current day
   const dayEvents = events.filter(e => {
+    if (!e) return false;
+    const currentDateStr = format(date, 'yyyy-MM-dd');
+    
+    // Check if this is a multi-day event that spans this date
+    if (e.start && e.end) {
+      const eventStart = new Date(e.start);
+      const eventEnd = new Date(e.end);
+      const currentDay = new Date(date);
+      currentDay.setHours(0, 0, 0, 0);
+      eventStart.setHours(0, 0, 0, 0);
+      eventEnd.setHours(0, 0, 0, 0);
+      // Check if current day is within the event's date range
+      if (currentDay >= eventStart && currentDay <= eventEnd) {
+        return true;
+      }
+    }
+    
+    // Check if event is on the current day (single-day events)
     let eventStartDate;
     if (e.start) {
-      eventStartDate = e.start.includes('T') ? e.start.split('T')[0] : e.start;
+      if (e.start.includes('T')) {
+        eventStartDate = e.start.split('T')[0];
+      } else {
+        eventStartDate = e.start;
+      }
+    } else if (e.date) {
+      eventStartDate = typeof e.date === 'string' ? e.date : format(e.date, 'yyyy-MM-dd');
     } else {
       eventStartDate = '';
     }
-    const currentDateStr = format(date, 'yyyy-MM-dd');
     return eventStartDate === currentDateStr;
   });
+
+  // Helper function to get business hours bounds for a specific day
+  const getBusinessHoursBounds = (date: Date): { open: Date; close: Date } | null => {
+    if (!businessHours) return null;
+    const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const dayOfWeek = days[date.getDay()];
+    const dayHours = businessHours[dayOfWeek];
+    
+    if (!dayHours) return null;
+    
+    let openTime: string | undefined;
+    let closeTime: string | undefined;
+    
+    if (Array.isArray(dayHours) && dayHours.length >= 2) {
+      [openTime, closeTime] = dayHours;
+    } else if (typeof dayHours === 'object' && dayHours !== null) {
+      openTime = (dayHours as any).open || (dayHours as any)[0];
+      closeTime = (dayHours as any).close || (dayHours as any)[1];
+    }
+    
+    if (!openTime || !closeTime) return null;
+    
+    // Parse time strings (e.g., "7:00 AM" or "07:00")
+    const parseTime = (timeStr: string): { hour: number; minute: number } => {
+      let hour = 0;
+      let minute = 0;
+      
+      // Check if 12-hour format
+      const pmMatch = timeStr.match(/(\d+):(\d+)\s*PM/i);
+      const amMatch = timeStr.match(/(\d+):(\d+)\s*AM/i);
+      
+      if (pmMatch) {
+        hour = parseInt(pmMatch[1]);
+        minute = parseInt(pmMatch[2]);
+        if (hour !== 12) hour += 12;
+      } else if (amMatch) {
+        hour = parseInt(amMatch[1]);
+        minute = parseInt(amMatch[2]);
+        if (hour === 12) hour = 0;
+      } else {
+        // 24-hour format
+        const parts = timeStr.split(':');
+        hour = parseInt(parts[0]);
+        minute = parseInt(parts[1] || '0');
+      }
+      
+      return { hour, minute };
+    };
+    
+    const open = parseTime(openTime);
+    const close = parseTime(closeTime);
+    
+    const openDate = new Date(date);
+    openDate.setHours(open.hour, open.minute, 0, 0);
+    
+    const closeDate = new Date(date);
+    closeDate.setHours(close.hour, close.minute, 0, 0);
+    
+    return { open: openDate, close: closeDate };
+  };
 
   // Calculate event position and width based on start/end time using dynamic column widths
   const getEventPosition = (event: any) => {
     if (!event.start || !event.end) return { left: 0, width: 0 };
     
-    const startTime = new Date(event.start);
-    const endTime = new Date(event.end);
-    const dayStart = new Date(date);
-    dayStart.setHours(0, 0, 0, 0); // Start at midnight (12 AM)
+    const eventStartTime = new Date(event.start);
+    const eventEndTime = new Date(event.end);
+    const currentDayStart = new Date(date);
+    currentDayStart.setHours(0, 0, 0, 0);
+    const currentDayEnd = new Date(date);
+    currentDayEnd.setHours(23, 59, 59, 999);
+    
+    const eventStartDay = new Date(eventStartTime);
+    eventStartDay.setHours(0, 0, 0, 0);
+    const eventEndDay = new Date(eventEndTime);
+    eventEndDay.setHours(0, 0, 0, 0);
+    
+    // Determine if this is a multi-day event and which day we're on
+    const isMultiDayEvent = eventStartDay.getTime() !== eventEndDay.getTime();
+    const isStartDay = currentDayStart.getTime() === eventStartDay.getTime();
+    const isEndDay = currentDayStart.getTime() === eventEndDay.getTime();
+    const isIntermediateDay = isMultiDayEvent && !isStartDay && !isEndDay;
+    
+    // Calculate the actual start and end times for this day, clamped to business hours
+    let startTime: Date;
+    let endTime: Date;
+    
+    const businessBounds = getBusinessHoursBounds(date);
+    
+    if (isStartDay) {
+      // On start day: use event start time, end at business close or event end if same day
+      startTime = eventStartTime;
+      if (isEndDay) {
+        endTime = eventEndTime;
+      } else if (businessBounds) {
+        endTime = businessBounds.close;
+      } else {
+        endTime = currentDayEnd;
+      }
+    } else if (isEndDay) {
+      // On end day: start at business open, use event end time
+      if (businessBounds) {
+        startTime = businessBounds.open;
+      } else {
+        startTime = currentDayStart;
+      }
+      endTime = eventEndTime;
+    } else if (isIntermediateDay) {
+      // On intermediate days: span from business open to business close
+      if (businessBounds) {
+        startTime = businessBounds.open;
+        endTime = businessBounds.close;
+      } else {
+        startTime = currentDayStart;
+        endTime = currentDayEnd;
+      }
+    } else {
+      // Single day event
+      startTime = eventStartTime;
+      endTime = eventEndTime;
+    }
     
     const startHour = startTime.getHours();
     const startMinutes = startTime.getMinutes();
@@ -3327,7 +4017,7 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
           <div className="w-32 flex-shrink-0 p-2 bg-white sticky left-0 z-[100] flex items-center justify-center" style={{ 
             isolation: 'isolate', 
             borderRight: '1px solid #F0F0EE', 
-            boxShadow: '2px 0 4px rgba(0,0,0,0.05)',
+            boxShadow: 'none',
             position: 'sticky',
             backgroundColor: 'white',
             transform: 'translateZ(0)',
@@ -3431,7 +4121,13 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
             </div>
           )}
           {resources.map((resource, index) => {
-          const resourceEvents = dayEvents.filter(e => e.resourceId === resource.id);
+          // Filter events for this resource - match WeekView logic exactly
+          const resourceEvents = dayEvents.filter(e => {
+            // If event has resourceId, it must match this resource
+            if (e.resourceId && e.resourceId !== resource.id) return false;
+            // If event has no resourceId, show it on all resources (matching WeekView behavior)
+            return true;
+          });
             const rowHeight = calculateRowHeight(index, resources.length);
             const isDragOver = dragOverResourceId === resource.id;
           
@@ -3579,16 +4275,21 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
                 >
                 <div className="flex relative h-full flex-shrink-0" style={{ minWidth: `${totalColumnWidth}px`, width: `${totalColumnWidth}px` }}>
                   {/* Time slot columns */}
-                  {timeSlots.map((slot, index) => (
+                  {timeSlots.map((slot, index) => {
+                    const hour = index; // hour is 0-23 (0 = 12 AM, 23 = 11 PM)
+                    const isWorkingHour = isWithinWorkingHours(hour);
+                    return (
                       <div 
                         key={slot} 
                       className="time-slot-cell flex-shrink-0 h-full cursor-pointer hover:bg-gray-50 transition-colors"
                         style={{ 
                           width: `${columnWidths[index] * scale}px`,
-                        borderRight: '1px solid #F0F0EE' 
+                        borderRight: '1px solid #F0F0EE',
+                        backgroundColor: isWorkingHour ? 'white' : '#F5F5F5'
                       }}
                     />
-                  ))}
+                    );
+                  })}
                   
                   {/* Draft event (dotted card) */}
                   {draftEvent && draftEvent.resourceId === resource.id && (() => {
@@ -3612,15 +4313,20 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
                   })()}
                   
                   {/* Event blocks positioned absolutely */}
-                  {resourceEvents.map((event) => {
+                  {resourceEvents.filter(event => event && event.start && event.end).map((event) => {
                     const { left, width } = getEventPosition(event);
+                    // Skip events with 0 width (events without proper start/end times)
+                    if (width <= 0) return null;
+                    
                     const customerType = getCustomerType(event);
                     const isPending = event.status === 'pending';
                     const eventColor = event.color || 'blue'; // Use employee's color, default to blue
                     
                     // Check if event is in the past (end time is before current time, or on a past day)
                     const now = new Date();
-                    const isPastDay = isBefore(date, now);
+                    const todayStart = startOfDay(now);
+                    const dateStart = startOfDay(date);
+                    const isPastDay = isBefore(dateStart, todayStart);
                     let isPastEvent = isPastDay;
                     if (!isPastDay && event.end) {
                         const eventEndTime = new Date(event.end);
@@ -5434,19 +6140,35 @@ export default function CalendarPage() {
                   
                   {/* Badges */}
                   <div className="flex flex-wrap gap-2 mt-3 ml-4">
-                    {selectedEventData.locationType && (
-                      <span className={`px-3 py-1 text-xs font-medium rounded-full ${
-                        (selectedEventData.locationType?.toLowerCase() === 'drop off' || selectedEventData.locationType?.toLowerCase() === 'dropoff')
-                          ? 'bg-pink-500 text-white'
-                          : 'bg-blue-500 text-white'
-                      }`}>
-                        {selectedEventData.locationType?.toLowerCase() === 'dropoff' ? 'Drop off' : 
-                         selectedEventData.locationType?.toLowerCase() === 'drop off' ? 'Drop off' :
-                         selectedEventData.locationType?.toLowerCase() === 'pickup' ? 'Pick up' :
-                         selectedEventData.locationType?.toLowerCase() === 'pick up' ? 'Pick up' :
-                         selectedEventData.locationType}
-                      </span>
-                    )}
+                    {(() => {
+                      // Find the resource for this event to check if it's a van
+                      const eventResource = resources.find(r => r.id === selectedEventData.resourceId);
+                      const isVan = eventResource?.type === 'van';
+                      
+                      // Show "Van" tag for van resources, or locationType (Drop off/Pick up) for bay resources
+                      if (isVan) {
+                        return (
+                          <span className="px-3 py-1 text-xs font-medium rounded-full bg-gray-500 text-white">
+                            Van
+                          </span>
+                        );
+                      } else if (selectedEventData.locationType) {
+                        return (
+                          <span className={`px-3 py-1 text-xs font-medium rounded-full ${
+                            (selectedEventData.locationType?.toLowerCase() === 'drop off' || selectedEventData.locationType?.toLowerCase() === 'dropoff')
+                              ? 'bg-pink-500 text-white'
+                              : 'bg-blue-500 text-white'
+                          }`}>
+                            {selectedEventData.locationType?.toLowerCase() === 'dropoff' ? 'Drop off' : 
+                             selectedEventData.locationType?.toLowerCase() === 'drop off' ? 'Drop off' :
+                             selectedEventData.locationType?.toLowerCase() === 'pickup' ? 'Pick up' :
+                             selectedEventData.locationType?.toLowerCase() === 'pick up' ? 'Pick up' :
+                             selectedEventData.locationType}
+                          </span>
+                        );
+                      }
+                      return null;
+                    })()}
                     {selectedEventData.customerId && selectedEventData.customerId !== 'new' && (
                       <span className="px-3 py-1 text-xs font-medium rounded-full bg-purple-500 text-white">
                         Repeat customer
@@ -5527,7 +6249,7 @@ export default function CalendarPage() {
   }
 
   return (
-    <div className="bg-white h-full flex flex-col overflow-hidden w-full max-w-full min-w-0" style={{ position: 'relative' }}>
+    <div className="bg-white h-full flex flex-col overflow-hidden w-full max-w-full min-w-0" style={{ position: 'relative', height: '100%', maxHeight: '100%', overflow: 'hidden' }}>
         <div className="flex items-center justify-between p-6 pb-4 flex-shrink-0 pr-24">
             <div className="flex items-center space-x-2 relative">
                 <button 
@@ -5926,8 +6648,14 @@ export default function CalendarPage() {
         </div>
         
         <div 
-          className={`flex-1 min-h-0 ${viewMode === 'month' ? 'min-w-0 overflow-hidden' : viewMode === 'week' || typeof viewMode === 'number' ? 'min-w-0 overflow-hidden' : 'min-w-0'} ${isActionSidebarOpen ? 'pr-0 md:pr-[400px] lg:pr-[420px]' : 'pr-16'}`}
-          style={{ transition: 'padding-right 0.3s ease-in-out', height: '100%', maxHeight: '100%' }}
+          className={`flex-1 min-h-0 ${viewMode === 'month' ? 'min-w-0 overflow-hidden' : viewMode === 'week' || typeof viewMode === 'number' ? 'min-w-0 overflow-hidden' : 'min-w-0'} ${isActionSidebarOpen && viewMode !== 'week' && typeof viewMode !== 'number' ? 'pr-0 md:pr-[400px] lg:pr-[420px]' : !isActionSidebarOpen ? 'pr-16' : 'pr-0'}`}
+          style={{ 
+            transition: (viewMode === 'week' || typeof viewMode === 'number') ? 'none' : 'padding-right 0.3s ease-in-out', 
+            flex: 1,
+            minHeight: 0,
+            overflow: (viewMode === 'week' || typeof viewMode === 'number') ? 'hidden' : undefined,
+            position: 'relative'
+          }}
         >
           {isLoadingEvents ? (
             <div className="flex items-center justify-center h-64">
@@ -6340,11 +7068,11 @@ export default function CalendarPage() {
             </div>
 
             {/* Content - Show event details if event is selected, otherwise show selected day's events (month view) or today's events */}
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto min-h-0">
               {selectedEventData ? (
                 isEditingEvent ? (
                   // Show edit form
-                  <div className="p-6">
+                  <div className="px-6 pt-6 pb-24">
                   <EventEditForm
                     ref={eventEditFormRef}
                     event={selectedEventData}
@@ -7250,62 +7978,77 @@ export default function CalendarPage() {
                       <div>
                         <h3 className="text-sm font-semibold text-gray-900 mb-4">Scheduling</h3>
                     {(selectedEventData.date || selectedEventData.start) && (() => {
-                      // Prioritize the 'date' field which should be in YYYY-MM-DD format from the API
-                      // Only use 'start' as fallback if 'date' is not available
-                      let dateStr = '';
+                      // Helper function to format a date string to "Day, Month Day, Year"
+                      const formatDateDisplay = (dateStr: string): string => {
+                        const [year, month, day] = dateStr.split('-').map(Number);
+                        const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+                        const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                        const utcDate = new Date(Date.UTC(year, month - 1, day));
+                        const dayOfWeek = dayNames[utcDate.getUTCDay()];
+                        const monthName = monthNames[month - 1];
+                        return `${dayOfWeek}, ${monthName} ${day}, ${year}`;
+                      };
                       
-                      if (selectedEventData.date) {
-                        // The 'date' field from API should already be in YYYY-MM-DD format
-                        if (typeof selectedEventData.date === 'string' && selectedEventData.date.match(/^\d{4}-\d{2}-\d{2}$/)) {
-                          dateStr = selectedEventData.date;
+                      // Extract start date
+                      let startDateStr = '';
+                      if (selectedEventData.start) {
+                        const eventStart = selectedEventData.start;
+                        if (typeof eventStart === 'string') {
+                          startDateStr = eventStart.includes('T') ? eventStart.split('T')[0] : eventStart;
                         } else {
-                          // If it's not in the expected format, try to extract it using UTC
-                          const date = new Date(selectedEventData.date);
-                          dateStr = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
+                          const date = new Date(eventStart);
+                          startDateStr = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
                         }
-                      } else if (selectedEventData.start) {
-                        // Fallback to 'start' field if 'date' is not available
-                        const eventDate = selectedEventData.start;
-                        if (typeof eventDate === 'string') {
-                          if (eventDate.includes('T')) {
-                            // Extract date part from ISO string
-                            dateStr = eventDate.split('T')[0];
-                          } else if (eventDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
-                            dateStr = eventDate;
-                          } else {
-                            const date = new Date(eventDate);
-                            dateStr = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
-                          }
+                      } else if (selectedEventData.date) {
+                        if (typeof selectedEventData.date === 'string' && selectedEventData.date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                          startDateStr = selectedEventData.date;
                         } else {
-                          const date = new Date(eventDate);
-                          dateStr = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
+                          const date = new Date(selectedEventData.date);
+                          startDateStr = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
                         }
                       }
                       
-                      if (!dateStr) return null;
+                      // Extract end date (for multi-day events)
+                      let endDateStr = '';
+                      if (selectedEventData.end) {
+                        const eventEnd = selectedEventData.end;
+                        if (typeof eventEnd === 'string') {
+                          endDateStr = eventEnd.includes('T') ? eventEnd.split('T')[0] : eventEnd;
+                        } else {
+                          const date = new Date(eventEnd);
+                          endDateStr = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
+                        }
+                      }
                       
-                      // Format the date string directly to avoid timezone conversion
-                      // Parse YYYY-MM-DD and format it manually
-                      const [year, month, day] = dateStr.split('-').map(Number);
-                      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-                      const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                      if (!startDateStr) return null;
                       
-                      // Create a UTC date to get the day of week
-                      const utcDate = new Date(Date.UTC(year, month - 1, day));
-                      const dayOfWeek = dayNames[utcDate.getUTCDay()];
-                      const monthName = monthNames[month - 1];
+                      // Check if it's a multi-day event
+                      const isMultiDay = endDateStr && startDateStr !== endDateStr;
                       
-                      const formattedDate = `${dayOfWeek}, ${monthName} ${day}, ${year}`;
+                      // Format the date(s)
+                      const formattedStartDate = formatDateDisplay(startDateStr);
+                      const formattedEndDate = isMultiDay ? formatDateDisplay(endDateStr) : '';
                       
                       // Format time if available (for non-all-day events)
                       let timeDisplay = '';
                       if (!selectedEventData.allDay && selectedEventData.start && selectedEventData.end) {
-                        timeDisplay = ` @ ${format(new Date(selectedEventData.start), 'h:mm a')} - ${format(new Date(selectedEventData.end), 'h:mm a')}`;
+                        const startDate = typeof selectedEventData.start === 'string' 
+                          ? parseISO(selectedEventData.start) 
+                          : new Date(selectedEventData.start);
+                        const endDate = typeof selectedEventData.end === 'string' 
+                          ? parseISO(selectedEventData.end) 
+                          : new Date(selectedEventData.end);
+                        timeDisplay = ` @ ${format(startDate, 'h:mm a')} - ${format(endDate, 'h:mm a')}`;
                       }
+                      
+                      // Combine date(s) and time
+                      const dateDisplay = isMultiDay 
+                        ? `${formattedStartDate} - ${formattedEndDate}`
+                        : formattedStartDate;
                       
                       return (
                         <p className="text-sm text-gray-900">
-                          {formattedDate}{timeDisplay}
+                          {dateDisplay}{timeDisplay}
                         </p>
                       );
                     })()}
@@ -7965,9 +8708,14 @@ export default function CalendarPage() {
                   Cancel
                 </button>
                 <button
-                  onClick={() => {
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
                     if (eventEditFormRef.current) {
                       eventEditFormRef.current.handleSubmit();
+                    } else {
+                      console.error('EventEditForm ref is not set');
                     }
                   }}
                   className="flex-1 px-6 py-2 bg-orange-500 text-white rounded-xl hover:bg-orange-600 transition-colors flex items-center justify-center gap-2"

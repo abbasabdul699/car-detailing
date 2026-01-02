@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 import { useState, useEffect, Suspense } from "react";
 import { signIn, useSession } from "next-auth/react";
 import { useSearchParams, useRouter } from "next/navigation";
+import AdminSessionProvider from "@/app/components/AdminSessionProvider";
 
 // Separate the main content into its own component
 function SignInContent() {
@@ -87,8 +88,10 @@ function SignInContent() {
 // Main page component with Suspense boundary
 export default function SignInPage() {
   return (
+    <AdminSessionProvider>
     <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
       <SignInContent />
     </Suspense>
+    </AdminSessionProvider>
   );
 } 

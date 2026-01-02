@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { detailerAuthOptions } from '@/app/api/auth-detailer/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 
 // Function to extract customer name from conversation messages
@@ -63,7 +63,7 @@ function extractCustomerNameFromMessages(messages: any[]): string | null {
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getServerSession(detailerAuthOptions);
     if (!session || !session.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

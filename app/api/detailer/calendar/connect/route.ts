@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { detailerAuthOptions } from '@/app/api/auth-detailer/[...nextauth]/route';
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getServerSession(detailerAuthOptions);
     
     console.log('API Route - Session check:', { 
       hasSession: !!session, 

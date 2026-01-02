@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { Eye, EyeOff } from 'lucide-react';
-import { signIn } from "next-auth/react";
+import { signIn, useSession } from "next-auth/react";
+import DetailerSessionProvider from "@/app/components/DetailerSessionProvider";
 
 export default function DetailerLogin() {
   const [form, setForm] = useState({ email: "", password: "" });
@@ -14,6 +15,23 @@ export default function DetailerLogin() {
   const [success, setSuccess] = useState("");
   const [keepLoggedIn, setKeepLoggedIn] = useState(false);
   const router = useRouter();
+  const { data: session, status } = useSession();
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    // Only proceed if session status is determined (not loading)
+    if (status === "loading") return;
+    
+    if (status === "authenticated" && session?.user) {
+      // Check if user is a detailer
+      const userRole = (session.user as any)?.role;
+      if (userRole === "detailer") {
+        // Use window.location for a more forceful redirect
+        window.location.href = "/detailer-dashboard/calendar";
+        return;
+      }
+    }
+  }, [status, session]);
   
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -27,6 +45,13 @@ export default function DetailerLogin() {
     setSuccess("");
     
     try {
+      // Store keepLoggedIn preference in sessionStorage so it can be accessed by the auth callback
+      if (keepLoggedIn) {
+        sessionStorage.setItem("keepLoggedIn", "true");
+      } else {
+        sessionStorage.removeItem("keepLoggedIn");
+      }
+
       // Use the dedicated detailer provider (separate from admin)
       const result = await signIn("detailer", {
         email: form.email,
@@ -52,6 +77,7 @@ export default function DetailerLogin() {
   const handleXLogin = () => alert("X login coming soon!");
 
   return (
+    <DetailerSessionProvider>
     <div className="min-h-screen w-full flex font-sans bg-gray-100">
       {/* Left: Login Form */}
       <div className="flex flex-col justify-center items-start w-full md:w-1/2 px-8 md:px-12 py-16 bg-white relative z-10 shadow-lg">
@@ -166,5 +192,6 @@ export default function DetailerLogin() {
         {/* This div is intentionally left empty to only show the background image. */}
       </div>
     </div>
+    </DetailerSessionProvider>
   );
 } 

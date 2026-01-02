@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { detailerAuthOptions } from '@/app/api/auth-detailer/[...nextauth]/route';
 import { PrismaClient } from '@prisma/client';
 import { DateTime } from 'luxon';
 import { normalizeToE164 } from '@/lib/phone';
@@ -69,7 +69,7 @@ async function fetchGoogleCalendarEvents(accessToken: string, timeMin?: string, 
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getServerSession(detailerAuthOptions);
     
     if (!session || !session.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -362,7 +362,7 @@ export async function GET(request: NextRequest) {
 
         // dateStr is already extracted above using UTC methods
 
-        // Parse metadata from description if present
+        // Parse metadata from description if present (do this early to get endDate for multi-day events)
         let cleanDescription = event.description || '';
         let customerName: string | null = null;
         let customerPhone: string | null = null;
@@ -371,6 +371,7 @@ export async function GET(request: NextRequest) {
         let customerType: string | null = null;
         let vehicleModel: string | null = null;
         let services: string[] | null = null;
+        let metadataEndDate: string | null = null;
         
         if (event.description && event.description.includes('__METADATA__:')) {
           const parts = event.description.split('__METADATA__:');
@@ -384,8 +385,41 @@ export async function GET(request: NextRequest) {
             customerType = metadata.customerType || null;
             vehicleModel = metadata.vehicleModel || null;
             services = metadata.services || null;
+            metadataEndDate = metadata.endDate || null;
           } catch (e) {
             // Ignore parse errors, use original description
+          }
+        }
+        
+        // For multi-day events, recalculate endDateTime using the end date from metadata
+        if (metadataEndDate && !event.allDay && event.time) {
+          // Parse the end date from metadata
+          const endDateFromMetadata = new Date(metadataEndDate);
+          if (!isNaN(endDateFromMetadata.getTime())) {
+            // Extract time from event.time (should be in range format like "7:00 AM to 6:00 PM")
+            const timeRangeMatch = event.time.match(/(\d{1,2}):(\d{2})\s*(AM|PM)\s+to\s+(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+            if (timeRangeMatch) {
+              // Parse end time from the range
+              let endHour = parseInt(timeRangeMatch[4]);
+              const endMin = parseInt(timeRangeMatch[5]);
+              const endPeriod = timeRangeMatch[6].toUpperCase();
+              if (endPeriod === 'PM' && endHour !== 12) endHour += 12;
+              if (endPeriod === 'AM' && endHour === 12) endHour = 0;
+              const endTime24 = `${String(endHour).padStart(2, '0')}:${String(endMin).padStart(2, '0')}:00`;
+              
+              // Get end date string from metadata end date
+              const endYear = endDateFromMetadata.getUTCFullYear();
+              const endMonth = endDateFromMetadata.getUTCMonth() + 1;
+              const endDay = endDateFromMetadata.getUTCDate();
+              
+              // Create end date in detailer's timezone, then convert to UTC
+              const [endHour24, endMin24] = endTime24.split(':').map(Number);
+              const endDT = DateTime.fromObject(
+                { year: endYear, month: endMonth, day: endDay, hour: endHour24, minute: endMin24 },
+                { zone: detailerTimezone }
+              );
+              endDateTime = endDT.toUTC().toJSDate();
+            }
           }
         }
         

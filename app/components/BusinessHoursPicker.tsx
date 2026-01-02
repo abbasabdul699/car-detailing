@@ -64,7 +64,7 @@ export default function BusinessHoursPicker({ value = {}, onChange }: BusinessHo
         <select
           value={sourceDay}
           onChange={(e) => setSourceDay(e.target.value)}
-          className="select select-bordered w-32 bg-white dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600"
+          className="select select-bordered w-32 bg-gray-200 text-black border-gray-300"
         >
           {days.map(({ key, label }) => (
             <option key={key} value={key}>{label}</option>
@@ -84,7 +84,7 @@ export default function BusinessHoursPicker({ value = {}, onChange }: BusinessHo
           const isClosed = !value[key]?.[0] && !value[key]?.[1];
           return (
             <div key={key} className="flex items-center gap-2">
-              <span className="w-10 text-gray-800 dark:text-gray-100">{label}</span>
+              <span className="w-10 text-black">{label}</span>
               <label className="flex items-center cursor-pointer select-none">
                 <div className="relative">
                   <input
@@ -118,7 +118,7 @@ export default function BusinessHoursPicker({ value = {}, onChange }: BusinessHo
                     }
                   )}></div>
                 </div>
-                <span className="ml-2 text-sm font-medium text-gray-800 dark:text-gray-100">
+                <span className="ml-2 text-sm font-medium text-black">
                   {isClosed ? "Closed" : "Open"}
                 </span>
               </label>
@@ -127,11 +127,12 @@ export default function BusinessHoursPicker({ value = {}, onChange }: BusinessHo
                 step="600"
                 value={formatTimeForInput(value[key]?.[0] || "")}
                 onChange={e => handleTimeChange(key, 0, e.target.value)}
-                className="input input-bordered w-28 bg-white dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="input input-bordered w-28 bg-white text-black border-gray-300 focus:outline-none focus:border-gray-300"
                 disabled={isClosed}
                 style={{ 
                   WebkitAppearance: 'none',
-                  MozAppearance: 'textfield'
+                  MozAppearance: 'textfield',
+                  color: 'black'
                 }}
               />
               <span>-</span>
@@ -140,11 +141,12 @@ export default function BusinessHoursPicker({ value = {}, onChange }: BusinessHo
                 step="600"
                 value={formatTimeForInput(value[key]?.[1] || "")}
                 onChange={e => handleTimeChange(key, 1, e.target.value)}
-                className="input input-bordered w-28 bg-white dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="input input-bordered w-28 bg-white text-black border-gray-300 focus:outline-none focus:border-gray-300"
                 disabled={isClosed}
                 style={{ 
                   WebkitAppearance: 'none',
-                  MozAppearance: 'textfield'
+                  MozAppearance: 'textfield',
+                  color: 'black'
                 }}
               />
             </div>
