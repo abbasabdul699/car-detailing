@@ -964,7 +964,7 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
             <div className="h-full flex flex-col overflow-hidden" style={{ backgroundColor: '#F8F8F7' }}>
                 <div className="flex-shrink-0 px-6 pt-6 pb-2">
                     <div className="flex justify-between items-center">
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 md:pl-0 pl-12">
                             <div className="w-10 h-10 rounded-full flex items-center justify-center relative" style={{ backgroundColor: '#E2E2DD' }}>
                                 <Image 
                                     src="/icons/layouting.png" 
@@ -989,7 +989,14 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                             )}
                             </div>
                         </div>
-                        <button onClick={handleClose} className="p-1 rounded-lg hover:bg-gray-100 transition-colors">
+                        <button 
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                handleClose();
+                            }} 
+                            className="p-1 rounded-lg hover:bg-gray-100 transition-colors"
+                            aria-label="Close"
+                        >
                             <XMarkIcon className="w-5 h-5 text-gray-500" />
                         </button>
                     </div>

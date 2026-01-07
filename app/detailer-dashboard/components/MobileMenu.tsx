@@ -87,11 +87,10 @@ export default function MobileMenu() {
       {/* Hamburger Menu Button - Mobile Only */}
       <button
         onClick={() => setIsMenuOpen(!isMenuOpen)}
-        className={`md:hidden fixed top-4 left-4 z-50 w-8 h-8 flex items-center justify-center rounded-lg transition action-panel-hide ${
-          isScrolled 
-            ? 'bg-white shadow-sm' 
-            : 'hover:bg-gray-50'
-        }`}
+        className="md:hidden fixed top-4 left-4 z-[10000] w-8 h-8 flex items-center justify-center rounded-lg transition action-panel-hide"
+        style={{ 
+          backgroundColor: '#F8F8F7'
+        }}
         aria-label="Menu"
       >
         <Bars3Icon className="w-6 h-6 text-gray-700" />
@@ -101,12 +100,12 @@ export default function MobileMenu() {
       {isMenuOpen && (
         <>
           <div
-            className="md:hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-40"
+            className="md:hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-[10001]"
             onClick={() => setIsMenuOpen(false)}
           />
           <div
             ref={menuRef}
-            className="md:hidden fixed top-0 left-0 h-full w-80 bg-black shadow-xl z-50 transform transition-transform"
+            className="md:hidden fixed top-0 left-0 h-full w-80 bg-black shadow-xl z-[10002] transform transition-transform"
           >
             <div className="flex flex-col h-full">
               {/* Close Button - Top Left */}
@@ -121,77 +120,81 @@ export default function MobileMenu() {
               </div>
 
               {/* Navigation Items */}
-              <div className="flex-1 overflow-y-auto px-6 py-4">
-                {/* Top items - 20px font, white text */}
-                <div className="space-y-1">
-                  {topNavigationItems.map((item) => {
-                    const Icon = item.icon;
-                    const isActive = pathname === item.href;
-                    return (
-                      <Link
-                        key={item.name}
-                        href={item.href}
-                        onClick={() => setIsMenuOpen(false)}
-                        className={`flex items-center gap-3 px-4 py-3 transition ${
-                          isActive
-                            ? "bg-gray-800 text-white"
-                            : "text-white hover:bg-gray-800"
-                        }`}
-                      >
-                        <Icon className="w-6 h-6 flex-shrink-0" />
-                        <span 
-                          className="font-normal"
-                          style={{
-                            fontFamily: "'Helvetica Neue', sans-serif",
-                            fontSize: '20px',
-                            lineHeight: 'normal',
-                            color: 'white'
-                          }}
+              <div className="flex-1 flex flex-col">
+                {/* Top items - 20px font, white text, centered vertically */}
+                <div className="flex-1 flex flex-col justify-center px-6">
+                  <div style={{ gap: '71px' }} className="flex flex-col">
+                    {topNavigationItems.map((item) => {
+                      const Icon = item.icon;
+                      const isActive = pathname === item.href;
+                      return (
+                        <Link
+                          key={item.name}
+                          href={item.href}
+                          onClick={() => setIsMenuOpen(false)}
+                          className={`flex items-center gap-3 transition ${
+                            isActive
+                              ? ""
+                              : "text-white hover:opacity-80"
+                          }`}
                         >
-                          {item.name}
-                        </span>
-                        {isActive && (
-                          <div className="ml-auto w-2 h-2 rounded-full bg-white"></div>
-                        )}
-                      </Link>
-                    );
-                  })}
+                          <Icon className="w-6 h-6 flex-shrink-0" style={{ color: isActive ? '#ababab' : 'white' }} />
+                          <span 
+                            className="font-normal"
+                            style={{
+                              fontFamily: "'Helvetica Neue', sans-serif",
+                              fontSize: '20px',
+                              lineHeight: 'normal',
+                              color: isActive ? '#ababab' : 'white'
+                            }}
+                          >
+                            {item.name}
+                          </span>
+                          {isActive && (
+                            <div className="ml-auto w-2 h-2 rounded-full bg-white"></div>
+                          )}
+                        </Link>
+                      );
+                    })}
+                  </div>
                 </div>
 
-                {/* Bottom items - 16px font, gray text (#ababab) */}
-                <div className="space-y-1 mt-6">
-                  {bottomNavigationItems.map((item) => {
-                    const Icon = item.icon;
-                    const isActive = pathname === item.href;
-                    return (
-                      <Link
-                        key={item.name}
-                        href={item.href}
-                        onClick={() => setIsMenuOpen(false)}
-                        className={`flex items-center gap-3 px-4 py-3 transition ${
-                          isActive
-                            ? "bg-gray-800"
-                            : "hover:bg-gray-800"
-                        }`}
-                      >
-                        <Icon 
-                          className="w-6 h-6 flex-shrink-0" 
-                          style={{ color: isActive ? 'white' : '#ababab' }}
-                        />
-                        <span 
-                          className="font-normal"
-                          style={{
-                            fontFamily: "'Helvetica Neue', sans-serif",
-                            fontSize: '16px',
-                            lineHeight: 'normal',
-                            color: isActive ? 'white' : '#ababab'
-                          }}
+                {/* Bottom items - 16px font, gray text (#ababab), positioned at bottom left */}
+                <div className="px-6 pb-6">
+                  <div style={{ gap: '29px' }} className="flex flex-col">
+                    {bottomNavigationItems.map((item) => {
+                      const Icon = item.icon;
+                      const isActive = pathname === item.href;
+                      return (
+                        <Link
+                          key={item.name}
+                          href={item.href}
+                          onClick={() => setIsMenuOpen(false)}
+                          className={`flex items-center gap-3 transition ${
+                            isActive
+                              ? "opacity-100"
+                              : "hover:opacity-80"
+                          }`}
                         >
-                          {item.name}
-                        </span>
-                      </Link>
-                    );
-                  })}
+                          <Icon 
+                            className="w-6 h-6 flex-shrink-0" 
+                            style={{ color: isActive ? 'white' : '#ababab' }}
+                          />
+                          <span 
+                            className="font-normal"
+                            style={{
+                              fontFamily: "'Helvetica Neue', sans-serif",
+                              fontSize: '16px',
+                              lineHeight: 'normal',
+                              color: isActive ? 'white' : '#ababab'
+                            }}
+                          >
+                            {item.name}
+                          </span>
+                        </Link>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             </div>

@@ -1962,7 +1962,7 @@ const EventHoverPopup = ({
     );
 };
 
-const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, businessHours, onResourceSelect, onOpenModal, draftEvent, onDraftEventUpdate, numberOfDays }: { 
+const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, businessHours, onResourceSelect, onOpenModal, draftEvent, onDraftEventUpdate, numberOfDays, isMobile, onTouchStart, onTouchMove, onTouchEnd }: { 
   date: Date, 
   events: any[], 
   onEventClick: (event: any) => void, 
@@ -1973,7 +1973,11 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
   onOpenModal?: (draftEvent?: { resourceId: string; startTime: string; endTime: string; date: Date }) => void,
   draftEvent?: { resourceId: string; startTime: string; endTime: string; date: Date } | null,
   onDraftEventUpdate?: (draftEvent: { resourceId: string; startTime: string; endTime: string; date: Date }) => void,
-  numberOfDays?: number | null
+  numberOfDays?: number | null,
+  isMobile?: boolean,
+  onTouchStart?: (e: React.TouchEvent) => void,
+  onTouchEnd?: (e: React.TouchEvent) => void,
+  onTouchMove?: (e: React.TouchEvent) => void
 }) => {
     // Hover state for event popup
     const [hoveredEvent, setHoveredEvent] = useState<any | null>(null);
@@ -2263,7 +2267,7 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
       return `${hour} ${period}`;
     };
 
-    const scaledTimeColumnWidth = 80 * scale;
+    const scaledTimeColumnWidth = isMobile ? 48 : 80 * scale; // 48px for mobile (reduced from 64px)
     const scaledTimeSlotHeight = 96 * scale; // Increased from 64 to 96 for taller default boxes
     const scaledColumnMinWidth = 100 * scale;
 
@@ -2272,12 +2276,15 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
     const totalColumns = weekDays.length * displayResources.length;
 
     return (
-        <div className="flex flex-col w-full h-full overflow-hidden" style={{ height: '100%', maxHeight: '100%', overflow: 'hidden', borderRight: 'none' }}>
+        <div className="flex flex-col w-full h-full overflow-hidden" style={{ height: '100%', maxHeight: '100%', overflow: 'hidden', borderRight: 'none', backgroundColor: isMobile ? '#f9f7fa' : undefined }}>
             {/* Main scrollable container - contains both time column and main content */}
             <div 
                 ref={mainScrollRef}
                 className="flex-1 min-h-0 overflow-y-auto"
                 id="week-view-scroll-container"
+                onTouchStart={onTouchStart}
+                onTouchMove={onTouchMove}
+                onTouchEnd={onTouchEnd}
                 style={{ 
                     position: 'relative',
                     height: '100%',
@@ -2289,10 +2296,10 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
             >
                 {/* Sticky header - must be inside scroll container */}
                     <div
-                  className="flex-shrink-0 sticky top-0 z-50 bg-white"
+                  className="flex-shrink-0 sticky top-0 z-50"
                       style={{ 
                         position: 'sticky', 
-                    backgroundColor: 'white',
+                     backgroundColor: isMobile ? '#f9f7fa' : 'white',
                     isolation: 'isolate',
                     top: 0,
                     zIndex: 50,
@@ -2303,19 +2310,20 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                     <div className="flex border-b border-gray-200">
                         {/* Time column header spacer */}
                         <div
-                          className="flex-shrink-0 bg-white"
+                           className="flex-shrink-0"
                           style={{ 
                             width: `${scaledTimeColumnWidth}px`,
                             height: `${56 * scale}px`, 
                             boxSizing: 'border-box',
-                            boxShadow: 'none'
+                             boxShadow: 'none',
+                             backgroundColor: isMobile ? '#f9f7fa' : 'white'
                           }}
                         ></div>
                         
                         {/* Main header content */}
                     <div className="flex-1 min-w-0">
                     {/* First row: Day headers spanning all resources for each day */}
-                            <div className="grid border-b border-gray-200 bg-white" style={{ gridTemplateColumns: `repeat(${totalColumns}, 1fr)` }}>
+                             <div className="grid" style={{ gridTemplateColumns: `repeat(${totalColumns}, 1fr)`, backgroundColor: isMobile ? '#f9f7fa' : 'white' }}>
                         {weekDays.map(day => {
                             const isCurrentDay = isToday(day);
                             const fullDayName = format(day, 'EEEE');
@@ -2333,7 +2341,7 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                             return (
                             <div 
                                 key={`day-header-${day.toString()}`} 
-                                className="text-center flex items-center justify-center text-xs bg-white"
+                                 className="text-center flex items-center justify-center text-xs"
                                 style={{ 
                                     gridColumn: `span ${displayResources.length}`,
                                     height: `${24 * scale}px`, 
@@ -2343,7 +2351,8 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                     fontFamily: 'Inter',
                                     fontWeight: isCurrentDay ? '700' : '400',
                                     wordWrap: 'break-word',
-                                    padding: isCurrentDay ? '10px 12px' : undefined
+                                     padding: isCurrentDay ? '10px 12px' : undefined,
+                                     backgroundColor: isMobile ? '#f9f7fa' : 'white'
                                 }}
                             >
                                 <span className="flex items-center" style={{ gap: '4px' }}>
@@ -2370,10 +2379,11 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                     </div>
                     
                     {/* Second row: Resource headers for each day */}
-                    <div className="relative grid border-b border-gray-200 bg-white" style={{ gridTemplateColumns: `repeat(${totalColumns}, 1fr)` }}>
-                        {/* Station header cell - positioned absolutely to align with time column */}
+                     <div className="relative grid border-b border-gray-200" style={{ gridTemplateColumns: `repeat(${totalColumns}, 1fr)`, backgroundColor: isMobile ? '#f9f7fa' : 'white' }}>
+                        {/* Station header cell - positioned absolutely to align with time column - hidden in mobile */}
+                        {!isMobile && (
                         <div
-                            className="absolute bg-white border-r border-gray-200 text-center flex flex-row items-center justify-center z-10"
+                               className="absolute border-r border-gray-200 text-center flex flex-row items-center justify-center z-10"
                             style={{ 
                                 left: `-${scaledTimeColumnWidth}px`,
                                 width: `${scaledTimeColumnWidth}px`,
@@ -2384,11 +2394,13 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                 fontSize: '10px',
                                 fontFamily: 'Helvetica Neue',
                                 fontWeight: '400',
-                                wordWrap: 'break-word'
+                                   wordWrap: 'break-word',
+                                   backgroundColor: isMobile ? '#f9f7fa' : 'white'
                             }}
                         >
                             <span>Station</span>
                         </div>
+                        )}
                         
                         {/* Resource headers grid */}
                         {weekDays.map((day, dayIndex) => 
@@ -2428,7 +2440,7 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                                 } : undefined}
                                             >
                                                 <span>{resource.name === 'Station' ? '' : resource.name}</span>
-                                                {onOpenModal && onResourceSelect && (
+                                                {onOpenModal && onResourceSelect && !isMobile && (
                                                     <PlusIcon className="w-3 h-3 inline text-gray-600" />
                                         )}
                                     </div>
@@ -2444,7 +2456,7 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                 <div className="flex" style={{ minHeight: '100%' }}>
                     {/* Time column - sticky on left, inside scroll container */}
                     <div
-                      className="border-r border-gray-200 flex-shrink-0 flex flex-col bg-white"
+                      className="border-r border-gray-200 flex-shrink-0 flex flex-col"
                       style={{ 
                         position: 'sticky', 
                         left: 0, 
@@ -2452,7 +2464,8 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                         width: `${scaledTimeColumnWidth}px`,
                         alignSelf: 'flex-start',
                         boxSizing: 'border-box',
-                        boxShadow: 'none'
+                        boxShadow: 'none',
+                        backgroundColor: isMobile ? '#f9f7fa' : 'white'
                       }}
                     >
                         {/* Time slots - these will scroll with the main content */}
@@ -2463,7 +2476,7 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                             }}
                         >
                         {timeSlots.map((slot, index) => (
-                                <div key={slot} style={{ height: `${scaledTimeSlotHeight}px`, display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-end', paddingRight: '8px', color: '#57564D', fontSize: 10, fontFamily: 'Inter', fontWeight: '400', wordWrap: 'break-word', boxSizing: 'border-box' }}>
+                                <div key={slot} style={{ height: `${scaledTimeSlotHeight}px`, display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-end', paddingRight: '8px', color: '#57564D', fontSize: 10, fontFamily: 'Inter', fontWeight: '400', wordWrap: 'break-word', boxSizing: 'border-box', backgroundColor: isMobile ? '#f9f7fa' : 'transparent' }}>
                                 <span style={{ lineHeight: 1, margin: 0, padding: 0, marginTop: '-2px' }}>{index === 0 ? '' : formatSlotLabel(slot)}</span>
                             </div>
                         ))}
@@ -4509,6 +4522,7 @@ export default function CalendarPage() {
   const [selectedDayEvents, setSelectedDayEvents] = useState<any[]>([]);
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [isTeamDropdownOpen, setIsTeamDropdownOpen] = useState(false);
+  const [isMobileViewDropdownOpen, setIsMobileViewDropdownOpen] = useState(false);
   const [selectedTechnicians, setSelectedTechnicians] = useState<string[]>([]); // Array of employee IDs
   const [isNewCustomerModalOpen, setIsNewCustomerModalOpen] = useState(false);
   const [newCustomerModalInitialName, setNewCustomerModalInitialName] = useState('');
@@ -4521,6 +4535,8 @@ export default function CalendarPage() {
   const [selectedEventDetailsCustomerIndex, setSelectedEventDetailsCustomerIndex] = useState(-1);
   const datePickerRef = useRef<HTMLDivElement>(null);
   const teamDropdownRef = useRef<HTMLDivElement>(null);
+  const mobileTeamDropdownRef = useRef<HTMLDivElement>(null);
+  const mobileViewDropdownRef = useRef<HTMLDivElement>(null);
   const actionSidebarRef = useRef<HTMLDivElement>(null);
   const bottomSheetRef = useRef<HTMLDivElement>(null);
   const eventEditFormRef = useRef<{ handleCancel: () => void; handleSubmit: () => void } | null>(null);
@@ -4547,18 +4563,45 @@ export default function CalendarPage() {
       return bookings;
     }
     return bookings.filter((event: any) => {
+      if (!event) return false;
+      
       // Check if event has employeeId that matches selected technicians
       if (event.employeeId && selectedTechnicians.includes(event.employeeId)) {
         return true;
       }
+      
       // Check if event has employeeName that matches selected technicians
       if (event.employeeName) {
-        // Find employee by name in the teamEmployees list
-        const employee = teamEmployees.find((emp: any) => emp.name === event.employeeName);
+        // Find employee by name in the teamEmployees list (case-insensitive match)
+        const employee = teamEmployees.find((emp: any) => 
+          emp.name && event.employeeName && 
+          emp.name.toLowerCase().trim() === event.employeeName.toLowerCase().trim()
+        );
         if (employee && selectedTechnicians.includes(employee.id)) {
           return true;
         }
       }
+      
+      // Also check for assignedTo field (alternative field name)
+      if (event.assignedTo) {
+        if (selectedTechnicians.includes(event.assignedTo)) {
+          return true;
+        }
+        // Try to match by name if assignedTo is a name
+        const employee = teamEmployees.find((emp: any) => 
+          emp.name && event.assignedTo && 
+          emp.name.toLowerCase().trim() === event.assignedTo.toLowerCase().trim()
+        );
+        if (employee && selectedTechnicians.includes(employee.id)) {
+          return true;
+        }
+      }
+      
+      // Also check for technicianId field (alternative field name)
+      if (event.technicianId && selectedTechnicians.includes(event.technicianId)) {
+        return true;
+      }
+      
       return false;
     });
   }, [bookings, selectedTechnicians, teamEmployees]);
@@ -5052,21 +5095,41 @@ export default function CalendarPage() {
     }
   };
 
-  // Close team dropdown when clicking outside
+  // Close team dropdown when clicking outside (desktop and mobile)
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (teamDropdownRef.current && !teamDropdownRef.current.contains(event.target as Node)) {
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node;
+      const clickedOnDesktopDropdown = teamDropdownRef.current?.contains(target);
+      const clickedOnMobileDropdown = mobileTeamDropdownRef.current?.contains(target);
+      const clickedOnFilterButton = (target as Element)?.closest('button[aria-label="Filter employees"]');
+      
+      // Close if clicked outside both dropdowns and not on the filter button
+      if (isTeamDropdownOpen && !clickedOnDesktopDropdown && !clickedOnMobileDropdown && !clickedOnFilterButton) {
+        setIsTeamDropdownOpen(false);
+      }
+    };
+
+    const handleScroll = () => {
+    if (isTeamDropdownOpen) {
         setIsTeamDropdownOpen(false);
       }
     };
 
     if (isTeamDropdownOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
+      // Use a small delay to avoid immediate closure when opening
+      const timeoutId = setTimeout(() => {
+        document.addEventListener('mousedown', handleClickOutside, true);
+        document.addEventListener('touchstart', handleClickOutside, true);
+        window.addEventListener('scroll', handleScroll, true);
+      }, 100);
 
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
+        clearTimeout(timeoutId);
+        document.removeEventListener('mousedown', handleClickOutside, true);
+        document.removeEventListener('touchstart', handleClickOutside, true);
+        window.removeEventListener('scroll', handleScroll, true);
     };
+    }
   }, [isTeamDropdownOpen]);
 
   // Close employee switch dropdown when clicking outside
@@ -5142,6 +5205,40 @@ export default function CalendarPage() {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [isViewDropdownOpen]);
+
+  // Close mobile view dropdown when clicking outside or scrolling
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node;
+      const clickedOnDropdown = mobileViewDropdownRef.current?.contains(target);
+      const clickedOnButton = (target as Element)?.closest('button[aria-label="Select view"]');
+      
+      if (isMobileViewDropdownOpen && !clickedOnDropdown && !clickedOnButton) {
+        setIsMobileViewDropdownOpen(false);
+      }
+    };
+
+    const handleScroll = () => {
+      if (isMobileViewDropdownOpen) {
+        setIsMobileViewDropdownOpen(false);
+      }
+    };
+
+    if (isMobileViewDropdownOpen) {
+      const timeoutId = setTimeout(() => {
+        document.addEventListener('mousedown', handleClickOutside, true);
+        document.addEventListener('touchstart', handleClickOutside, true);
+        window.addEventListener('scroll', handleScroll, true);
+      }, 100);
+
+      return () => {
+        clearTimeout(timeoutId);
+        document.removeEventListener('mousedown', handleClickOutside, true);
+        document.removeEventListener('touchstart', handleClickOutside, true);
+        window.removeEventListener('scroll', handleScroll, true);
+      };
+    }
+  }, [isMobileViewDropdownOpen]);
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -5535,6 +5632,7 @@ export default function CalendarPage() {
     setSelectedEventData(null);
     setCustomerPastJobs([]);
     setShowEmployeeSwitchDropdown(false);
+    setIsActionSidebarOpen(false);
   };
 
   const handleDeleteEvent = async () => {
@@ -5586,12 +5684,25 @@ export default function CalendarPage() {
     return format(currentDate, 'EEEE, MMMM d');
   };
 
+  const renderMobileHeaderDate = () => {
+    if (viewMode === 'month') return format(currentDate, 'MMMM, yyyy');
+    if (viewMode === 'week') {
+        return format(currentDate, 'MMMM, yyyy');
+    }
+    if (typeof viewMode === 'number') {
+        const endDate = addDays(currentDate, viewMode - 1);
+        return `${format(currentDate, 'MMM d')} - ${format(endDate, 'd, yyyy')}`;
+    }
+    // Day view for mobile: Show month and year only (e.g., "January 2025")
+    return format(currentDate, 'MMMM yyyy');
+  };
+
   // Mobile calendar view render function
   const renderMobileCalendar = () => {
     const hours = Array.from({ length: 16 }, (_, i) => i + 6); // 6 AM to 9 PM
     
-    // Filter events for the current day
-    const dayEvents = bookings.filter((event: any) => {
+    // Filter events for the current day (using filteredBookings to respect employee filter)
+    const dayEvents = filteredBookings.filter((event: any) => {
       let eventDate;
       if (event.start) {
         eventDate = event.start.includes('T') ? event.start.split('T')[0] : event.start;
@@ -5704,28 +5815,178 @@ export default function CalendarPage() {
 
     return (
       <div 
-        className="h-full flex flex-col pb-16 md:pb-0" 
-        style={{ backgroundColor: '#f9f7fa' }}
+        className="absolute inset-0 flex flex-col md:relative md:h-full md:pb-16" 
+        style={{ 
+          backgroundColor: '#f9f7fa',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          paddingTop: 'max(env(safe-area-inset-top), 0px)',
+          paddingLeft: 'max(env(safe-area-inset-left, 0px), 0px)',
+          paddingRight: 'max(env(safe-area-inset-right, 0px), 0px)',
+          paddingBottom: 'max(env(safe-area-inset-bottom), 0px)',
+          zIndex: 0,
+          minHeight: '-webkit-fill-available'
+        }}
         onTouchStart={handleMobileTouchStart}
         onTouchEnd={handleMobileTouchEnd}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-4 pt-4 pb-2">
-          <div className="flex items-center gap-3">
-            <h1 className="font-bold text-gray-900 pl-12 md:pl-0 text-[20px] md:text-xl" style={{ fontFamily: 'Helvetica Neue' }}>{renderHeaderDate()}</h1>
+          <div className="flex items-center gap-3 relative">
+            <button
+              onClick={() => setIsDatePickerOpen(!isDatePickerOpen)}
+              className="font-bold text-gray-900 pl-12 md:pl-0 text-[20px] md:text-xl cursor-pointer hover:opacity-80 transition-opacity"
+              style={{ fontFamily: 'Helvetica Neue' }}
+            >
+              {renderMobileHeaderDate()}
+            </button>
+            {/* Date Picker Popup for Mobile */}
+            {isDatePickerOpen && (
+              <div 
+                  ref={datePickerRef} 
+                  className="fixed bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl z-[100] p-4 md:hidden"
+                  style={{ 
+                    maxHeight: '70vh',
+                    paddingBottom: 'max(1rem, env(safe-area-inset-bottom))'
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <button
+                      onClick={() => setCurrentDate(subMonths(currentDate, 1))}
+                      className="p-2 rounded-lg hover:bg-gray-100 active:bg-gray-200"
+                    >
+                      <ChevronLeftIcon className="w-5 h-5 text-gray-600" />
+                    </button>
+                    <h3 className="text-base font-semibold text-gray-900">
+                      {format(currentDate, 'MMMM yyyy')}
+                    </h3>
+                    <button
+                      onClick={() => setCurrentDate(addMonths(currentDate, 1))}
+                      className="p-2 rounded-lg hover:bg-gray-100 active:bg-gray-200"
+                    >
+                      <ChevronRightIcon className="w-5 h-5 text-gray-600" />
+                    </button>
+                  </div>
+                  
+                  <div className="grid grid-cols-7 gap-1 mb-2">
+                    {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((day) => (
+                      <div key={day} className="text-xs font-medium text-gray-500 text-center py-2">
+                        {day}
+                      </div>
+                    ))}
+                  </div>
+                  
+                  <div className="grid grid-cols-7 gap-1 overflow-y-auto" style={{ maxHeight: 'calc(70vh - 120px)' }}>
+                    {/* Empty cells for days before month starts */}
+                    {Array(getDay(startOfMonth(currentDate))).fill(null).map((_, index) => (
+                      <div key={`empty-${index}`} className="aspect-square"></div>
+                    ))}
+                    
+                    {/* Days of the month */}
+                    {Array(getDaysInMonth(currentDate.getFullYear(), currentDate.getMonth())).fill(null).map((_, index) => {
+                      const day = index + 1;
+                      const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+                      const isTodayDate = isToday(date);
+                      const isSelected = isSameDay(date, currentDate);
+                      
+                      return (
+                        <button
+                          key={day}
+                          onClick={() => {
+                            setCurrentDate(date);
+                            setIsDatePickerOpen(false);
+                          }}
+                          className={`aspect-square flex items-center justify-center text-sm font-medium transition-colors ${
+                            isSelected
+                              ? 'bg-[#FF3700] text-white rounded-full'
+                              : isTodayDate
+                              ? 'bg-gray-100 text-gray-900 font-semibold rounded-lg'
+                              : 'text-gray-700 hover:bg-gray-100 active:bg-gray-200 rounded-lg'
+                          }`}
+                        >
+                          {day}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+            )}
             </div>
           <div className="flex items-center gap-3">
             {/* Today Button - Shows current day number */}
             <button
               onClick={() => setCurrentDate(new Date())}
-              className="w-8 h-8 text-white rounded-xl flex items-center justify-center font-semibold transition"
-              style={{ backgroundColor: '#4A4844' }}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#3A3834'}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#4A4844'}
+              className="w-8 h-8 rounded-xl flex items-center justify-center font-semibold transition"
+              style={{ 
+                backgroundColor: isSameDay(currentDate, new Date()) ? '#E2E2DD' : '#FF3700',
+                color: isSameDay(currentDate, new Date()) ? '#4A4844' : '#FFFFFF'
+              }}
+              onMouseEnter={(e) => {
+                if (!isSameDay(currentDate, new Date())) {
+                  e.currentTarget.style.backgroundColor = '#E03000';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isSameDay(currentDate, new Date())) {
+                  e.currentTarget.style.backgroundColor = '#FF3700';
+                }
+              }}
               aria-label="Go to today"
             >
               {new Date().getDate()}
             </button>
+            {/* View Selector Button - Mobile Only */}
+            <div className="relative">
+              <button
+                onClick={() => setIsMobileViewDropdownOpen(!isMobileViewDropdownOpen)}
+                className="px-2 h-8 rounded-xl flex items-center gap-1 font-semibold transition border border-gray-300 bg-white hover:bg-gray-50"
+                aria-label="Select view"
+              >
+                <span className="text-xs text-gray-700">
+                  {typeof viewMode === 'string' && viewMode === 'day' ? '1' : typeof viewMode === 'number' ? viewMode : '1'}
+                </span>
+                <span className="text-xs text-gray-700">day</span>
+              </button>
+              {/* View Dropdown - Mobile */}
+              {isMobileViewDropdownOpen && (
+                <div 
+                  ref={mobileViewDropdownRef}
+                  className="absolute right-0 top-full mt-2 bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-200"
+                  style={{ minWidth: '120px', zIndex: 100 }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="py-2">
+                    {[1, 2, 3].map((days) => {
+                      const isSelected = (typeof viewMode === 'string' && viewMode === 'day' && days === 1) || (typeof viewMode === 'number' && viewMode === days);
+                      return (
+                        <button
+                          key={days}
+                          onClick={() => {
+                            if (days === 1) {
+                              setViewMode('day');
+                              setNumberOfDays(null);
+                            } else {
+                              setViewMode(days);
+                              setNumberOfDays(days);
+                            }
+                            setIsMobileViewDropdownOpen(false);
+                          }}
+                          className="w-full px-4 py-2 text-sm font-medium transition-colors text-left flex items-center justify-between hover:bg-gray-50"
+                        >
+                          <span className="text-gray-900">{days} Day{days > 1 ? 's' : ''}</span>
+                          {isSelected && (
+                            <CheckIcon className="w-4 h-4 text-black" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
               <button
               onClick={() => setIsActionSidebarOpen(!isActionSidebarOpen)}
               className="w-8 h-8 flex items-center justify-center rounded-xl transition"
@@ -5745,8 +6006,15 @@ export default function CalendarPage() {
         {/* Calendar Grid with Resource Columns */}
         <div className={`flex-1 overflow-y-auto ${isActionSidebarOpen ? 'z-0' : ''}`}>
           <div className="flex flex-col h-full">
-            {/* Resource Headers */}
+            {/* Day of Week Row */}
             <div className={`flex border-b border-gray-200 sticky top-0 ${isActionSidebarOpen ? 'z-0' : 'z-10'}`} style={{ backgroundColor: '#f9f7fa' }}>
+              <div className="w-16 flex-shrink-0 border-r border-gray-200"></div>
+              <div className="flex-1 px-2 py-2 text-center">
+                <span className="text-sm font-semibold text-gray-900">{format(currentDate, 'EEEE')}</span>
+              </div>
+            </div>
+            {/* Resource Headers */}
+            <div className={`flex border-b border-gray-200 sticky ${isActionSidebarOpen ? 'z-0' : 'z-10'}`} style={{ backgroundColor: '#f9f7fa', top: '40px' }}>
               <div className="w-16 flex-shrink-0 border-r border-gray-200"></div>
               {displayResources.map((resource) => (
                 <div key={resource.id} className="flex-1 border-r border-gray-200 last:border-r-0 px-2 py-2 text-center">
@@ -5762,8 +6030,8 @@ export default function CalendarPage() {
                 <div className={`w-16 flex-shrink-0 border-r border-gray-200 relative ${isActionSidebarOpen ? 'z-0' : 'z-10'}`} style={{ backgroundColor: '#f9f7fa' }}>
             {hours.map((hour) => (
               <div key={hour} className="relative" style={{ height: '120px' }}>
-                      <div className="absolute left-2 top-0 text-xs font-medium text-gray-500">
-                  {hour === 12 ? '12:00 PM' : hour > 12 ? `${hour - 12}:00 PM` : `${hour}:00 AM`}
+                      <div className="absolute right-2 top-0 text-xs font-medium text-gray-500 text-right">
+                  {hour === 12 ? '12 PM' : hour > 12 ? `${hour - 12} PM` : `${hour} AM`}
                 </div>
                     </div>
                   ))}
@@ -5791,8 +6059,8 @@ export default function CalendarPage() {
                 style={{ top: `${currentTop}px` }}
               >
                 <div className="relative">
-                  <div className="absolute left-0 w-2 h-2 rounded-full bg-purple-500" style={{ top: '-4px' }} />
-                  <div className="absolute left-0 right-0 border-t-2 border-dotted border-purple-500" />
+                  <div className="absolute left-0 w-2 h-2 rounded-full" style={{ top: '-4px', backgroundColor: '#FF3700' }} />
+                  <div className="absolute left-0 right-0 border-t-2 border-dotted" style={{ borderColor: '#FF3700' }} />
                 </div>
               </div>
             )}
@@ -5909,53 +6177,40 @@ export default function CalendarPage() {
         {/* Employee Filter Dropdown - Mobile */}
         {isTeamDropdownOpen && (
           <>
+            {/* Backdrop overlay - closes on tap */}
             <div
-              className="fixed inset-0 bg-black/40 backdrop-blur-sm z-30"
+              className="fixed inset-0 z-30"
               onClick={() => setIsTeamDropdownOpen(false)}
             />
-            <div className="fixed bottom-24 right-6 bg-white rounded-2xl shadow-2xl border border-gray-200 z-40 w-64 max-h-96 overflow-y-auto">
-              <div className="p-4 border-b border-gray-200">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold text-gray-900">Filter Employees</h3>
-          <button
-                    onClick={() => setIsTeamDropdownOpen(false)}
-                    className="p-1 rounded-lg hover:bg-gray-100"
-          >
-                    <XMarkIcon className="w-5 h-5 text-gray-500" />
-          </button>
-        </div>
-              </div>
-              <div className="p-4 space-y-2">
-                <button
-                  onClick={() => {
-                    setSelectedTechnicians([]);
-                    setIsTeamDropdownOpen(false);
-                  }}
-                  className={`w-full px-4 py-2 text-sm font-medium rounded-lg transition-colors text-left ${
-                    selectedTechnicians.length === 0
-                      ? 'bg-gray-900 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  All Employees
-                </button>
+            <div 
+              ref={mobileTeamDropdownRef}
+              className="fixed right-6 bg-white z-40 rounded-2xl shadow-2xl overflow-hidden" 
+              style={{ bottom: 'calc(5.5rem + 3.5rem + 0.75rem)', width: 'calc(100vw - 3rem)', maxWidth: '400px', maxHeight: 'calc(85vh - 8rem)' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+            <div className="px-4 py-4 flex flex-col" style={{ gap: '12px' }}>
                 {teamEmployees.map((employee) => {
-                  const isSelected = selectedTechnicians.includes(employee.id);
+                  // If no technicians selected, all are considered selected (showing all)
+                  const isSelected = selectedTechnicians.length === 0 || selectedTechnicians.includes(employee.id);
                   return (
                     <button
                       key={employee.id}
                       onClick={() => {
-                        if (isSelected) {
-                          setSelectedTechnicians(selectedTechnicians.filter(id => id !== employee.id));
+                        // If all are selected (empty array), selecting one means selecting only that one
+                        if (selectedTechnicians.length === 0) {
+                          // First selection: select only this employee
+                          setSelectedTechnicians([employee.id]);
+                        } else if (isSelected) {
+                          // Deselecting: remove from array
+                          const newSelection = selectedTechnicians.filter(id => id !== employee.id);
+                          // If all are deselected, go back to showing all (empty array)
+                          setSelectedTechnicians(newSelection.length === 0 ? [] : newSelection);
                         } else {
+                          // Selecting: add to array
                           setSelectedTechnicians([...selectedTechnicians, employee.id]);
                         }
                       }}
-                      className={`w-full px-4 py-2 text-sm font-medium rounded-lg transition-colors text-left flex items-center gap-3 ${
-                        isSelected
-                          ? 'bg-gray-900 text-white'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                      }`}
+                    className="w-full px-4 py-2 text-sm font-medium transition-colors text-left flex items-center gap-3 bg-transparent hover:bg-gray-50"
                     >
                       {employee.imageUrl ? (
                         <img
@@ -5968,9 +6223,9 @@ export default function CalendarPage() {
                           <UsersIcon className="w-5 h-5 text-gray-600" />
                         </div>
                       )}
-                      <span>{employee.name}</span>
+                    <span className="text-gray-900">{employee.name}</span>
                       {isSelected && (
-                        <CheckIcon className="w-5 h-5 ml-auto" />
+                      <CheckIcon className="w-5 h-5 ml-auto text-black" />
                       )}
                     </button>
                   );
@@ -5983,10 +6238,12 @@ export default function CalendarPage() {
     );
   };
 
-  // Render mobile view if on mobile
-  if (isMobile && viewMode === 'day') {
+  // Render mobile view if on mobile (1, 2, or 3 day views)
+  if (isMobile && (viewMode === 'day' || (typeof viewMode === 'number' && viewMode >= 1 && viewMode <= 3))) {
+    // For 1 day view, use the mobile calendar renderer
+    if (viewMode === 'day') {
     return (
-      <>
+        <div className="fixed inset-0 md:relative" style={{ zIndex: 0 }}>
         {renderMobileCalendar()}
         {/* Keep modals and sidebars */}
         <EventModal 
@@ -6065,6 +6322,7 @@ export default function CalendarPage() {
             onClick={() => {
               setSelectedEventData(null);
               setSelectedEvent(null);
+              setIsActionSidebarOpen(false);
             }}
           />
         )}
@@ -6096,6 +6354,7 @@ export default function CalendarPage() {
             if (deltaY > 100 && deltaTime < 500) {
               setSelectedEventData(null);
               setSelectedEvent(null);
+              setIsActionSidebarOpen(false);
             }
             
             bottomSheetTouchStartRef.current = null;
@@ -6110,6 +6369,7 @@ export default function CalendarPage() {
               onClick={() => {
                 setSelectedEventData(null);
                 setSelectedEvent(null);
+                setIsActionSidebarOpen(false);
               }}
               className="p-1 rounded-lg hover:bg-gray-100 transition-colors"
               aria-label="Close"
@@ -6244,8 +6504,358 @@ export default function CalendarPage() {
           </div>
         </div>
         )}
-      </>
+      </div>
     );
+    } else {
+      // For 2-3 day views, use WeekView with numberOfDays
+      // Swipe handlers for 2-3 day views
+      const handleMultiDayTouchStart = (e: React.TouchEvent) => {
+        const touch = e.touches[0];
+        touchStartRef.current = {
+          x: touch.clientX,
+          y: touch.clientY,
+          time: Date.now()
+        };
+      };
+
+      const handleMultiDayTouchMove = (e: React.TouchEvent) => {
+        if (!touchStartRef.current) return;
+        
+        const touch = e.touches[0];
+        const deltaX = Math.abs(touch.clientX - touchStartRef.current.x);
+        const deltaY = Math.abs(touch.clientY - touchStartRef.current.y);
+        
+        // If it's a clear horizontal swipe (more horizontal than vertical), prevent default scrolling
+        if (deltaX > 30 && deltaX > deltaY * 1.5) {
+          e.preventDefault();
+        }
+      };
+
+      const handleMultiDayTouchEnd = (e: React.TouchEvent) => {
+        if (!touchStartRef.current) return;
+
+        const touch = e.changedTouches[0];
+        const deltaX = touch.clientX - touchStartRef.current.x;
+        const deltaY = touch.clientY - touchStartRef.current.y;
+        const deltaTime = Date.now() - touchStartRef.current.time;
+
+        const minSwipeDistance = 80;
+        const maxSwipeTime = 500;
+
+        // Horizontal swipe for multi-day navigation
+        if (typeof viewMode === 'number' && viewMode >= 2 && viewMode <= 3 && Math.abs(deltaX) > minSwipeDistance && Math.abs(deltaY) < Math.abs(deltaX) * 0.5 && deltaTime < maxSwipeTime) {
+          // Prevent default to avoid scrolling interference
+          e.preventDefault();
+          // Swipe right: next period (forward)
+          if (deltaX > 0) {
+            setCurrentDate(addDays(currentDate, viewMode));
+          }
+          // Swipe left: previous period (backward)
+          else if (deltaX < 0) {
+            setCurrentDate(subDays(currentDate, viewMode));
+          }
+        }
+
+        touchStartRef.current = null;
+      };
+
+      return (
+        <div className="fixed inset-0 md:relative" style={{ zIndex: 0 }}>
+          <div className="h-full flex flex-col">
+            {/* Mobile Header */}
+            <div className="flex-shrink-0 px-4 pt-4 pb-2 bg-[#f9f7fa] border-b border-gray-200">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-3 relative">
+                  <button
+                    onClick={() => setIsDatePickerOpen(!isDatePickerOpen)}
+                    className="font-bold text-gray-900 text-[20px] cursor-pointer hover:opacity-80 transition-opacity"
+                    style={{ fontFamily: 'Helvetica Neue', marginLeft: '2.5rem' }}
+                  >
+                    {renderMobileHeaderDate()}
+                  </button>
+                  {/* Date Picker Popup for Mobile - 2-3 day view */}
+                  {isDatePickerOpen && (
+                    <div 
+                      ref={datePickerRef} 
+                      className="fixed bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl z-[100] p-4 md:hidden"
+                      style={{ 
+                        maxHeight: '70vh',
+                        paddingBottom: 'max(1rem, env(safe-area-inset-bottom))'
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="flex items-center justify-between mb-4">
+                        <button
+                          onClick={() => setCurrentDate(subMonths(currentDate, 1))}
+                          className="p-2 rounded-lg hover:bg-gray-100 active:bg-gray-200"
+                        >
+                          <ChevronLeftIcon className="w-5 h-5 text-gray-600" />
+                        </button>
+                        <h3 className="text-base font-semibold text-gray-900">
+                          {format(currentDate, 'MMMM yyyy')}
+                        </h3>
+                        <button
+                          onClick={() => setCurrentDate(addMonths(currentDate, 1))}
+                          className="p-2 rounded-lg hover:bg-gray-100 active:bg-gray-200"
+                        >
+                          <ChevronRightIcon className="w-5 h-5 text-gray-600" />
+                        </button>
+                      </div>
+                      
+                      <div className="grid grid-cols-7 gap-1 mb-2">
+                        {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((day) => (
+                          <div key={day} className="text-xs font-medium text-gray-500 text-center py-2">
+                            {day}
+                          </div>
+                        ))}
+                      </div>
+                      
+                      <div className="grid grid-cols-7 gap-1 overflow-y-auto" style={{ maxHeight: 'calc(70vh - 120px)' }}>
+                        {/* Empty cells for days before month starts */}
+                        {Array(getDay(startOfMonth(currentDate))).fill(null).map((_, index) => (
+                          <div key={`empty-${index}`} className="aspect-square"></div>
+                        ))}
+                        
+                        {/* Days of the month */}
+                        {Array(getDaysInMonth(currentDate.getFullYear(), currentDate.getMonth())).fill(null).map((_, index) => {
+                          const day = index + 1;
+                          const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+                          const isTodayDate = isToday(date);
+                          const isSelected = isSameDay(date, currentDate);
+
+                          return (
+                            <button
+                              key={day}
+                              onClick={() => {
+                                setCurrentDate(date);
+                                setIsDatePickerOpen(false);
+                              }}
+                              className={`aspect-square flex items-center justify-center text-sm font-medium transition-colors ${
+                                isSelected
+                                  ? 'bg-[#FF3700] text-white rounded-full'
+                                  : isTodayDate
+                                  ? 'bg-gray-100 text-gray-900 font-semibold rounded-lg'
+                                  : 'text-gray-700 hover:bg-gray-100 active:bg-gray-200 rounded-lg'
+                              }`}
+                            >
+                              {day}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setCurrentDate(new Date())}
+                    className="w-8 h-8 rounded-xl flex items-center justify-center font-semibold transition"
+                    style={{ 
+                      backgroundColor: isSameDay(currentDate, new Date()) ? '#E2E2DD' : '#FF3700',
+                      color: isSameDay(currentDate, new Date()) ? '#4A4844' : '#FFFFFF'
+                    }}
+                    aria-label="Go to today"
+                  >
+                    {new Date().getDate()}
+                  </button>
+                  {/* View Selector Button - Mobile Only */}
+                  <div className="relative">
+                    <button
+                      onClick={() => setIsMobileViewDropdownOpen(!isMobileViewDropdownOpen)}
+                      className="px-2 h-8 rounded-xl flex items-center gap-1 font-semibold transition border border-gray-300 bg-white hover:bg-gray-50"
+                      aria-label="Select view"
+                    >
+                      <span className="text-xs text-gray-700">
+                        {typeof viewMode === 'string' && viewMode === 'day' ? '1' : typeof viewMode === 'number' ? viewMode : '1'}
+                      </span>
+                      <span className="text-xs text-gray-700">day</span>
+                    </button>
+                    {/* View Dropdown - Mobile */}
+                    {isMobileViewDropdownOpen && (
+                      <div 
+                        ref={mobileViewDropdownRef}
+                        className="absolute right-0 top-full mt-2 bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-200"
+                        style={{ minWidth: '120px', zIndex: 100 }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="py-2">
+                          {[1, 2, 3].map((days) => {
+                            const isSelected = (typeof viewMode === 'string' && viewMode === 'day' && days === 1) || (typeof viewMode === 'number' && viewMode === days);
+                            return (
+                              <button
+                                key={days}
+                                onClick={() => {
+                                  if (days === 1) {
+                                    setViewMode('day');
+                                    setNumberOfDays(null);
+                                  } else {
+                                    setViewMode(days);
+                                    setNumberOfDays(days);
+                                  }
+                                  setIsMobileViewDropdownOpen(false);
+                                }}
+                                className="w-full px-4 py-2 text-sm font-medium transition-colors text-left flex items-center justify-between hover:bg-gray-50"
+                              >
+                                <span className="text-gray-900">{days} Day{days > 1 ? 's' : ''}</span>
+                                {isSelected && (
+                                  <CheckIcon className="w-4 h-4 text-black" />
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+            {/* WeekView for multi-day */}
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <WeekView
+                date={currentDate}
+                events={filteredBookings}
+                onEventClick={handleEventClick}
+                resources={resources}
+                scale={weekScale}
+                businessHours={businessHours}
+                onResourceSelect={setSelectedResource}
+                onOpenModal={() => setIsModalOpen(true)}
+                draftEvent={draftEvent && draftEvent.date ? { ...draftEvent, date: draftEvent.date } : null}
+                onDraftEventUpdate={(event) => setDraftEvent({ ...event, date: event.date || currentDate })}
+                numberOfDays={typeof viewMode === 'number' ? viewMode : null}
+                isMobile={isMobile}
+                onTouchStart={handleMultiDayTouchStart}
+                onTouchMove={handleMultiDayTouchMove}
+                onTouchEnd={handleMultiDayTouchEnd}
+              />
+            </div>
+          </div>
+          {/* Floating Action Buttons */}
+          <div className="fixed bottom-6 right-6 flex flex-col gap-3 z-40">
+            {/* Filter Employee Button */}
+            <button
+              onClick={() => setIsTeamDropdownOpen(!isTeamDropdownOpen)}
+              className="w-14 h-14 bg-white rounded-full shadow-lg flex items-center justify-center border border-gray-200 hover:bg-gray-50 transition"
+              aria-label="Filter employees"
+            >
+              <FunnelIcon className="w-6 h-6 text-gray-700" />
+              {selectedTechnicians.length > 0 && (
+                <span className="absolute -top-1 -right-1 w-5 h-5 bg-blue-500 text-white text-xs rounded-full flex items-center justify-center">
+                  {selectedTechnicians.length}
+                </span>
+              )}
+            </button>
+            
+            {/* Add Event Button */}
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="w-14 h-14 bg-black rounded-full shadow-lg flex items-center justify-center hover:bg-gray-800 transition"
+              aria-label="Add event"
+            >
+              <PlusIcon className="w-7 h-7 text-white" />
+            </button>
+          </div>
+          {/* Keep modals and sidebars - same as 1 day view */}
+          <EventModal 
+            isOpen={isModalOpen}
+            onClose={() => {
+              setIsModalOpen(false);
+              setSelectedResource(null);
+              setDraftEvent(null);
+              setNewCustomerData(null);
+            }}
+            onAddEvent={handleAddEvent}
+            preSelectedResource={selectedResource}
+            resources={resources.length > 0 ? resources : []}
+            draftEvent={draftEvent}
+            onOpenNewCustomerModal={(initialName) => {
+              setNewCustomerModalInitialName(initialName);
+              setIsNewCustomerModalOpen(true);
+            }}
+            onOpenEditCustomerModal={(customer) => {
+              setEditingCustomerData({
+                customerName: customer.customerName,
+                customerPhone: customer.customerPhone,
+                customerAddress: customer.customerAddress || ''
+              });
+              setIsEditingCustomer(true);
+              setIsNewCustomerModalOpen(true);
+            }}
+            onRequestClose={() => {
+              setShowEventModalDiscardModal(true);
+            }}
+            newCustomerData={newCustomerData}
+          />
+          <NewCustomerModal
+            isOpen={isNewCustomerModalOpen}
+            onClose={() => setIsNewCustomerModalOpen(false)}
+            initialName={newCustomerModalInitialName}
+            onSuccess={(customerData: any) => {
+              setNewCustomerData(customerData);
+              setIsNewCustomerModalOpen(false);
+            }}
+          />
+          {/* Employee Filter Dropdown - Mobile */}
+          {isTeamDropdownOpen && (
+            <>
+              {/* Backdrop overlay - closes on tap */}
+              <div
+                className="fixed inset-0 z-30"
+                onClick={() => setIsTeamDropdownOpen(false)}
+              />
+              <div
+                ref={mobileTeamDropdownRef}
+                className="fixed right-6 bg-white z-40 rounded-2xl shadow-2xl overflow-hidden"
+                style={{ bottom: 'calc(5.5rem + 3.5rem + 0.75rem)', width: 'calc(100vw - 3rem)', maxWidth: '400px', maxHeight: 'calc(85vh - 8rem)' }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="px-4 py-4 flex flex-col" style={{ gap: '12px' }}>
+                  {teamEmployees.map((employee) => {
+                    // If no technicians selected, all are considered selected (showing all)
+                    const isSelected = selectedTechnicians.length === 0 || selectedTechnicians.includes(employee.id);
+                    return (
+                      <button
+                        key={employee.id}
+                        onClick={() => {
+                          if (isSelected) {
+                            // If currently selected, deselect it
+                            const newSelection = selectedTechnicians.filter(id => id !== employee.id);
+                            setSelectedTechnicians(newSelection);
+                          } else {
+                            // If not selected, add it to selection
+                            setSelectedTechnicians([...selectedTechnicians, employee.id]);
+                          }
+                        }}
+                        className="w-full px-4 py-2 text-sm font-medium transition-colors text-left flex items-center gap-3 bg-transparent hover:bg-gray-50"
+                      >
+                        {employee.imageUrl ? (
+                          <img 
+                            src={employee.imageUrl} 
+                            alt={employee.name}
+                            className="w-8 h-8 rounded-full object-cover flex-shrink-0 border border-gray-200"
+                          />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
+                            <span className="text-gray-700 font-semibold text-xs">
+                              {employee.name.charAt(0).toUpperCase()}
+                            </span>
+                          </div>
+                        )}
+                        <span className="text-gray-900">{employee.name}</span>
+                        {isSelected && (
+                          <CheckIcon className="w-5 h-5 ml-auto text-black" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      );
+    }
   }
 
   return (
