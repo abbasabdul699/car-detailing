@@ -779,7 +779,7 @@ export default function CustomersPage() {
   };
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="h-full min-h-screen bg-white overflow-y-auto">
       <div className={`w-full ${isActionSidebarOpen ? 'pr-0 md:pr-[400px] lg:pr-[420px]' : 'pr-0 md:pr-16'}`}>
         {/* Header Section */}
         <div className="px-4 md:px-6 pt-4 md:pt-6 pb-4 md:border-b border-gray-200">
@@ -1973,4 +1973,3 @@ export default function CustomersPage() {
     </div>
   );
 }
-
