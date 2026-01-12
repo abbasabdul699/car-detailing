@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useRef, useMemo, useImperativeHandle, forwardRef } from "react";
+import { createPortal } from "react-dom";
 import { useSession } from "next-auth/react";
 import Image from "next/image";
 import { ChevronLeftIcon, ChevronRightIcon, ChevronDownIcon as ChevronDownIconSolid, PlusIcon } from "@heroicons/react/24/solid";
@@ -21,7 +22,7 @@ import {
   isBefore,
   startOfDay
 } from 'date-fns';
-import { ChevronDownIcon, Cog8ToothIcon, FunnelIcon, UsersIcon } from '@heroicons/react/24/outline';
+import { ChevronDownIcon, Cog8ToothIcon, FunnelIcon, UsersIcon, EllipsisHorizontalIcon } from '@heroicons/react/24/outline';
 import { XMarkIcon, PencilIcon, CheckIcon } from '@heroicons/react/24/solid';
 import EventModal from './components/EventModal';
 import AddressAutocompleteInput from './components/AddressAutocompleteInput';
@@ -96,6 +97,23 @@ const getCleanDescription = (desc: string | null | undefined): string => {
     return parts[0].trim();
   }
   return desc;
+};
+
+const getEventDateString = (event: any): string => {
+  if (!event) return '';
+  if (event.start) {
+    if (typeof event.start === 'string') {
+      return event.start.includes('T') ? event.start.split('T')[0] : event.start;
+    }
+    const startDate = new Date(event.start);
+    if (!Number.isNaN(startDate.getTime())) {
+      return format(startDate, 'yyyy-MM-dd');
+    }
+  }
+  if (event.date) {
+    return typeof event.date === 'string' ? event.date : format(new Date(event.date), 'yyyy-MM-dd');
+  }
+  return '';
 };
 
 // Event Edit Form Component
@@ -685,11 +703,7 @@ const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () =>
   }));
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h3 className="text-xl font-bold text-gray-900 mb-4">Edit Event</h3>
-      </div>
-
+    <div className="space-y-6 px-3 md:px-0 overflow-x-visible pt-10" style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
       {/* Customer Information */}
       <div className="pt-2">
         <h3 className="text-sm font-semibold text-gray-900 mb-4">Customer</h3>
@@ -735,8 +749,8 @@ const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () =>
       </div>
 
       {/* Station and Arrival Selection */}
-      <div className="pt-2">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="pt-2" style={{ width: '100%', maxWidth: '100%' }}>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4" style={{ width: '100%', maxWidth: '100%' }}>
           {/* Station Dropdown */}
           <div>
             <label htmlFor="station-select" className="block text-sm font-semibold text-gray-900 mb-2">
@@ -1142,11 +1156,11 @@ const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () =>
       </div>
 
       {/* Date and Time Section */}
-      <div className="border-t border-gray-200 pt-6">
+      <div className="border-t border-gray-200 pt-6" style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
         <h3 className="text-sm font-semibold text-gray-900 mb-4">Scheduling</h3>
         
         {/* All-Day and Multi-Day Toggles */}
-        <div className="mb-4 flex items-center gap-6">
+        <div className="mb-4 flex items-center gap-6" style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
           <label className="flex items-center space-x-2 cursor-pointer">
             <input
               type="checkbox"
@@ -1168,83 +1182,90 @@ const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () =>
         </div>
 
         {/* Date and Time Inputs */}
-        <div className="space-y-4">
+        <div className="space-y-4" style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
           {/* First Row: Dates */}
           {isMultiDay ? (
-            <div className="grid grid-cols-2 gap-4">
-              <div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-0 md:gap-4" style={{ width: '100%' }}>
+              <div className="mb-3 md:mb-0" style={{ minWidth: 0, width: '100%', maxWidth: '100%', overflow: 'visible' }}>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Start Date *</label>
                 <input
                   type="date"
                   value={startDate}
                   onChange={e => setStartDate(e.target.value)}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                  className="w-full min-w-0 px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                  style={{ boxSizing: 'border-box', width: '100%', maxWidth: '100%' }}
                 />
               </div>
-              <div>
+              <div style={{ minWidth: 0, width: '100%', maxWidth: '100%', overflow: 'visible' }}>
                 <label className="block text-sm font-medium text-gray-700 mb-2">End Date *</label>
                 <input
                   type="date"
                   value={endDate}
                   onChange={e => setEndDate(e.target.value)}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                  className="w-full min-w-0 px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                  style={{ boxSizing: 'border-box', width: '100%', maxWidth: '100%' }}
                 />
               </div>
             </div>
           ) : (
-            <div>
+            <div style={{ width: '100%', maxWidth: '100%', overflow: 'visible' }}>
               <label className="block text-sm font-medium text-gray-700 mb-2">Start Date *</label>
               <input
                 type="date"
                 value={startDate}
                 onChange={e => setStartDate(e.target.value)}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                className="w-full min-w-0 px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                style={{ boxSizing: 'border-box', width: '100%', maxWidth: '100%' }}
               />
             </div>
           )}
 
           {/* Second Row: Times */}
           {isMultiDay && !isAllDay && (
-            <div className="grid grid-cols-2 gap-4">
-              <div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-0 md:gap-4" style={{ width: '100%' }}>
+              <div className="mb-3 md:mb-0" style={{ minWidth: 0, width: '100%', maxWidth: '100%', overflow: 'visible' }}>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Start Time *</label>
                 <input
                   type="time"
                   value={startTime}
                   onChange={e => setStartTime(e.target.value)}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                  className="w-full min-w-0 px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                  style={{ boxSizing: 'border-box', width: '100%', maxWidth: '100%' }}
                 />
               </div>
-              <div>
+              <div style={{ minWidth: 0, width: '100%', maxWidth: '100%', overflow: 'visible' }}>
                 <label className="block text-sm font-medium text-gray-700 mb-2">End Time *</label>
                 <input
                   type="time"
                   value={endTime}
                   onChange={e => setEndTime(e.target.value)}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                  className="w-full min-w-0 px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                  style={{ boxSizing: 'border-box', width: '100%', maxWidth: '100%' }}
                 />
               </div>
             </div>
           )}
 
           {!isMultiDay && !isAllDay && (
-            <div className="grid grid-cols-2 gap-4">
-              <div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-0 md:gap-4" style={{ width: '100%' }}>
+              <div className="mb-3 md:mb-0" style={{ minWidth: 0, width: '100%', maxWidth: '100%', overflow: 'visible' }}>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Start Time *</label>
                 <input
                   type="time"
                   value={startTime}
                   onChange={e => setStartTime(e.target.value)}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                  className="w-full min-w-0 px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                  style={{ boxSizing: 'border-box', width: '100%', maxWidth: '100%' }}
                 />
               </div>
-              <div>
+              <div style={{ minWidth: 0, width: '100%', maxWidth: '100%', overflow: 'visible' }}>
                 <label className="block text-sm font-medium text-gray-700 mb-2">End Time *</label>
                 <input
                   type="time"
                   value={endTime}
                   onChange={e => setEndTime(e.target.value)}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                  className="w-full min-w-0 px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                  style={{ boxSizing: 'border-box', width: '100%', maxWidth: '100%' }}
                 />
               </div>
             </div>
@@ -1252,23 +1273,25 @@ const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () =>
 
           {/* All-day: Show business hours (disabled) */}
           {isAllDay && (
-            <div className="grid grid-cols-2 gap-4">
-              <div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4" style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
+              <div style={{ width: '100%', minWidth: 0, maxWidth: '100%', boxSizing: 'border-box' }}>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Start Time (Business Hours)</label>
                 <input
                   type="time"
                   value={startTime}
                   disabled
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-gray-50 text-gray-600 cursor-not-allowed"
+                  style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}
                 />
               </div>
-              <div>
+              <div style={{ width: '100%', minWidth: 0, maxWidth: '100%', boxSizing: 'border-box' }}>
                 <label className="block text-sm font-medium text-gray-700 mb-2">End Time (Business Hours)</label>
                 <input
                   type="time"
                   value={endTime}
                   disabled
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-gray-50 text-gray-600 cursor-not-allowed"
+                  style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}
                 />
               </div>
             </div>
@@ -1292,6 +1315,7 @@ const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () =>
             onChange={e => setDescription(e.target.value)}
             rows={4}
             className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+            style={{ boxSizing: 'border-box' }}
             placeholder="e.g., Customer prefers hand-wash only, always 5 minutes late, prefers early morning appointments..."
           />
           <p className="mt-1 text-xs text-gray-500">Add quick notes about customer preferences, behavior, or reminders</p>
@@ -1514,18 +1538,8 @@ const MonthView = ({ date, events, selectedEvent, onEventClick, scale = 1.0, res
                   }
                   
                   // Extract event date - check start first, then date field (matching WeekView logic)
-                  let eventStartDate;
-                  if (e.start) {
-                    if (e.start.includes('T')) {
-                      eventStartDate = e.start.split('T')[0];
-                    } else {
-                      eventStartDate = e.start;
-                    }
-                  } else if (e.date) {
-                    eventStartDate = typeof e.date === 'string' ? e.date : format(e.date, 'yyyy-MM-dd');
-                  } else {
-                    return false;
-                  }
+                  const eventStartDate = getEventDateString(e);
+                  if (!eventStartDate) return false;
                   
                   // Check if event matches current date
                   return eventStartDate === currentDateStr;
@@ -2002,6 +2016,7 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
 
     // Handle event hover
     const handleEventMouseEnter = (event: any, element: HTMLElement) => {
+        if (isMobile) return;
         // Clear any existing timeout
         if (hoverTimeoutRef.current) {
             clearTimeout(hoverTimeoutRef.current);
@@ -2043,6 +2058,7 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
 
     // Handle event mouse leave
     const handleEventMouseLeave = () => {
+        if (isMobile) return;
         // Small delay to allow moving mouse to popup
         hoverTimeoutRef.current = setTimeout(() => {
             setHoveredEvent(null);
@@ -2052,6 +2068,7 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
 
     // Handle popup mouse enter (keep it open when hovering over popup)
     const handlePopupMouseEnter = () => {
+        if (isMobile) return;
         if (hoverTimeoutRef.current) {
             clearTimeout(hoverTimeoutRef.current);
         }
@@ -2059,6 +2076,7 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
 
     // Handle popup mouse leave
     const handlePopupMouseLeave = () => {
+        if (isMobile) return;
         setHoveredEvent(null);
         setPopupPosition(null);
     };
@@ -2620,19 +2638,7 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                 }
                                 
                                 // Check if event is on the current day (single-day events)
-                                        let eventStartDate;
-                                if (e.start) {
-                                        if (e.start.includes('T')) {
-                                            eventStartDate = e.start.split('T')[0];
-                                        } else {
-                                            eventStartDate = e.start;
-                                        }
-                                } else if (e.date) {
-                                    eventStartDate = typeof e.date === 'string' ? e.date : format(e.date, 'yyyy-MM-dd');
-                                } else {
-                                    eventStartDate = '';
-                                }
-                                
+                                const eventStartDate = getEventDateString(e);
                                 return eventStartDate === currentDateStr;
                             });
                             
@@ -2668,8 +2674,8 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                                     e.stopPropagation();
                                                     onEventClick(event);
                                                 }}
-                                                onMouseEnter={(e) => handleEventMouseEnter(event, e.currentTarget)}
-                                                onMouseLeave={handleEventMouseLeave}
+                                                onMouseEnter={isMobile ? undefined : (e) => handleEventMouseEnter(event, e.currentTarget)}
+                                                onMouseLeave={isMobile ? undefined : handleEventMouseLeave}
                                                 className={`absolute w-[95%] left-1 top-0 ${colorConfig.bg} p-1.5 rounded-xl flex flex-col items-start text-xs cursor-pointer hover:shadow-lg transition-all z-10`}
                                                 style={{
                                                     pointerEvents: 'auto',
@@ -2769,6 +2775,10 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                                     if (!isEventClick && (target === e.currentTarget || target.classList.contains('border-r'))) {
                                                         const slotHour = parseSlotHour(slot);
                                                         if (slotHour !== null && onOpenModal && onResourceSelect) {
+                                                            // Stop propagation to prevent interference with modal
+                                                            e.stopPropagation();
+                                                            e.preventDefault();
+                                                            
                                                             // Highlight the selected cell
                                                             setSelectedCell({
                                                                 day: day,
@@ -3133,8 +3143,8 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                             // Ensure event click works even when modal/draft is open
                                             onEventClick(event);
                                         }}
-                                        onMouseEnter={(e) => handleEventMouseEnter(event, e.currentTarget)}
-                                        onMouseLeave={handleEventMouseLeave}
+                                        onMouseEnter={isMobile ? undefined : (e) => handleEventMouseEnter(event, e.currentTarget)}
+                                        onMouseLeave={isMobile ? undefined : handleEventMouseLeave}
                                     className={`absolute w-[95%] left-1 rounded-[6px] flex flex-col items-start cursor-pointer hover:shadow-lg transition-all z-20`}
                                     style={{ 
                                         pointerEvents: 'auto',
@@ -3460,15 +3470,17 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                 </div>
             </div>
             {/* Event Hover Popup */}
-            <EventHoverPopup
-                event={hoveredEvent}
-                position={popupPosition}
-                formatTimeRange={formatDateTimeRange}
-                getCustomerType={getCustomerType}
-                resources={displayResources}
-                onMouseEnter={handlePopupMouseEnter}
-                onMouseLeave={handlePopupMouseLeave}
-            />
+            {!isMobile && (
+                <EventHoverPopup
+                    event={hoveredEvent}
+                    position={popupPosition}
+                    formatTimeRange={formatDateTimeRange}
+                    getCustomerType={getCustomerType}
+                    resources={displayResources}
+                    onMouseEnter={handlePopupMouseEnter}
+                    onMouseLeave={handlePopupMouseLeave}
+                />
+            )}
         </div>
     );
 };
@@ -3803,18 +3815,7 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
     }
     
     // Check if event is on the current day (single-day events)
-    let eventStartDate;
-    if (e.start) {
-      if (e.start.includes('T')) {
-        eventStartDate = e.start.split('T')[0];
-      } else {
-        eventStartDate = e.start;
-      }
-    } else if (e.date) {
-      eventStartDate = typeof e.date === 'string' ? e.date : format(e.date, 'yyyy-MM-dd');
-    } else {
-      eventStartDate = '';
-    }
+    const eventStartDate = getEventDateString(e);
     return eventStartDate === currentDateStr;
   });
 
@@ -4478,6 +4479,7 @@ export default function CalendarPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [isMounted, setIsMounted] = useState(false);
   const [selectedResource, setSelectedResource] = useState<{ id: string; name: string; type: 'bay' | 'van' } | null>(null);
   const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
   const [draftEvent, setDraftEvent] = useState<{ resourceId: string; startTime: string; endTime: string; date?: Date } | null>(null);
@@ -4502,6 +4504,10 @@ export default function CalendarPage() {
   const [isEditingEvent, setIsEditingEvent] = useState(false);
   const [editFormData, setEditFormData] = useState<any>(null);
   const [isEditFormDirty, setIsEditFormDirty] = useState(false);
+  const [bottomSheetState, setBottomSheetState] = useState<'hidden' | 'minimized' | 'full'>('hidden');
+  const [isBottomSheetMenuOpen, setIsBottomSheetMenuOpen] = useState(false);
+  const [createSheetState, setCreateSheetState] = useState<'hidden' | 'minimized' | 'full'>('hidden');
+  const [createSheetDragY, setCreateSheetDragY] = useState(0);
   const [showDiscardModal, setShowDiscardModal] = useState(false);
   const [showEventModalDiscardModal, setShowEventModalDiscardModal] = useState(false);
   const [customerPastJobs, setCustomerPastJobs] = useState<Array<{ id: string; date: string; services: string[]; vehicleModel?: string; employeeName?: string }>>([]);
@@ -4539,9 +4545,15 @@ export default function CalendarPage() {
   const mobileViewDropdownRef = useRef<HTMLDivElement>(null);
   const actionSidebarRef = useRef<HTMLDivElement>(null);
   const bottomSheetRef = useRef<HTMLDivElement>(null);
+  const createSheetRef = useRef<HTMLDivElement>(null);
   const eventEditFormRef = useRef<{ handleCancel: () => void; handleSubmit: () => void } | null>(null);
+  const mobileEventEditFormRef = useRef<{ handleCancel: () => void; handleSubmit: () => void } | null>(null);
   const notesSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const bottomSheetTouchStartRef = useRef<{ y: number; time: number } | null>(null);
+  const createSheetTouchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
+  const createSheetContentTouchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const bottomSheetMenuRef = useRef<HTMLDivElement>(null);
+  const eventTapRef = useRef<{ x: number; y: number; time: number } | null>(null);
   const session = useSession();
   const detailerId = session.data?.user?.id;
   const [teamEmployees, setTeamEmployees] = useState<Array<{ id: string; name: string; imageUrl?: string; email?: string; phone?: string }>>([]);
@@ -4556,6 +4568,64 @@ export default function CalendarPage() {
   const [serviceSearch, setServiceSearch] = useState('');
   const [showServiceDropdown, setShowServiceDropdown] = useState(false);
   const [businessHours, setBusinessHours] = useState<any>(null);
+  const [bottomSheetDragY, setBottomSheetDragY] = useState(0);
+  const bottomSheetIgnoreClickRef = useRef(false);
+  const createSheetIgnoreClickRef = useRef(false);
+  const [mobileDraftSelection, setMobileDraftSelection] = useState<{ resourceId: string; startMinutes: number; durationMinutes: number } | null>(null);
+  const draftResizeRef = useRef<{ handle: 'top' | 'bottom'; startY: number; startMinutes: number; durationMinutes: number; resourceId: string } | null>(null);
+  const draftResizeBodyStyleRef = useRef<{ overflow: string; touchAction: string } | null>(null);
+  const [isDraftResizing, setIsDraftResizing] = useState(false);
+  const [deletedEventToast, setDeletedEventToast] = useState<{ isOpen: boolean; isActive: boolean; eventName: string } | null>(null);
+  const deletedEventRef = useRef<any>(null);
+  const deleteToastShowTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const deleteToastHideTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const deleteToastCloseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const getPhoneHref = (phone?: string) => (phone || '').replace(/[^\d+]/g, '');
+
+  const closeBottomSheet = (options?: { resetEditFormData?: boolean }) => {
+    setBottomSheetState('hidden');
+    setIsBottomSheetMenuOpen(false);
+    setBottomSheetDragY(0);
+    setTimeout(() => {
+      setSelectedEventData(null);
+      setSelectedEvent(null);
+      setIsActionSidebarOpen(false);
+      setIsEditingEvent(false);
+      setIsEditFormDirty(false);
+      if (options?.resetEditFormData) {
+        setEditFormData(null);
+      }
+    }, 300);
+  };
+
+  const requestCloseBottomSheet = () => {
+    if (isEditFormDirty) {
+      setShowDiscardModal(true);
+      return;
+    }
+    closeBottomSheet();
+  };
+
+  const minimizeBottomSheet = () => {
+    setBottomSheetDragY(0);
+    setIsBottomSheetMenuOpen(false);
+    setBottomSheetState('minimized');
+  };
+
+  const closeCreateSheet = () => {
+    setCreateSheetState('hidden');
+    setCreateSheetDragY(0);
+    setIsModalOpen(false);
+    setSelectedResource(null);
+    setDraftEvent(null);
+    setNewCustomerData(null);
+    setMobileDraftSelection(null);
+  };
+
+  const minimizeCreateSheet = () => {
+    setCreateSheetDragY(0);
+    setCreateSheetState('minimized');
+  };
   
   // Filter bookings by selected technicians
   const filteredBookings = useMemo(() => {
@@ -4717,11 +4787,7 @@ export default function CalendarPage() {
     const todayStr = format(today, 'yyyy-MM-dd');
     const todayEventsList = bookings.filter((e: any) => {
       let eventDate;
-      if (e.date) {
-        eventDate = typeof e.date === 'string' ? e.date : format(e.date, 'yyyy-MM-dd');
-      } else if (e.start) {
-        eventDate = e.start.includes('T') ? e.start.split('T')[0] : e.start;
-      }
+      eventDate = getEventDateString(e);
       return eventDate === todayStr;
     });
     setTodayEvents(todayEventsList);
@@ -4780,9 +4846,17 @@ export default function CalendarPage() {
     };
   }, []);
 
+  useEffect(() => {
+    setIsMounted(true);
+    return () => {
+      setIsMounted(false);
+    };
+  }, []);
+
+
   // Swipe gesture handlers for mobile - swipe down from week to month, swipe up from month to week
   useEffect(() => {
-    if (!isMobile) return;
+    if (!isMobile || typeof viewMode === 'number') return;
 
     const handleTouchStart = (e: TouchEvent) => {
       // Only track if starting from the top area (week header/navigation) or if in week/month view
@@ -5188,6 +5262,74 @@ export default function CalendarPage() {
     };
   }, [isActionSidebarOpen]);
 
+  // Hide hamburger menu when Create Event modal is open
+  useEffect(() => {
+    if (isModalOpen && !isMobile) {
+      document.body.classList.add('event-modal-open');
+    } else {
+      document.body.classList.remove('event-modal-open');
+    }
+    return () => {
+      document.body.classList.remove('event-modal-open');
+    };
+  }, [isModalOpen, isMobile]);
+
+  useEffect(() => {
+    const shouldLockOverscroll = isMobile && (
+      (isEditingEvent && bottomSheetState === 'full' && !!selectedEventData) ||
+      (isModalOpen && createSheetState === 'full')
+    );
+    if (shouldLockOverscroll) {
+      document.body.classList.add('bottom-sheet-open');
+    } else {
+      document.body.classList.remove('bottom-sheet-open');
+    }
+    return () => {
+      document.body.classList.remove('bottom-sheet-open');
+    };
+  }, [isMobile, isEditingEvent, bottomSheetState, selectedEventData]);
+
+  // Animate bottom sheet slide up/down
+  useEffect(() => {
+    if (selectedEventData && isMobile && isEditingEvent) {
+      // Trigger slide up animation - start in minimized state
+      setTimeout(() => {
+        setBottomSheetState('minimized');
+      }, 10);
+    } else {
+      // Trigger slide down animation - hide
+      setBottomSheetState('hidden');
+    }
+  }, [selectedEventData, isMobile, isEditingEvent]);
+
+  useEffect(() => {
+    if (isModalOpen && isMobile) {
+      setTimeout(() => {
+        setCreateSheetState('minimized');
+      }, 10);
+    } else {
+      setCreateSheetState('hidden');
+      setCreateSheetDragY(0);
+    }
+  }, [isModalOpen, isMobile]);
+
+  // Close bottom sheet menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (bottomSheetMenuRef.current && !bottomSheetMenuRef.current.contains(event.target as Node)) {
+        setIsBottomSheetMenuOpen(false);
+      }
+    };
+
+    if (isBottomSheetMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isBottomSheetMenuOpen]);
+
   // Close view dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -5371,12 +5513,7 @@ export default function CalendarPage() {
       const today = new Date();
       const todayStr = format(today, 'yyyy-MM-dd');
       const todayEventsList = allEvents.filter((e: any) => {
-        let eventDate;
-        if (e.date) {
-          eventDate = typeof e.date === 'string' ? e.date : format(e.date, 'yyyy-MM-dd');
-        } else if (e.start) {
-          eventDate = e.start.includes('T') ? e.start.split('T')[0] : e.start;
-        }
+        const eventDate = getEventDateString(e);
         return eventDate === todayStr;
       });
       setTodayEvents(todayEventsList);
@@ -5538,10 +5675,16 @@ export default function CalendarPage() {
     // Clear optimistic customer update refs when selecting a new event
     optimisticCustomerRemovalRef.current = null;
     optimisticCustomerUpdateRef.current = null;
-    // Open action panel on desktop - bottom sheet will show event details on mobile
-    setIsActionSidebarOpen(true); // Open the desktop action sidebar
+    // On mobile: always open in edit mode in bottom sheet. On desktop: open action sidebar in view mode
+    if (isMobile) {
+      setIsEditingEvent(true); // Mobile: always in edit mode
+      setIsActionSidebarOpen(false); // Don't open desktop sidebar on mobile
+      setBottomSheetState('minimized'); // Start minimized on mobile
+    } else {
+      setIsActionSidebarOpen(true); // Desktop: open action sidebar
+      setIsEditingEvent(false); // Desktop: start in view mode
+    }
     setEventDetailsOpen(false); // Close modal if it was open
-    setIsEditingEvent(false); // Always reset to Event Details view when clicking an event
     setIsEditFormDirty(false); // Reset dirty state
     setIsEditingNotes(false); // Reset notes edit mode when selecting a new event
     setShowCustomerDetailsPopup(false); // Close customer popup when selecting a new event
@@ -5595,6 +5738,18 @@ export default function CalendarPage() {
     }
   };
 
+  const getCreateDraftSummary = () => {
+    if (!draftEvent) return null;
+    const start = new Date(draftEvent.startTime);
+    const end = new Date(draftEvent.endTime);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
+    const resource = resources.find(r => r.id === draftEvent.resourceId);
+    return {
+      time: `${format(start, 'h:mm a')} - ${format(end, 'h:mm a')}`,
+      resource: resource ? resource.name : ''
+    };
+  };
+
   const handleAddVehicle = async (vehicleModel: string) => {
     const newVehicle = { id: `vehicle-${Date.now()}`, model: vehicleModel };
     const updatedVehicles = [...eventVehicles, newVehicle];
@@ -5635,19 +5790,135 @@ export default function CalendarPage() {
     setIsActionSidebarOpen(false);
   };
 
-  const handleDeleteEvent = async () => {
-    if (!selectedEventData?.id) return;
+  const clearDeleteToastTimeouts = () => {
+    if (deleteToastShowTimeoutRef.current) {
+      clearTimeout(deleteToastShowTimeoutRef.current);
+      deleteToastShowTimeoutRef.current = null;
+    }
+    if (deleteToastHideTimeoutRef.current) {
+      clearTimeout(deleteToastHideTimeoutRef.current);
+      deleteToastHideTimeoutRef.current = null;
+    }
+    if (deleteToastCloseTimeoutRef.current) {
+      clearTimeout(deleteToastCloseTimeoutRef.current);
+      deleteToastCloseTimeoutRef.current = null;
+    }
+  };
+
+  const showDeletedEventToast = (eventData: any) => {
+    clearDeleteToastTimeouts();
+    deletedEventRef.current = eventData;
+    const eventName = eventData?.title || eventData?.eventName || 'Event';
+    setDeletedEventToast({ isOpen: true, isActive: false, eventName });
+
+    deleteToastShowTimeoutRef.current = setTimeout(() => {
+      setDeletedEventToast((prev) => (prev ? { ...prev, isActive: true } : prev));
+    }, 100);
+
+    deleteToastHideTimeoutRef.current = setTimeout(() => {
+      setDeletedEventToast((prev) => (prev ? { ...prev, isActive: false } : prev));
+      deleteToastCloseTimeoutRef.current = setTimeout(() => {
+        setDeletedEventToast(null);
+        deletedEventRef.current = null;
+      }, 300);
+    }, 5100);
+  };
+
+  const dismissDeletedEventToast = () => {
+    clearDeleteToastTimeouts();
+    setDeletedEventToast((prev) => (prev ? { ...prev, isActive: false } : prev));
+    deleteToastCloseTimeoutRef.current = setTimeout(() => {
+      setDeletedEventToast(null);
+      deletedEventRef.current = null;
+    }, 200);
+  };
+
+  const handleUndoDelete = async () => {
+    const eventData = deletedEventRef.current;
+    if (!eventData) return;
+    clearDeleteToastTimeouts();
+
+    const normalizeDateValue = (value: any) => {
+      if (!value) return undefined;
+      if (value instanceof Date) return value.toISOString();
+      if (typeof value === 'string') return value;
+      return undefined;
+    };
+
+    const payload = {
+      title: eventData.title || eventData.eventName || 'Untitled Event',
+      employeeId: eventData.employeeId || undefined,
+      startDate: normalizeDateValue(eventData.startDate || eventData.start || eventData.startTime),
+      endDate: normalizeDateValue(eventData.endDate || eventData.end || eventData.endTime),
+      isAllDay: !!(eventData.allDay || eventData.isAllDay),
+      time: eventData.time || undefined,
+      startTime: eventData.startTime || undefined,
+      endTime: eventData.endTime || undefined,
+      description: eventData.description || '',
+      resourceId: eventData.resourceId || undefined,
+      customerName: eventData.customerName || undefined,
+      customerPhone: eventData.customerPhone || undefined,
+      customerEmail: eventData.customerEmail || undefined,
+      customerAddress: eventData.customerAddress || undefined,
+      locationType: eventData.locationType || undefined,
+      customerType: eventData.customerType || undefined,
+      vehicleModel: eventData.vehicleModel || undefined,
+      vehicles: eventData.vehicles || undefined,
+      services: eventData.services || undefined
+    };
 
     try {
-      const response = await fetch(`/api/detailer/events/${selectedEventData.id}`, {
+      const response = await fetch('/api/detailer/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        const restoredEvent = {
+          ...eventData,
+          ...(result.event || {}),
+          id: result.event?.id || result.id || eventData.id
+        };
+        fetchCalendarEvents();
+        setSelectedEvent(restoredEvent.id);
+        setSelectedEventData(restoredEvent);
+        setEventDetailsOpen(false);
+        if (isMobile) {
+          setIsEditingEvent(true);
+          setIsActionSidebarOpen(false);
+          setBottomSheetState('minimized');
+        } else {
+          setIsActionSidebarOpen(true);
+          setIsEditingEvent(false);
+        }
+      } else {
+        const error = await response.json();
+        console.error('Failed to undo delete:', error.error || error);
+      }
+    } catch (error) {
+      console.error('Error undoing delete:', error);
+    } finally {
+      dismissDeletedEventToast();
+    }
+  };
+
+  const handleDeleteEvent = async (eventData?: any) => {
+    const targetEvent = eventData || selectedEventData;
+    if (!targetEvent?.id) return;
+
+    try {
+      const response = await fetch(`/api/detailer/events/${targetEvent.id}`, {
         method: 'DELETE',
       });
 
       if (response.ok) {
-        // Refresh the calendar events
         fetchCalendarEvents();
-        // Close the modal
+        closeBottomSheet();
+        closeCreateSheet();
         handleCloseEventDetails();
+        showDeletedEventToast({ ...targetEvent });
       } else {
         const error = await response.json();
         console.error('Failed to delete event:', error.error);
@@ -5656,6 +5927,51 @@ export default function CalendarPage() {
       console.error('Error deleting event:', error);
     }
   };
+
+  const deleteToastPortal = deletedEventToast?.isOpen && isMounted
+    ? createPortal(
+        <div
+          data-delete-toast
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[10050] pointer-events-none"
+          style={{ paddingBottom: 'max(0px, env(safe-area-inset-bottom))' }}
+        >
+          <div
+            className={`pointer-events-auto w-[370px] max-w-[calc(100vw-24px)] bg-white rounded-2xl border border-gray-200 shadow-[0_12px_32px_rgba(0,0,0,0.18)] transition-all duration-300 ${
+              deletedEventToast.isActive ? 'translate-y-0 opacity-100' : 'translate-y-6 opacity-0'
+            }`}
+            style={{ padding: '12px' }}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gray-100">
+                  <svg className="w-3.5 h-3.5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M12 4a8 8 0 100 16 8 8 0 000-16z" />
+                  </svg>
+                </span>
+                <span>Event deleted</span>
+              </div>
+              <button
+                onClick={dismissDeletedEventToast}
+                className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors"
+                aria-label="Close"
+              >
+                <XMarkIcon className="w-4 h-4 text-gray-600" />
+              </button>
+            </div>
+            <div className="mt-3 flex items-center justify-between">
+              <div className="text-sm text-gray-700">{deletedEventToast.eventName}</div>
+              <button
+                onClick={handleUndoDelete}
+                className="px-3 py-1.5 text-sm font-medium text-gray-900 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Undo
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )
+    : null;
 
   const handlePrev = () => {
       if (viewMode === 'month') setCurrentDate(subMonths(currentDate, 1));
@@ -5703,14 +6019,7 @@ export default function CalendarPage() {
     
     // Filter events for the current day (using filteredBookings to respect employee filter)
     const dayEvents = filteredBookings.filter((event: any) => {
-      let eventDate;
-      if (event.start) {
-        eventDate = event.start.includes('T') ? event.start.split('T')[0] : event.start;
-      } else if (event.date) {
-        eventDate = typeof event.date === 'string' ? event.date : format(new Date(event.date), 'yyyy-MM-dd');
-      } else {
-        return false;
-      }
+      const eventDate = getEventDateString(event);
       return eventDate === format(currentDate, 'yyyy-MM-dd');
     });
 
@@ -5744,12 +6053,12 @@ export default function CalendarPage() {
       let endHour = 7;
       let endMinute = 0;
       
-      if (event.start && event.start.includes('T')) {
+      if (event.start && (typeof event.start === 'string' || event.start instanceof Date)) {
         const eventStart = new Date(event.start);
         startHour = eventStart.getHours();
         startMinute = eventStart.getMinutes();
         
-        if (event.end && event.end.includes('T')) {
+        if (event.end && (typeof event.end === 'string' || event.end instanceof Date)) {
           const eventEnd = new Date(event.end);
           endHour = eventEnd.getHours();
           endMinute = eventEnd.getMinutes();
@@ -5769,12 +6078,210 @@ export default function CalendarPage() {
       // Calculate duration in minutes
       const startMinutes = startHour * 60 + startMinute;
       const endMinutes = endHour * 60 + endMinute;
-      const duration = Math.max(endMinutes - startMinutes, 30); // Minimum 30 minutes
+      const duration = Math.max(endMinutes - startMinutes, minDraftDurationMinutes); // Minimum 30 minutes
       
       const top = ((startHour - 6) * 60 + startMinute) * 2;
       const height = duration * 2;
       
       return { top, height };
+    };
+
+    const totalMinutes = hours.length * 60;
+    const highlightDurationMinutes = 60;
+    const minDraftDurationMinutes = 30;
+
+    const updateDraftEventTimes = (resourceId: string, startMinutes: number, durationMinutes: number) => {
+      const startDate = new Date(currentDate);
+      startDate.setHours(6 + Math.floor(startMinutes / 60), startMinutes % 60, 0, 0);
+      const endDate = new Date(startDate);
+      endDate.setMinutes(endDate.getMinutes() + durationMinutes);
+      setDraftEvent({
+        resourceId,
+        startTime: startDate.toISOString(),
+        endTime: endDate.toISOString(),
+        date: currentDate
+      });
+    };
+
+    const handleEmptySlotClick = (
+      e: React.MouseEvent<HTMLDivElement>,
+      resourceId: string
+    ) => {
+      if (isEditingEvent || isModalOpen) return;
+      const rect = e.currentTarget.getBoundingClientRect();
+      const offsetY = e.clientY - rect.top;
+      const minutesFromTop = Math.max(0, Math.min(totalMinutes - highlightDurationMinutes, Math.round((offsetY / 2) / 30) * 30));
+      const startMinutes = minutesFromTop;
+
+      setMobileDraftSelection({
+        resourceId,
+        startMinutes,
+        durationMinutes: highlightDurationMinutes
+      });
+
+      const startDate = new Date(currentDate);
+      startDate.setHours(6 + Math.floor(startMinutes / 60), startMinutes % 60, 0, 0);
+      const endDate = new Date(startDate);
+      endDate.setMinutes(endDate.getMinutes() + highlightDurationMinutes);
+
+      setSelectedResource(displayResources.find(r => r.id === resourceId) || null);
+      setDraftEvent({
+        resourceId,
+        startTime: startDate.toISOString(),
+        endTime: endDate.toISOString(),
+        date: currentDate
+      });
+      setIsModalOpen(true);
+    };
+
+    const handleDraftResizeStart = (handle: 'top' | 'bottom') => (e: React.TouchEvent) => {
+      if (!mobileDraftSelection) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDraftResizing(true);
+      if (!draftResizeBodyStyleRef.current) {
+        draftResizeBodyStyleRef.current = {
+          overflow: document.body.style.overflow,
+          touchAction: document.body.style.touchAction
+        };
+      }
+      document.body.style.overflow = 'hidden';
+      document.body.style.touchAction = 'none';
+      const touch = e.touches[0];
+      draftResizeRef.current = {
+        handle,
+        startY: touch.clientY,
+        startMinutes: mobileDraftSelection.startMinutes,
+        durationMinutes: mobileDraftSelection.durationMinutes,
+        resourceId: mobileDraftSelection.resourceId
+      };
+
+      const handleMove = (moveEvent: TouchEvent) => {
+        if (!draftResizeRef.current) return;
+        moveEvent.preventDefault();
+        const moveTouch = moveEvent.touches[0];
+        const deltaY = moveTouch.clientY - draftResizeRef.current.startY;
+        const deltaMinutes = Math.round(deltaY / 40) * 30;
+        const startMinutes = draftResizeRef.current.startMinutes;
+        const durationMinutes = draftResizeRef.current.durationMinutes;
+        let newStartMinutes = startMinutes;
+        let newDurationMinutes = durationMinutes;
+
+        if (draftResizeRef.current.handle === 'top') {
+          const maxStart = startMinutes + durationMinutes - minDraftDurationMinutes;
+          newStartMinutes = Math.max(0, Math.min(startMinutes + deltaMinutes, maxStart));
+          newDurationMinutes = durationMinutes - (newStartMinutes - startMinutes);
+        } else {
+          const maxDuration = totalMinutes - startMinutes;
+          newDurationMinutes = Math.max(minDraftDurationMinutes, Math.min(durationMinutes + deltaMinutes, maxDuration));
+        }
+
+        if (
+          newStartMinutes !== mobileDraftSelection.startMinutes ||
+          newDurationMinutes !== mobileDraftSelection.durationMinutes
+        ) {
+          setMobileDraftSelection({
+            resourceId: draftResizeRef.current.resourceId,
+            startMinutes: newStartMinutes,
+            durationMinutes: newDurationMinutes
+          });
+          updateDraftEventTimes(draftResizeRef.current.resourceId, newStartMinutes, newDurationMinutes);
+        }
+      };
+
+      const handleScrollBlock = (moveEvent: TouchEvent) => {
+        moveEvent.preventDefault();
+      };
+
+      const handleEnd = () => {
+        window.removeEventListener('touchmove', handleMove);
+        window.removeEventListener('touchmove', handleScrollBlock, true);
+        window.removeEventListener('touchend', handleEnd);
+        draftResizeRef.current = null;
+        setIsDraftResizing(false);
+        if (draftResizeBodyStyleRef.current) {
+          document.body.style.overflow = draftResizeBodyStyleRef.current.overflow;
+          document.body.style.touchAction = draftResizeBodyStyleRef.current.touchAction;
+          draftResizeBodyStyleRef.current = null;
+        }
+      };
+
+      window.addEventListener('touchmove', handleMove, { passive: false });
+      window.addEventListener('touchmove', handleScrollBlock, { passive: false, capture: true });
+      window.addEventListener('touchend', handleEnd);
+    };
+
+    const handleDraftResizePointerStart = (handle: 'top' | 'bottom') => (e: React.PointerEvent) => {
+      if (!mobileDraftSelection) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDraftResizing(true);
+      if (!draftResizeBodyStyleRef.current) {
+        draftResizeBodyStyleRef.current = {
+          overflow: document.body.style.overflow,
+          touchAction: document.body.style.touchAction
+        };
+      }
+      document.body.style.overflow = 'hidden';
+      document.body.style.touchAction = 'none';
+      const target = e.currentTarget as HTMLElement;
+      if (target.setPointerCapture) {
+        target.setPointerCapture(e.pointerId);
+      }
+      draftResizeRef.current = {
+        handle,
+        startY: e.clientY,
+        startMinutes: mobileDraftSelection.startMinutes,
+        durationMinutes: mobileDraftSelection.durationMinutes,
+        resourceId: mobileDraftSelection.resourceId
+      };
+
+      const handleMove = (moveEvent: PointerEvent) => {
+        if (!draftResizeRef.current) return;
+        moveEvent.preventDefault();
+        const deltaY = moveEvent.clientY - draftResizeRef.current.startY;
+        const deltaMinutes = Math.round(deltaY / 40) * 30;
+        const startMinutes = draftResizeRef.current.startMinutes;
+        const durationMinutes = draftResizeRef.current.durationMinutes;
+        let newStartMinutes = startMinutes;
+        let newDurationMinutes = durationMinutes;
+
+        if (draftResizeRef.current.handle === 'top') {
+          const maxStart = startMinutes + durationMinutes - minDraftDurationMinutes;
+          newStartMinutes = Math.max(0, Math.min(startMinutes + deltaMinutes, maxStart));
+          newDurationMinutes = durationMinutes - (newStartMinutes - startMinutes);
+        } else {
+          const maxDuration = totalMinutes - startMinutes;
+          newDurationMinutes = Math.max(minDraftDurationMinutes, Math.min(durationMinutes + deltaMinutes, maxDuration));
+        }
+
+        if (
+          newStartMinutes !== mobileDraftSelection.startMinutes ||
+          newDurationMinutes !== mobileDraftSelection.durationMinutes
+        ) {
+          setMobileDraftSelection({
+            resourceId: draftResizeRef.current.resourceId,
+            startMinutes: newStartMinutes,
+            durationMinutes: newDurationMinutes
+          });
+          updateDraftEventTimes(draftResizeRef.current.resourceId, newStartMinutes, newDurationMinutes);
+        }
+      };
+
+      const handleEnd = () => {
+        window.removeEventListener('pointermove', handleMove);
+        window.removeEventListener('pointerup', handleEnd);
+        draftResizeRef.current = null;
+        setIsDraftResizing(false);
+        if (draftResizeBodyStyleRef.current) {
+          document.body.style.overflow = draftResizeBodyStyleRef.current.overflow;
+          document.body.style.touchAction = draftResizeBodyStyleRef.current.touchAction;
+          draftResizeBodyStyleRef.current = null;
+        }
+      };
+
+      window.addEventListener('pointermove', handleMove, { passive: false });
+      window.addEventListener('pointerup', handleEnd);
     };
 
     // Touch handlers for day navigation
@@ -5785,6 +6292,23 @@ export default function CalendarPage() {
         y: touch.clientY,
         time: Date.now()
       };
+    };
+
+    const handleMobileTouchMove = (e: React.TouchEvent) => {
+      if (draftResizeRef.current) {
+        e.preventDefault();
+        return;
+      }
+      if (!touchStartRef.current) return;
+      
+      const touch = e.touches[0];
+      const deltaX = Math.abs(touch.clientX - touchStartRef.current.x);
+      const deltaY = Math.abs(touch.clientY - touchStartRef.current.y);
+      
+      // If it's a clear horizontal swipe, prevent default to avoid scroll jitter
+      if (deltaX > 30 && deltaX > deltaY * 1.5) {
+        e.preventDefault();
+      }
     };
 
     const handleMobileTouchEnd = (e: React.TouchEvent) => {
@@ -5827,9 +6351,12 @@ export default function CalendarPage() {
           paddingRight: 'max(env(safe-area-inset-right, 0px), 0px)',
           paddingBottom: 'max(env(safe-area-inset-bottom), 0px)',
           zIndex: 0,
-          minHeight: '-webkit-fill-available'
+          minHeight: '-webkit-fill-available',
+          touchAction: isDraftResizing ? 'none' : 'pan-y',
+          overscrollBehavior: isDraftResizing ? 'none' : 'contain'
         }}
         onTouchStart={handleMobileTouchStart}
+        onTouchMove={handleMobileTouchMove}
         onTouchEnd={handleMobileTouchEnd}
       >
         {/* Header */}
@@ -6004,7 +6531,10 @@ export default function CalendarPage() {
         </div>
 
         {/* Calendar Grid with Resource Columns */}
-        <div className={`flex-1 overflow-y-auto ${isActionSidebarOpen ? 'z-0' : ''}`}>
+        <div
+          className={`flex-1 overflow-y-auto ${isActionSidebarOpen ? 'z-0' : ''}`}
+          style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}
+        >
           <div className="flex flex-col h-full">
             {/* Day of Week Row */}
             <div className={`flex border-b border-gray-200 sticky top-0 ${isActionSidebarOpen ? 'z-0' : 'z-10'}`} style={{ backgroundColor: '#f9f7fa' }}>
@@ -6042,7 +6572,11 @@ export default function CalendarPage() {
                   const resourceEvents = dayEvents.filter((event: any) => event.resourceId === resource.id);
                   
                   return (
-                    <div key={resource.id} className="flex-1 relative border-r border-gray-200 last:border-r-0">
+                    <div
+                      key={resource.id}
+                      className="flex-1 relative border-r border-gray-200 last:border-r-0"
+                      onClick={(e) => handleEmptySlotClick(e, resource.id)}
+                    >
                       {/* Time slot lines */}
                       {hours.map((hour) => (
                         <div
@@ -6051,6 +6585,40 @@ export default function CalendarPage() {
                           style={{ top: `${(hour - 6) * 120}px` }}
                         />
                       ))}
+
+                      {mobileDraftSelection?.resourceId === resource.id && (
+                        <div
+                          className="absolute left-1 right-1 rounded-xl border-2 bg-gray-300/70 pointer-events-auto"
+                          style={{
+                            borderColor: '#4A4844',
+                            top: `${mobileDraftSelection.startMinutes * 2}px`,
+                            height: `${mobileDraftSelection.durationMinutes * 2}px`
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                          onTouchStart={(e) => e.stopPropagation()}
+                        >
+                          <div
+                            className="absolute -top-2 left-3 w-5 h-5 rounded-full border-2 border-gray-500 bg-white"
+                            onTouchStart={handleDraftResizeStart('top')}
+                            onPointerDown={handleDraftResizePointerStart('top')}
+                            onTouchMove={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                            }}
+                            style={{ touchAction: 'none' }}
+                          />
+                          <div
+                            className="absolute -bottom-2 right-3 w-5 h-5 rounded-full border-2 border-gray-500 bg-white"
+                            onTouchStart={handleDraftResizeStart('bottom')}
+                            onPointerDown={handleDraftResizePointerStart('bottom')}
+                            onTouchMove={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                            }}
+                            style={{ touchAction: 'none' }}
+                          />
+                        </div>
+                      )}
 
                       {/* Current time indicator for this column */}
             {isSameDay(currentTime, currentDate) && currentHour >= 6 && currentHour < 22 && (
@@ -6088,12 +6656,58 @@ export default function CalendarPage() {
                         
                         const locationType = event.locationType || event.customerAddress ? 'Drop off' : null;
                         const isRepeatCustomer = event.customerId && event.customerId !== 'new';
+                        const showEmployeeAvatar = height >= 85;
                 
                 return (
                   <div
                     key={event.id}
-                    onClick={() => handleEventClick(event)}
-                            className={`absolute left-1 right-1 rounded-lg p-2 cursor-pointer ${eventBgColor} ${eventTextColor} border-l-4`}
+                    onClickCapture={(e) => {
+                      e.stopPropagation();
+                      handleEventClick(event);
+                    }}
+                    onTouchStart={(e) => {
+                      e.stopPropagation();
+                      const touch = e.touches[0];
+                      eventTapRef.current = {
+                        x: touch.clientX,
+                        y: touch.clientY,
+                        time: Date.now()
+                      };
+                    }}
+                    onTouchEnd={(e) => {
+                      e.stopPropagation();
+                      if (!eventTapRef.current) return;
+                      const touch = e.changedTouches[0];
+                      const deltaX = Math.abs(touch.clientX - eventTapRef.current.x);
+                      const deltaY = Math.abs(touch.clientY - eventTapRef.current.y);
+                      const deltaTime = Date.now() - eventTapRef.current.time;
+                      if (deltaX < 24 && deltaY < 24 && deltaTime < 700) {
+                        handleEventClick(event);
+                      }
+                      eventTapRef.current = null;
+                    }}
+                    onPointerDown={(e) => {
+                      e.stopPropagation();
+                      eventTapRef.current = {
+                        x: e.clientX,
+                        y: e.clientY,
+                        time: Date.now()
+                      };
+                    }}
+                    onPointerUp={(e) => {
+                      e.stopPropagation();
+                      if (!eventTapRef.current) return;
+                      const deltaX = Math.abs(e.clientX - eventTapRef.current.x);
+                      const deltaY = Math.abs(e.clientY - eventTapRef.current.y);
+                      const deltaTime = Date.now() - eventTapRef.current.time;
+                      if (deltaX < 24 && deltaY < 24 && deltaTime < 700) {
+                        handleEventClick(event);
+                      }
+                      eventTapRef.current = null;
+                    }}
+                            className={`absolute left-1 right-1 rounded-lg p-2 cursor-pointer z-20 flex flex-col ${eventBgColor} ${eventTextColor} border-l-4`}
+                    role="button"
+                    tabIndex={0}
                     style={{
                       top: `${top}px`,
                       height: `${height}px`,
@@ -6107,36 +6721,59 @@ export default function CalendarPage() {
                                             '#ec4899', // pink default
                             }}
                           >
-                            <div className="font-semibold text-xs mb-1">
+                            <div className="font-semibold text-sm mb-1">
                               {serviceName}
                     </div>
                             
-                            {/* Badges */}
-                            <div className="flex flex-wrap gap-1 mb-1">
-                              {locationType && (
-                                <span className="px-2 py-0.5 text-[10px] font-medium rounded-full bg-pink-200 text-pink-800">
-                                  {locationType}
-                                </span>
-                              )}
-                              {isRepeatCustomer && (
-                                <span className="px-2 py-0.5 text-[10px] font-medium rounded-full bg-purple-200 text-purple-800">
-                                  Repeat customer
-                                </span>
-                              )}
-                            </div>
-                            
                             {/* Customer Info */}
                             {event.customerName && (
-                              <div className="text-[10px] font-medium mt-1">
+                              <div className="text-[12px] font-semibold mt-1">
                                 {event.customerName}
                               </div>
                             )}
                             {event.customerPhone && (
-                              <div className="text-[10px] text-gray-600 mt-0.5">
+                              <div className="text-[12px] text-gray-700 mt-0.5">
                                 {event.customerPhone}
                               </div>
-                    )}
-                  </div>
+                            )}
+                            {/* Badges */}
+                            {(locationType || isRepeatCustomer) && (
+                              <div className="mt-auto pt-2 flex flex-wrap gap-1">
+                                {locationType && (
+                                  <span className="px-2 py-0.5 text-[11px] font-medium rounded-full bg-pink-200 text-pink-800">
+                                    {locationType}
+                                  </span>
+                                )}
+                                {isRepeatCustomer && (
+                                  <span className="px-2 py-0.5 text-[11px] font-medium rounded-full bg-purple-200 text-purple-800">
+                                    Repeat customer
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                            {showEmployeeAvatar && (event.employeeImageUrl || event.employeeName) && (
+                              <div className="pt-2 flex items-center gap-2">
+                                {event.employeeImageUrl ? (
+                                  <img
+                                    src={event.employeeImageUrl}
+                                    alt={event.employeeName || 'Employee'}
+                                    className="w-7 h-7 rounded-full object-cover border border-gray-200"
+                                  />
+                                ) : (
+                                  <div className="w-7 h-7 rounded-full bg-gray-300 flex items-center justify-center border border-gray-200">
+                                    <span className="text-[11px] font-semibold text-gray-700">
+                                      {event.employeeName?.charAt(0).toUpperCase()}
+                                    </span>
+                                  </div>
+                                )}
+                                {event.employeeName && (
+                                  <span className="text-[12px] font-semibold text-gray-800 truncate">
+                                    {event.employeeName}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
                 );
               })}
                     </div>
@@ -6246,39 +6883,170 @@ export default function CalendarPage() {
         <div className="fixed inset-0 md:relative" style={{ zIndex: 0 }}>
         {renderMobileCalendar()}
         {/* Keep modals and sidebars */}
-        <EventModal 
-            isOpen={isModalOpen}
-            onClose={() => {
-              setIsModalOpen(false);
-              setSelectedResource(null);
-              setDraftEvent(null);
-              setNewCustomerData(null);
+        {isModalOpen && createSheetState === 'full' && (
+          <div
+            className="md:hidden fixed inset-0 z-[79]"
+            onClick={() => {
+              if (createSheetIgnoreClickRef.current) {
+                return;
+              }
+              minimizeCreateSheet();
             }}
-            onAddEvent={handleAddEvent}
-            preSelectedResource={selectedResource}
-            resources={resources.length > 0 ? resources : []}
-            draftEvent={draftEvent}
-            onOpenNewCustomerModal={(initialName) => {
-              setNewCustomerModalInitialName(initialName);
-              setIsNewCustomerModalOpen(true);
+          />
+        )}
+        {isModalOpen && createSheetState !== 'hidden' && (
+          <div
+            ref={createSheetRef}
+            className="md:hidden fixed bottom-0 left-0 right-0 bg-[#F8F8F7] rounded-t-3xl shadow-2xl z-[9998] transform transition-all duration-300 ease-out overflow-x-hidden"
+            style={{
+              maxHeight: createSheetState === 'minimized' ? '360px' : '85vh',
+              height: createSheetState === 'minimized' ? '360px' : 'auto',
+              minHeight: createSheetState === 'minimized' ? '360px' : '200px',
+              isolation: 'isolate',
+              width: '100%',
+              maxWidth: '100vw',
+              overscrollBehavior: 'contain',
+              touchAction: 'pan-y',
+              transform: `translate3d(0, ${createSheetDragY}px, 0)`
             }}
-            onOpenEditCustomerModal={(customer) => {
-              console.log('onOpenEditCustomerModal called in CalendarPage with:', customer);
-              // Set up customer data for editing
-              setEditingCustomerData({
-                customerName: customer.customerName,
-                customerPhone: customer.customerPhone,
-                customerAddress: customer.customerAddress || ''
-              });
-              setIsEditingCustomer(true);
-              setIsNewCustomerModalOpen(true);
-              console.log('State updated - isEditingCustomer:', true, 'isNewCustomerModalOpen:', true);
+            onTouchStart={(e) => {
+              const touch = e.touches[0];
+              createSheetContentTouchStartRef.current = {
+                x: touch.clientX,
+                y: touch.clientY
+              };
+              const target = e.target as Element;
+              const isHandle = target.closest('[data-create-sheet-handle]');
+              if (!isHandle) {
+                createSheetTouchStartRef.current = null;
+                return;
+              }
+              createSheetTouchStartRef.current = {
+                x: touch.clientX,
+                y: touch.clientY,
+                time: Date.now()
+              };
+              setCreateSheetDragY(0);
+              createSheetIgnoreClickRef.current = false;
             }}
-            onRequestClose={() => {
-              setShowEventModalDiscardModal(true);
+            onTouchMove={(e) => {
+              if (createSheetContentTouchStartRef.current) {
+                const touch = e.touches[0];
+                const deltaX = touch.clientX - createSheetContentTouchStartRef.current.x;
+                const deltaY = touch.clientY - createSheetContentTouchStartRef.current.y;
+                if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 8) {
+                  e.preventDefault();
+                }
+              }
+              if (createSheetRef.current && createSheetTouchStartRef.current) {
+                const touch = e.touches[0];
+                const currentY = touch.clientY;
+                const startY = createSheetTouchStartRef.current?.y || currentY;
+                const deltaY = currentY - startY;
+                const deltaX = touch.clientX - (createSheetTouchStartRef.current?.x || touch.clientX);
+                const dragY = Math.max(0, deltaY);
+                if (dragY > 0) {
+                  setCreateSheetDragY(dragY);
+                }
+                if (Math.abs(deltaY) > 10 || Math.abs(deltaX) > 10) {
+                  e.preventDefault();
+                }
+              }
             }}
-            newCustomerData={newCustomerData}
-        />
+            onTouchEnd={(e) => {
+              if (!createSheetTouchStartRef.current) {
+                createSheetContentTouchStartRef.current = null;
+                return;
+              }
+              const currentSheetState = createSheetState;
+              const touch = e.changedTouches[0];
+              const deltaY = touch.clientY - createSheetTouchStartRef.current.y;
+              const deltaTime = Date.now() - createSheetTouchStartRef.current.time;
+              const swipeThreshold = 50;
+              const timeThreshold = 500;
+              const sheetHeight = createSheetRef.current?.getBoundingClientRect().height || 0;
+              const closeThreshold = sheetHeight ? Math.min(180, sheetHeight * 0.25) : 120;
+
+              createSheetIgnoreClickRef.current = true;
+              window.setTimeout(() => {
+                createSheetIgnoreClickRef.current = false;
+              }, 250);
+
+              if (currentSheetState === 'full') {
+                if (deltaY > closeThreshold || (Math.abs(deltaY) > swipeThreshold && deltaTime < timeThreshold && deltaY > 0)) {
+                  minimizeCreateSheet();
+                } else {
+                  setCreateSheetDragY(0);
+                }
+              } else if (currentSheetState === 'minimized') {
+                if (deltaY > closeThreshold || (Math.abs(deltaY) > swipeThreshold && deltaTime < timeThreshold && deltaY > 0)) {
+                  closeCreateSheet();
+                } else if (deltaY < -swipeThreshold && deltaTime < timeThreshold) {
+                  setCreateSheetState('full');
+                } else {
+                  setCreateSheetDragY(0);
+                }
+              } else {
+                setCreateSheetDragY(0);
+              }
+
+              createSheetTouchStartRef.current = null;
+              createSheetContentTouchStartRef.current = null;
+            }}
+          >
+            <div className="flex flex-col px-4 pt-2 pb-2 sticky top-0 z-20 bg-[#F8F8F7]" data-create-sheet-handle>
+              <div className="flex items-center justify-between">
+                <div className="w-8 h-8" />
+                <div className="flex-1 flex justify-center">
+                  <div style={{ width: '46px', height: '3px' }}>
+                    <div style={{ width: '100%', height: '100%', background: '#D9D9D9', borderRadius: 1000 }} />
+                  </div>
+                </div>
+                <button
+                  onClick={closeCreateSheet}
+                  className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center hover:bg-gray-300 transition-colors"
+                  aria-label="Close"
+                >
+                  <XMarkIcon className="w-5 h-5 text-gray-600" />
+                </button>
+              </div>
+              <div className="pt-2 pb-1">
+                <div className="text-base font-semibold text-gray-900">Create event</div>
+              </div>
+            </div>
+
+            <EventModal
+              isOpen={isModalOpen}
+              renderMode="drawer"
+              showHeader={false}
+              showCloseButton={false}
+              onClose={closeCreateSheet}
+              onAddEvent={handleAddEvent}
+              preSelectedResource={selectedResource}
+              resources={resources.length > 0 ? resources : []}
+              draftEvent={draftEvent}
+              onOpenNewCustomerModal={(initialName) => {
+                setNewCustomerModalInitialName(initialName);
+                setIsNewCustomerModalOpen(true);
+              }}
+              onOpenEditCustomerModal={(customer) => {
+                console.log('onOpenEditCustomerModal called in CalendarPage with:', customer);
+                setEditingCustomerData({
+                  customerName: customer.customerName,
+                  customerPhone: customer.customerPhone,
+                  customerAddress: customer.customerAddress || ''
+                });
+                setIsEditingCustomer(true);
+                setIsNewCustomerModalOpen(true);
+                console.log('State updated - isEditingCustomer:', true, 'isNewCustomerModalOpen:', true);
+              }}
+              onRequestClose={() => {
+                setShowEventModalDiscardModal(true);
+              }}
+              newCustomerData={newCustomerData}
+            />
+          </div>
+        )}
         {eventDetailsOpen && selectedEventData && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
@@ -6316,192 +7084,339 @@ export default function CalendarPage() {
           }}
         />
         {/* Bottom Sheet Backdrop - Mobile - Only for event details */}
-        {selectedEventData && (
+        {selectedEventData && isMobile && isEditingEvent && bottomSheetState === 'full' && (
           <div
-            className="md:hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-[80]"
+            className="md:hidden fixed inset-0 z-[80]"
             onClick={() => {
-              setSelectedEventData(null);
-              setSelectedEvent(null);
-              setIsActionSidebarOpen(false);
+              if (bottomSheetIgnoreClickRef.current) {
+                return;
+              }
+              if (bottomSheetState === 'full') {
+                minimizeBottomSheet();
+                return;
+              }
+              requestCloseBottomSheet();
             }}
           />
         )}
-        {/* Bottom Sheet - Mobile - Only for event details */}
-        {selectedEventData && (
-        <div 
+        {/* Bottom Sheet - Mobile - Only for event editing (always in edit mode) */}
+        {selectedEventData && isMobile && isEditingEvent && bottomSheetState !== 'hidden' && (
+          <div 
           ref={bottomSheetRef}
-          className="md:hidden fixed bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl z-[9999] transform transition-transform duration-300 ease-out translate-y-0"
+          className="md:hidden fixed bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl z-[9999] transform transition-all duration-300 ease-out overflow-x-hidden"
           style={{ 
-            maxHeight: '85vh', 
-            minHeight: '200px',
-            isolation: 'isolate'
+            maxHeight: bottomSheetState === 'minimized' ? '200px' : '85vh',
+            height: bottomSheetState === 'minimized' ? '200px' : 'auto',
+            minHeight: bottomSheetState === 'minimized' ? '200px' : '200px',
+            isolation: 'isolate',
+            width: '100%',
+            maxWidth: '100vw',
+            overscrollBehavior: 'contain',
+            touchAction: 'pan-y',
+            transform: `translate3d(0, ${bottomSheetDragY}px, 0)`
           }}
           onTouchStart={(e) => {
+            const target = e.target as Element;
+            const isHandle = target.closest('[data-bottom-sheet-handle]');
+            if (!isHandle) {
+              bottomSheetTouchStartRef.current = null;
+              return;
+            }
             const touch = e.touches[0];
             bottomSheetTouchStartRef.current = {
               y: touch.clientY,
               time: Date.now()
             };
+            setBottomSheetDragY(0);
+            bottomSheetIgnoreClickRef.current = false;
+          }}
+          onTouchMove={(e) => {
+            // Prevent scrolling when swiping the bottom sheet
+            if (bottomSheetRef.current && bottomSheetTouchStartRef.current) {
+              const touch = e.touches[0];
+              const currentY = touch.clientY;
+              const startY = bottomSheetTouchStartRef.current?.y || currentY;
+              const deltaY = currentY - startY;
+              const dragY = Math.max(0, deltaY);
+              if (dragY > 0) {
+                setBottomSheetDragY(dragY);
+              }
+              
+              // Only prevent default if we're actually dragging the sheet
+              if (Math.abs(deltaY) > 10) {
+                e.preventDefault();
+              }
+            }
           }}
           onTouchEnd={(e) => {
             if (!bottomSheetTouchStartRef.current) return;
             
+            const currentSheetState = bottomSheetState;
             const touch = e.changedTouches[0];
             const deltaY = touch.clientY - bottomSheetTouchStartRef.current.y;
             const deltaTime = Date.now() - bottomSheetTouchStartRef.current.time;
+            const swipeThreshold = 50; // Minimum swipe distance
+            const timeThreshold = 500; // Maximum swipe time
+            const sheetHeight = bottomSheetRef.current?.getBoundingClientRect().height || 0;
+            const closeThreshold = sheetHeight ? Math.min(180, sheetHeight * 0.25) : 120;
             
-            // Swipe down to close (minimum 100px down, within 500ms)
-            if (deltaY > 100 && deltaTime < 500) {
-              setSelectedEventData(null);
-              setSelectedEvent(null);
-              setIsActionSidebarOpen(false);
+            bottomSheetIgnoreClickRef.current = true;
+            window.setTimeout(() => {
+              bottomSheetIgnoreClickRef.current = false;
+            }, 250);
+
+            // Determine next state based on current state and swipe direction
+            if (currentSheetState === 'full') {
+              if (deltaY > closeThreshold || (Math.abs(deltaY) > swipeThreshold && deltaTime < timeThreshold && deltaY > 0)) {
+                minimizeBottomSheet();
+              } else {
+                setBottomSheetDragY(0);
+              }
+            } else if (currentSheetState === 'minimized') {
+              if (deltaY > closeThreshold || (Math.abs(deltaY) > swipeThreshold && deltaTime < timeThreshold && deltaY > 0)) {
+                requestCloseBottomSheet();
+              } else if (deltaY < -swipeThreshold && deltaTime < timeThreshold) {
+                setBottomSheetState('full');
+              } else {
+                setBottomSheetDragY(0);
+              }
+            } else {
+              setBottomSheetDragY(0);
             }
             
             bottomSheetTouchStartRef.current = null;
           }}
         >
-          {/* Drag Handle and Close Button */}
-          <div className="flex items-center justify-between pt-3 pb-2 px-4">
+          {/* Drag Handle and Action Buttons */}
+          <div
+            className={`flex items-center justify-between px-4 sticky top-0 z-20 bg-white ${
+              bottomSheetState === 'minimized' ? 'pt-2 pb-1' : 'pt-3 pb-2'
+            }`}
+            data-bottom-sheet-handle
+          >
             <div className="flex-1 flex justify-center">
-              <div className="w-12 h-1.5 bg-gray-300 rounded-full"></div>
+              <div style={{ width: '46px', height: '3px', marginLeft: '3rem' }}>
+                <div style={{ width: '100%', height: '100%', background: '#D9D9D9', borderRadius: 1000 }} />
+              </div>
             </div>
-            <button
-              onClick={() => {
-                setSelectedEventData(null);
-                setSelectedEvent(null);
-                setIsActionSidebarOpen(false);
-              }}
-              className="p-1 rounded-lg hover:bg-gray-100 transition-colors"
-              aria-label="Close"
-            >
-              <XMarkIcon className="w-5 h-5 text-gray-500" />
-            </button>
-          </div>
-
-          {/* Content */}
-          <div className="flex-1 overflow-y-auto px-4 pb-6" style={{ maxHeight: 'calc(85vh - 20px)' }}>
-            {selectedEventData && (
-              <div className="space-y-4">
-                {/* Service Name and Vehicle */}
-                <div className="pt-2">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-                    <h3 className="text-lg font-bold text-gray-900">
-                      {Array.isArray(selectedEventData.services) 
-                        ? selectedEventData.services.join(', ')
-                        : (selectedEventData.services || selectedEventData.title || selectedEventData.eventName || 'Event')}
-                    </h3>
-                  </div>
-                  {(selectedEventData.vehicleType || selectedEventData.vehicleModel) && (
-                    <p className="text-base text-gray-700 ml-4">
-                      {selectedEventData.vehicleType || selectedEventData.vehicleModel}
-                    </p>
-                  )}
-                  
-                  {/* Badges */}
-                  <div className="flex flex-wrap gap-2 mt-3 ml-4">
-                    {(() => {
-                      // Find the resource for this event to check if it's a van
-                      const eventResource = resources.find(r => r.id === selectedEventData.resourceId);
-                      const isVan = eventResource?.type === 'van';
-                      
-                      // Show "Van" tag for van resources, or locationType (Drop off/Pick up) for bay resources
-                      if (isVan) {
-                        return (
-                          <span className="px-3 py-1 text-xs font-medium rounded-full bg-gray-500 text-white">
-                            Van
-                          </span>
-                        );
-                      } else if (selectedEventData.locationType) {
-                        return (
-                          <span className={`px-3 py-1 text-xs font-medium rounded-full ${
-                            (selectedEventData.locationType?.toLowerCase() === 'drop off' || selectedEventData.locationType?.toLowerCase() === 'dropoff')
-                              ? 'bg-pink-500 text-white'
-                              : 'bg-blue-500 text-white'
-                          }`}>
-                            {selectedEventData.locationType?.toLowerCase() === 'dropoff' ? 'Drop off' : 
-                             selectedEventData.locationType?.toLowerCase() === 'drop off' ? 'Drop off' :
-                             selectedEventData.locationType?.toLowerCase() === 'pickup' ? 'Pick up' :
-                             selectedEventData.locationType?.toLowerCase() === 'pick up' ? 'Pick up' :
-                             selectedEventData.locationType}
-                          </span>
-                        );
-                      }
-                      return null;
-                    })()}
-                    {selectedEventData.customerId && selectedEventData.customerId !== 'new' && (
-                      <span className="px-3 py-1 text-xs font-medium rounded-full bg-purple-500 text-white">
-                        Repeat customer
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Customer Information Card */}
-                {(selectedEventData.customerName || selectedEventData.customerPhone || selectedEventData.customerAddress) && (
-                  <div className="bg-gray-50 rounded-xl p-4 border" style={{ borderColor: '#E2E2DD' }}>
-                    <div className="flex items-start gap-3 mb-3">
-                      {/* Avatar */}
-                      <div className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center flex-shrink-0">
-                        <span className="text-gray-700 font-semibold text-sm">
-                          {selectedEventData.customerName 
-                            ? selectedEventData.customerName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
-                            : '??'}
-                        </span>
-                      </div>
-                      
-                      {/* Customer Info */}
-                      <div className="flex-1 min-w-0">
-                        {selectedEventData.customerName && (
-                          <h4 className="font-semibold text-gray-900 text-base mb-1">
-                            {selectedEventData.customerName}
-                          </h4>
-                        )}
-                        {selectedEventData.customerPhone && (
-                          <p className="text-sm text-gray-600 mb-2">
-                            {selectedEventData.customerPhone}
-                          </p>
-                        )}
-                        {selectedEventData.customerAddress && (
-                          <p className="text-sm text-gray-600 underline">
-                            {selectedEventData.customerAddress}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Past Jobs */}
-                    {customerPastJobs && customerPastJobs.length > 0 && (
-                      <div className="mt-4 pt-4 border-t" style={{ borderColor: '#E2E2DD' }}>
-                        <p className="font-semibold text-sm text-gray-900 mb-2">
-                          {customerPastJobs.length} Past {customerPastJobs.length === 1 ? 'job' : 'jobs'}
-                        </p>
-                        {customerPastJobs[0] && customerPastJobs[0].date && (
-                          <p className="text-sm text-gray-600">
-                            Last detail: {(() => {
-                              try {
-                                const date = new Date(customerPastJobs[0].date);
-                                if (isNaN(date.getTime())) return 'Date unavailable';
-                                return format(date, 'MMMM d, yyyy');
-                              } catch (e) {
-                                return 'Date unavailable';
-                              }
-                            })()}
-                            {customerPastJobs[0].services && customerPastJobs[0].services.length > 0 && (
-                              <span>, {Array.isArray(customerPastJobs[0].services) ? customerPastJobs[0].services.join(' + ') : customerPastJobs[0].services}</span>
-                            )}
-                            {customerPastJobs[0].vehicleModel && (
-                              <span>. {customerPastJobs[0].vehicleModel}</span>
-                            )}
-                          </p>
-                        )}
-                      </div>
-                    )}
+            <div className="flex items-center gap-2">
+              <div className="relative" ref={bottomSheetMenuRef}>
+                <button
+                  onClick={() => setIsBottomSheetMenuOpen(!isBottomSheetMenuOpen)}
+                  className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center hover:bg-gray-300 transition-colors"
+                  aria-label="More options"
+                >
+                  <EllipsisHorizontalIcon className="w-5 h-5 text-gray-600" />
+                </button>
+                
+                {/* Dropdown menu */}
+                {isBottomSheetMenuOpen && (
+                  <div className="absolute right-0 top-full mt-2 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50 min-w-[160px]">
+                    <button
+                      onClick={async () => {
+                        setIsBottomSheetMenuOpen(false);
+                        await handleDeleteEvent(selectedEventData);
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors flex items-center gap-2 rounded-lg"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                      Delete Event
+                    </button>
                   </div>
                 )}
               </div>
-            )}
+              
+              {/* Close button - hides the drawer */}
+              <button
+                onClick={requestCloseBottomSheet}
+                className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center hover:bg-gray-300 transition-colors"
+                aria-label="Close"
+              >
+                <XMarkIcon className="w-5 h-5 text-gray-600" />
+              </button>
+            </div>
           </div>
+
+          {/* Minimized View - Customer Card Only */}
+          {bottomSheetState === 'minimized' && (
+            <div
+              className="px-4 pb-4 cursor-pointer overflow-x-hidden"
+              style={{ width: '100%', maxWidth: '100%' }}
+              onClick={() => setBottomSheetState('full')}
+            >
+            <div className="pt-1">
+                <h3 className="text-sm font-semibold text-gray-900 mb-3">Event Details</h3>
+                {(selectedEventData?.customerName || selectedEventData?.customerPhone || selectedEventData?.customerAddress) ? (
+                  <div
+                    className="bg-gray-50 rounded-xl p-4 border"
+                    style={{ borderColor: '#E2E2DD' }}
+                  >
+                    <div className="flex items-start justify-between">
+                          <div className="flex-1 pr-8">
+                            <div className="flex items-start justify-between mb-2">
+                              <h4 className="font-semibold text-gray-900 text-base">
+                                {selectedEventData.customerName || 'Unnamed Customer'}
+                              </h4>
+                              {selectedEventData.customerPhone && (
+                                <span className="text-sm text-gray-600 ml-2">
+                                  {selectedEventData.customerPhone}
+                                </span>
+                              )}
+                            </div>
+                            {selectedEventData.customerAddress && (
+                              <p className="text-sm text-gray-600">
+                                {selectedEventData.customerAddress}
+                              </p>
+                            )}
+                          </div>
+                          {selectedEventData.customerPhone && (
+                            <div className="flex flex-col gap-2">
+                              <a
+                                href={`tel:${getPhoneHref(selectedEventData.customerPhone)}`}
+                                className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center hover:bg-gray-300 transition-colors"
+                                aria-label="Call customer"
+                              >
+                                <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2 5.5A2.5 2.5 0 014.5 3h2a2.5 2.5 0 012.5 2.5v1.1c0 .5-.2 1-.6 1.4l-1 1a14.7 14.7 0 006.2 6.2l1-1c.4-.4.9-.6 1.4-.6h1.1A2.5 2.5 0 0121 16.5v2A2.5 2.5 0 0118.5 21h-.6C9 21 2 14 2 5.1V5.5z" />
+                                </svg>
+                              </a>
+                              <a
+                                href={`sms:${getPhoneHref(selectedEventData.customerPhone)}`}
+                                className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center hover:bg-gray-300 transition-colors"
+                                aria-label="Message customer"
+                              >
+                                <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h8m-8 4h5m7-10a2 2 0 00-2-2H6a2 2 0 00-2 2v12l4-3h10a2 2 0 002-2V4z" />
+                                </svg>
+                              </a>
+                            </div>
+                          )}
+                        </div>
+                  </div>
+                ) : (
+                  <div className="text-sm text-gray-500">No customer information available</div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Content */}
+          {bottomSheetState === 'full' && (
+            <>
+              <div
+                className="flex-1 overflow-y-auto overflow-x-hidden px-4 pb-24"
+                style={{
+                  maxHeight: 'calc(85vh - 80px)',
+                  width: '100%',
+                  maxWidth: '100%',
+                  boxSizing: 'border-box',
+                  overscrollBehavior: 'contain',
+                  WebkitOverflowScrolling: 'touch',
+                  touchAction: 'pan-y'
+                }}
+              >
+                {selectedEventData && isEditingEvent && (
+                  <EventEditForm
+                    ref={mobileEventEditFormRef}
+                    event={selectedEventData}
+                    resources={resources}
+                    onDirtyChange={(isDirty) => setIsEditFormDirty(isDirty)}
+                    onRequestDiscard={() => setShowDiscardModal(true)}
+                    onEditCustomer={() => {
+                      // Set up customer data for editing
+                      setEditingCustomerData({
+                        customerName: selectedEventData.customerName || '',
+                        customerPhone: selectedEventData.customerPhone || '',
+                        customerAddress: selectedEventData.customerAddress || ''
+                      });
+                      setIsEditingCustomer(true);
+                      setIsNewCustomerModalOpen(true);
+                    }}
+                    onSave={async (updatedData: any) => {
+                      try {
+                        const response = await fetch(`/api/detailer/events/${selectedEventData.id}`, {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify(updatedData),
+                        });
+
+                        if (response.ok) {
+                          const result = await response.json();
+                          fetchCalendarEvents();
+                          setIsEditFormDirty(false);
+                          
+                          // Construct start and end fields from the saved data for proper form initialization
+                          let updatedEventData = { ...selectedEventData, ...updatedData };
+                          
+                          // Map startDate/endDate to start/end for form initialization
+                          if (updatedData.startDate) {
+                            updatedEventData.start = updatedData.startDate;
+                          }
+                          if (updatedData.endDate) {
+                            updatedEventData.end = updatedData.endDate;
+                          } else if (updatedData.startDate) {
+                            // If only startDate is provided, use it for end as well
+                            updatedEventData.end = updatedData.startDate;
+                          }
+                          
+                          // Also include the time field if it was updated
+                          if (updatedData.time !== undefined) {
+                            updatedEventData.time = updatedData.time;
+                          }
+                          
+                          // Update selected event data with computed fields
+                          setSelectedEventData(updatedEventData);
+                        } else {
+                          const error = await response.json();
+                          console.error('Failed to update event:', error.error);
+                        }
+                      } catch (error) {
+                        console.error('Error updating event:', error);
+                      }
+                    }}
+                    onCancel={() => {
+                      // onCancel is called after user confirms discard in modal
+                      // Hide the bottom sheet
+                      closeBottomSheet({ resetEditFormData: true });
+                    }}
+                  />
+                )}
+              </div>
+
+              {/* Fixed Action Buttons - Mobile Bottom Sheet - Only in full state */}
+              {selectedEventData && isEditingEvent && (
+                <div className="flex-shrink-0 p-4 border-t border-gray-200 bg-white sticky bottom-0 z-10">
+                  <div className="flex gap-3">
+                    <button
+                      onClick={requestCloseBottomSheet}
+                      className="flex-1 px-6 py-2 border rounded-xl text-gray-700 hover:bg-gray-50 transition-colors"
+                      style={{ borderColor: '#E2E2DD' }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (mobileEventEditFormRef.current) {
+                          mobileEventEditFormRef.current.handleSubmit();
+                        } else {
+                          console.error('Mobile EventEditForm ref is not set');
+                        }
+                      }}
+                      className="flex-1 px-6 py-2 bg-orange-500 text-white rounded-xl hover:bg-orange-600 transition-colors flex items-center justify-center gap-2"
+                    >
+                      <CheckIcon className="w-5 h-5" />
+                      <span>Save</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </div>
         )}
       </div>
@@ -6546,13 +7461,13 @@ export default function CalendarPage() {
         if (typeof viewMode === 'number' && viewMode >= 2 && viewMode <= 3 && Math.abs(deltaX) > minSwipeDistance && Math.abs(deltaY) < Math.abs(deltaX) * 0.5 && deltaTime < maxSwipeTime) {
           // Prevent default to avoid scrolling interference
           e.preventDefault();
-          // Swipe right: next period (forward)
+          // Swipe right: previous period
           if (deltaX > 0) {
-            setCurrentDate(addDays(currentDate, viewMode));
-          }
-          // Swipe left: previous period (backward)
-          else if (deltaX < 0) {
             setCurrentDate(subDays(currentDate, viewMode));
+          }
+          // Swipe left: next period
+          else if (deltaX < 0) {
+            setCurrentDate(addDays(currentDate, viewMode));
           }
         }
 
@@ -6757,36 +7672,168 @@ export default function CalendarPage() {
             </button>
           </div>
           {/* Keep modals and sidebars - same as 1 day view */}
-          <EventModal 
-            isOpen={isModalOpen}
-            onClose={() => {
-              setIsModalOpen(false);
-              setSelectedResource(null);
-              setDraftEvent(null);
-              setNewCustomerData(null);
+          {isModalOpen && createSheetState === 'full' && (
+            <div
+              className="md:hidden fixed inset-0 z-[79]"
+              onClick={() => {
+                if (createSheetIgnoreClickRef.current) {
+                  return;
+                }
+                minimizeCreateSheet();
+              }}
+            />
+          )}
+          {isModalOpen && createSheetState !== 'hidden' && (
+            <div
+              ref={createSheetRef}
+              className="md:hidden fixed bottom-0 left-0 right-0 bg-[#F8F8F7] rounded-t-3xl shadow-2xl z-[9998] transform transition-all duration-300 ease-out overflow-x-hidden"
+              style={{
+              maxHeight: createSheetState === 'minimized' ? '360px' : '85vh',
+              height: createSheetState === 'minimized' ? '360px' : 'auto',
+              minHeight: createSheetState === 'minimized' ? '360px' : '200px',
+                isolation: 'isolate',
+                width: '100%',
+                maxWidth: '100vw',
+                overscrollBehavior: 'contain',
+                touchAction: 'pan-y',
+                transform: `translate3d(0, ${createSheetDragY}px, 0)`
+              }}
+              onTouchStart={(e) => {
+                const touch = e.touches[0];
+                createSheetContentTouchStartRef.current = {
+                  x: touch.clientX,
+                  y: touch.clientY
+                };
+                const target = e.target as Element;
+                const isHandle = target.closest('[data-create-sheet-handle]');
+                if (!isHandle) {
+                  createSheetTouchStartRef.current = null;
+                  return;
+                }
+              createSheetTouchStartRef.current = {
+                y: touch.clientY,
+                x: touch.clientX,
+                time: Date.now()
+              };
+                setCreateSheetDragY(0);
+                createSheetIgnoreClickRef.current = false;
+              }}
+              onTouchMove={(e) => {
+                if (createSheetContentTouchStartRef.current) {
+                  const touch = e.touches[0];
+                  const deltaX = touch.clientX - createSheetContentTouchStartRef.current.x;
+                  const deltaY = touch.clientY - createSheetContentTouchStartRef.current.y;
+                  if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 8) {
+                    e.preventDefault();
+                  }
+                }
+                if (createSheetRef.current && createSheetTouchStartRef.current) {
+                  const touch = e.touches[0];
+                const currentY = touch.clientY;
+                const startY = createSheetTouchStartRef.current?.y || currentY;
+                const deltaY = currentY - startY;
+                const deltaX = touch.clientX - (createSheetTouchStartRef.current?.x || touch.clientX);
+                const dragY = Math.max(0, deltaY);
+                if (dragY > 0) {
+                  setCreateSheetDragY(dragY);
+                }
+                if (Math.abs(deltaY) > 10 || Math.abs(deltaX) > 10) {
+                  e.preventDefault();
+                }
+              }
             }}
-            onAddEvent={handleAddEvent}
-            preSelectedResource={selectedResource}
-            resources={resources.length > 0 ? resources : []}
-            draftEvent={draftEvent}
-            onOpenNewCustomerModal={(initialName) => {
-              setNewCustomerModalInitialName(initialName);
-              setIsNewCustomerModalOpen(true);
-            }}
-            onOpenEditCustomerModal={(customer) => {
-              setEditingCustomerData({
-                customerName: customer.customerName,
-                customerPhone: customer.customerPhone,
-                customerAddress: customer.customerAddress || ''
-              });
-              setIsEditingCustomer(true);
-              setIsNewCustomerModalOpen(true);
-            }}
-            onRequestClose={() => {
-              setShowEventModalDiscardModal(true);
-            }}
-            newCustomerData={newCustomerData}
-          />
+              onTouchEnd={(e) => {
+                if (!createSheetTouchStartRef.current) {
+                  createSheetContentTouchStartRef.current = null;
+                  return;
+                }
+                const currentSheetState = createSheetState;
+                const touch = e.changedTouches[0];
+                const deltaY = touch.clientY - createSheetTouchStartRef.current.y;
+                const deltaTime = Date.now() - createSheetTouchStartRef.current.time;
+                const swipeThreshold = 50;
+                const timeThreshold = 500;
+                const sheetHeight = createSheetRef.current?.getBoundingClientRect().height || 0;
+                const closeThreshold = sheetHeight ? Math.min(180, sheetHeight * 0.25) : 120;
+
+                createSheetIgnoreClickRef.current = true;
+                window.setTimeout(() => {
+                  createSheetIgnoreClickRef.current = false;
+                }, 250);
+
+                if (currentSheetState === 'full') {
+                  if (deltaY > closeThreshold || (Math.abs(deltaY) > swipeThreshold && deltaTime < timeThreshold && deltaY > 0)) {
+                    minimizeCreateSheet();
+                  } else {
+                    setCreateSheetDragY(0);
+                  }
+                } else if (currentSheetState === 'minimized') {
+                  if (deltaY > closeThreshold || (Math.abs(deltaY) > swipeThreshold && deltaTime < timeThreshold && deltaY > 0)) {
+                    closeCreateSheet();
+                  } else if (deltaY < -swipeThreshold && deltaTime < timeThreshold) {
+                    setCreateSheetState('full');
+                  } else {
+                    setCreateSheetDragY(0);
+                  }
+                } else {
+                  setCreateSheetDragY(0);
+                }
+
+                createSheetTouchStartRef.current = null;
+                createSheetContentTouchStartRef.current = null;
+              }}
+            >
+              <div className="flex flex-col px-4 pt-2 pb-2 sticky top-0 z-20 bg-[#F8F8F7]" data-create-sheet-handle>
+                <div className="flex items-center justify-between">
+                  <div className="w-8 h-8" />
+                  <div className="flex-1 flex justify-center">
+                    <div style={{ width: '46px', height: '3px' }}>
+                      <div style={{ width: '100%', height: '100%', background: '#D9D9D9', borderRadius: 1000 }} />
+                    </div>
+                  </div>
+                  <button
+                    onClick={closeCreateSheet}
+                    className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center hover:bg-gray-300 transition-colors"
+                    aria-label="Close"
+                  >
+                    <XMarkIcon className="w-5 h-5 text-gray-600" />
+                  </button>
+                </div>
+                <div className="pt-2 pb-1">
+                  <div className="text-base font-semibold text-gray-900">Create event</div>
+                </div>
+              </div>
+
+              <EventModal
+                isOpen={isModalOpen}
+                renderMode="drawer"
+                showHeader={false}
+                showCloseButton={false}
+                onClose={closeCreateSheet}
+                onAddEvent={handleAddEvent}
+                preSelectedResource={selectedResource}
+                resources={resources.length > 0 ? resources : []}
+                draftEvent={draftEvent}
+                onOpenNewCustomerModal={(initialName) => {
+                  setNewCustomerModalInitialName(initialName);
+                  setIsNewCustomerModalOpen(true);
+                }}
+                onOpenEditCustomerModal={(customer) => {
+                  setEditingCustomerData({
+                    customerName: customer.customerName,
+                    customerPhone: customer.customerPhone,
+                    customerAddress: customer.customerAddress || ''
+                  });
+                  setIsEditingCustomer(true);
+                  setIsNewCustomerModalOpen(true);
+                }}
+                onRequestClose={() => {
+                  setShowEventModalDiscardModal(true);
+                }}
+                newCustomerData={newCustomerData}
+              />
+            </div>
+          )}
           <NewCustomerModal
             isOpen={isNewCustomerModalOpen}
             onClose={() => setIsNewCustomerModalOpen(false)}
@@ -6796,6 +7843,342 @@ export default function CalendarPage() {
               setIsNewCustomerModalOpen(false);
             }}
           />
+          {/* Bottom Sheet Backdrop - Mobile - Only for event details */}
+          {selectedEventData && isMobile && isEditingEvent && bottomSheetState === 'full' && (
+            <div
+              className="md:hidden fixed inset-0 z-[80]"
+              onClick={() => {
+                if (bottomSheetIgnoreClickRef.current) {
+                  return;
+                }
+                if (bottomSheetState === 'full') {
+                  minimizeBottomSheet();
+                  return;
+                }
+                requestCloseBottomSheet();
+              }}
+            />
+          )}
+          {/* Bottom Sheet - Mobile - Only for event editing (always in edit mode) */}
+          {selectedEventData && isMobile && isEditingEvent && bottomSheetState !== 'hidden' && (
+          <div 
+            ref={bottomSheetRef}
+            className="md:hidden fixed bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl z-[9999] transform transition-all duration-300 ease-out overflow-x-hidden"
+            style={{ 
+              maxHeight: bottomSheetState === 'minimized' ? '200px' : '85vh',
+              height: bottomSheetState === 'minimized' ? '200px' : 'auto',
+              minHeight: bottomSheetState === 'minimized' ? '200px' : '200px',
+              isolation: 'isolate',
+              width: '100%',
+              maxWidth: '100vw',
+              overscrollBehavior: 'contain',
+              touchAction: 'pan-y',
+              transform: `translate3d(0, ${bottomSheetDragY}px, 0)`
+            }}
+            onTouchStart={(e) => {
+              const target = e.target as Element;
+              const isHandle = target.closest('[data-bottom-sheet-handle]');
+              if (!isHandle) {
+                bottomSheetTouchStartRef.current = null;
+                return;
+              }
+              const touch = e.touches[0];
+              bottomSheetTouchStartRef.current = {
+                y: touch.clientY,
+                time: Date.now()
+              };
+              setBottomSheetDragY(0);
+              bottomSheetIgnoreClickRef.current = false;
+            }}
+            onTouchMove={(e) => {
+              // Prevent scrolling when swiping the bottom sheet
+              if (bottomSheetRef.current && bottomSheetTouchStartRef.current) {
+                const touch = e.touches[0];
+                const currentY = touch.clientY;
+                const startY = bottomSheetTouchStartRef.current?.y || currentY;
+                const deltaY = currentY - startY;
+                const dragY = Math.max(0, deltaY);
+                if (dragY > 0) {
+                  setBottomSheetDragY(dragY);
+                }
+                
+                // Only prevent default if we're actually dragging the sheet
+                if (Math.abs(deltaY) > 10) {
+                  e.preventDefault();
+                }
+              }
+            }}
+            onTouchEnd={(e) => {
+              if (!bottomSheetTouchStartRef.current) return;
+              
+              const currentSheetState = bottomSheetState;
+              const touch = e.changedTouches[0];
+              const deltaY = touch.clientY - bottomSheetTouchStartRef.current.y;
+              const deltaTime = Date.now() - bottomSheetTouchStartRef.current.time;
+              const swipeThreshold = 50; // Minimum swipe distance
+              const timeThreshold = 500; // Maximum swipe time
+              const sheetHeight = bottomSheetRef.current?.getBoundingClientRect().height || 0;
+              const closeThreshold = sheetHeight ? Math.min(180, sheetHeight * 0.25) : 120;
+              
+              bottomSheetIgnoreClickRef.current = true;
+              window.setTimeout(() => {
+                bottomSheetIgnoreClickRef.current = false;
+              }, 250);
+
+              // Determine next state based on current state and swipe direction
+              if (currentSheetState === 'full') {
+                if (deltaY > closeThreshold || (Math.abs(deltaY) > swipeThreshold && deltaTime < timeThreshold && deltaY > 0)) {
+                  minimizeBottomSheet();
+                } else {
+                  setBottomSheetDragY(0);
+                }
+              } else if (currentSheetState === 'minimized') {
+                if (deltaY > closeThreshold || (Math.abs(deltaY) > swipeThreshold && deltaTime < timeThreshold && deltaY > 0)) {
+                  requestCloseBottomSheet();
+                } else if (deltaY < -swipeThreshold && deltaTime < timeThreshold) {
+                  setBottomSheetState('full');
+                } else {
+                  setBottomSheetDragY(0);
+                }
+              } else {
+                setBottomSheetDragY(0);
+              }
+              
+              bottomSheetTouchStartRef.current = null;
+            }}
+          >
+            {/* Drag Handle and Action Buttons */}
+            <div
+              className={`flex items-center justify-between px-4 sticky top-0 z-20 bg-white ${
+                bottomSheetState === 'minimized' ? 'pt-2 pb-1' : 'pt-3 pb-2'
+              }`}
+              data-bottom-sheet-handle
+            >
+              <div className="flex-1 flex justify-center">
+                <div style={{ width: '46px', height: '3px', marginLeft: '3rem' }}>
+                  <div style={{ width: '100%', height: '100%', background: '#D9D9D9', borderRadius: 1000 }} />
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="relative" ref={bottomSheetMenuRef}>
+                  <button
+                    onClick={() => setIsBottomSheetMenuOpen(!isBottomSheetMenuOpen)}
+                    className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center hover:bg-gray-300 transition-colors"
+                    aria-label="More options"
+                  >
+                    <EllipsisHorizontalIcon className="w-5 h-5 text-gray-600" />
+                  </button>
+                  
+                  {/* Dropdown menu */}
+                  {isBottomSheetMenuOpen && (
+                    <div className="absolute right-0 top-full mt-2 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50 min-w-[160px]">
+                      <button
+                        onClick={async () => {
+                          setIsBottomSheetMenuOpen(false);
+                          await handleDeleteEvent(selectedEventData);
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors flex items-center gap-2 rounded-lg"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                        Delete Event
+                      </button>
+                    </div>
+                  )}
+                </div>
+                
+                {/* Close button - hides the drawer */}
+                <button
+                  onClick={requestCloseBottomSheet}
+                  className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center hover:bg-gray-300 transition-colors"
+                  aria-label="Close"
+                >
+                  <XMarkIcon className="w-5 h-5 text-gray-600" />
+                </button>
+              </div>
+            </div>
+
+            {/* Minimized View - Customer Card Only */}
+            {bottomSheetState === 'minimized' && (
+              <div
+                className="px-4 pb-4 cursor-pointer overflow-x-hidden"
+                style={{ width: '100%', maxWidth: '100%' }}
+                onClick={() => setBottomSheetState('full')}
+              >
+                <div className="pt-1">
+                  <h3 className="text-sm font-semibold text-gray-900 mb-3">Event Details</h3>
+                  {(selectedEventData?.customerName || selectedEventData?.customerPhone || selectedEventData?.customerAddress) ? (
+                    <div
+                      className="bg-gray-50 rounded-xl p-4 border"
+                      style={{ borderColor: '#E2E2DD' }}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 pr-8">
+                          <div className="flex items-start justify-between mb-2">
+                            <h4 className="font-semibold text-gray-900 text-base">
+                              {selectedEventData.customerName || 'Unnamed Customer'}
+                            </h4>
+                            {selectedEventData.customerPhone && (
+                              <span className="text-sm text-gray-600 ml-2">
+                                {selectedEventData.customerPhone}
+                              </span>
+                            )}
+                          </div>
+                          {selectedEventData.customerAddress && (
+                            <p className="text-sm text-gray-600">
+                              {selectedEventData.customerAddress}
+                            </p>
+                          )}
+                        </div>
+                        {selectedEventData.customerPhone && (
+                          <div className="flex flex-col gap-2">
+                            <a
+                              href={`tel:${getPhoneHref(selectedEventData.customerPhone)}`}
+                              className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center hover:bg-gray-300 transition-colors"
+                              aria-label="Call customer"
+                            >
+                              <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2 5.5A2.5 2.5 0 014.5 3h2a2.5 2.5 0 012.5 2.5v1.1c0 .5-.2 1-.6 1.4l-1 1a14.7 14.7 0 006.2 6.2l1-1c.4-.4.9-.6 1.4-.6h1.1A2.5 2.5 0 0121 16.5v2A2.5 2.5 0 0118.5 21h-.6C9 21 2 14 2 5.1V5.5z" />
+                              </svg>
+                            </a>
+                            <a
+                              href={`sms:${getPhoneHref(selectedEventData.customerPhone)}`}
+                              className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center hover:bg-gray-300 transition-colors"
+                              aria-label="Message customer"
+                            >
+                              <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h8m-8 4h5m7-10a2 2 0 00-2-2H6a2 2 0 00-2 2v12l4-3h10a2 2 0 002-2V4z" />
+                              </svg>
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-sm text-gray-500">No customer information available</div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Content */}
+            {bottomSheetState === 'full' && (
+              <>
+                <div
+                  className="flex-1 overflow-y-auto overflow-x-hidden px-4 pb-24"
+                  style={{
+                    maxHeight: 'calc(85vh - 80px)',
+                    width: '100%',
+                    maxWidth: '100%',
+                    boxSizing: 'border-box',
+                    overscrollBehavior: 'contain',
+                    WebkitOverflowScrolling: 'touch',
+                    touchAction: 'pan-y'
+                  }}
+                >
+                  {selectedEventData && isEditingEvent && (
+                    <EventEditForm
+                      ref={mobileEventEditFormRef}
+                      event={selectedEventData}
+                      resources={resources}
+                      onDirtyChange={(isDirty) => setIsEditFormDirty(isDirty)}
+                      onRequestDiscard={() => setShowDiscardModal(true)}
+                      onEditCustomer={() => {
+                        // Set up customer data for editing
+                        setEditingCustomerData({
+                          customerName: selectedEventData.customerName || '',
+                          customerPhone: selectedEventData.customerPhone || '',
+                          customerAddress: selectedEventData.customerAddress || ''
+                        });
+                        setIsEditingCustomer(true);
+                        setIsNewCustomerModalOpen(true);
+                      }}
+                      onSave={async (updatedData: any) => {
+                        try {
+                          const response = await fetch(`/api/detailer/events/${selectedEventData.id}`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(updatedData),
+                          });
+
+                          if (response.ok) {
+                            const result = await response.json();
+                            fetchCalendarEvents();
+                            setIsEditFormDirty(false);
+                            
+                            // Construct start and end fields from the saved data for proper form initialization
+                            let updatedEventData = { ...selectedEventData, ...updatedData };
+                            
+                            // Map startDate/endDate to start/end for form initialization
+                            if (updatedData.startDate) {
+                              updatedEventData.start = updatedData.startDate;
+                            }
+                            if (updatedData.endDate) {
+                              updatedEventData.end = updatedData.endDate;
+                            } else if (updatedData.startDate) {
+                              // If only startDate is provided, use it for end as well
+                              updatedEventData.end = updatedData.startDate;
+                            }
+                            
+                            // Also include the time field if it was updated
+                            if (updatedData.time !== undefined) {
+                              updatedEventData.time = updatedData.time;
+                            }
+                            
+                            // Update selected event data with computed fields
+                            setSelectedEventData(updatedEventData);
+                          } else {
+                            const error = await response.json();
+                            console.error('Failed to update event:', error.error);
+                          }
+                        } catch (error) {
+                          console.error('Error updating event:', error);
+                        }
+                      }}
+                      onCancel={() => {
+                        // onCancel is called after user confirms discard in modal
+                        // Hide the bottom sheet
+                        closeBottomSheet({ resetEditFormData: true });
+                      }}
+                    />
+                  )}
+                </div>
+
+                {/* Fixed Action Buttons - Mobile Bottom Sheet - Only in full state */}
+                {selectedEventData && isEditingEvent && (
+                  <div className="flex-shrink-0 p-4 border-t border-gray-200 bg-white sticky bottom-0 z-10">
+                    <div className="flex gap-3">
+                      <button
+                        onClick={requestCloseBottomSheet}
+                        className="flex-1 px-6 py-2 border rounded-xl text-gray-700 hover:bg-gray-50 transition-colors"
+                        style={{ borderColor: '#E2E2DD' }}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (mobileEventEditFormRef.current) {
+                            mobileEventEditFormRef.current.handleSubmit();
+                          } else {
+                            console.error('Mobile EventEditForm ref is not set');
+                          }
+                        }}
+                        className="flex-1 px-6 py-2 bg-orange-500 text-white rounded-xl hover:bg-orange-600 transition-colors flex items-center justify-center gap-2"
+                      >
+                        <CheckIcon className="w-5 h-5" />
+                        <span>Save</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+          )}
           {/* Employee Filter Dropdown - Mobile */}
           {isTeamDropdownOpen && (
             <>
@@ -6852,10 +8235,11 @@ export default function CalendarPage() {
                 </div>
               </div>
             </>
-          )}
+        )}
+        {deleteToastPortal}
         </div>
-      );
-    }
+    );
+  }
   }
 
   return (
@@ -6964,14 +8348,7 @@ export default function CalendarPage() {
                               // Filter events for the selected date
                               const selectedDateStr = format(currentDate, 'yyyy-MM-dd');
                               const dayEvents = bookings.filter((event: any) => {
-                                let eventDate;
-                                if (event.start) {
-                                  eventDate = event.start.includes('T') ? event.start.split('T')[0] : event.start;
-                                } else if (event.date) {
-                                  eventDate = typeof event.date === 'string' ? event.date : format(new Date(event.date), 'yyyy-MM-dd');
-                                } else {
-                                  return false;
-                                }
+                                const eventDate = getEventDateString(event);
                                 return eventDate === selectedDateStr;
                               });
 
@@ -7017,10 +8394,12 @@ export default function CalendarPage() {
                                             key={event.id} 
                                             className="text-xs px-2 py-1 rounded bg-gray-100 text-gray-700"
                                           >
-                                            {event.start && event.start.includes('T') ? (
+                                            {typeof event.start === 'string' && event.start.includes('T') ? (
                                               <span className="font-medium">{format(parseISO(event.start), 'h:mm a')}</span>
+                                            ) : event.start instanceof Date ? (
+                                              <span className="font-medium">{format(event.start, 'h:mm a')}</span>
                                             ) : null}
-                                            {event.start && event.start.includes('T') ? ' - ' : ''}
+                                            {typeof event.start === 'string' && event.start.includes('T') ? ' - ' : event.start instanceof Date ? ' - ' : ''}
                                             <span>{event.title || event.eventName || 'Untitled Event'}</span>
                                             {resource && (
                                               <span className="ml-1 text-gray-500">
@@ -7398,12 +8777,7 @@ export default function CalendarPage() {
 
         <EventModal 
             isOpen={isModalOpen}
-            onClose={() => {
-              setIsModalOpen(false);
-              setSelectedResource(null);
-              setDraftEvent(null);
-              setNewCustomerData(null);
-            }}
+            onClose={closeCreateSheet}
             onAddEvent={handleAddEvent}
             preSelectedResource={selectedResource}
             resources={resources.length > 0 ? resources : []}
@@ -7516,7 +8890,7 @@ export default function CalendarPage() {
                   {/* Show delete button for local events */}
                   {(selectedEventData.source === 'local' || selectedEventData.source === 'local-google-synced') && (
                     <button
-                      onClick={handleDeleteEvent}
+                      onClick={() => handleDeleteEvent(selectedEventData)}
                       className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-xl hover:bg-red-700 transition-colors"
                     >
                       Delete Event
@@ -7575,12 +8949,21 @@ export default function CalendarPage() {
             
             // If closing from edit form cancel, just exit edit mode
             // If closing from sidebar X, close the sidebar
+            // On mobile, close the bottom sheet
             if (!wasEditing && !pendingDraftEvent) {
               setIsActionSidebarOpen(false);
               setSelectedEventData(null);
               setSelectedEvent(null);
               setIsEditingNotes(false);
               setShowCustomerDetailsPopup(false);
+            } else if (wasEditing && isMobile) {
+              // On mobile, if discarding from edit form, animate slide down then close
+              setBottomSheetState('hidden');
+              setTimeout(() => {
+                setSelectedEventData(null);
+                setSelectedEvent(null);
+                setIsActionSidebarOpen(false);
+              }, 300); // Wait for animation to complete
             }
           }}
           isCreating={false}
@@ -7600,11 +8983,7 @@ export default function CalendarPage() {
           }}
           onDiscard={() => {
             setShowEventModalDiscardModal(false);
-            // Close EventModal
-            setIsModalOpen(false);
-            setSelectedResource(null);
-            setDraftEvent(null);
-            setNewCustomerData(null);
+            closeCreateSheet();
           }}
           isCreating={true}
         />
@@ -8925,25 +10304,8 @@ export default function CalendarPage() {
                               <div className="flex gap-2 items-center">
                                 <button 
                                   onClick={async () => {
-                                    // Handle cancel/delete
-                                    if (event.id) {
-                                      try {
-                                        const response = await fetch(`/api/detailer/events/${event.id}`, {
-                                          method: 'DELETE',
-                                        });
-
-                                        if (response.ok) {
-                                          fetchCalendarEvents();
-                                          // Update selected day events
-                                          setSelectedDayEvents(selectedDayEvents.filter(e => e.id !== event.id));
-                                        } else {
-                                          const error = await response.json();
-                                          console.error('Failed to delete event:', error.error);
-                                        }
-                                      } catch (error) {
-                                        console.error('Error deleting event:', error);
-                                      }
-                                    }
+                                    await handleDeleteEvent(event);
+                                    setSelectedDayEvents(selectedDayEvents.filter(e => e.id !== event.id));
                                   }}
                                   className="w-8 h-8 bg-gray-200 hover:bg-gray-300 rounded-full flex items-center justify-center transition-colors"
                                 >
@@ -9038,23 +10400,7 @@ export default function CalendarPage() {
                           <div className="flex gap-2 items-center">
                           <button 
                             onClick={async () => {
-                              // Handle cancel/delete
-                              if (event.id) {
-                                try {
-                                  const response = await fetch(`/api/detailer/events/${event.id}`, {
-                                    method: 'DELETE',
-                                  });
-
-                                  if (response.ok) {
-                                    fetchCalendarEvents();
-                                  } else {
-                                    const error = await response.json();
-                                    console.error('Failed to delete event:', error.error);
-                                  }
-                                } catch (error) {
-                                  console.error('Error deleting event:', error);
-                                }
-                              }
+                              await handleDeleteEvent(event);
                             }}
                             className="w-8 h-8 bg-gray-200 hover:bg-gray-300 rounded-full flex items-center justify-center transition-colors"
                           >
@@ -9202,27 +10548,7 @@ export default function CalendarPage() {
               <div className="flex-shrink-0 p-6" style={{ backgroundColor: '#F8F8F7' }}>
                 <div className="flex gap-3 w-full">
                   <button
-                    onClick={async () => {
-                      if (selectedEventData?.id) {
-                        try {
-                          const response = await fetch(`/api/detailer/events/${selectedEventData.id}`, {
-                            method: 'DELETE',
-                          });
-
-                          if (response.ok) {
-                            fetchCalendarEvents();
-                            setSelectedEventData(null);
-                            setSelectedEvent(null);
-                            setIsActionSidebarOpen(false);
-                          } else {
-                            const error = await response.json();
-                            console.error('Failed to delete event:', error.error);
-                          }
-                        } catch (error) {
-                          console.error('Error deleting event:', error);
-                        }
-                      }
-                    }}
+                    onClick={() => handleDeleteEvent(selectedEventData)}
                     className="flex-1 px-4 py-2 bg-[#FFDDDD] hover:bg-[#FFC1C1] text-[#DE0000] rounded-xl font-medium transition-colors"
                   >
                     Delete Event
@@ -9572,6 +10898,7 @@ export default function CalendarPage() {
           existingCustomer={editingCustomerData || undefined}
           isEditMode={isEditingCustomer}
         />
+        {deleteToastPortal}
     </div>
   );
 } 

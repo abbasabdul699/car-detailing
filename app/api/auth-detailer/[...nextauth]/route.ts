@@ -83,6 +83,8 @@ export const detailerAuthOptions: NextAuthOptions = {
   callbacks: {
     async session({ session, token }: { session: Session; token: JWT }) {
       if (!token.id) return session;
+      
+      try {
       const detailer = await prisma.detailer.findUnique({
         where: { id: token.id as string },
         include: {
@@ -104,6 +106,20 @@ export const detailerAuthOptions: NextAuthOptions = {
         session.user.businessName = detailer.businessName;
         session.user.image = profileImage?.url || null;
       }
+      } catch (error) {
+        // If database query fails, fall back to token data
+        // This prevents session from failing when DB is temporarily unavailable
+        console.error('Error fetching detailer in session callback:', error);
+        if (session.user && token.id) {
+          session.user.id = token.id as string;
+          (session.user as any).role = token.role as string;
+          session.user.name = (token as any).businessName || token.name || session.user.name || 'Detailer';
+          session.user.email = token.email as string || session.user.email;
+          session.user.businessName = (token as any).businessName;
+          session.user.image = (token as any).imageUrl || session.user.image;
+        }
+      }
+      
       return session;
     },
     async jwt({ token, user }: { token: JWT; user?: User }) {
@@ -112,6 +128,8 @@ export const detailerAuthOptions: NextAuthOptions = {
         (token as any).id = (user as any).id;
         (token as any).businessName = (user as any).businessName;
         (token as any).imageUrl = (user as any).image;
+        token.email = user.email || token.email; // Store email for fallback
+        token.name = user.name || token.name; // Store name for fallback
         token.exp = Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60); // 30 days
       }
       return token;

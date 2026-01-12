@@ -4,7 +4,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "node scripts/dev-mobile.js",
+    "dev:mobile": "node scripts/dev-mobile.js",
+    "dev:monitor": "node scripts/monitor-ip.js",
     "build": "prisma generate && next build",
     "postbuild": "next-sitemap",
     "start": "next start",

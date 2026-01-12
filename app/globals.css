@@ -121,6 +121,15 @@ body.action-panel-open .action-panel-hide {
   display: none !important;
 }
 
+/* Hide hamburger menu button when Create Event modal is open */
+body.event-modal-open .event-modal-hide {
+  display: none !important;
+}
+
+body.bottom-sheet-open {
+  overscroll-behavior-y: none;
+}
+
 .rdp-root {
   --rdp-accent-color: #006400 !important;
   --rdp-selected-border: 2px solid #006400 !important;
