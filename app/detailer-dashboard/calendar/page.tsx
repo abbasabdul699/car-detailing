@@ -6539,8 +6539,8 @@ export default function CalendarPage() {
             {/* Day of Week Row */}
             <div className={`flex border-b border-gray-200 sticky top-0 ${isActionSidebarOpen ? 'z-0' : 'z-10'}`} style={{ backgroundColor: '#f9f7fa' }}>
               <div className="w-16 flex-shrink-0 border-r border-gray-200"></div>
-              <div className="flex-1 px-2 py-2 text-center">
-                <span className="text-sm font-semibold text-gray-900">{format(currentDate, 'EEEE')}</span>
+              <div className={`flex-1 px-2 py-2 ${isMobile && viewMode === 'day' ? 'text-left' : 'text-center'}`}>
+                <span className="text-sm font-semibold text-gray-900">{format(currentDate, 'EEE d')}</span>
               </div>
             </div>
             {/* Resource Headers */}
