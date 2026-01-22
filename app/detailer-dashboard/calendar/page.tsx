@@ -2764,7 +2764,7 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                                 className={`calendar-week-slot border-b border-gray-100 relative cursor-pointer transition-all ${
                                                     isSelected 
                                                         ? 'bg-blue-50/30 border-2 border-dashed border-blue-400' 
-                                                        : `${isWorkingHour ? 'bg-white' : 'bg-[#F5F5F5]'} group-hover:bg-gray-50/60`
+                                                        : `${isWorkingHour ? 'bg-white' : 'bg-[#FAFAFB]'} group-hover:bg-gray-50/60`
                                                 }`}
                                                 style={{ 
                                                     height: `${scaledTimeSlotHeight}px`, 
@@ -4058,7 +4058,7 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
                     width: `${columnWidths[index] * scale}px`,
                     borderRight: '1px solid #F0F0EE',
                     overflow: 'hidden',
-                    backgroundColor: isWorkingHour ? 'white' : '#F5F5F5'
+                    backgroundColor: isWorkingHour ? 'white' : '#FAFAFB'
                   }}
                 >
                 <div className={`text-xs text-black text-left whitespace-nowrap ${is12PM ? 'font-bold' : 'font-semibold'}`} style={{ overflow: 'hidden', textOverflow: 'clip' }}>
@@ -4305,7 +4305,7 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
                         style={{ 
                           width: `${columnWidths[index] * scale}px`,
                         borderRight: '1px solid #F0F0EE',
-                        backgroundColor: isWorkingHour ? 'white' : '#F5F5F5'
+                        backgroundColor: isWorkingHour ? 'white' : '#FAFAFB'
                       }}
                     />
                     );
