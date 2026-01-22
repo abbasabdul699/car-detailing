@@ -2325,7 +2325,7 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                   }}
                 >
                     {/* Inner flex container for time column header and main header */}
-                    <div className="flex border-b border-gray-200">
+                    <div className="flex border-b border-gray-100">
                         {/* Time column header spacer */}
                         <div
                            className="flex-shrink-0"
@@ -2397,11 +2397,11 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                     </div>
                     
                     {/* Second row: Resource headers for each day */}
-                     <div className="relative grid border-b border-gray-200" style={{ gridTemplateColumns: `repeat(${totalColumns}, 1fr)`, backgroundColor: isMobile ? '#f9f7fa' : 'white' }}>
+                     <div className="relative grid border-b border-gray-100" style={{ gridTemplateColumns: `repeat(${totalColumns}, 1fr)`, backgroundColor: isMobile ? '#f9f7fa' : 'white' }}>
                         {/* Station header cell - positioned absolutely to align with time column - hidden in mobile */}
                         {!isMobile && (
                         <div
-                               className="absolute border-r border-gray-200 text-center flex flex-row items-center justify-center z-10"
+                               className="absolute border-r border-gray-100 text-center flex flex-row items-center justify-center z-10"
                             style={{ 
                                 left: `-${scaledTimeColumnWidth}px`,
                                 width: `${scaledTimeColumnWidth}px`,
@@ -2424,11 +2424,11 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                         {weekDays.map((day, dayIndex) => 
                             displayResources.map((resource, resourceIndex) => {
                                 const columnIndex = (dayIndex * displayResources.length) + resourceIndex;
-                                const isFirstResource = dayIndex === 0 && resourceIndex === 0;
+                                const isDayBoundary = resourceIndex === displayResources.length - 1;
                                 return (
                                 <div 
                                     key={`resource-header-${day.toString()}-${resource.id}`} 
-                                            className={`text-center flex flex-row items-center justify-center gap-1 ${isFirstResource ? 'border-l border-gray-200 ' : ''}border-r border-gray-200 bg-white ${onOpenModal && onResourceSelect ? 'cursor-pointer hover:bg-gray-50 transition-colors' : ''}`}
+                                            className={`text-center flex flex-row items-center justify-center gap-1 ${isDayBoundary ? 'border-r border-gray-100 ' : ''}bg-white ${onOpenModal && onResourceSelect ? 'cursor-pointer hover:bg-gray-50 transition-colors' : ''}`}
                                         style={{ 
                                             gridColumn: columnIndex + 1,
                                             height: `${32 * scale}px`, 
@@ -2474,7 +2474,7 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                 <div className="flex" style={{ minHeight: '100%' }}>
                     {/* Time column - sticky on left, inside scroll container */}
                     <div
-                      className="border-r border-gray-200 flex-shrink-0 flex flex-col"
+                      className="border-r border-gray-100 flex-shrink-0 flex flex-col"
                       style={{ 
                         position: 'sticky', 
                         left: 0, 
@@ -2611,9 +2611,7 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                         displayResources.map((resource, resourceIndex) => {
                             // Create a wrapper for this resource column that contains all time slots
                             const columnIndex = (dayIndex * displayResources.length) + resourceIndex;
-                            const isFirstResource = dayIndex === 0 && resourceIndex === 0;
-                            const isFirstResourceOfDay = resourceIndex === 0;
-                            const isDayBoundary = dayIndex > 0 && isFirstResourceOfDay;
+                            const isDayBoundary = resourceIndex === displayResources.length - 1;
                             
                             // Filter events for this day and resource
                             const dayEvents = (events || []).filter(e => {
@@ -2650,7 +2648,7 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                             return (
                                 <div
                                     key={`resource-column-${day.toString()}-${resource.id}`}
-                                    className="relative"
+                                    className={`relative group ${isDayBoundary ? 'border-r border-gray-100' : ''}`}
                                     style={{ 
                                         gridColumn: columnIndex + 1,
                                         height: `${totalTimeSlotHeight}px`,
@@ -2754,15 +2752,14 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                         return (
                                             <div 
                                                 key={`${slot}-${day.toString()}-${resource.id}`} 
-                                                className={`${isFirstResource ? 'border-l border-gray-200 ' : ''}${isDayBoundary ? 'border-l-2 border-gray-300 ' : ''}border-r border-b border-gray-200 relative cursor-pointer transition-all ${
+                                                className={`calendar-week-slot border-b border-gray-100 relative cursor-pointer transition-all ${
                                                     isSelected 
                                                         ? 'bg-blue-50/30 border-2 border-dashed border-blue-400' 
-                                                        : 'hover:bg-gray-50'
+                                                        : `${isWorkingHour ? 'bg-white' : 'bg-[#F5F5F5]'} group-hover:bg-gray-50/60`
                                                 }`}
                                                 style={{ 
                                                     height: `${scaledTimeSlotHeight}px`, 
-                                                    boxSizing: 'border-box',
-                                                    backgroundColor: isSelected ? undefined : (isWorkingHour ? 'white' : '#F5F5F5')
+                                                    boxSizing: 'border-box'
                                                 }}
                                                 onClick={(e) => {
                                                     // Only handle clicks on blank space, not on events
@@ -2772,7 +2769,7 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                                          target.closest('[class*="border-l-4"]') ||
                                                          target.closest('[class*="border-dashed"]'));
                                                     
-                                                    if (!isEventClick && (target === e.currentTarget || target.classList.contains('border-r'))) {
+                                                    if (!isEventClick && (target === e.currentTarget || target.classList.contains('calendar-week-slot'))) {
                                                         const slotHour = parseSlotHour(slot);
                                                         if (slotHour !== null && onOpenModal && onResourceSelect) {
                                                             // Stop propagation to prevent interference with modal
@@ -3603,14 +3600,14 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
         try {
           const parsed = parseFloat(saved);
           if (!isNaN(parsed) && parsed > 0) {
-            return parsed;
+            return Math.min(parsed, 120);
           }
         } catch (e) {
           console.error('Error parsing saved column width:', e);
         }
       }
     }
-    return 120;
+    return 96;
   });
   // Create uniform column widths array from base width
   const columnWidths = Array(24).fill(baseColumnWidth);
@@ -6537,17 +6534,17 @@ export default function CalendarPage() {
         >
           <div className="flex flex-col h-full">
             {/* Day of Week Row */}
-            <div className={`flex border-b border-gray-200 sticky top-0 ${isActionSidebarOpen ? 'z-0' : 'z-10'}`} style={{ backgroundColor: '#f9f7fa' }}>
-              <div className="w-16 flex-shrink-0 border-r border-gray-200"></div>
+            <div className={`flex border-b border-gray-100 sticky top-0 ${isActionSidebarOpen ? 'z-0' : 'z-10'}`} style={{ backgroundColor: '#f9f7fa' }}>
+              <div className="w-16 flex-shrink-0 border-r border-gray-100"></div>
               <div className={`flex-1 px-2 py-2 ${isMobile && viewMode === 'day' ? 'text-left' : 'text-center'}`}>
                 <span className="text-sm font-semibold text-gray-900">{format(currentDate, 'EEE d')}</span>
               </div>
             </div>
             {/* Resource Headers */}
-            <div className={`flex border-b border-gray-200 sticky ${isActionSidebarOpen ? 'z-0' : 'z-10'}`} style={{ backgroundColor: '#f9f7fa', top: '40px' }}>
-              <div className="w-16 flex-shrink-0 border-r border-gray-200"></div>
+            <div className={`flex border-b border-gray-100 sticky ${isActionSidebarOpen ? 'z-0' : 'z-10'}`} style={{ backgroundColor: '#f9f7fa', top: '40px' }}>
+              <div className="w-16 flex-shrink-0 border-r border-gray-100"></div>
               {displayResources.map((resource) => (
-                <div key={resource.id} className="flex-1 border-r border-gray-200 last:border-r-0 px-2 py-2 text-center">
+                <div key={resource.id} className="flex-1 border-r border-gray-100 last:border-r-0 px-2 py-2 text-center">
                   <span className="text-sm font-semibold text-gray-900">{resource.name.toUpperCase()}</span>
           </div>
               ))}
@@ -6557,7 +6554,7 @@ export default function CalendarPage() {
             <div className="flex-1 overflow-y-auto px-0">
               <div className="flex relative" style={{ minHeight: '960px' }}>
                 {/* Time Column */}
-                <div className={`w-16 flex-shrink-0 border-r border-gray-200 relative ${isActionSidebarOpen ? 'z-0' : 'z-10'}`} style={{ backgroundColor: '#f9f7fa' }}>
+                <div className={`w-16 flex-shrink-0 border-r border-gray-100 relative ${isActionSidebarOpen ? 'z-0' : 'z-10'}`} style={{ backgroundColor: '#f9f7fa' }}>
             {hours.map((hour) => (
               <div key={hour} className="relative" style={{ height: '120px' }}>
                       <div className="absolute right-2 top-0 text-xs font-medium text-gray-500 text-right">
@@ -6574,7 +6571,7 @@ export default function CalendarPage() {
                   return (
                     <div
                       key={resource.id}
-                      className="flex-1 relative border-r border-gray-200 last:border-r-0"
+                      className="flex-1 relative"
                       onClick={(e) => handleEmptySlotClick(e, resource.id)}
                     >
                       {/* Time slot lines */}
