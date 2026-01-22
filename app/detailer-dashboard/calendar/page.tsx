@@ -247,11 +247,11 @@ const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () =>
     }
     return vehicleList;
   });
-  const [showAddVehicleModal, setShowAddVehicleModal] = useState(false);
-  const [newVehicleModel, setNewVehicleModel] = useState('');
   const [availableServices, setAvailableServices] = useState<Array<{ id: string; name: string; category?: { name: string } }>>([]);
   const [availableBundles, setAvailableBundles] = useState<Array<{ id: string; name: string; description?: string; price?: number; services?: Array<{ service: { id: string; name: string } }> }>>([]);
   const [selectedServices, setSelectedServices] = useState<Array<{ id: string; name: string; type: 'service' | 'bundle' }>>([]);
+  const [showAddVehicleModal, setShowAddVehicleModal] = useState(false);
+  const [newVehicleModel, setNewVehicleModel] = useState('');
   const [serviceSearch, setServiceSearch] = useState('');
   const [showServiceDropdown, setShowServiceDropdown] = useState(false);
   
@@ -341,6 +341,7 @@ const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () =>
       vehicles: vehicleList,
       selectedServices: servicesList
     };
+    setSelectedServices(servicesList);
   }, []);
 
   // Update customer fields when event prop changes (e.g., after editing customer)
@@ -432,6 +433,10 @@ const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () =>
       .then(data => {
         if (Array.isArray(data)) {
           setAvailableServices(data);
+        } else if (Array.isArray(data?.services)) {
+          setAvailableServices(data.services);
+        } else {
+          setAvailableServices([]);
         }
       })
       .catch(err => console.error('Error fetching services:', err));
@@ -441,6 +446,10 @@ const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () =>
       .then(data => {
         if (Array.isArray(data)) {
           setAvailableBundles(data);
+        } else if (Array.isArray(data?.bundles)) {
+          setAvailableBundles(data.bundles);
+        } else {
+          setAvailableBundles([]);
         }
       })
       .catch(err => console.error('Error fetching bundles:', err));
@@ -448,7 +457,7 @@ const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () =>
 
   // Initialize selected services from event data
   useEffect(() => {
-    if (event.services && availableServices.length > 0) {
+    if (event.services) {
       const eventServicesList = Array.isArray(event.services) ? event.services : [event.services];
       const matchedItems: Array<{ id: string; name: string; type: 'service' | 'bundle' }> = eventServicesList
         .map((serviceName: string) => {
@@ -4508,11 +4517,8 @@ export default function CalendarPage() {
   const [showDiscardModal, setShowDiscardModal] = useState(false);
   const [showEventModalDiscardModal, setShowEventModalDiscardModal] = useState(false);
   const [customerPastJobs, setCustomerPastJobs] = useState<Array<{ id: string; date: string; services: string[]; vehicleModel?: string; employeeName?: string }>>([]);
-  const [showEmployeeSwitchDropdown, setShowEmployeeSwitchDropdown] = useState(false);
-  const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [showCustomerDetailsPopup, setShowCustomerDetailsPopup] = useState(false);
   const [customerPopupPosition, setCustomerPopupPosition] = useState<{ top: number; right: number } | null>(null);
-  const employeeSwitchRef = useRef<HTMLDivElement>(null);
   const eventDetailsCustomerCardRef = useRef<HTMLDivElement>(null);
   const customerDetailsPopupRef = useRef<HTMLDivElement>(null);
   const customerPopupTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -4533,9 +4539,6 @@ export default function CalendarPage() {
   const [editingCustomerData, setEditingCustomerData] = useState<{ customerName: string; customerPhone: string; customerAddress?: string } | null>(null);
   const [isEditingCustomer, setIsEditingCustomer] = useState(false);
   const [eventDetailsCustomers, setEventDetailsCustomers] = useState<Array<{ id: string; customerName?: string; customerPhone: string; customerEmail?: string; address?: string; locationType?: string; customerType?: string; vehicleModel?: string; services?: string[]; data?: any }>>([]);
-  const [eventDetailsCustomerSearch, setEventDetailsCustomerSearch] = useState('');
-  const [showEventDetailsCustomerSuggestions, setShowEventDetailsCustomerSuggestions] = useState(false);
-  const [selectedEventDetailsCustomerIndex, setSelectedEventDetailsCustomerIndex] = useState(-1);
   const datePickerRef = useRef<HTMLDivElement>(null);
   const teamDropdownRef = useRef<HTMLDivElement>(null);
   const mobileTeamDropdownRef = useRef<HTMLDivElement>(null);
@@ -4543,9 +4546,9 @@ export default function CalendarPage() {
   const actionSidebarRef = useRef<HTMLDivElement>(null);
   const bottomSheetRef = useRef<HTMLDivElement>(null);
   const createSheetRef = useRef<HTMLDivElement>(null);
+
   const eventEditFormRef = useRef<{ handleCancel: () => void; handleSubmit: () => void } | null>(null);
   const mobileEventEditFormRef = useRef<{ handleCancel: () => void; handleSubmit: () => void } | null>(null);
-  const notesSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const bottomSheetTouchStartRef = useRef<{ y: number; time: number } | null>(null);
   const createSheetTouchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
   const createSheetContentTouchStartRef = useRef<{ x: number; y: number } | null>(null);
@@ -4557,13 +4560,9 @@ export default function CalendarPage() {
   const [isLoadingEmployees, setIsLoadingEmployees] = useState(false);
   
   const [eventVehicles, setEventVehicles] = useState<Array<{ id: string; model: string }>>([]);
-  const [showAddVehicleModal, setShowAddVehicleModal] = useState(false);
-  const [newVehicleModel, setNewVehicleModel] = useState('');
   const [availableServices, setAvailableServices] = useState<Array<{ id: string; name: string; category?: { name: string } }>>([]);
   const [availableBundles, setAvailableBundles] = useState<Array<{ id: string; name: string; description?: string; price?: number; services?: Array<{ service: { id: string; name: string } }> }>>([]);
   const [selectedServices, setSelectedServices] = useState<Array<{ id: string; name: string; type: 'service' | 'bundle' }>>([]);
-  const [serviceSearch, setServiceSearch] = useState('');
-  const [showServiceDropdown, setShowServiceDropdown] = useState(false);
   const [businessHours, setBusinessHours] = useState<any>(null);
   const [bottomSheetDragY, setBottomSheetDragY] = useState(0);
   const bottomSheetIgnoreClickRef = useRef(false);
@@ -5203,23 +5202,6 @@ export default function CalendarPage() {
     }
   }, [isTeamDropdownOpen]);
 
-  // Close employee switch dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (employeeSwitchRef.current && !employeeSwitchRef.current.contains(event.target as Node)) {
-        setShowEmployeeSwitchDropdown(false);
-      }
-    };
-
-    if (showEmployeeSwitchDropdown) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [showEmployeeSwitchDropdown]);
-
   // Close action sidebar when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -5231,7 +5213,6 @@ export default function CalendarPage() {
         setIsActionSidebarOpen(false);
         setSelectedEventData(null);
         setSelectedEvent(null);
-        setIsEditingNotes(false); // Reset notes edit mode when closing sidebar
         setShowCustomerDetailsPopup(false); // Close customer popup when closing sidebar
         setSelectedDay(null);
         setSelectedDayEvents([]);
@@ -5387,15 +5368,6 @@ export default function CalendarPage() {
       }
     };
   }, []);
-
-  // Cleanup notes save timeout on unmount or event change
-  useEffect(() => {
-    return () => {
-      if (notesSaveTimeoutRef.current) {
-        clearTimeout(notesSaveTimeoutRef.current);
-      }
-    };
-  }, [selectedEventData?.id]);
 
   // Fetch services and bundles when event is selected
   useEffect(() => {
@@ -5683,7 +5655,6 @@ export default function CalendarPage() {
     }
     setEventDetailsOpen(false); // Close modal if it was open
     setIsEditFormDirty(false); // Reset dirty state
-    setIsEditingNotes(false); // Reset notes edit mode when selecting a new event
     setShowCustomerDetailsPopup(false); // Close customer popup when selecting a new event
     
     // Initialize vehicles from event data
@@ -5783,7 +5754,6 @@ export default function CalendarPage() {
     setSelectedEvent(null);
     setSelectedEventData(null);
     setCustomerPastJobs([]);
-    setShowEmployeeSwitchDropdown(false);
     setIsActionSidebarOpen(false);
   };
 
@@ -7343,28 +7313,56 @@ export default function CalendarPage() {
                           const result = await response.json();
                           fetchCalendarEvents();
                           setIsEditFormDirty(false);
-                          
-                          // Construct start and end fields from the saved data for proper form initialization
-                          let updatedEventData = { ...selectedEventData, ...updatedData };
-                          
-                          // Map startDate/endDate to start/end for form initialization
-                          if (updatedData.startDate) {
-                            updatedEventData.start = updatedData.startDate;
+
+                          const serverEvent = result?.event || null;
+                          if (serverEvent) {
+                            setSelectedEventData(serverEvent);
+                            
+                            const eventServicesList = Array.isArray(serverEvent.services) ? serverEvent.services : serverEvent.services ? [serverEvent.services] : [];
+                            if (eventServicesList.length > 0) {
+                              const matchedItems: Array<{ id: string; name: string; type: 'service' | 'bundle' }> = eventServicesList
+                                .map((serviceName: string) => {
+                                  const service = availableServices.find((s: any) => s.name === serviceName);
+                                  if (service) {
+                                    return { id: service.id, name: service.name, type: 'service' as const };
+                                  }
+                                  const bundle = availableBundles.find((b: any) => b.name === serviceName);
+                                  if (bundle) {
+                                    return { id: bundle.id, name: bundle.name, type: 'bundle' as const };
+                                  }
+                                  return { id: `temp-${serviceName}`, name: serviceName, type: 'service' as const };
+                                })
+                                .filter((s) => s !== null);
+                              setSelectedServices(matchedItems);
+                            } else {
+                              setSelectedServices([]);
+                            }
+
+                            if (serverEvent.vehicles && Array.isArray(serverEvent.vehicles)) {
+                              setEventVehicles(serverEvent.vehicles.map((v: string, idx: number) => ({ id: `vehicle-${idx}`, model: v })));
+                            } else if (serverEvent.vehicleModel) {
+                              setEventVehicles([{ id: 'vehicle-0', model: serverEvent.vehicleModel }]);
+                            } else {
+                              setEventVehicles([]);
+                            }
+                          } else {
+                            let updatedEventData = { ...selectedEventData, ...updatedData };
+                            
+                            if (updatedData.startDate) {
+                              updatedEventData.start = updatedData.startDate;
+                            }
+                            if (updatedData.endDate) {
+                              updatedEventData.end = updatedData.endDate;
+                            } else if (updatedData.startDate) {
+                              updatedEventData.end = updatedData.startDate;
+                            }
+                            
+                            if (updatedData.time !== undefined) {
+                              updatedEventData.time = updatedData.time;
+                            }
+                            
+                            setSelectedEventData(updatedEventData);
                           }
-                          if (updatedData.endDate) {
-                            updatedEventData.end = updatedData.endDate;
-                          } else if (updatedData.startDate) {
-                            // If only startDate is provided, use it for end as well
-                            updatedEventData.end = updatedData.startDate;
-                          }
-                          
-                          // Also include the time field if it was updated
-                          if (updatedData.time !== undefined) {
-                            updatedEventData.time = updatedData.time;
-                          }
-                          
-                          // Update selected event data with computed fields
-                          setSelectedEventData(updatedEventData);
                         } else {
                           const error = await response.json();
                           console.error('Failed to update event:', error.error);
@@ -8103,28 +8101,56 @@ export default function CalendarPage() {
                             const result = await response.json();
                             fetchCalendarEvents();
                             setIsEditFormDirty(false);
-                            
-                            // Construct start and end fields from the saved data for proper form initialization
-                            let updatedEventData = { ...selectedEventData, ...updatedData };
-                            
-                            // Map startDate/endDate to start/end for form initialization
-                            if (updatedData.startDate) {
-                              updatedEventData.start = updatedData.startDate;
+
+                            const serverEvent = result?.event || null;
+                            if (serverEvent) {
+                              setSelectedEventData(serverEvent);
+                              
+                              const eventServicesList = Array.isArray(serverEvent.services) ? serverEvent.services : serverEvent.services ? [serverEvent.services] : [];
+                              if (eventServicesList.length > 0) {
+                                const matchedItems: Array<{ id: string; name: string; type: 'service' | 'bundle' }> = eventServicesList
+                                  .map((serviceName: string) => {
+                                    const service = availableServices.find((s: any) => s.name === serviceName);
+                                    if (service) {
+                                      return { id: service.id, name: service.name, type: 'service' as const };
+                                    }
+                                    const bundle = availableBundles.find((b: any) => b.name === serviceName);
+                                    if (bundle) {
+                                      return { id: bundle.id, name: bundle.name, type: 'bundle' as const };
+                                    }
+                                    return { id: `temp-${serviceName}`, name: serviceName, type: 'service' as const };
+                                  })
+                                  .filter((s) => s !== null);
+                                setSelectedServices(matchedItems);
+                              } else {
+                                setSelectedServices([]);
+                              }
+
+                              if (serverEvent.vehicles && Array.isArray(serverEvent.vehicles)) {
+                                setEventVehicles(serverEvent.vehicles.map((v: string, idx: number) => ({ id: `vehicle-${idx}`, model: v })));
+                              } else if (serverEvent.vehicleModel) {
+                                setEventVehicles([{ id: 'vehicle-0', model: serverEvent.vehicleModel }]);
+                              } else {
+                                setEventVehicles([]);
+                              }
+                            } else {
+                              let updatedEventData = { ...selectedEventData, ...updatedData };
+                              
+                              if (updatedData.startDate) {
+                                updatedEventData.start = updatedData.startDate;
+                              }
+                              if (updatedData.endDate) {
+                                updatedEventData.end = updatedData.endDate;
+                              } else if (updatedData.startDate) {
+                                updatedEventData.end = updatedData.startDate;
+                              }
+                              
+                              if (updatedData.time !== undefined) {
+                                updatedEventData.time = updatedData.time;
+                              }
+                              
+                              setSelectedEventData(updatedEventData);
                             }
-                            if (updatedData.endDate) {
-                              updatedEventData.end = updatedData.endDate;
-                            } else if (updatedData.startDate) {
-                              // If only startDate is provided, use it for end as well
-                              updatedEventData.end = updatedData.startDate;
-                            }
-                            
-                            // Also include the time field if it was updated
-                            if (updatedData.time !== undefined) {
-                              updatedEventData.time = updatedData.time;
-                            }
-                            
-                            // Update selected event data with computed fields
-                            setSelectedEventData(updatedEventData);
                           } else {
                             const error = await response.json();
                             console.error('Failed to update event:', error.error);
@@ -8951,7 +8977,6 @@ export default function CalendarPage() {
               setIsActionSidebarOpen(false);
               setSelectedEventData(null);
               setSelectedEvent(null);
-              setIsEditingNotes(false);
               setShowCustomerDetailsPopup(false);
             } else if (wasEditing && isMobile) {
               // On mobile, if discarding from edit form, animate slide down then close
@@ -8985,6 +9010,11 @@ export default function CalendarPage() {
           isCreating={true}
         />
         
+        {/* Manual QA (sidebar):
+            - Open event in day/week: read-only display, no edit icons or dropdowns.
+            - Click Edit Event: fields editable and services remain selected.
+            - Edit notes/services, Save: values persist in view mode.
+            - Cancel edit: returns to view mode without changes. */}
         {/* Action Sidebar */}
         <div 
           ref={actionSidebarRef}
@@ -9040,7 +9070,6 @@ export default function CalendarPage() {
                       setSelectedEventData(null);
                       setSelectedEvent(null);
                       setIsEditingEvent(false);
-                      setIsEditingNotes(false);
                       setShowCustomerDetailsPopup(false);
                       setSelectedDay(null);
                       setSelectedDayEvents([]);
@@ -9088,28 +9117,59 @@ export default function CalendarPage() {
                           fetchCalendarEvents();
                           setIsEditingEvent(false);
                           setIsEditFormDirty(false);
-                          
-                          // Construct start and end fields from the saved data for proper form initialization
-                          let updatedEventData = { ...selectedEventData, ...updatedData };
-                          
-                          // Map startDate/endDate to start/end for form initialization
-                          if (updatedData.startDate) {
-                            updatedEventData.start = updatedData.startDate;
+
+                          const serverEvent = result?.event || null;
+                          if (serverEvent) {
+                            setSelectedEventData(serverEvent);
+                            
+                            // Refresh services from server response to keep selection in sync
+                            const eventServicesList = Array.isArray(serverEvent.services) ? serverEvent.services : serverEvent.services ? [serverEvent.services] : [];
+                            if (eventServicesList.length > 0) {
+                              const matchedItems: Array<{ id: string; name: string; type: 'service' | 'bundle' }> = eventServicesList
+                                .map((serviceName: string) => {
+                                  const service = availableServices.find((s: any) => s.name === serviceName);
+                                  if (service) {
+                                    return { id: service.id, name: service.name, type: 'service' as const };
+                                  }
+                                  const bundle = availableBundles.find((b: any) => b.name === serviceName);
+                                  if (bundle) {
+                                    return { id: bundle.id, name: bundle.name, type: 'bundle' as const };
+                                  }
+                                  return { id: `temp-${serviceName}`, name: serviceName, type: 'service' as const };
+                                })
+                                .filter((s) => s !== null);
+                              setSelectedServices(matchedItems);
+                            } else {
+                              setSelectedServices([]);
+                            }
+
+                            // Refresh vehicles from server response
+                            if (serverEvent.vehicles && Array.isArray(serverEvent.vehicles)) {
+                              setEventVehicles(serverEvent.vehicles.map((v: string, idx: number) => ({ id: `vehicle-${idx}`, model: v })));
+                            } else if (serverEvent.vehicleModel) {
+                              setEventVehicles([{ id: 'vehicle-0', model: serverEvent.vehicleModel }]);
+                            } else {
+                              setEventVehicles([]);
+                            }
+                          } else {
+                            // Fallback to local data if server response is missing
+                            let updatedEventData = { ...selectedEventData, ...updatedData };
+                            
+                            if (updatedData.startDate) {
+                              updatedEventData.start = updatedData.startDate;
+                            }
+                            if (updatedData.endDate) {
+                              updatedEventData.end = updatedData.endDate;
+                            } else if (updatedData.startDate) {
+                              updatedEventData.end = updatedData.startDate;
+                            }
+                            
+                            if (updatedData.time !== undefined) {
+                              updatedEventData.time = updatedData.time;
+                            }
+                            
+                            setSelectedEventData(updatedEventData);
                           }
-                          if (updatedData.endDate) {
-                            updatedEventData.end = updatedData.endDate;
-                          } else if (updatedData.startDate) {
-                            // If only startDate is provided, use it for end as well
-                            updatedEventData.end = updatedData.startDate;
-                          }
-                          
-                          // Also include the time field if it was updated
-                          if (updatedData.time !== undefined) {
-                            updatedEventData.time = updatedData.time;
-                          }
-                          
-                          // Update selected event data with computed fields
-                          setSelectedEventData(updatedEventData);
                         } else {
                           const error = await response.json();
                           console.error('Failed to update event:', error.error);
@@ -9133,310 +9193,85 @@ export default function CalendarPage() {
                       {/* Customer Information */}
                       <div className="pt-2">
                         <h3 className="text-sm font-semibold text-gray-900 mb-4">Customer</h3>
-                    {selectedEventData.customerName || selectedEventData.customerPhone ? (
+                    {(selectedEventData.customerName || selectedEventData.customerPhone || selectedEventData.customerAddress) ? (
                       <div 
                         ref={eventDetailsCustomerCardRef}
                         className="bg-gray-50 rounded-xl p-4 border relative" 
                         style={{ borderColor: '#E2E2DD' }}
                       >
-                        <div className="flex items-start justify-between">
-                          <div 
-                            className="flex-1 pr-8 hover:bg-gray-100 -m-2 p-2 rounded-lg transition-colors"
-                            onMouseEnter={() => {
-                              // Clear any pending timeout
-                              if (customerPopupTimeoutRef.current) {
-                                clearTimeout(customerPopupTimeoutRef.current);
-                                customerPopupTimeoutRef.current = null;
-                              }
+                        <div 
+                          className="hover:bg-gray-100 -m-2 p-2 rounded-lg transition-colors"
+                          onMouseEnter={() => {
+                            if (customerPopupTimeoutRef.current) {
+                              clearTimeout(customerPopupTimeoutRef.current);
+                              customerPopupTimeoutRef.current = null;
+                            }
+                            
+                            if (eventDetailsCustomerCardRef.current) {
+                              const rect = eventDetailsCustomerCardRef.current.getBoundingClientRect();
+                              const actionPanelWidth = 400;
+                              const gap = 4;
                               
-                              if (eventDetailsCustomerCardRef.current) {
-                                const rect = eventDetailsCustomerCardRef.current.getBoundingClientRect();
-                                // Position popup to the left of the action panel, adjacent to customer box
-                                // Action panel is fixed right-0 with width 400px
-                                const actionPanelWidth = 400;
-                                const popupWidth = 320; // w-80 = 320px
-                                const gap = 4; // 4px gap between popup and action panel
-                                
-                                setCustomerPopupPosition({
-                                  top: rect.top, // Align top with customer card
-                                  right: actionPanelWidth + gap // Position to the left of action panel with gap
-                                });
-                              }
-                              setShowCustomerDetailsPopup(true);
-                            }}
-                            onMouseLeave={() => {
-                              // Add a small delay before closing to allow moving to popup
-                              customerPopupTimeoutRef.current = setTimeout(() => {
-                                setShowCustomerDetailsPopup(false);
-                              }, 200);
-                            }}
-                          >
-                            <div className="flex items-start justify-between mb-2">
-                              <h4 className="font-semibold text-gray-900 text-base">
-                                {selectedEventData.customerName || 'Unnamed Customer'}
-                              </h4>
-                              {selectedEventData.customerPhone && (
-                                <span className="text-sm text-gray-600 ml-2">
-                                  {selectedEventData.customerPhone}
-                                </span>
-                              )}
-                            </div>
-                          
-                            {selectedEventData.customerAddress && (
-                              <p className="text-sm text-gray-600 mb-3">
-                                {selectedEventData.customerAddress}
+                              setCustomerPopupPosition({
+                                top: rect.top,
+                                right: actionPanelWidth + gap
+                              });
+                            }
+                            setShowCustomerDetailsPopup(true);
+                          }}
+                          onMouseLeave={() => {
+                            customerPopupTimeoutRef.current = setTimeout(() => {
+                              setShowCustomerDetailsPopup(false);
+                            }, 200);
+                          }}
+                        >
+                          <div className="flex items-start justify-between mb-2">
+                            <h4 className="font-semibold text-gray-900 text-base">
+                              {selectedEventData.customerName || 'Unnamed Customer'}
+                            </h4>
+                            {selectedEventData.customerPhone && (
+                              <span className="text-sm text-gray-600 ml-2">
+                                {selectedEventData.customerPhone}
+                              </span>
+                            )}
+                          </div>
+                        
+                          {selectedEventData.customerAddress && (
+                            <p className="text-sm text-gray-600 mb-3">
+                              {selectedEventData.customerAddress}
+                            </p>
+                          )}
+                        
+                          {customerPastJobs && customerPastJobs.length > 0 && (
+                            <div className="mt-3">
+                              <p className="font-semibold text-sm text-gray-900 mb-1">
+                                {customerPastJobs.length} Past {customerPastJobs.length === 1 ? 'job' : 'jobs'}
                               </p>
-                            )}
-                          
-                            {customerPastJobs && customerPastJobs.length > 0 && (
-                              <div className="mt-3">
-                                <p className="font-semibold text-sm text-gray-900 mb-1">
-                                  {customerPastJobs.length} Past {customerPastJobs.length === 1 ? 'job' : 'jobs'}
-                                </p>
-                                {customerPastJobs[0] && customerPastJobs[0].date && (
-                                  <p className="text-sm text-gray-600">
-                                    Last detail: {(() => {
-                                      try {
-                                        const date = new Date(customerPastJobs[0].date);
-                                        if (isNaN(date.getTime())) return 'Date unavailable';
-                                        return format(date, 'MMMM d, yyyy');
-                                      } catch (e) {
-                                        return 'Date unavailable';
-                                      }
-                                    })()}
-                                    {customerPastJobs[0].services && customerPastJobs[0].services.length > 0 && (
-                                      <span>, {Array.isArray(customerPastJobs[0].services) ? customerPastJobs[0].services.join(' + ') : customerPastJobs[0].services}</span>
-                                    )}
-                                    {customerPastJobs[0].vehicleModel && (
-                                      <span> on a {customerPastJobs[0].vehicleModel}</span>
-                                    )}
-                                  </p>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                // Set up customer data for editing
-                                setEditingCustomerData({
-                                  customerName: selectedEventData.customerName || '',
-                                  customerPhone: selectedEventData.customerPhone || '',
-                                  customerAddress: selectedEventData.customerAddress || ''
-                                });
-                                setIsEditingCustomer(true);
-                                setIsNewCustomerModalOpen(true);
-                              }}
-                              className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-                              title="Edit customer"
-                            >
-                              <PencilIcon className="w-4 h-4 text-gray-700" />
-                            </button>
-                            <button
-                              onClick={async (e) => {
-                                e.stopPropagation();
-                                e.preventDefault();
-                                
-                                // Remove customer from event
-                                if (selectedEventData && selectedEventData.id) {
-                                  try {
-                                    const response = await fetch(`/api/detailer/events/${selectedEventData.id}`, {
-                                      method: 'PATCH',
-                                      headers: { 'Content-Type': 'application/json' },
-                                      body: JSON.stringify({
-                                        customerName: null,
-                                        customerPhone: null,
-                                        customerAddress: null
-                                      }),
-                                    });
-
-                                    if (response.ok) {
-                                      // Update local state immediately for responsive UI
-                                      const updatedEventData = {
-                                        ...selectedEventData,
-                                        customerName: null,
-                                        customerPhone: null,
-                                        customerAddress: null
-                                      };
-                                      setSelectedEventData(updatedEventData);
-                                      
-                                      // Clear optimistic customer update ref since we're removing
-                                      optimisticCustomerUpdateRef.current = null;
-                                      
-                                      // Track optimistic update to prevent fetchCalendarEvents from overwriting it
-                                      optimisticCustomerRemovalRef.current = selectedEventData.id;
-                                      
-                                      // Clear the ref after a delay to allow normal syncing again
-                                      setTimeout(() => {
-                                        if (optimisticCustomerRemovalRef.current === selectedEventData.id) {
-                                          optimisticCustomerRemovalRef.current = null;
-                                        }
-                                      }, 2000);
-                                      
-                                      // Clear search state so search bar is ready to use
-                                      setEventDetailsCustomerSearch('');
-                                      setShowEventDetailsCustomerSuggestions(false);
-                                      setSelectedEventDetailsCustomerIndex(-1);
-                                      
-                                      // Refresh customers list for search
-                                      fetch('/api/detailer/customers')
-                                        .then(res => res.json())
-                                        .then(data => {
-                                          if (data.customers) {
-                                            setEventDetailsCustomers(data.customers);
-                                          }
-                                        })
-                                        .catch(err => console.error('Error fetching customers:', err));
-                                    } else {
-                                      const error = await response.json();
-                                      console.error('Failed to remove customer:', error.error);
+                              {customerPastJobs[0] && customerPastJobs[0].date && (
+                                <p className="text-sm text-gray-600">
+                                  Last detail: {(() => {
+                                    try {
+                                      const date = new Date(customerPastJobs[0].date);
+                                      if (isNaN(date.getTime())) return 'Date unavailable';
+                                      return format(date, 'MMMM d, yyyy');
+                                    } catch (e) {
+                                      return 'Date unavailable';
                                     }
-                                  } catch (error) {
-                                    console.error('Error removing customer:', error);
-                                  }
-                                }
-                              }}
-                              className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-                              title="Remove customer"
-                            >
-                              <XMarkIcon className="w-4 h-4 text-gray-500" />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        {/* Search bar */}
-                        <div className="relative">
-                          <div className="relative">
-                            <input 
-                              type="text" 
-                              value={eventDetailsCustomerSearch} 
-                              onChange={e => {
-                                setEventDetailsCustomerSearch(e.target.value);
-                                setShowEventDetailsCustomerSuggestions(true);
-                                setSelectedEventDetailsCustomerIndex(-1);
-                              }}
-                              onFocus={() => {
-                                if (eventDetailsCustomerSearch.trim().length > 0) {
-                                  setShowEventDetailsCustomerSuggestions(true);
-                                }
-                              }}
-                              onBlur={() => {
-                                // Delay hiding suggestions to allow click on suggestion
-                                setTimeout(() => setShowEventDetailsCustomerSuggestions(false), 200);
-                              }}
-                              onKeyDown={(e) => {
-                                const filteredCustomers = eventDetailsCustomerSearch.trim()
-                                  ? eventDetailsCustomers.filter(customer => {
-                                      const name = (customer.customerName || '').toLowerCase();
-                                      const phone = (customer.customerPhone || '').toLowerCase();
-                                      const searchTerm = eventDetailsCustomerSearch.toLowerCase();
-                                      return name.includes(searchTerm) || phone.includes(searchTerm);
-                                    })
-                                  : [];
-                                const showAddNew = eventDetailsCustomerSearch.trim().length > 0;
-                                const totalSuggestions = filteredCustomers.length + (showAddNew ? 1 : 0);
-
-                                if (e.key === 'ArrowDown') {
-                                  e.preventDefault();
-                                  setSelectedEventDetailsCustomerIndex(prev => 
-                                    prev < totalSuggestions - 1 ? prev + 1 : prev
-                                  );
-                                } else if (e.key === 'ArrowUp') {
-                                  e.preventDefault();
-                                  setSelectedEventDetailsCustomerIndex(prev => prev > 0 ? prev - 1 : -1);
-                                } else if (e.key === 'Enter' && selectedEventDetailsCustomerIndex >= 0) {
-                                  e.preventDefault();
-                                  if (selectedEventDetailsCustomerIndex < filteredCustomers.length) {
-                                    handleEventDetailsCustomerSelect(filteredCustomers[selectedEventDetailsCustomerIndex]);
-                                  } else if (showAddNew) {
-                                    setNewCustomerModalInitialName(eventDetailsCustomerSearch);
-                                    setIsNewCustomerModalOpen(true);
-                                  }
-                                }
-                              }}
-                              className="w-full px-4 py-2.5 border rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent pl-10" 
-                              placeholder="Search existing customers"
-                              style={{ borderColor: '#E2E2DD' }}
-                            />
-                            <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                            </svg>
-                          </div>
-                          {showEventDetailsCustomerSuggestions && eventDetailsCustomerSearch.trim().length > 0 && (
-                            <div className="absolute z-10 w-full mt-1 bg-white border rounded-xl shadow-lg max-h-60 overflow-auto" style={{ borderColor: '#E2E2DD' }}>
-                              {eventDetailsCustomers.filter(customer => {
-                                const name = (customer.customerName || '').toLowerCase();
-                                const phone = (customer.customerPhone || '').toLowerCase();
-                                const searchTerm = eventDetailsCustomerSearch.toLowerCase();
-                                return name.includes(searchTerm) || phone.includes(searchTerm);
-                              }).map((customer, index) => (
-                                <div
-                                  key={customer.id}
-                                  onClick={() => handleEventDetailsCustomerSelect(customer)}
-                                  className={`px-4 py-2 cursor-pointer hover:bg-gray-100 ${
-                                    index === selectedEventDetailsCustomerIndex 
-                                      ? 'bg-gray-100' 
-                                      : ''
-                                  }`}
-                                >
-                                  <div className="font-medium text-gray-900">
-                                    {customer.customerName || 'Unnamed Customer'}
-                                  </div>
-                                  {customer.customerPhone && (
-                                    <div className="text-sm text-gray-500">
-                                      {customer.customerPhone}
-                                    </div>
+                                  })()}
+                                  {customerPastJobs[0].services && customerPastJobs[0].services.length > 0 && (
+                                    <span>, {Array.isArray(customerPastJobs[0].services) ? customerPastJobs[0].services.join(' + ') : customerPastJobs[0].services}</span>
                                   )}
-                                </div>
-                              ))}
-                              {/* Always show "Add new customer" as the last option */}
-                              {eventDetailsCustomerSearch.trim().length > 0 && (
-                                <div
-                                  onClick={() => {
-                                    setNewCustomerModalInitialName(eventDetailsCustomerSearch);
-                                    setIsNewCustomerModalOpen(true);
-                                  }}
-                                  className={`px-4 py-2 cursor-pointer hover:bg-gray-100 border-t ${
-                                    eventDetailsCustomers.filter(customer => {
-                                      const name = (customer.customerName || '').toLowerCase();
-                                      const phone = (customer.customerPhone || '').toLowerCase();
-                                      const searchTerm = eventDetailsCustomerSearch.toLowerCase();
-                                      return name.includes(searchTerm) || phone.includes(searchTerm);
-                                    }).length === selectedEventDetailsCustomerIndex 
-                                      ? 'bg-gray-100' 
-                                      : ''
-                                  }`}
-                                  style={{ borderColor: '#E2E2DD' }}
-                                >
-                                  <div className="font-medium text-blue-600 flex items-center gap-2">
-                                    <span>+</span>
-                                    <span>Add new customer: "{eventDetailsCustomerSearch}"</span>
-                                  </div>
-                                </div>
+                                  {customerPastJobs[0].vehicleModel && (
+                                    <span> on a {customerPastJobs[0].vehicleModel}</span>
+                                  )}
+                                </p>
                               )}
                             </div>
                           )}
                         </div>
-                        
-                        {/* Always-visible "New customer" button */}
-                        <div className="flex justify-end">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setNewCustomerModalInitialName('');
-                              setIsNewCustomerModalOpen(true);
-                            }}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 border rounded-full text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-                            style={{ borderColor: '#E2E2DD' }}
-                          >
-                            <span className="text-gray-600">+</span>
-                            <span>New customer</span>
-                          </button>
-                        </div>
                       </div>
+                    ) : (
+                      <div className="text-sm text-gray-500">No customer information available</div>
                     )}
                   </div>
 
@@ -9616,348 +9451,42 @@ export default function CalendarPage() {
                       {/* Vehicle Information (Car Model) */}
                       <div>
                         <h3 className="text-sm font-semibold text-gray-900 mb-4">Car model</h3>
-                        <div className="flex flex-wrap items-center gap-2">
-                          {eventVehicles.map((vehicle) => (
-                            <div
-                              key={vehicle.id}
-                              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-800 text-white text-sm font-medium"
-                            >
-                              <span>{vehicle.model}</span>
-                              <button
-                                onClick={async () => {
-                                  const updatedVehicles = eventVehicles.filter(v => v.id !== vehicle.id);
-                                  setEventVehicles(updatedVehicles);
-                                  
-                                  // Update event
-                                  if (selectedEventData?.id) {
-                                    try {
-                                      const vehicleModels = updatedVehicles.map(v => v.model);
-                                      const response = await fetch(`/api/detailer/events/${selectedEventData.id}`, {
-                                        method: 'PATCH',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({ 
-                                          vehicleModel: vehicleModels.length > 0 ? vehicleModels.join(', ') : undefined,
-                                          vehicles: vehicleModels
-                                        }),
-                                      });
-                                      
-                                      if (response.ok) {
-                                        const updatedData = await response.json();
-                                        setSelectedEventData({ ...selectedEventData, ...updatedData });
-                                        fetchCalendarEvents();
-                                      }
-                                    } catch (error) {
-                                      console.error('Error updating vehicles:', error);
-                                    }
-                                  }
-                                }}
-                                className="hover:bg-gray-700 rounded-full p-0.5 transition-colors"
-                                type="button"
+                        {eventVehicles.length > 0 ? (
+                          <div className="flex flex-wrap items-center gap-2">
+                            {eventVehicles.map((vehicle) => (
+                              <div
+                                key={vehicle.id}
+                                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-800 text-white text-sm font-medium"
                               >
-                                <XMarkIcon className="w-3 h-3" />
-                              </button>
-                            </div>
-                          ))}
-                          <button
-                            type="button"
-                            onClick={() => setShowAddVehicleModal(true)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 border rounded-full text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-                            style={{ borderColor: '#E2E2DD' }}
-                          >
-                            <span className="text-gray-600">+</span>
-                            <span>Add car model</span>
-                          </button>
-                        </div>
-                        
-                        {/* Add Vehicle Modal */}
-                        {showAddVehicleModal && (
-                          <div className="fixed inset-0 flex items-center justify-center z-[70] p-4" style={{ backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', backgroundColor: 'rgba(0, 0, 0, 0.05)' }}>
-                            <div className="rounded-xl shadow-xl w-full max-w-md" style={{ backgroundColor: '#F8F8F7', width: '400px' }}>
-                              <div className="flex items-center justify-between p-6 border-b" style={{ borderColor: '#E2E2DD' }}>
-                                <h2 className="text-xl font-bold text-gray-900">Add Car Model</h2>
-                                <button
-                                  onClick={() => {
-                                    setShowAddVehicleModal(false);
-                                    setNewVehicleModel('');
-                                  }}
-                                  className="p-1 rounded-lg hover:bg-gray-100 transition-colors"
-                                >
-                                  <XMarkIcon className="w-5 h-5 text-gray-500" />
-                                </button>
+                                <span>{vehicle.model}</span>
                               </div>
-                              <div className="p-6">
-                                <div>
-                                  <label htmlFor="new-vehicle-model" className="block text-sm font-medium text-gray-700 mb-2">
-                                    Vehicle Model
-                                  </label>
-                                  <input 
-                                    type="text" 
-                                    id="new-vehicle-model" 
-                                    value={newVehicleModel} 
-                                    onChange={e => setNewVehicleModel(e.target.value)} 
-                                    className="w-full px-4 py-2.5 border rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent" 
-                                    placeholder="e.g., Camry, Civic, F-150, Model 3"
-                                    style={{ borderColor: '#E2E2DD' }}
-                                    onKeyDown={async (e) => {
-                                      if (e.key === 'Enter' && newVehicleModel.trim()) {
-                                        e.preventDefault();
-                                        await handleAddVehicle(newVehicleModel.trim());
-                                      }
-                                    }}
-                                  />
-                                </div>
-                                <div className="flex gap-3 mt-6">
-                                  <button
-                                    onClick={() => {
-                                      setShowAddVehicleModal(false);
-                                      setNewVehicleModel('');
-                                    }}
-                                    className="flex-1 px-6 py-2 border rounded-xl text-gray-700 hover:bg-gray-50 transition-colors"
-                                    style={{ borderColor: '#E2E2DD' }}
-                                  >
-                                    Cancel
-                                  </button>
-                                  <button
-                                    onClick={async () => {
-                                      if (newVehicleModel.trim()) {
-                                        await handleAddVehicle(newVehicleModel.trim());
-                                      }
-                                    }}
-                                    disabled={!newVehicleModel.trim()}
-                                    className="px-6 py-2 bg-orange-500 text-white rounded-xl hover:bg-orange-600 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                                  >
-                                    <CheckIcon className="w-5 h-5" />
-                                    <span>Add</span>
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
+                            ))}
                           </div>
+                        ) : (
+                          <div className="text-sm text-gray-500">No car model provided</div>
                         )}
                       </div>
 
                       {/* Services (Job Details) */}
                       <div>
                         <h3 className="text-sm font-semibold text-gray-900 mb-4">Job Details</h3>
-                        <div className="relative">
-                          <div className="relative">
-                            <input 
-                              type="text" 
-                              id="service-search" 
-                              value={serviceSearch} 
-                              onChange={e => {
-                                setServiceSearch(e.target.value);
-                                setShowServiceDropdown(true);
-                              }}
-                              onFocus={() => {
-                                if (serviceSearch.trim().length > 0 || availableServices.length > 0) {
-                                  setShowServiceDropdown(true);
-                                }
-                              }}
-                              onBlur={() => {
-                                // Delay hiding dropdown to allow click on checkbox
-                                setTimeout(() => setShowServiceDropdown(false), 200);
-                              }}
-                              className="w-full px-4 py-2.5 border rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent pr-10" 
-                              placeholder="Select service"
-                              style={{ borderColor: '#E2E2DD' }}
-                            />
-                            <svg className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                            </svg>
-                            
-                            {/* Service & Bundle Dropdown with Checkboxes */}
-                            {showServiceDropdown && (
-                              <div className="absolute z-20 w-full mt-1 bg-white border rounded-xl shadow-lg max-h-60 overflow-auto top-full" style={{ borderColor: '#E2E2DD' }}>
-                                {/* Bundles Section - Show First */}
-                                {availableBundles
-                                  .filter(bundle => {
-                                    if (!serviceSearch.trim()) return true;
-                                    return bundle.name.toLowerCase().includes(serviceSearch.toLowerCase());
-                                  })
-                                  .map((bundle) => {
-                                    const isSelected = selectedServices.some(s => s.id === bundle.id && s.type === 'bundle');
-                                    return (
-                                      <label
-                                        key={`bundle-${bundle.id}`}
-                                        className="flex items-center px-4 py-2 cursor-pointer hover:bg-gray-50"
-                                      >
-                                        <input
-                                          type="checkbox"
-                                          checked={isSelected}
-                                          onChange={async (e) => {
-                                            let updatedServices: Array<{ id: string; name: string; type: 'service' | 'bundle' }>;
-                                            if (e.target.checked) {
-                                              updatedServices = [...selectedServices, { id: bundle.id, name: bundle.name, type: 'bundle' as const }];
-                                            } else {
-                                              updatedServices = selectedServices.filter(s => !(s.id === bundle.id && s.type === 'bundle'));
-                                            }
-                                            setSelectedServices(updatedServices);
-                                            setServiceSearch('');
-                                            
-                                            // Update event
-                                            if (selectedEventData?.id) {
-                                              try {
-                                                const serviceNames = updatedServices.map(s => s.name);
-                                                const response = await fetch(`/api/detailer/events/${selectedEventData.id}`, {
-                                                  method: 'PATCH',
-                                                  headers: { 'Content-Type': 'application/json' },
-                                                  body: JSON.stringify({ services: serviceNames }),
-                                                });
-                                                
-                                                if (response.ok) {
-                                                  const updatedData = await response.json();
-                                                  setSelectedEventData({ ...selectedEventData, ...updatedData });
-                                                  fetchCalendarEvents();
-                                                }
-                                              } catch (error) {
-                                                console.error('Error updating services:', error);
-                                              }
-                                            }
-                                          }}
-                                          className="w-4 h-4 text-orange-500 border-gray-300 rounded focus:ring-orange-500"
-                                          onClick={(e) => e.stopPropagation()}
-                                        />
-                                        <div className="ml-3 flex-1">
-                                          <div className="flex items-center gap-2">
-                                            <span className="text-sm font-medium text-gray-900">{bundle.name}</span>
-                                            <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">Bundle</span>
-                                          </div>
-                                          {bundle.price && (
-                                            <span className="text-xs text-gray-500">${bundle.price}</span>
-                                          )}
-                                        </div>
-                                      </label>
-                                    );
-                                  })}
-                                
-                                {/* Services Section - Show After Bundles */}
-                                {availableBundles.filter(bundle => {
-                                  if (!serviceSearch.trim()) return true;
-                                  return bundle.name.toLowerCase().includes(serviceSearch.toLowerCase());
-                                }).length > 0 && availableServices.filter(service => {
-                                  if (!serviceSearch.trim()) return true;
-                                  return service.name.toLowerCase().includes(serviceSearch.toLowerCase());
-                                }).length > 0 && (
-                                  <div className="border-t" style={{ borderColor: '#E2E2DD' }}></div>
-                                )}
-                                {availableServices
-                                  .filter(service => {
-                                    if (!serviceSearch.trim()) return true;
-                                    return service.name.toLowerCase().includes(serviceSearch.toLowerCase());
-                                  })
-                                  .map((service) => {
-                                    const isSelected = selectedServices.some(s => s.id === service.id && s.type === 'service');
-                                    return (
-                                      <label
-                                        key={`service-${service.id}`}
-                                        className="flex items-center px-4 py-2 cursor-pointer hover:bg-gray-50"
-                                      >
-                                        <input
-                                          type="checkbox"
-                                          checked={isSelected}
-                                          onChange={async (e) => {
-                                            let updatedServices: Array<{ id: string; name: string; type: 'service' | 'bundle' }>;
-                                            if (e.target.checked) {
-                                              updatedServices = [...selectedServices, { id: service.id, name: service.name, type: 'service' as const }];
-                                            } else {
-                                              updatedServices = selectedServices.filter(s => !(s.id === service.id && s.type === 'service'));
-                                            }
-                                            setSelectedServices(updatedServices);
-                                            setServiceSearch('');
-                                            
-                                            // Update event
-                                            if (selectedEventData?.id) {
-                                              try {
-                                                const serviceNames = updatedServices.map(s => s.name);
-                                                const response = await fetch(`/api/detailer/events/${selectedEventData.id}`, {
-                                                  method: 'PATCH',
-                                                  headers: { 'Content-Type': 'application/json' },
-                                                  body: JSON.stringify({ services: serviceNames }),
-                                                });
-                                                
-                                                if (response.ok) {
-                                                  const updatedData = await response.json();
-                                                  setSelectedEventData({ ...selectedEventData, ...updatedData });
-                                                  fetchCalendarEvents();
-                                                }
-                                              } catch (error) {
-                                                console.error('Error updating services:', error);
-                                              }
-                                            }
-                                          }}
-                                          className="w-4 h-4 text-orange-500 border-gray-300 rounded focus:ring-orange-500"
-                                          onClick={(e) => e.stopPropagation()}
-                                        />
-                                        <span className="ml-3 text-sm text-gray-900">{service.name}</span>
-                                        {service.category && (
-                                          <span className="ml-auto text-xs text-gray-500">{service.category.name}</span>
-                                        )}
-                                      </label>
-                                    );
-                                  })}
-                                
-                                {availableServices.filter(service => {
-                                  if (!serviceSearch.trim()) return true;
-                                  return service.name.toLowerCase().includes(serviceSearch.toLowerCase());
-                                }).length === 0 && 
-                                availableBundles.filter(bundle => {
-                                  if (!serviceSearch.trim()) return true;
-                                  return bundle.name.toLowerCase().includes(serviceSearch.toLowerCase());
-                                }).length === 0 && (
-                                  <div className="px-4 py-2 text-sm text-gray-500">No services or bundles found</div>
+                        {selectedServices.length > 0 ? (
+                          <div className="flex flex-wrap items-center gap-2">
+                            {selectedServices.map((item) => (
+                              <div
+                                key={`${item.type}-${item.id}`}
+                                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-800 text-white text-sm font-medium"
+                              >
+                                <span>{item.name}</span>
+                                {item.type === 'bundle' && (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-500 text-white">Bundle</span>
                                 )}
                               </div>
-                            )}
+                            ))}
                           </div>
-                          
-                          {/* Selected Services & Bundles Tags */}
-                          {selectedServices.length > 0 && (
-                            <div className="flex flex-wrap items-center gap-2 mt-3">
-                              {selectedServices.map((item) => (
-                                <div
-                                  key={`${item.type}-${item.id}`}
-                                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-800 text-white text-sm font-medium"
-                                >
-                                  <span>{item.name}</span>
-                                  {item.type === 'bundle' && (
-                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-500 text-white">Bundle</span>
-                                  )}
-                                  <button
-                                    onClick={async () => {
-                                      const updatedServices = selectedServices.filter(s => !(s.id === item.id && s.type === item.type));
-                                      setSelectedServices(updatedServices);
-                                      
-                                      // Update event
-                                      if (selectedEventData?.id) {
-                                        try {
-                                          const serviceNames = updatedServices.map(s => s.name);
-                                          const response = await fetch(`/api/detailer/events/${selectedEventData.id}`, {
-                                            method: 'PATCH',
-                                            headers: { 'Content-Type': 'application/json' },
-                                            body: JSON.stringify({ services: serviceNames }),
-                                          });
-                                          
-                                          if (response.ok) {
-                                            const updatedData = await response.json();
-                                            setSelectedEventData({ ...selectedEventData, ...updatedData });
-                                            fetchCalendarEvents();
-                                          }
-                                        } catch (error) {
-                                          console.error('Error updating services:', error);
-                                        }
-                                      }
-                                    }}
-                                    className="hover:bg-gray-700 rounded-full p-0.5 transition-colors"
-                                    type="button"
-                                  >
-                                    <XMarkIcon className="w-3 h-3" />
-                                  </button>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
+                        ) : (
+                          <div className="text-sm text-gray-500">No services selected</div>
+                        )}
                       </div>
 
                       {/* Date and Time (Scheduling) */}
@@ -10043,185 +9572,39 @@ export default function CalendarPage() {
                       {/* Technician/Employee */}
                       <div>
                         <h3 className="text-sm font-semibold text-gray-900 mb-4">Technician</h3>
-                    {selectedEventData.employeeId ? (() => {
-                      const assignedEmployee = allEmployees.find(e => e.id === selectedEventData.employeeId);
+                    {(() => {
+                      const assignedEmployee = selectedEventData.employeeId
+                        ? allEmployees.find(e => e.id === selectedEventData.employeeId)
+                        : null;
                       return assignedEmployee ? (
-                        <div className="relative" ref={employeeSwitchRef}>
-                          <div 
-                            className="bg-white rounded-xl p-4 border flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors"
-                            style={{ borderColor: '#E2E2DD' }}
-                            onClick={() => setShowEmployeeSwitchDropdown(!showEmployeeSwitchDropdown)}
-                          >
-                            <div className="flex items-center gap-3">
-                              {assignedEmployee.imageUrl ? (
-                                <img 
-                                  src={assignedEmployee.imageUrl} 
-                                  alt={assignedEmployee.name}
-                                  className="w-10 h-10 rounded-full object-cover flex-shrink-0 border"
-                                  style={{ borderColor: '#E2E2DD' }}
-                                />
-                              ) : (
-                                <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold ${
-                                  assignedEmployee.color === 'blue' ? 'bg-blue-500' :
-                                  assignedEmployee.color === 'green' ? 'bg-green-500' :
-                                  assignedEmployee.color === 'orange' ? 'bg-orange-500' :
-                                  assignedEmployee.color === 'red' ? 'bg-red-500' :
-                                  assignedEmployee.color === 'gray' ? 'bg-gray-500' :
-                                  'bg-blue-500'
-                                }`}>
-                                  {assignedEmployee.name.charAt(0).toUpperCase()}
+                        <div className="bg-white rounded-xl p-4 border flex items-center gap-3" style={{ borderColor: '#E2E2DD' }}>
+                          {assignedEmployee.imageUrl ? (
+                            <img 
+                              src={assignedEmployee.imageUrl} 
+                              alt={assignedEmployee.name}
+                              className="w-10 h-10 rounded-full object-cover flex-shrink-0 border"
+                              style={{ borderColor: '#E2E2DD' }}
+                            />
+                          ) : (
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold ${
+                              assignedEmployee.color === 'blue' ? 'bg-blue-500' :
+                              assignedEmployee.color === 'green' ? 'bg-green-500' :
+                              assignedEmployee.color === 'orange' ? 'bg-orange-500' :
+                              assignedEmployee.color === 'red' ? 'bg-red-500' :
+                              assignedEmployee.color === 'gray' ? 'bg-gray-500' :
+                              'bg-blue-500'
+                            }`}>
+                              {assignedEmployee.name.charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                          <span className="text-sm font-medium text-gray-900">
+                            {assignedEmployee.name}
+                          </span>
                         </div>
-                      )}
-                              <span className="text-sm font-medium text-gray-900">
-                                {assignedEmployee.name}
-                              </span>
-                        </div>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setShowEmployeeSwitchDropdown(!showEmployeeSwitchDropdown);
-                              }}
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors"
-                            >
-                              <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                              </svg>
-                              <span className="text-sm text-gray-900">Switch</span>
-                            </button>
-                        </div>
-                          
-                          {/* Employee Dropdown */}
-                          {showEmployeeSwitchDropdown && (
-                            <div className="absolute z-50 mt-2 w-full bg-white rounded-xl border shadow-lg max-h-60 overflow-y-auto" style={{ borderColor: '#E2E2DD' }}>
-                              {allEmployees.map((employee) => (
-                                <button
-                                  key={employee.id}
-                                  onClick={async (e) => {
-                                    e.stopPropagation();
-                                    try {
-                                      const response = await fetch(`/api/detailer/events/${selectedEventData.id}`, {
-                                        method: 'PATCH',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({ employeeId: employee.id }),
-                                      });
-
-                                      if (response.ok) {
-                                        const updatedData = await response.json();
-                                        setSelectedEventData({ ...selectedEventData, employeeId: employee.id });
-                                        fetchCalendarEvents();
-                                        setShowEmployeeSwitchDropdown(false);
-                                      } else {
-                                        const error = await response.json();
-                                        console.error('Failed to update employee:', error.error);
-                                      }
-                                    } catch (error) {
-                                      console.error('Error updating employee:', error);
-                                    }
-                                  }}
-                                  className={`w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors ${
-                                    selectedEventData.employeeId === employee.id ? 'bg-gray-50' : ''
-                                  }`}
-                                >
-                                  {employee.imageUrl ? (
-                                    <img 
-                                      src={employee.imageUrl} 
-                                      alt={employee.name}
-                                      className="w-8 h-8 rounded-full object-cover flex-shrink-0 border"
-                                      style={{ borderColor: '#E2E2DD' }}
-                                    />
-                                  ) : (
-                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold ${
-                                      employee.color === 'blue' ? 'bg-blue-500' :
-                                      employee.color === 'green' ? 'bg-green-500' :
-                                      employee.color === 'orange' ? 'bg-orange-500' :
-                                      employee.color === 'red' ? 'bg-red-500' :
-                                      employee.color === 'gray' ? 'bg-gray-500' :
-                                      'bg-blue-500'
-                                    }`}>
-                                      {employee.name.charAt(0).toUpperCase()}
-                        </div>
-                      )}
-                                  <span className="text-sm text-gray-900">{employee.name}</span>
-                                  {selectedEventData.employeeId === employee.id && (
-                                    <svg className="w-4 h-4 text-gray-600 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                    </svg>
-                                  )}
-                                </button>
-                              ))}
-                  </div>
-                    )}
-                  </div>
-                      ) : null;
-                    })() : (
-                      <div className="relative" ref={employeeSwitchRef}>
-                        <div 
-                          className="bg-white rounded-xl p-4 border flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors"
-                          style={{ borderColor: '#E2E2DD' }}
-                          onClick={() => setShowEmployeeSwitchDropdown(!showEmployeeSwitchDropdown)}
-                        >
-                          <span className="text-sm text-gray-500">No technician assigned</span>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setShowEmployeeSwitchDropdown(!showEmployeeSwitchDropdown);
-                            }}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors"
-                          >
-                            <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                            </svg>
-                            <span className="text-sm text-gray-900">Assign</span>
-                          </button>
-                  </div>
-
-                        {/* Employee Dropdown */}
-                        {showEmployeeSwitchDropdown && (
-                          <div className="absolute z-50 mt-2 w-full bg-white rounded-xl border shadow-lg max-h-60 overflow-y-auto" style={{ borderColor: '#E2E2DD' }}>
-                            {allEmployees.map((employee) => (
-                    <button
-                                key={employee.id}
-                                onClick={async (e) => {
-                                  e.stopPropagation();
-                          try {
-                            const response = await fetch(`/api/detailer/events/${selectedEventData.id}`, {
-                                      method: 'PATCH',
-                                      headers: { 'Content-Type': 'application/json' },
-                                      body: JSON.stringify({ employeeId: employee.id }),
-                            });
-
-                            if (response.ok) {
-                                      const updatedData = await response.json();
-                                      setSelectedEventData({ ...selectedEventData, employeeId: employee.id });
-                              fetchCalendarEvents();
-                                      setShowEmployeeSwitchDropdown(false);
-                            } else {
-                              const error = await response.json();
-                                      console.error('Failed to update employee:', error.error);
-                            }
-                          } catch (error) {
-                                    console.error('Error updating employee:', error);
-                                  }
-                                }}
-                                className="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors"
-                              >
-                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold ${
-                                  employee.color === 'blue' ? 'bg-blue-500' :
-                                  employee.color === 'green' ? 'bg-green-500' :
-                                  employee.color === 'orange' ? 'bg-orange-500' :
-                                  employee.color === 'red' ? 'bg-red-500' :
-                                  employee.color === 'gray' ? 'bg-gray-500' :
-                                  'bg-blue-500'
-                                }`}>
-                                  {employee.name.charAt(0).toUpperCase()}
-                                </div>
-                                <span className="text-sm text-gray-900">{employee.name}</span>
-                    </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
+                      ) : (
+                        <div className="text-sm text-gray-500">No technician assigned</div>
+                      );
+                    })()}
                   </div>
                     </div>
                   </div>
@@ -10457,84 +9840,9 @@ export default function CalendarPage() {
             {/* Customer Notes - keep inside scrollable content */}
             {selectedEventData && !isEditingEvent && (
               <div className="p-6 pt-0">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-semibold text-gray-900">Add notes</h3>
-                  {!isEditingNotes && (
-                    <button
-                      onClick={() => setIsEditingNotes(true)}
-                      className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
-                      title="Edit notes"
-                    >
-                      <PencilIcon className="w-4 h-4 text-gray-500" />
-                    </button>
-                  )}
-                </div>
-                <div className="relative">
-                  <textarea
-                    value={selectedEventData.description || ''}
-                    readOnly={!isEditingNotes}
-                    onChange={(e) => {
-                      if (!isEditingNotes) return;
-                      
-                      const newDescription = e.target.value;
-                      // Update local state immediately for responsive UI
-                      setSelectedEventData({ ...selectedEventData, description: newDescription });
-                      
-                      // Clear existing timeout
-                      if (notesSaveTimeoutRef.current) {
-                        clearTimeout(notesSaveTimeoutRef.current);
-                      }
-                      
-                      // Debounce the API call - save after user stops typing for 500ms
-                      notesSaveTimeoutRef.current = setTimeout(async () => {
-                        if (!selectedEventData?.id) return;
-                        
-                        // Capture the current description at the time of save
-                        const descriptionToSave = newDescription;
-                        
-                        try {
-                          const response = await fetch(`/api/detailer/events/${selectedEventData.id}`, {
-                            method: 'PATCH',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ description: descriptionToSave }),
-                          });
-
-                          if (!response.ok) {
-                            const error = await response.json();
-                            console.error('Failed to update notes:', error);
-                            // Note: We don't revert on error since the user has already typed more
-                          }
-                          // Don't call fetchCalendarEvents() - it's not necessary and can cause refresh
-                        } catch (error) {
-                          console.error('Error updating notes:', error);
-                          // Note: We don't revert on error since the user has already typed more
-                        }
-                      }, 500);
-                    }}
-                    onBlur={() => {
-                      // Auto-save and exit edit mode when clicking outside
-                      if (isEditingNotes) {
-                        setIsEditingNotes(false);
-                      }
-                    }}
-                    onKeyDown={(e) => {
-                      // Prevent Enter from causing any form submission
-                      if (e.key === 'Enter' && e.ctrlKey) {
-                        // Allow Ctrl+Enter for new lines
-                        return;
-                      }
-                      // Exit edit mode on Escape
-                      if (e.key === 'Escape' && isEditingNotes) {
-                        setIsEditingNotes(false);
-                      }
-                    }}
-                    placeholder={isEditingNotes ? "Type notes" : "No notes added"}
-                    className={`w-full px-4 py-3 rounded-xl border text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 resize-none ${
-                      !isEditingNotes ? 'bg-gray-50 cursor-default' : ''
-                    }`}
-                    style={{ borderColor: '#E2E2DD', minHeight: '100px' }}
-                    rows={4}
-                  />
+                <h3 className="text-sm font-semibold text-gray-900 mb-3">Notes</h3>
+                <div className="text-sm text-gray-700">
+                  {getCleanDescription(selectedEventData.description) || 'No notes added'}
                 </div>
               </div>
             )}

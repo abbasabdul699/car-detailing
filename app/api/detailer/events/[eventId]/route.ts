@@ -439,7 +439,9 @@ export async function PATCH(
     let existingMetadata: any = {};
     if (event.description && event.description.includes('__METADATA__:')) {
       const parts = event.description.split('__METADATA__:');
-      finalDescription = parts[0].trim();
+      if (description === undefined) {
+        finalDescription = parts[0].trim();
+      }
       try {
         existingMetadata = JSON.parse(parts[1] || '{}');
       } catch (e) {
