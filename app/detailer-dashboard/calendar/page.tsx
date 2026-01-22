@@ -2009,6 +2009,8 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
     const mainScrollRef = useRef<HTMLDivElement>(null);
     // Selected cell state for highlighting
     const [selectedCell, setSelectedCell] = useState<{ day: Date; resourceId: string; slotIndex: number } | null>(null);
+    const [hoveredColumn, setHoveredColumn] = useState<{ day: Date; resourceId: string } | null>(null);
+    const [hoveredSlot, setHoveredSlot] = useState<{ day: Date; resourceId: string; slotIndex: number } | null>(null);
 
     // Debug: Log first event with customer data
     if (events.length > 0) {
@@ -2663,7 +2665,20 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                         height: `${totalTimeSlotHeight}px`,
                                         overflow: 'hidden'
                                     }}
+                                    onMouseEnter={isMobile ? undefined : () => {
+                                        setHoveredColumn({ day, resourceId: resource.id });
+                                    }}
+                                    onMouseLeave={isMobile ? undefined : () => {
+                                        setHoveredColumn(null);
+                                        setHoveredSlot(null);
+                                    }}
                                 >
+                                    {!isMobile && hoveredColumn && hoveredColumn.resourceId === resource.id && format(hoveredColumn.day, 'yyyy-MM-dd') === format(day, 'yyyy-MM-dd') && (
+                                        <div
+                                            className="absolute inset-0 pointer-events-none"
+                                            style={{ backgroundColor: 'rgba(226, 226, 221, 0.08)', zIndex: 1 }}
+                                        />
+                                    )}
                                     {/* Render all-day events as blocks spanning entire day height */}
                                     {allDayEvents.map((event, i) => {
                                         if (!event) return null;
@@ -2763,12 +2778,18 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                                 key={`${slot}-${day.toString()}-${resource.id}`} 
                                                 className={`calendar-week-slot border-b border-gray-100 relative cursor-pointer transition-all ${
                                                     isSelected 
-                                                        ? 'bg-blue-50/30 border-2 border-dashed border-blue-400' 
-                                                        : `${isWorkingHour ? 'bg-white' : 'bg-[#FAFAFB]'} group-hover:bg-gray-50/60`
+                                                        ? 'bg-[#F9F9F7] border-2 border-dashed border-[#E4E3DE]' 
+                                                        : `${isWorkingHour ? 'bg-white' : 'bg-[#FAFAFB]'}`
                                                 }`}
                                                 style={{ 
                                                     height: `${scaledTimeSlotHeight}px`, 
                                                     boxSizing: 'border-box'
+                                                }}
+                                                onMouseEnter={isMobile ? undefined : () => {
+                                                    setHoveredSlot({ day, resourceId: resource.id, slotIndex });
+                                                }}
+                                                onMouseLeave={isMobile ? undefined : () => {
+                                                    setHoveredSlot(null);
                                                 }}
                                                 onClick={(e) => {
                                                     // Only handle clicks on blank space, not on events
@@ -2813,6 +2834,12 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                                     }
                                                 }}
                                             >
+                                                {!isMobile && hoveredSlot && hoveredSlot.resourceId === resource.id && hoveredSlot.slotIndex === slotIndex && format(hoveredSlot.day, 'yyyy-MM-dd') === format(day, 'yyyy-MM-dd') && (
+                                                    <div
+                                                        className="absolute inset-0 pointer-events-none"
+                                                        style={{ backgroundColor: 'rgba(226, 226, 221, 0.16)', zIndex: 2 }}
+                                                    />
+                                                )}
                                             </div>
                                         );
                                     })}
@@ -3596,6 +3623,8 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
 }) => {
   const [draggedEventId, setDraggedEventId] = useState<string | null>(null);
   const [dragOverResourceId, setDragOverResourceId] = useState<string | null>(null);
+  const [hoveredResourceId, setHoveredResourceId] = useState<string | null>(null);
+  const [hoveredTimeSlot, setHoveredTimeSlot] = useState<{ resourceId: string; slotIndex: number } | null>(null);
   const [containerHeight, setContainerHeight] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const hasScrolledTo6AM = useRef(false);
@@ -4162,6 +4191,13 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
                   backgroundColor: isDragOver ? '#E0F2FE' : 'transparent',
                   transition: 'background-color 0.2s'
                 }}
+                onMouseEnter={() => {
+                  setHoveredResourceId(resource.id);
+                }}
+                onMouseLeave={() => {
+                  setHoveredResourceId(null);
+                  setHoveredTimeSlot(null);
+                }}
                 onDragOver={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
@@ -4293,21 +4329,41 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
                     }
                   }}
                 >
+                {hoveredResourceId === resource.id && (
+                  <div
+                    className="absolute inset-0 pointer-events-none"
+                    style={{ backgroundColor: 'rgba(226, 226, 221, 0.08)', zIndex: 1 }}
+                  />
+                )}
                 <div className="flex relative h-full flex-shrink-0" style={{ minWidth: `${totalColumnWidth}px`, width: `${totalColumnWidth}px` }}>
                   {/* Time slot columns */}
                   {timeSlots.map((slot, index) => {
                     const hour = index; // hour is 0-23 (0 = 12 AM, 23 = 11 PM)
                     const isWorkingHour = isWithinWorkingHours(hour);
+                    const isHoveredSlot = hoveredTimeSlot?.resourceId === resource.id && hoveredTimeSlot?.slotIndex === index;
                     return (
                       <div 
                         key={slot} 
-                      className="time-slot-cell flex-shrink-0 h-full cursor-pointer hover:bg-gray-50 transition-colors"
+                      className="time-slot-cell flex-shrink-0 h-full cursor-pointer transition-colors relative"
                         style={{ 
                           width: `${columnWidths[index] * scale}px`,
                         borderRight: '1px solid #F0F0EE',
                         backgroundColor: isWorkingHour ? 'white' : '#FAFAFB'
                       }}
-                    />
+                      onMouseEnter={() => {
+                        setHoveredTimeSlot({ resourceId: resource.id, slotIndex: index });
+                      }}
+                      onMouseLeave={() => {
+                        setHoveredTimeSlot(null);
+                      }}
+                    >
+                      {isHoveredSlot && (
+                        <div
+                          className="absolute inset-0 pointer-events-none"
+                          style={{ backgroundColor: 'rgba(226, 226, 221, 0.16)', zIndex: 2 }}
+                        />
+                      )}
+                    </div>
                     );
                   })}
                   
