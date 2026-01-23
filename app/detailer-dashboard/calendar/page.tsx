@@ -1349,7 +1349,7 @@ const eventColors: { [key: string]: { bg: string, border: string } } = {
   gray: { bg: 'bg-gray-100', border: 'border-gray-500' },
 };
 
-const MonthView = ({ date, events, selectedEvent, onEventClick, scale = 1.0, resources = [], onDayClick, onOpenModal, onViewDay }: { date: Date, events: any[], selectedEvent: string | null, onEventClick: (event: any) => void, scale?: number, resources?: Array<{ id: string, name: string, type: 'bay' | 'van' }>, onDayClick?: (day: Date, dayEvents: any[]) => void, onOpenModal?: (draftEvent?: { resourceId: string; startTime: string; endTime: string; date: Date }) => void, onViewDay?: (day: Date) => void }) => {
+const MonthView = ({ date, events, selectedEvent, onEventClick, scale = 1.0, resources = [], onDayClick, onDateNumberClick, onOpenModal, onViewDay }: { date: Date, events: any[], selectedEvent: string | null, onEventClick: (event: any) => void, scale?: number, resources?: Array<{ id: string, name: string, type: 'bay' | 'van' }>, onDayClick?: (day: Date, dayEvents: any[]) => void, onDateNumberClick?: (day: Date) => void, onOpenModal?: (draftEvent?: { resourceId: string; startTime: string; endTime: string; date: Date }) => void, onViewDay?: (day: Date) => void }) => {
     const [focusedDayIndex, setFocusedDayIndex] = useState<number | null>(null);
     const dayCellRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
     const monthRef = useRef(date.getMonth());
@@ -1613,7 +1613,7 @@ const MonthView = ({ date, events, selectedEvent, onEventClick, scale = 1.0, res
                     <div 
                         key={`${currentDate.getTime()}-${dateIndex}`} 
                         ref={(el) => { dayCellRefs.current[dateIndex] = el; }}
-                        className="border-r border-b border-gray-200 flex flex-col relative hover:bg-gray-100 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-orange-300 focus:ring-offset-2 focus:z-10" 
+                        className="border-r border-b border-gray-200 flex flex-col relative hover:bg-gray-100 transition-colors cursor-pointer focus:outline-none" 
                         style={{ padding: `${scaledPadding}px`, minHeight: 0 }}
                         onClick={() => {
                             if (onDayClick) {
@@ -1651,19 +1651,32 @@ const MonthView = ({ date, events, selectedEvent, onEventClick, scale = 1.0, res
                         }}
                         onKeyDown={(e) => handleKeyDown(e, dateIndex, currentDate, dayEvents)}
                         tabIndex={shouldBeFocusable ? 0 : -1}
-                        role="button"
                         aria-label={ariaLabel}
                     >
                         {/* Day number and Job count - stacked vertically */}
                         <div className="flex flex-col mb-1">
                             {/* Day number - centered */}
                             <div className="flex justify-center">
+                                <button
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (onDateNumberClick) {
+                                            onDateNumberClick(currentDate);
+                                        } else if (onDayClick) {
+                                            onDayClick(currentDate, dayEvents);
+                                        }
+                                    }}
+                                    className="cursor-pointer hover:underline hover:text-gray-900 transition-colors"
+                                    aria-label={`View week of: ${format(currentDate, 'MMMM d, yyyy')}`}
+                                >
                                 <span className={`text-xs md:text-sm font-medium ${isTodayDate ? 'w-6 h-6 rounded-full text-white flex items-center justify-center' : isCurrentMonth ? 'text-gray-800' : 'text-gray-400'}`} style={{ 
                                     opacity: isPast && isCurrentMonth ? 0.5 : 1,
                                 backgroundColor: isTodayDate ? '#F97316' : undefined
                             }}>
                                 {day}
                             </span>
+                                </button>
                             </div>
                             {/* Job count badge - only show for current month, left-aligned below date */}
                             {isCurrentMonth && (
@@ -1985,7 +1998,7 @@ const EventHoverPopup = ({
     );
 };
 
-const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, businessHours, onResourceSelect, onOpenModal, draftEvent, onDraftEventUpdate, numberOfDays, isMobile, onTouchStart, onTouchMove, onTouchEnd }: { 
+const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, businessHours, onResourceSelect, onOpenModal, draftEvent, onDraftEventUpdate, numberOfDays, isMobile, onTouchStart, onTouchMove, onTouchEnd, onDayHeaderClick }: { 
   date: Date, 
   events: any[], 
   onEventClick: (event: any) => void, 
@@ -2000,7 +2013,8 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
   isMobile?: boolean,
   onTouchStart?: (e: React.TouchEvent) => void,
   onTouchEnd?: (e: React.TouchEvent) => void,
-  onTouchMove?: (e: React.TouchEvent) => void
+  onTouchMove?: (e: React.TouchEvent) => void,
+  onDayHeaderClick?: (day: Date) => void
 }) => {
     // Hover state for event popup
     const [hoveredEvent, setHoveredEvent] = useState<any | null>(null);
@@ -2384,7 +2398,18 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                      backgroundColor: isMobile ? '#f9f7fa' : 'white'
                                 }}
                             >
-                                <span className="flex items-center" style={{ gap: '4px' }}>
+                                <button
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (onDayHeaderClick) {
+                                            onDayHeaderClick(day);
+                                        }
+                                    }}
+                                    className="flex items-center cursor-pointer hover:underline hover:text-gray-900 transition-colors"
+                                    style={{ gap: '4px' }}
+                                    aria-label={`View day: ${format(day, 'MMMM d, yyyy')}`}
+                                >
                                     {dayName} {isCurrentDay ? (
                                         <span 
                                             style={{
@@ -2401,7 +2426,7 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                     ) : (
                                         dayNumber
                                     )}
-                                </span>
+                                </button>
                             </div>
                             );
                         })}
@@ -8738,6 +8763,10 @@ export default function CalendarPage() {
                 onEventClick={handleEventClick} 
                 scale={calendarScale} 
                 resources={resources.length > 0 ? resources : [{ id: 'station', name: 'Station', type: 'bay' }]}
+                onDateNumberClick={(day) => {
+                  setCurrentDate(day);
+                  setViewMode('week');
+                }}
                 onDayClick={(day, dayEvents) => {
                   setSelectedDay(day);
                   setSelectedDayEvents(dayEvents);
@@ -8782,6 +8811,10 @@ export default function CalendarPage() {
                 resources={resources.length > 0 ? resources : [{ id: 'station', name: 'Station', type: 'bay' }]} 
                 scale={calendarScale} 
                 businessHours={businessHours}
+                onDayHeaderClick={(day) => {
+                  setCurrentDate(day);
+                  setViewMode('day');
+                }}
                 onResourceSelect={setSelectedResource}
                 onOpenModal={(draft) => {
                   if (draft) {
