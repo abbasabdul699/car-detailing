@@ -9783,15 +9783,71 @@ export default function CalendarPage() {
                         // Get customer info
                         const customerName = event.customerName || 'Customer';
                         const customerPhone = event.customerPhone || event.phone || '';
+                        const addressLine = (() => {
+                          const city = (event as any).customerCity || (event as any).city;
+                          const rawAddress = event.customerAddress || (event as any).address;
+                          if (rawAddress && city) return `${rawAddress}, ${city}`;
+                          if (rawAddress) {
+                            const parts = String(rawAddress)
+                              .split(',')
+                              .map((part) => part.trim())
+                              .filter(Boolean);
+                            if (parts.length >= 2) return `${parts[0]}, ${parts[1]}`;
+                            if (parts.length === 1) return parts[0];
+                          }
+                          if (city) return String(city);
+                          return '';
+                        })();
+                        const resource = resources.find((r) => r.id === event.resourceId);
+                        const stationLabel = resource?.name || 'Station';
+                        const locationLower = (event.locationType || '').toLowerCase();
+                        const isPickup = locationLower === 'pick up' || locationLower === 'pickup';
+                        const isDropoff = locationLower === 'drop off' || locationLower === 'dropoff';
+                        const customerStatus = event.status === 'pending' ? 'new' : 'repeat';
+                        const assignedEmployee = event.employeeId
+                          ? allEmployees.find((emp) => emp.id === event.employeeId)
+                          : null;
+                        const techColor = assignedEmployee?.color === 'green'
+                          ? '#10B981'
+                          : assignedEmployee?.color === 'orange'
+                          ? '#F97316'
+                          : assignedEmployee?.color === 'red'
+                          ? '#EF4444'
+                          : assignedEmployee?.color === 'gray'
+                          ? '#6B7280'
+                          : '#3B82F6';
                         
                         return (
-                          <div key={event.id || index} className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-                            {/* Service name with red bullet */}
-                            <div className="flex items-start gap-2 mb-2">
-                              <div className="w-2 h-2 bg-red-500 rounded-full mt-2 flex-shrink-0"></div>
-                              <div className="font-bold text-gray-900 text-sm">
-                                {serviceName}
+                          <div key={event.id || index} className="bg-white rounded-xl shadow-sm border border-gray-200 p-4" style={{ borderLeft: `4px solid ${techColor}` }}>
+                            {/* Service name + Station + Tech */}
+                            <div className="flex items-start justify-between gap-3 mb-2">
+                              <div className="flex items-start gap-2">
+                                <div className="w-2 h-2 bg-red-500 rounded-full mt-2 flex-shrink-0"></div>
+                                <div>
+                                  <div className="font-bold text-gray-900 text-sm">
+                                    {serviceName}
+                                  </div>
+                                  <div className="text-xs text-gray-500">
+                                    {stationLabel}
+                                  </div>
+                                </div>
                               </div>
+                              {assignedEmployee && (
+                                assignedEmployee.imageUrl ? (
+                                  <img
+                                    src={assignedEmployee.imageUrl}
+                                    alt={assignedEmployee.name}
+                                    className="w-8 h-8 rounded-full object-cover flex-shrink-0 border"
+                                  />
+                                ) : (
+                                  <div
+                                    className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0"
+                                    style={{ backgroundColor: techColor }}
+                                  >
+                                    {assignedEmployee.name.charAt(0).toUpperCase()}
+                                  </div>
+                                )
+                              )}
                             </div>
                             
                             {/* Time */}
@@ -9805,6 +9861,22 @@ export default function CalendarPage() {
                             <div className="text-xs text-gray-500 mb-16 ml-4">
                               {vehicleType}
                             </div>
+
+                            {/* Tags */}
+                            <div className="flex items-center gap-2 mb-3 ml-4">
+                              {(isPickup || isDropoff) && (
+                                <span className={`text-xs font-semibold px-2 py-0.5 rounded inline-block ${
+                                  isPickup ? 'bg-blue-500 text-white' : 'bg-pink-500 text-white'
+                                }`}>
+                                  {isPickup ? 'Pick Up' : 'Drop Off'}
+                                </span>
+                              )}
+                              <span className={`text-xs font-semibold px-2 py-0.5 rounded inline-block ${
+                                customerStatus === 'new' ? 'bg-gray-200 text-gray-700' : 'bg-purple-200 text-purple-800'
+                              }`}>
+                                {customerStatus === 'new' ? 'New' : 'Repeat'}
+                              </span>
+                            </div>
                             
                             {/* Customer info and Action buttons - aligned horizontally */}
                             <div className="flex items-center justify-between ml-4">
@@ -9812,6 +9884,11 @@ export default function CalendarPage() {
                                 {customerPhone && (
                                   <div className="text-sm text-gray-500 mb-1">
                                     {customerPhone}
+                                  </div>
+                                )}
+                                {addressLine && (
+                                  <div className="text-xs text-gray-500 mb-1 truncate max-w-[220px]">
+                                    {addressLine}
                                   </div>
                                 )}
                                 <div className="text-gray-900 font-semibold" style={{ fontSize: '18px' }}>
