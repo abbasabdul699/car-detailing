@@ -9,6 +9,7 @@ import Image from 'next/image';
 import { format } from 'date-fns';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { formatPhoneDisplay } from '@/lib/phone';
 import {
   FunnelIcon,
 } from '@heroicons/react/24/outline';
@@ -941,7 +942,7 @@ export default function CustomersPage() {
                         <div className="text-xs text-gray-600 mt-0.5 flex items-center gap-1 flex-wrap">
                           {/* Phone Number */}
                           {customer.customerPhone && (
-                            <span className="truncate">{customer.customerPhone}</span>
+                            <span className="truncate">{formatPhoneDisplay(customer.customerPhone)}</span>
                           )}
                           {/* Vehicle */}
                           {(customer.vehicleModel || customer.vehicle) && (
@@ -1287,7 +1288,7 @@ export default function CustomersPage() {
                       className="px-4 py-4 text-sm text-gray-600 truncate"
                       style={{ width: columnWidths.phone, minWidth: columnWidths.phone, maxWidth: columnWidths.phone }}
                     >
-                      <span className="truncate block">{customer.customerPhone || '-'}</span>
+                      <span className="truncate block">{formatPhoneDisplay(customer.customerPhone)}</span>
                     </td>
                     <td 
                       className="px-4 py-4 text-sm relative group truncate"
@@ -1764,7 +1765,7 @@ export default function CustomersPage() {
                       </h4>
                       {selectedCustomerData.customerPhone && (
                         <span className="text-sm text-gray-600">
-                          {selectedCustomerData.customerPhone}
+                          {formatPhoneDisplay(selectedCustomerData.customerPhone)}
                         </span>
                       )}
                     </div>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
+import { formatPhoneDisplay } from '@/lib/phone';
 
 interface Booking {
   id: string;
@@ -169,15 +170,6 @@ export default function DetailerBookingsPage() {
     }
   };
 
-  const formatPhoneNumber = (phone: string) => {
-    // Format phone number for display
-    const cleaned = phone.replace(/\D/g, '');
-    if (cleaned.length === 11 && cleaned.startsWith('1')) {
-      return `+1 (${cleaned.slice(1, 4)}) ${cleaned.slice(4, 7)}-${cleaned.slice(7)}`;
-    }
-    return phone;
-  };
-
   if (loading || !session) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -229,7 +221,7 @@ export default function DetailerBookingsPage() {
                               {booking.customerName || 'Unknown Customer'}
                             </h3>
                             <p className="text-sm text-gray-600">
-                              {formatPhoneNumber(booking.customerPhone)}
+                              {formatPhoneDisplay(booking.customerPhone)}
                             </p>
                           </div>
                           <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(booking.status)}`}>

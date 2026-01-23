@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
+import { formatPhoneDisplay } from '@/lib/phone';
 
 interface Message {
   id: string;
@@ -226,15 +227,6 @@ export default function MessagesPage() {
       setError(err instanceof Error ? err.message : 'Failed to clear conversation');
       alert('Failed to clear conversation. Please try again.');
     }
-  };
-
-  const formatPhoneNumber = (phone: string) => {
-    // Format phone number for display
-    const cleaned = phone.replace(/\D/g, '');
-    if (cleaned.length === 10) {
-      return `(${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6)}`;
-    }
-    return phone;
   };
 
   const formatMessageTime = (timestamp: string) => {
@@ -640,13 +632,13 @@ export default function MessagesPage() {
                           {conversation.customerName}
                         </h3>
                         <p className="text-xs text-gray-500 truncate mt-0.5">
-                          {formatPhoneNumber(conversation.customerPhone)}
+                          {formatPhoneDisplay(conversation.customerPhone)}
                         </p>
                       </>
                     ) : (
                       <>
                         <h3 className="font-semibold text-gray-900 truncate text-base mt-1">
-                          {formatPhoneNumber(conversation.customerPhone)}
+                          {formatPhoneDisplay(conversation.customerPhone)}
                         </h3>
                         <p className="text-xs text-gray-500 truncate mt-0.5">
                           No name provided
@@ -718,13 +710,13 @@ export default function MessagesPage() {
                           {selectedConversation.customerName}
                         </h2>
                         <p className="text-sm text-gray-500">
-                          {formatPhoneNumber(selectedConversation.customerPhone)}
+                          {formatPhoneDisplay(selectedConversation.customerPhone)}
                         </p>
                       </>
                     ) : (
                       <>
                         <h2 className="text-lg font-semibold text-gray-900">
-                          {formatPhoneNumber(selectedConversation.customerPhone)}
+                          {formatPhoneDisplay(selectedConversation.customerPhone)}
                         </h2>
                         <p className="text-sm text-gray-500">
                           Customer name not provided yet

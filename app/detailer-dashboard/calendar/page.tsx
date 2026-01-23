@@ -27,6 +27,7 @@ import { XMarkIcon, PencilIcon, CheckIcon } from '@heroicons/react/24/solid';
 import EventModal from './components/EventModal';
 import AddressAutocompleteInput from './components/AddressAutocompleteInput';
 import NewCustomerModal from './components/NewCustomerModal';
+import { formatPhoneDisplay } from '@/lib/phone';
 
 // Discard Changes Modal Component
 const DiscardChangesModal = ({ 
@@ -729,7 +730,7 @@ const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () =>
                   </h4>
                   {customerPhone && (
                     <span className="text-sm text-gray-600 ml-2">
-                      {customerPhone}
+                      {formatPhoneDisplay(customerPhone)}
                     </span>
                   )}
                   </div>
@@ -1941,7 +1942,7 @@ const EventHoverPopup = ({
                     <div className="text-base text-gray-700">
                         <span className="font-semibold">{event.customerName || 'Customer'}</span>
                         {event.customerPhone && (
-                            <span className="text-gray-600 ml-1">({event.customerPhone})</span>
+                            <span className="text-gray-600 ml-1">({formatPhoneDisplay(event.customerPhone)})</span>
                         )}
                     </div>
                 )}
@@ -2758,7 +2759,7 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                                 </div>
                                                 {(event.customerName || event.customerPhone) && (
                                                     <span className="text-xs text-gray-700 mt-0.5 truncate font-semibold text-left w-full">
-                                                        {event.customerName || 'Customer'}{event.customerPhone ? ` (${event.customerPhone})` : ''}
+                                                        {event.customerName || 'Customer'}{event.customerPhone ? ` (${formatPhoneDisplay(event.customerPhone)})` : ''}
                                                     </span>
                                                 )}
                                                 {getCustomerType(event) === 'new' && (
@@ -3339,7 +3340,7 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                                                 lineHeight: 'normal'
                                                         }}
                                                     >
-                                                        {event.customerPhone}
+                                                        {formatPhoneDisplay(event.customerPhone)}
                                                     </div>
                                                 )}
                                                     {showCustomerAddress && addressLine && (
@@ -4572,8 +4573,15 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
                             </div>
                           )}
                           {(event.customerName || event.customerPhone) && (
-                            <div className="text-xs font-semibold text-gray-600">
-                              {event.customerName || 'Customer'}{event.customerPhone ? ` (${event.customerPhone})` : ''}
+                            <div className="flex flex-col">
+                              <div className="text-xs font-semibold text-gray-600">
+                                {event.customerName || 'Customer'}
+                              </div>
+                              {event.customerPhone && (
+                                <div className="text-xs text-gray-600">
+                                  {formatPhoneDisplay(event.customerPhone)}
+                                </div>
+                              )}
                             </div>
                           )}
                           {addressLine && (
@@ -6831,7 +6839,7 @@ export default function CalendarPage() {
                             )}
                             {event.customerPhone && (
                               <div className="text-[12px] text-gray-700 mt-0.5">
-                                {event.customerPhone}
+                                {formatPhoneDisplay(event.customerPhone)}
                               </div>
                             )}
                             {/* Badges */}
@@ -7359,7 +7367,7 @@ export default function CalendarPage() {
                               </h4>
                               {selectedEventData.customerPhone && (
                                 <span className="text-sm text-gray-600 ml-2">
-                                  {selectedEventData.customerPhone}
+                                  {formatPhoneDisplay(selectedEventData.customerPhone)}
                                 </span>
                               )}
                             </div>
@@ -8147,7 +8155,7 @@ export default function CalendarPage() {
                             </h4>
                             {selectedEventData.customerPhone && (
                               <span className="text-sm text-gray-600 ml-2">
-                                {selectedEventData.customerPhone}
+                                {formatPhoneDisplay(selectedEventData.customerPhone)}
                               </span>
                             )}
                           </div>
@@ -9370,7 +9378,7 @@ export default function CalendarPage() {
                             </h4>
                             {selectedEventData.customerPhone && (
                               <span className="text-sm text-gray-600 ml-2">
-                                {selectedEventData.customerPhone}
+                                {formatPhoneDisplay(selectedEventData.customerPhone)}
                               </span>
                             )}
                           </div>
@@ -9469,7 +9477,7 @@ export default function CalendarPage() {
                                   <div>
                                     <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Phone Number</label>
                                     <p className="text-sm text-gray-900 mt-0.5">
-                                      {selectedEventData.customerPhone || 'Not provided'}
+                                      {selectedEventData.customerPhone ? formatPhoneDisplay(selectedEventData.customerPhone) : 'Not provided'}
                                     </p>
                                   </div>
                                   <div>
@@ -9883,7 +9891,7 @@ export default function CalendarPage() {
                               <div className="flex flex-col">
                                 {customerPhone && (
                                   <div className="text-sm text-gray-500 mb-1">
-                                    {customerPhone}
+                                    {formatPhoneDisplay(customerPhone)}
                                   </div>
                                 )}
                                 {addressLine && (
@@ -9984,7 +9992,7 @@ export default function CalendarPage() {
                           <div className="flex flex-col">
                             {customerPhone && (
                               <div className="text-sm text-gray-500 mb-1">
-                                {customerPhone}
+                                {formatPhoneDisplay(customerPhone)}
                               </div>
                             )}
                             <div className="text-gray-900 font-semibold" style={{ fontSize: '18px' }}>

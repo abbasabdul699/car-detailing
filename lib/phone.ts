@@ -26,4 +26,22 @@ export function normalizeToE164(raw: string | null | undefined, defaultCountry: 
   return null
 }
 
+// Format phone numbers for display without altering stored values.
+// - US numbers: (AAA) BBB-CCCC
+// - Non-US or unknown: return original
+// - Missing: "-"
+export function formatPhoneDisplay(raw: string | null | undefined): string {
+  if (!raw) return '-'
+  const trimmed = String(raw).trim()
+  if (!trimmed) return '-'
+  const digits = trimmed.replace(/\D/g, '')
+  let usDigits: string | null = null
+  if (digits.length === 11 && digits.startsWith('1')) {
+    usDigits = digits.slice(1)
+  } else if (digits.length === 10) {
+    usDigits = digits
+  }
+  if (!usDigits) return trimmed
+  return `(${usDigits.slice(0, 3)}) ${usDigits.slice(3, 6)}-${usDigits.slice(6)}`
+}
 
