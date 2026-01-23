@@ -3177,6 +3177,22 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                         const showCustomerName = height >= 85; // Show customer name starting from 4th design
                                         const showTechPicture = height >= 85 && isAtLeastOneHour; // Hide employee image if less than one hour
                                         const showCustomerPhone = height >= 100; // Show customer phone starting from largest design
+                                        const showCustomerAddress = showCustomerPhone;
+                                        const addressLine = (() => {
+                                            const city = (event as any).customerCity || (event as any).city;
+                                            const rawAddress = event.customerAddress || (event as any).address;
+                                            if (rawAddress && city) return `${rawAddress}, ${city}`;
+                                            if (rawAddress) {
+                                                const parts = String(rawAddress)
+                                                    .split(',')
+                                                    .map((part) => part.trim())
+                                                    .filter(Boolean);
+                                                if (parts.length >= 2) return `${parts[0]}, ${parts[1]}`;
+                                                if (parts.length === 1) return parts[0];
+                                            }
+                                            if (city) return String(city);
+                                            return '';
+                                        })();
                                         
                                         // Calculate max lines for notes (max 2 lines)
                                         const notesMaxLines = height >= 45 ? 2 : 0;
@@ -3324,6 +3340,20 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                                         }}
                                                     >
                                                         {event.customerPhone}
+                                                    </div>
+                                                )}
+                                                    {showCustomerAddress && addressLine && (
+                                                    <div 
+                                                            className="w-full"
+                                                        style={{
+                                                            fontSize: '10px',
+                                                                fontFamily: "'Inter', sans-serif",
+                                                                fontWeight: 500,
+                                                                color: 'rgba(6, 47, 75, 0.60)',
+                                                                lineHeight: 'normal'
+                                                        }}
+                                                    >
+                                                        {addressLine}
                                                     </div>
                                                 )}
                                             </div>
@@ -4422,6 +4452,21 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
                     const customerType = getCustomerType(event);
                     const isPending = event.status === 'pending';
                     const eventColor = event.color || 'blue'; // Use employee's color, default to blue
+                    const addressLine = (() => {
+                      const city = (event as any).customerCity || (event as any).city;
+                      const rawAddress = event.customerAddress || (event as any).address;
+                      if (rawAddress && city) return `${rawAddress}, ${city}`;
+                      if (rawAddress) {
+                        const parts = String(rawAddress)
+                          .split(',')
+                          .map((part) => part.trim())
+                          .filter(Boolean);
+                        if (parts.length >= 2) return `${parts[0]}, ${parts[1]}`;
+                        if (parts.length === 1) return parts[0];
+                      }
+                      if (city) return String(city);
+                      return '';
+                    })();
                     
                     // Check if event is in the past (end time is before current time, or on a past day)
                     const now = new Date();
@@ -4529,6 +4574,11 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
                           {(event.customerName || event.customerPhone) && (
                             <div className="text-xs font-semibold text-gray-600">
                               {event.customerName || 'Customer'}{event.customerPhone ? ` (${event.customerPhone})` : ''}
+                            </div>
+                          )}
+                          {addressLine && (
+                            <div className="text-xs font-semibold text-gray-500">
+                              {addressLine}
                             </div>
                           )}
                         </div>
