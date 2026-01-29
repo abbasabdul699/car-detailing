@@ -16,8 +16,6 @@ import {
 import MobileMenu from "./components/MobileMenu";
 import { useSession, signOut } from "next-auth/react";
 import { ThemeProvider } from "@/app/components/ThemeContext";
-import PlanSelectionModal from "@/app/components/PlanSelectionModal";
-import { usePlanSelection } from "@/app/hooks/usePlanSelection";
 import DetailerSessionProvider from "@/app/components/DetailerSessionProvider";
 
 function DetailerDashboardLayoutInner({
@@ -71,16 +69,6 @@ function DetailerDashboardLayoutInner({
       });
     }
   }, [dropdownOpen]);
-  
-  // Plan selection logic
-  const {
-    showPlanSelection,
-    plans,
-    isLoading,
-    error,
-    handleSelectPlan,
-    closePlanSelection,
-  } = usePlanSelection();
   
   const navigation = [
     { name: "Calendar", href: "/detailer-dashboard/calendar", iconPath: "/icons/calendar (1).png" },
@@ -295,14 +283,6 @@ function DetailerDashboardLayoutInner({
           </main>
         </div>
         
-        {/* Plan Selection Modal */}
-        <PlanSelectionModal
-          isOpen={showPlanSelection}
-          onClose={closePlanSelection}
-          onSelectPlan={handleSelectPlan}
-          plans={plans}
-          isLoading={isLoading}
-        />
       </div>
     </ThemeProvider>
   );
