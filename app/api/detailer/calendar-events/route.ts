@@ -556,6 +556,7 @@ export async function GET(request: NextRequest) {
           description: cleanDescription,
           location: event.location || '',
           source: 'local',
+          eventType: event.eventType || 'appointment',
           bookingId: event.bookingId,
           resourceId: event.resourceId || null,
           customerName,
@@ -646,6 +647,7 @@ export async function GET(request: NextRequest) {
           description: `Customer: ${booking.customerName || 'N/A'}\nPhone: ${booking.customerPhone}\nVehicle: ${booking.vehicleType || 'N/A'}\nLocation: ${booking.vehicleLocation || 'N/A'}\nServices: ${Array.isArray(booking.services) ? booking.services.join(', ') : booking.services || 'Detailing'}\nStatus: ${booking.status}\n${booking.notes ? `Notes: ${booking.notes}` : ''}`,
           location: booking.vehicleLocation || '',
           source: 'local-google-synced',
+          eventType: 'appointment',
           bookingId: booking.id,
           status: booking.status,
           // Include resource information
@@ -724,6 +726,7 @@ export async function GET(request: NextRequest) {
             allDay: !event.start?.dateTime, // If no time, it's an all-day event
             color: 'blue', // Default color for Google Calendar events
             source: 'google',
+            eventType: 'appointment',
             description: event.description || '',
             location: event.location || '',
           }));

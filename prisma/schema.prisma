@@ -324,6 +324,7 @@ model Event {
   date          DateTime
   time          String?
   allDay        Boolean   @default(false)
+  eventType     String    @default("appointment")
   color         String    @default("blue") // Kept for backward compatibility, but will be derived from employee
   employeeId    String?   @db.ObjectId // Employee assigned to this event
   employee      Employee? @relation(fields: [employeeId], references: [id])

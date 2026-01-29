@@ -74,6 +74,7 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
     const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
     const [employees, setEmployees] = useState<Array<{ id: string; name: string; color: string }>>([]);
     const [showEmployeeDropdown, setShowEmployeeDropdown] = useState(false);
+    const [isBlockTime, setIsBlockTime] = useState(false);
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
     const [startTime, setStartTime] = useState('');
@@ -120,6 +121,7 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
     // Store initial values to detect changes (empty form initially)
     const initialValuesRef = useRef({
       selectedEmployeeId: '',
+      isBlockTime: false,
       startDate: '',
       endDate: '',
       startTime: '',
@@ -142,6 +144,7 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
     const checkIfDirty = () => {
       const current = {
         selectedEmployeeId,
+        isBlockTime,
         startDate,
         endDate,
         startTime,
@@ -162,6 +165,7 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
 
       const initial = {
         selectedEmployeeId: initialValuesRef.current.selectedEmployeeId,
+        isBlockTime: initialValuesRef.current.isBlockTime,
         startDate: initialValuesRef.current.startDate,
         endDate: initialValuesRef.current.endDate,
         startTime: initialValuesRef.current.startTime,
@@ -201,12 +205,14 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
       if (!isOpen) {
         // Reset all form fields
         setSelectedEmployeeId('');
+        setIsBlockTime(false);
         setStartDate('');
         setEndDate('');
         setStartTime('');
         setEndTime('');
         setIsAllDay(false);
         setIsMultiDay(false);
+        setIsBlockTime(false);
         setSelectedResourceId(preSelectedResource?.id || '');
         setCustomerName('');
         setCustomerPhone('');
@@ -223,6 +229,7 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
         // Reset initial values
         initialValuesRef.current = {
           selectedEmployeeId: '',
+          isBlockTime: false,
           startDate: '',
           endDate: '',
           startTime: '',
@@ -494,9 +501,13 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
     };
 
     const handleSubmit = async () => {
-        if (selectedServices.length === 0 || !startDate) {
-            // Basic validation
-            alert('Please select at least one service and provide a start date.');
+        if (!startDate) {
+            alert('Please provide a start date.');
+            return;
+        }
+
+        if (!isBlockTime && selectedServices.length === 0) {
+            alert('Please select at least one service.');
             return;
         }
 
@@ -555,7 +566,10 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    title: selectedServices.map(s => s.name).join(', ') || 'Untitled Event', // Use selected services as the title
+                    title: isBlockTime
+                        ? 'Blocked Time'
+                        : (selectedServices.map(s => s.name).join(', ') || 'Untitled Event'),
+                    eventType: isBlockTime ? 'block' : 'appointment',
                     employeeId: selectedEmployeeId || undefined,
                     startDate: startDateTime,
                     endDate: endDateTime,
@@ -565,15 +579,19 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                     endTime: endTimeToSend || undefined, // Send end time separately for timed events
                     description: description || '',
                     resourceId: selectedResourceId || undefined,
-                    customerName: customerName || undefined,
-                    customerPhone: customerPhone || undefined,
-                    customerEmail: customerEmail || undefined,
-                    customerAddress: customerAddress || undefined,
-                    locationType: locationType || undefined,
-                    customerType: customerType || undefined,
-                    vehicleModel: vehicles.length > 0 ? vehicles.map(v => v.model).join(', ') : undefined,
-                    vehicles: vehicles.length > 0 ? vehicles.map(v => v.model) : undefined,
-                    services: selectedServices.length > 0 ? selectedServices.map(s => s.name) : undefined
+                    ...(isBlockTime
+                        ? {}
+                        : {
+                              customerName: customerName || undefined,
+                              customerPhone: customerPhone || undefined,
+                              customerEmail: customerEmail || undefined,
+                              customerAddress: customerAddress || undefined,
+                              locationType: locationType || undefined,
+                              customerType: customerType || undefined,
+                              vehicleModel: vehicles.length > 0 ? vehicles.map(v => v.model).join(', ') : undefined,
+                              vehicles: vehicles.length > 0 ? vehicles.map(v => v.model) : undefined,
+                              services: selectedServices.length > 0 ? selectedServices.map(s => s.name) : undefined
+                          })
                 }),
             });
 
@@ -584,7 +602,9 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                 const selectedEmployee = employees.find(e => e.id === selectedEmployeeId);
                 onAddEvent({
                     id: `local-${Date.now()}`,
-                    title: selectedServices.map(s => s.name).join(', ') || 'Untitled Event', // Use selected services as the title
+                    title: isBlockTime
+                        ? 'Blocked Time'
+                        : (selectedServices.map(s => s.name).join(', ') || 'Untitled Event'),
                     color: selectedEmployee?.color || 'blue',
                     employeeId: selectedEmployeeId,
                     date: new Date(startDate),
@@ -592,12 +612,14 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                     end: endDateTime,
                     source: result.event.source || 'local',
                     allDay: isAllDay,
-                    resourceId: selectedResourceId || undefined
+                    resourceId: selectedResourceId || undefined,
+                    eventType: isBlockTime ? 'block' : 'appointment'
                 });
                 
                 onClose(); // Close modal after adding
                 // Reset form
                 setSelectedEmployeeId('');
+                setIsBlockTime(false);
                 setStartDate('');
                 setEndDate('');
                 setStartTime('');
@@ -747,11 +769,13 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
             // Ensure it's not all-day
             setIsAllDay(false);
             setIsMultiDay(false);
+            setIsBlockTime(false);
             
             // Update initial values after state is set
             setTimeout(() => {
                 initialValuesRef.current = {
                     selectedEmployeeId: '',
+                    isBlockTime: false,
                     startDate: dateStr,
                     endDate: '',
                     startTime: startTimeStr,
@@ -904,6 +928,7 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                                 
                                 initialValuesRef.current = {
                                     selectedEmployeeId: '',
+                                    isBlockTime: false,
                                     startDate: startDate,
                                     endDate: endDate,
                                     startTime: startTime,
@@ -943,6 +968,7 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
         if (isOpen && !draftEvent) {
             // Reset all form fields to ensure clean state
             setSelectedEmployeeId('');
+            setIsBlockTime(false);
             setStartDate('');
             setEndDate('');
             setStartTime('');
@@ -966,6 +992,21 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
             setCustomerSearch('');
         }
     }, [isOpen, draftEvent, preSelectedResource?.id]);
+
+    useEffect(() => {
+        if (!isBlockTime) return;
+        setSelectedCustomer(null);
+        setCustomerSearch('');
+        setCustomerName('');
+        setCustomerPhone('');
+        setCustomerEmail('');
+        setCustomerAddress('');
+        setLocationType('');
+        setCustomerType('');
+        setVehicles([]);
+        setSelectedServices([]);
+        setServiceSearch('');
+    }, [isBlockTime]);
 
     // Get the selected resource name for display
     const selectedResource = preSelectedResource || resources.find(r => r.id === selectedResourceId);
@@ -1066,7 +1107,34 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                     }}
                 >
                 <div className="space-y-3">
+                    {/* Block Time Toggle */}
+                    <div className={renderMode === 'drawer' ? 'pt-0' : 'pt-2'}>
+                        <div className="flex items-center justify-between rounded-xl px-4 py-3 bg-white border" style={{ borderColor: '#E2E2DD' }}>
+                            <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-100">
+                                    <svg className="w-4 h-4 text-gray-600" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                        <circle cx="12" cy="12" r="9" strokeWidth="2" />
+                                        <path d="M12 7v5l3 3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                    </svg>
+                                </div>
+                                <span className="text-sm font-semibold text-gray-900">Block Time</span>
+                            </div>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={isBlockTime}
+                                    onChange={(e) => setIsBlockTime(e.target.checked)}
+                                    className="sr-only"
+                                />
+                                <span className={`w-12 h-7 flex items-center rounded-full p-1 transition-colors ${isBlockTime ? 'bg-orange-500' : 'bg-gray-300'}`}>
+                                    <span className={`bg-white w-5 h-5 rounded-full shadow transform transition-transform ${isBlockTime ? 'translate-x-5' : 'translate-x-0'}`} />
+                                </span>
+                            </label>
+                        </div>
+                    </div>
+
                     {/* Customer Information */}
+                    {!isBlockTime && (
                     <div className={renderMode === 'drawer' ? 'pt-0' : 'pt-2'}>
                         <h3 className="text-sm font-semibold text-gray-900 mb-4">Customer</h3>
                         
@@ -1428,7 +1496,10 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                             </>
                         )}
                     </div>
+                    )}
 
+                    {!isBlockTime && (
+                    <>
                     {/* Vehicle Information */}
                     <div className="pt-2">
                         <h3 className="text-sm font-semibold text-gray-900 mb-4">Car model</h3>
@@ -1689,6 +1760,8 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                             
                         </div>
                     </div>
+                    </>
+                    )}
 
                     {/* Date and Time Section */}
                     <div className="pt-4">
@@ -1894,7 +1967,7 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                     {/* Employee Selection */}
                     <div className="pt-4">
                         <label htmlFor="employee-select" className="block text-sm font-semibold text-gray-900 mb-2">
-                            Assign Employee *
+                            {isBlockTime ? 'Technician (optional)' : 'Assign Employee *'}
                         </label>
                         {employees.length === 0 ? (
                             <p className="text-sm text-gray-500 mb-2">
@@ -2011,29 +2084,33 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                             </div>
                             
                             {/* Arrival Dropdown */}
-                            <div>
-                                <label htmlFor="location-type" className="block text-sm font-semibold text-gray-900 mb-2">
-                                    Arrival
-                                </label>
-                                <select
-                                    id="location-type"
-                                    value={locationType}
-                                    onChange={e => setLocationType(e.target.value)}
-                                    disabled={selectedResourceId ? resources.find(r => r.id === selectedResourceId)?.type === 'van' : false}
-                                    className="w-full px-4 py-2.5 border rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-500"
-                                    style={{ borderColor: '#E2E2DD' }}
-                                >
-                                    <option value="">Select location type</option>
-                                    <option value="pick up">Pick Up</option>
-                                    <option value="drop off">Drop Off</option>
-                                </select>
-                            </div>
+                            {!isBlockTime && (
+                                <div>
+                                    <label htmlFor="location-type" className="block text-sm font-semibold text-gray-900 mb-2">
+                                        Arrival
+                                    </label>
+                                    <select
+                                        id="location-type"
+                                        value={locationType}
+                                        onChange={e => setLocationType(e.target.value)}
+                                        disabled={selectedResourceId ? resources.find(r => r.id === selectedResourceId)?.type === 'van' : false}
+                                        className="w-full px-4 py-2.5 border rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-500"
+                                        style={{ borderColor: '#E2E2DD' }}
+                                    >
+                                        <option value="">Select location type</option>
+                                        <option value="pick up">Pick Up</option>
+                                        <option value="drop off">Drop Off</option>
+                                    </select>
+                                </div>
+                            )}
                         </div>
                     </div>
 
                     {/* Customer Notes */}
                     <div className="pt-4">
-                        <h3 className="text-sm font-semibold text-gray-900 mb-4">Customer Notes</h3>
+                        <h3 className="text-sm font-semibold text-gray-900 mb-4">
+                            {isBlockTime ? 'Notes' : 'Customer Notes'}
+                        </h3>
                         <div>
                             <textarea 
                                 id="customer-notes"
@@ -2041,7 +2118,7 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                                 onChange={e => setDescription(e.target.value)} 
                                 rows={4}
                                 className="w-full px-4 py-2.5 border rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent resize-none" 
-                                placeholder="e.g., Customer prefers hand-wash only, always 5 minutes late, prefers early morning appointments..."
+                                placeholder={isBlockTime ? 'Add any notes...' : 'e.g., Customer prefers hand-wash only, always 5 minutes late, prefers early morning appointments...'}
                                 style={{ borderColor: '#E2E2DD' }}
                             />
                         </div>
@@ -2064,7 +2141,7 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                     </button>
                         <button onClick={handleSubmit} className="flex-1 px-6 py-2 bg-[#2b2b26] text-white rounded-xl hover:bg-[#4a4844] transition-colors flex items-center justify-center gap-2">
                             <CheckIcon className="w-5 h-5" />
-                            <span>Accept</span>
+                            <span>{isBlockTime ? 'Create Block Time' : 'Accept'}</span>
                     </button>
                     </div>
                 </div>

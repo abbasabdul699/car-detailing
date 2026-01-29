@@ -229,6 +229,7 @@ const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () =>
   });
   const [selectedResourceId, setSelectedResourceId] = useState(event.resourceId || '');
   const [description, setDescription] = useState(getCleanDescription(event.description));
+  const isBlockEvent = event?.eventType === 'block';
   const [businessHours, setBusinessHours] = useState<any>(null);
   const [customerName, setCustomerName] = useState(event.customerName || '');
   const [customerPhone, setCustomerPhone] = useState(event.customerPhone || '');
@@ -633,8 +634,13 @@ const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () =>
   }, [isAllDay, startDate, businessHours]);
 
   const handleSubmit = () => {
-    if (selectedServices.length === 0 || !startDate) {
-      alert('Please select at least one service and provide a start date.');
+    if (!startDate) {
+      alert('Please provide a start date.');
+      return;
+    }
+
+    if (!isBlockEvent && selectedServices.length === 0) {
+      alert('Please select at least one service.');
       return;
     }
 
@@ -686,7 +692,10 @@ const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () =>
     }
 
     onSave({
-      title: selectedServices.map(s => s.name).join(', '), // Use selected services as the title
+      title: isBlockEvent
+        ? (event.title || 'Blocked Time')
+        : selectedServices.map(s => s.name).join(', '), // Use selected services as the title
+      eventType: isBlockEvent ? 'block' : (event.eventType || 'appointment'),
       employeeId: selectedEmployeeId || undefined,
       startDate: startDateTime,
       endDate: endDateTime,
@@ -697,14 +706,18 @@ const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () =>
       endTime: endTimeToSend || undefined, // Send end time separately for timed events
       description,
       resourceId: selectedResourceId || undefined,
-      customerName: customerName || undefined,
-      customerPhone: customerPhone || undefined,
-      customerAddress: customerAddress || undefined,
-      customerType: customerType || undefined,
-      locationType: locationType || undefined,
-      vehicleModel: vehicles.length > 0 ? vehicles.map(v => v.model).join(', ') : undefined,
-      vehicles: vehicles.length > 0 ? vehicles.map(v => v.model) : undefined,
-      services: selectedServices.map(s => s.name)
+      ...(isBlockEvent
+        ? {}
+        : {
+            customerName: customerName || undefined,
+            customerPhone: customerPhone || undefined,
+            customerAddress: customerAddress || undefined,
+            customerType: customerType || undefined,
+            locationType: locationType || undefined,
+            vehicleModel: vehicles.length > 0 ? vehicles.map(v => v.model).join(', ') : undefined,
+            vehicles: vehicles.length > 0 ? vehicles.map(v => v.model) : undefined,
+            services: selectedServices.map(s => s.name)
+          })
     });
   };
 
@@ -717,6 +730,7 @@ const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () =>
   return (
     <div className="space-y-6 px-3 md:px-0 overflow-x-visible pt-10" style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
       {/* Customer Information */}
+      {!isBlockEvent && (
       <div className="pt-2">
         <h3 className="text-sm font-semibold text-gray-900 mb-4">Customer</h3>
         {(customerName || customerPhone || customerAddress) ? (
@@ -759,6 +773,7 @@ const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () =>
           <div className="text-sm text-gray-500">No customer information available</div>
         )}
       </div>
+      )}
 
       {/* Station and Arrival Selection */}
       <div className="pt-2" style={{ width: '100%', maxWidth: '100%' }}>
@@ -785,27 +800,30 @@ const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () =>
           </div>
           
           {/* Arrival Dropdown */}
-          <div>
-            <label htmlFor="location-type-select" className="block text-sm font-semibold text-gray-900 mb-2">
-              Arrival
-            </label>
-            <select
-              id="location-type-select"
-              value={locationType}
-              onChange={e => setLocationType(e.target.value)}
-              disabled={selectedResourceId ? resources.find(r => r.id === selectedResourceId)?.type === 'van' : false}
-              className="w-full px-4 py-2.5 border rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-500"
-              style={{ borderColor: '#E2E2DD' }}
-            >
-              <option value="">Select location type</option>
-              <option value="pickup">Pick Up</option>
-              <option value="dropoff">Drop Off</option>
-            </select>
-          </div>
+          {!isBlockEvent && (
+            <div>
+              <label htmlFor="location-type-select" className="block text-sm font-semibold text-gray-900 mb-2">
+                Arrival
+              </label>
+              <select
+                id="location-type-select"
+                value={locationType}
+                onChange={e => setLocationType(e.target.value)}
+                disabled={selectedResourceId ? resources.find(r => r.id === selectedResourceId)?.type === 'van' : false}
+                className="w-full px-4 py-2.5 border rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-500"
+                style={{ borderColor: '#E2E2DD' }}
+              >
+                <option value="">Select location type</option>
+                <option value="pickup">Pick Up</option>
+                <option value="dropoff">Drop Off</option>
+              </select>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Vehicle Information */}
+      {!isBlockEvent && (
       <div className="border-t border-gray-200 pt-6">
         <h3 className="text-sm font-semibold text-gray-900 mb-4">Car model</h3>
         <div className="flex flex-wrap items-center gap-2">
@@ -905,8 +923,10 @@ const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () =>
           </div>
         )}
       </div>
+      )}
 
       {/* Services */}
+      {!isBlockEvent && (
       <div className="border-t border-gray-200 pt-6">
         <h3 className="text-sm font-semibold text-gray-900 mb-4">Job Details</h3>
         <div className="relative">
@@ -1064,10 +1084,13 @@ const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () =>
           )}
         </div>
       </div>
+      )}
 
       {/* Employee Selection */}
       <div className="border-t border-gray-200 pt-6">
-        <label className="block text-sm font-medium text-gray-700 mb-2">Assign Employee</label>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          {isBlockEvent ? 'Technician (optional)' : 'Assign Employee'}
+        </label>
         {employees.length === 0 ? (
           <p className="text-sm text-gray-500 mb-2">
             No active employees found. Please add employees in the Resources page.
@@ -1319,7 +1342,9 @@ const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () =>
 
       {/* Customer Notes */}
       <div className="border-t border-gray-200 pt-6">
-        <h3 className="text-sm font-semibold text-gray-900 mb-4">Customer Notes</h3>
+        <h3 className="text-sm font-semibold text-gray-900 mb-4">
+          {isBlockEvent ? 'Notes' : 'Customer Notes'}
+        </h3>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Notes</label>
           <textarea
@@ -1328,9 +1353,11 @@ const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () =>
             rows={4}
             className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
             style={{ boxSizing: 'border-box' }}
-            placeholder="e.g., Customer prefers hand-wash only, always 5 minutes late, prefers early morning appointments..."
+            placeholder={isBlockEvent ? 'Add any notes...' : 'e.g., Customer prefers hand-wash only, always 5 minutes late, prefers early morning appointments...'}
           />
-          <p className="mt-1 text-xs text-gray-500">Add quick notes about customer preferences, behavior, or reminders</p>
+          {!isBlockEvent && (
+            <p className="mt-1 text-xs text-gray-500">Add quick notes about customer preferences, behavior, or reminders</p>
+          )}
         </div>
       </div>
     </div>
@@ -1824,7 +1851,8 @@ const EventHoverPopup = ({
 }) => {
     if (!event || !position) return null;
 
-    const eventColor = event.color || 'blue';
+    const isBlockEvent = event.eventType === 'block';
+    const eventColor = isBlockEvent ? 'gray' : (event.color || 'blue');
     const eventColors: Record<string, { bg: string; border: string }> = {
         blue: { bg: 'bg-blue-100', border: 'border-blue-500' },
         green: { bg: 'bg-green-100', border: 'border-green-500' },
@@ -1837,7 +1865,7 @@ const EventHoverPopup = ({
     };
     const colorConfig = eventColors[eventColor] || eventColors.blue;
 
-    const serviceName = event.title || event.eventName || (Array.isArray(event.services) ? event.services.join(' + ') : event.services) || 'Service';
+    const serviceName = isBlockEvent ? 'Blocked Time' : (event.title || event.eventName || (Array.isArray(event.services) ? event.services.join(' + ') : event.services) || 'Service');
     const vehicleModel = event.vehicleType || event.vehicleModel;
     const timeRange = formatTimeRange(event);
     const customerStatus = getCustomerType(event);
@@ -1877,7 +1905,7 @@ const EventHoverPopup = ({
                             </div>
                         )}
                         {/* Vehicle */}
-                        {vehicleModel && (
+                        {!isBlockEvent && vehicleModel && (
                             <div className="text-base font-medium mt-1.5" style={{ color: 'rgba(64, 64, 58, 0.7)' }}>
                                 {vehicleModel}
                             </div>
@@ -1895,6 +1923,7 @@ const EventHoverPopup = ({
                 </div>
 
                 {/* Tags */}
+                {!isBlockEvent && (
                 <div className="flex flex-wrap items-center gap-2">
                     {/* Show "Van" tag for van resources, or locationType (Drop off/Pick up) for bay resources */}
                     {isVan ? (
@@ -1942,9 +1971,10 @@ const EventHoverPopup = ({
                         </span>
                     )}
                 </div>
+                )}
 
                 {/* Customer Information */}
-                {(event.customerName || event.customerPhone) && (
+                {!isBlockEvent && (event.customerName || event.customerPhone) && (
                     <div className="text-base text-gray-700">
                         <span className="font-semibold">{event.customerName || 'Customer'}</span>
                         {event.customerPhone && (
@@ -2717,8 +2747,9 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                     {/* Render all-day events as blocks spanning entire day height */}
                                     {allDayEvents.map((event, i) => {
                                         if (!event) return null;
+                                        const isBlockEvent = event.eventType === 'block';
                                         const eventColor = event.color || 'blue';
-                                        const colorConfig = eventColors[eventColor] || eventColors.blue;
+                                        const colorConfig = isBlockEvent ? eventColors.gray : (eventColors[eventColor] || eventColors.blue);
                                         
                                         // Check if event is in the past (on a past day)
                                         const now = new Date();
@@ -2764,27 +2795,29 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                                             <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
                                                         </svg>
                                                     )}
-                                                    <span className="truncate font-semibold text-sm md:text-base flex-1">{event.title || event.eventName || (Array.isArray(event.services) ? event.services.join(' + ') : event.services) || 'Service'}</span>
+                                                    <span className="truncate font-semibold text-sm md:text-base flex-1">
+                                                        {isBlockEvent ? 'Blocked Time' : (event.title || event.eventName || (Array.isArray(event.services) ? event.services.join(' + ') : event.services) || 'Service')}
+                                                    </span>
                                                 </div>
-                                                {(event.customerName || event.customerPhone) && (
+                                                {!isBlockEvent && (event.customerName || event.customerPhone) && (
                                                     <span className="text-xs text-gray-700 mt-0.5 truncate font-semibold text-left w-full">
                                                         {event.customerName || 'Customer'}{event.customerPhone ? ` (${formatPhoneDisplay(event.customerPhone)})` : ''}
                                                     </span>
                                                 )}
-                                                {getCustomerType(event) === 'new' && (
+                                                {!isBlockEvent && getCustomerType(event) === 'new' && (
                                                     <span className="text-xs font-semibold bg-gray-200 text-gray-700 px-1.5 py-0.5 rounded mt-0.5 inline-block text-left">
                                                         New customer
                                                     </span>
                                                 )}
-                                                {getCustomerType(event) === 'returning' && (
+                                                {!isBlockEvent && getCustomerType(event) === 'returning' && (
                                                     <span className="text-xs font-semibold bg-purple-200 text-purple-800 px-1.5 py-0.5 rounded mt-0.5 inline-block text-left truncate">
                                                         Repeat ...
                                                     </span>
                                                 )}
-                                                {(event.vehicleType || event.vehicleModel) ? (
+                                                {!isBlockEvent && (event.vehicleType || event.vehicleModel) ? (
                                                     <span className="text-xs font-semibold text-gray-600 mt-0.5 truncate text-left w-full">{event.vehicleType || event.vehicleModel}</span>
                                                 ) : null}
-                                                {event.services && (Array.isArray(event.services) ? event.services.length > 0 : event.services) ? (
+                                                {!isBlockEvent && event.services && (Array.isArray(event.services) ? event.services.length > 0 : event.services) ? (
                                                     <span className="text-xs font-semibold text-gray-600 mt-0.5 truncate text-left w-full">
                                                         {Array.isArray(event.services) ? event.services.join(', ') : event.services}
                                                     </span>
@@ -2971,6 +3004,7 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                     {/* Render timed events positioned absolutely within this resource column */}
                                     {timedEvents.map((event, i) => {
                                         if (!event || !event.start || !event.end) return null;
+                                        const isBlockEvent = event.eventType === 'block';
                                         // Calculate position and height based on actual start/end times
                                         const eventStartTime = new Date(event.start);
                                         const eventEndTime = new Date(event.end);
@@ -3142,7 +3176,7 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                         const durationHours = durationMs / (1000 * 60 * 60);
                                         const height = Math.max(scaledTimeSlotHeight * 0.5, durationHours * scaledTimeSlotHeight);
                                         
-                                        const eventColor = event.color || 'blue';
+                                        const eventColor = isBlockEvent ? 'gray' : (event.color || 'blue');
                                         const colorConfig = eventColors[eventColor] || eventColors.blue;
                                         
                                         // Map event colors to light background colors for cards
@@ -3180,14 +3214,14 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                         // Hide time, notes, and employee image if card is less than one hour tall
                                         // These elements require the card to be at least one hour tall to display
                                         const showTime = height >= 25 && isAtLeastOneHour;
-                                        const showLocationButton = height >= 25; // Show location button starting from 2nd design
-                                        const showVehicle = height >= 55; // Show vehicle starting from 3rd design
+                                        const showLocationButton = !isBlockEvent && height >= 25; // Show location button starting from 2nd design
+                                        const showVehicle = !isBlockEvent && height >= 55; // Show vehicle starting from 3rd design
                                         const showNotes = height >= 55 && isAtLeastOneHour; // Hide notes if less than one hour
-                                        const showRepeatButton = height >= 55; // Show repeat button starting from 3rd design
-                                        const showCustomerName = height >= 85; // Show customer name starting from 4th design
+                                        const showRepeatButton = !isBlockEvent && height >= 55; // Show repeat button starting from 3rd design
+                                        const showCustomerName = !isBlockEvent && height >= 85; // Show customer name starting from 4th design
                                         const showTechPicture = height >= 85 && isAtLeastOneHour; // Hide employee image if less than one hour
-                                        const showCustomerPhone = height >= 100; // Show customer phone starting from largest design
-                                        const showCustomerAddress = showCustomerPhone;
+                                        const showCustomerPhone = !isBlockEvent && height >= 100; // Show customer phone starting from largest design
+                                        const showCustomerAddress = !isBlockEvent && showCustomerPhone;
                                         const addressLine = (() => {
                                             const city = (event as any).customerCity || (event as any).city;
                                             const rawAddress = event.customerAddress || (event as any).address;
@@ -3267,7 +3301,7 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                                         whiteSpace: 'nowrap'
                                                 }}
                                             >
-                                                {event.title || event.eventName || (Array.isArray(event.services) ? event.services.join(' + ') : event.services) || 'Service'}
+                                                {isBlockEvent ? 'Blocked Time' : (event.title || event.eventName || (Array.isArray(event.services) ? event.services.join(' + ') : event.services) || 'Service')}
                                             </span>
                                         </div>
                                         
@@ -4460,11 +4494,14 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
                     // Skip events with 0 width (events without proper start/end times)
                     if (width <= 0) return null;
                     
-                    const customerType = event.customerType?.toLowerCase() === 'maintenance'
+                    const isBlockEvent = event.eventType === 'block';
+                    const customerType = isBlockEvent
+                      ? null
+                      : (event.customerType?.toLowerCase() === 'maintenance'
                       ? 'maintenance'
-                      : getCustomerType(event);
+                      : getCustomerType(event));
                     const isPending = event.status === 'pending';
-                    const eventColor = event.color || 'blue'; // Use employee's color, default to blue
+                    const eventColor = isBlockEvent ? 'gray' : (event.color || 'blue'); // Use employee's color, default to blue
                     const addressLine = (() => {
                       const city = (event as any).customerCity || (event as any).city;
                       const rawAddress = event.customerAddress || (event as any).address;
@@ -4540,7 +4577,7 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
                             </div>
                           ) : null}
                           <div className="text-base font-semibold text-gray-900 flex-1 truncate">
-                            {Array.isArray(event.services) ? event.services.join(' + ') : event.services || 'Service'}
+                            {isBlockEvent ? 'Blocked Time' : (Array.isArray(event.services) ? event.services.join(' + ') : event.services || 'Service')}
                           </div>
                         </div>
                         {formatTimeRange(event) && (
@@ -4548,12 +4585,14 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
                             {formatTimeRange(event)}
                           </div>
                         )}
-                        <div className="text-xs font-semibold text-gray-600 mb-1">
-                          {event.vehicleType || 'Vehicle'}
-                        </div>
+                        {!isBlockEvent && (
+                          <div className="text-xs font-semibold text-gray-600 mb-1">
+                            {event.vehicleType || 'Vehicle'}
+                          </div>
+                        )}
                         <div className="mt-auto pt-2">
                           {/* Location Type Tag - Only for Bay resources */}
-                          {resource.type === 'bay' && event.locationType && (
+                          {!isBlockEvent && resource.type === 'bay' && event.locationType && (
                             <div className="mb-1">
                               <span className={`text-xs font-semibold px-1.5 py-0.5 rounded inline-block ${
                                 (event.locationType?.toLowerCase() === 'pick up' || event.locationType?.toLowerCase() === 'pickup')
@@ -4570,21 +4609,21 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
                               </span>
                             </div>
                           )}
-                          {!isPending && customerType === 'new' && (
+                          {!isBlockEvent && !isPending && customerType === 'new' && (
                             <div className="mb-1">
                               <span className="text-xs font-semibold bg-gray-200 text-gray-700 px-1.5 py-0.5 rounded">
                                 New customer
                               </span>
                             </div>
                           )}
-                          {!isPending && customerType === 'returning' && (
+                          {!isBlockEvent && !isPending && customerType === 'returning' && (
                             <div className="mb-1">
                               <span className="text-xs font-semibold bg-purple-200 text-purple-800 px-1.5 py-0.5 rounded">
                                 Repeat customer
                               </span>
                             </div>
                           )}
-                          {(event.customerName || event.customerPhone) && (
+                          {!isBlockEvent && (event.customerName || event.customerPhone) && (
                             <div className="flex flex-col">
                               <div className="text-xs font-semibold text-gray-600">
                                 {event.customerName || 'Customer'}
@@ -4596,7 +4635,7 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
                               )}
                             </div>
                           )}
-                          {addressLine && (
+                          {!isBlockEvent && addressLine && (
                             <div className="text-xs font-semibold text-gray-500">
                               {addressLine}
                             </div>
@@ -9606,99 +9645,103 @@ export default function CalendarPage() {
                     </>
                   )}
 
-                      {/* Customer Type and Location Type */}
-                      <div>
-                        <h3 className="text-sm font-semibold text-gray-900 mb-4">Customer Information</h3>
-                        <div className="flex flex-wrap items-center gap-2">
-                          {/* Customer Type Tag */}
-                          {selectedEventData && (() => {
-                            const customerStatus = getCustomerTypeFromHistory({
-                              completedServiceCount: selectedEventData.completedServiceCount,
-                              lastCompletedServiceAt: selectedEventData.lastCompletedServiceAt,
-                              referenceDate: selectedEventData.start || selectedEventData.date || new Date()
-                            });
-                            const effectiveCustomerType =
-                              selectedEventData.customerType?.toLowerCase() === 'maintenance'
-                                ? 'maintenance'
-                                : customerStatus;
+                      {selectedEventData?.eventType !== 'block' && (
+                      <>
+                        {/* Customer Type and Location Type */}
+                        <div>
+                          <h3 className="text-sm font-semibold text-gray-900 mb-4">Customer Information</h3>
+                          <div className="flex flex-wrap items-center gap-2">
+                            {/* Customer Type Tag */}
+                            {selectedEventData && (() => {
+                              const customerStatus = getCustomerTypeFromHistory({
+                                completedServiceCount: selectedEventData.completedServiceCount,
+                                lastCompletedServiceAt: selectedEventData.lastCompletedServiceAt,
+                                referenceDate: selectedEventData.start || selectedEventData.date || new Date()
+                              });
+                              const effectiveCustomerType =
+                                selectedEventData.customerType?.toLowerCase() === 'maintenance'
+                                  ? 'maintenance'
+                                  : customerStatus;
 
-                            return (
+                              return (
+                                <span className={`text-xs font-semibold px-3 py-1.5 rounded-full inline-block ${
+                                  effectiveCustomerType === 'new'
+                                    ? 'bg-gray-200 text-gray-700'
+                                    : effectiveCustomerType === 'returning'
+                                    ? 'bg-purple-200 text-purple-800'
+                                    : effectiveCustomerType === 'maintenance'
+                                    ? 'bg-blue-200 text-blue-800'
+                                    : 'bg-gray-200 text-gray-700'
+                                }`}>
+                                  {effectiveCustomerType === 'new' ? 'New Customer' : 
+                                   effectiveCustomerType === 'returning' ? 'Repeat Customer' :
+                                   effectiveCustomerType === 'maintenance' ? 'Maintenance Customer' :
+                                   effectiveCustomerType}
+                                </span>
+                              );
+                            })()}
+                            
+                            {/* Location Type Tag */}
+                            {selectedEventData.locationType && (
                               <span className={`text-xs font-semibold px-3 py-1.5 rounded-full inline-block ${
-                                effectiveCustomerType === 'new'
-                                  ? 'bg-gray-200 text-gray-700'
-                                  : effectiveCustomerType === 'returning'
-                                  ? 'bg-purple-200 text-purple-800'
-                                  : effectiveCustomerType === 'maintenance'
-                                  ? 'bg-blue-200 text-blue-800'
+                                (selectedEventData.locationType?.toLowerCase() === 'pick up' || selectedEventData.locationType?.toLowerCase() === 'pickup')
+                                  ? 'bg-blue-500 text-white'
+                                  : (selectedEventData.locationType?.toLowerCase() === 'drop off' || selectedEventData.locationType?.toLowerCase() === 'dropoff')
+                                  ? 'bg-pink-500 text-white'
                                   : 'bg-gray-200 text-gray-700'
                               }`}>
-                                {effectiveCustomerType === 'new' ? 'New Customer' : 
-                                 effectiveCustomerType === 'returning' ? 'Repeat Customer' :
-                                 effectiveCustomerType === 'maintenance' ? 'Maintenance Customer' :
-                                 effectiveCustomerType}
+                                {selectedEventData.locationType?.toLowerCase() === 'pickup' ? 'Pick Up' : 
+                                 selectedEventData.locationType?.toLowerCase() === 'dropoff' ? 'Drop Off' :
+                                 selectedEventData.locationType?.toLowerCase() === 'pick up' ? 'Pick Up' :
+                                 selectedEventData.locationType?.toLowerCase() === 'drop off' ? 'Drop Off' :
+                                 selectedEventData.locationType}
                               </span>
-                            );
-                          })()}
-                          
-                          {/* Location Type Tag */}
-                          {selectedEventData.locationType && (
-                            <span className={`text-xs font-semibold px-3 py-1.5 rounded-full inline-block ${
-                              (selectedEventData.locationType?.toLowerCase() === 'pick up' || selectedEventData.locationType?.toLowerCase() === 'pickup')
-                                ? 'bg-blue-500 text-white'
-                                : (selectedEventData.locationType?.toLowerCase() === 'drop off' || selectedEventData.locationType?.toLowerCase() === 'dropoff')
-                                ? 'bg-pink-500 text-white'
-                                : 'bg-gray-200 text-gray-700'
-                            }`}>
-                              {selectedEventData.locationType?.toLowerCase() === 'pickup' ? 'Pick Up' : 
-                               selectedEventData.locationType?.toLowerCase() === 'dropoff' ? 'Drop Off' :
-                               selectedEventData.locationType?.toLowerCase() === 'pick up' ? 'Pick Up' :
-                               selectedEventData.locationType?.toLowerCase() === 'drop off' ? 'Drop Off' :
-                               selectedEventData.locationType}
-                            </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Vehicle Information (Car Model) */}
+                        <div>
+                          <h3 className="text-sm font-semibold text-gray-900 mb-4">Car model</h3>
+                          {eventVehicles.length > 0 ? (
+                            <div className="flex flex-wrap items-center gap-2">
+                              {eventVehicles.map((vehicle) => (
+                                <div
+                                  key={vehicle.id}
+                                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-800 text-white text-sm font-medium"
+                                >
+                                  <span>{vehicle.model}</span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="text-sm text-gray-500">No car model provided</div>
                           )}
                         </div>
-                      </div>
 
-                      {/* Vehicle Information (Car Model) */}
-                      <div>
-                        <h3 className="text-sm font-semibold text-gray-900 mb-4">Car model</h3>
-                        {eventVehicles.length > 0 ? (
-                          <div className="flex flex-wrap items-center gap-2">
-                            {eventVehicles.map((vehicle) => (
-                              <div
-                                key={vehicle.id}
-                                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-800 text-white text-sm font-medium"
-                              >
-                                <span>{vehicle.model}</span>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="text-sm text-gray-500">No car model provided</div>
-                        )}
-                      </div>
-
-                      {/* Services (Job Details) */}
-                      <div>
-                        <h3 className="text-sm font-semibold text-gray-900 mb-4">Job Details</h3>
-                        {selectedServices.length > 0 ? (
-                          <div className="flex flex-wrap items-center gap-2">
-                            {selectedServices.map((item) => (
-                              <div
-                                key={`${item.type}-${item.id}`}
-                                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-800 text-white text-sm font-medium"
-                              >
-                                <span>{item.name}</span>
-                                {item.type === 'bundle' && (
-                                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-500 text-white">Bundle</span>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="text-sm text-gray-500">No services selected</div>
-                        )}
-                      </div>
+                        {/* Services (Job Details) */}
+                        <div>
+                          <h3 className="text-sm font-semibold text-gray-900 mb-4">Job Details</h3>
+                          {selectedServices.length > 0 ? (
+                            <div className="flex flex-wrap items-center gap-2">
+                              {selectedServices.map((item) => (
+                                <div
+                                  key={`${item.type}-${item.id}`}
+                                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-800 text-white text-sm font-medium"
+                                >
+                                  <span>{item.name}</span>
+                                  {item.type === 'bundle' && (
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-500 text-white">Bundle</span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="text-sm text-gray-500">No services selected</div>
+                          )}
+                        </div>
+                      </>
+                      )}
 
                       {/* Date and Time (Scheduling) */}
                       <div>
@@ -9844,17 +9887,20 @@ export default function CalendarPage() {
                           timeRange = event.time;
                         }
                         
+                        const isBlockEvent = event.eventType === 'block';
                         // Get service name
-                        const serviceName = Array.isArray(event.services) 
-                          ? event.services.join(' + ') 
-                          : event.services || event.title || 'Service';
+                        const serviceName = isBlockEvent
+                          ? 'Blocked Time'
+                          : (Array.isArray(event.services) 
+                              ? event.services.join(' + ') 
+                              : event.services || event.title || 'Service');
                         
                         // Get vehicle type
-                        const vehicleType = event.vehicleType || 'Vehicle';
+                        const vehicleType = isBlockEvent ? '' : (event.vehicleType || 'Vehicle');
                         
                         // Get customer info
-                        const customerName = event.customerName || 'Customer';
-                        const customerPhone = event.customerPhone || event.phone || '';
+                        const customerName = isBlockEvent ? '' : (event.customerName || 'Customer');
+                        const customerPhone = isBlockEvent ? '' : (event.customerPhone || event.phone || '');
                         const addressLine = (() => {
                           const city = (event as any).customerCity || (event as any).city;
                           const rawAddress = event.customerAddress || (event as any).address;
@@ -9875,7 +9921,7 @@ export default function CalendarPage() {
                         const locationLower = (event.locationType || '').toLowerCase();
                         const isPickup = locationLower === 'pick up' || locationLower === 'pickup';
                         const isDropoff = locationLower === 'drop off' || locationLower === 'dropoff';
-                        const customerStatus = getCustomerTypeFromHistory({
+                        const customerStatus = isBlockEvent ? null : getCustomerTypeFromHistory({
                           completedServiceCount: event.completedServiceCount,
                           lastCompletedServiceAt: event.lastCompletedServiceAt,
                           referenceDate: event.start || event.date || new Date()
@@ -9883,7 +9929,9 @@ export default function CalendarPage() {
                         const assignedEmployee = event.employeeId
                           ? allEmployees.find((emp) => emp.id === event.employeeId)
                           : null;
-                        const techColor = assignedEmployee?.color === 'green'
+                        const techColor = isBlockEvent
+                          ? '#6B7280'
+                          : assignedEmployee?.color === 'green'
                           ? '#10B981'
                           : assignedEmployee?.color === 'orange'
                           ? '#F97316'
@@ -9898,7 +9946,7 @@ export default function CalendarPage() {
                             {/* Service name + Station + Tech */}
                             <div className="flex items-start justify-between gap-3 mb-2">
                               <div className="flex items-start gap-2">
-                                <div className="w-2 h-2 bg-red-500 rounded-full mt-2 flex-shrink-0"></div>
+                                <div className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${isBlockEvent ? 'bg-gray-400' : 'bg-red-500'}`}></div>
                                 <div>
                                   <div className="font-bold text-gray-900 text-sm">
                                     {serviceName}
@@ -9934,43 +9982,51 @@ export default function CalendarPage() {
                             )}
                             
                             {/* Vehicle */}
-                            <div className="text-xs text-gray-500 mb-16 ml-4">
-                              {vehicleType}
-                            </div>
+                            {!isBlockEvent && (
+                              <div className="text-xs text-gray-500 mb-16 ml-4">
+                                {vehicleType}
+                              </div>
+                            )}
 
                             {/* Tags */}
-                            <div className="flex items-center gap-2 mb-3 ml-4">
-                              {(isPickup || isDropoff) && (
-                                <span className={`text-xs font-semibold px-2 py-0.5 rounded inline-block ${
-                                  isPickup ? 'bg-blue-500 text-white' : 'bg-pink-500 text-white'
-                                }`}>
-                                  {isPickup ? 'Pick Up' : 'Drop Off'}
-                                </span>
-                              )}
-                              <span className={`text-xs font-semibold px-2 py-0.5 rounded inline-block ${
-                                customerStatus === 'new' ? 'bg-gray-200 text-gray-700' : 'bg-purple-200 text-purple-800'
-                              }`}>
-                                {customerStatus === 'new' ? 'New' : 'Repeat'}
-                              </span>
-                            </div>
+                            {!isBlockEvent && (
+                              <div className="flex items-center gap-2 mb-3 ml-4">
+                                {(isPickup || isDropoff) && (
+                                  <span className={`text-xs font-semibold px-2 py-0.5 rounded inline-block ${
+                                    isPickup ? 'bg-blue-500 text-white' : 'bg-pink-500 text-white'
+                                  }`}>
+                                    {isPickup ? 'Pick Up' : 'Drop Off'}
+                                  </span>
+                                )}
+                                {customerStatus && (
+                                  <span className={`text-xs font-semibold px-2 py-0.5 rounded inline-block ${
+                                    customerStatus === 'new' ? 'bg-gray-200 text-gray-700' : 'bg-purple-200 text-purple-800'
+                                  }`}>
+                                    {customerStatus === 'new' ? 'New' : 'Repeat'}
+                                  </span>
+                                )}
+                              </div>
+                            )}
                             
                             {/* Customer info and Action buttons - aligned horizontally */}
                             <div className="flex items-center justify-between ml-4">
-                              <div className="flex flex-col">
-                                {customerPhone && (
-                                  <div className="text-sm text-gray-500 mb-1">
-                                    {formatPhoneDisplay(customerPhone)}
+                              {!isBlockEvent && (
+                                <div className="flex flex-col">
+                                  {customerPhone && (
+                                    <div className="text-sm text-gray-500 mb-1">
+                                      {formatPhoneDisplay(customerPhone)}
+                                    </div>
+                                  )}
+                                  {addressLine && (
+                                    <div className="text-xs text-gray-500 mb-1 truncate max-w-[220px]">
+                                      {addressLine}
+                                    </div>
+                                  )}
+                                  <div className="text-gray-900 font-semibold" style={{ fontSize: '18px' }}>
+                                    {customerName}
                                   </div>
-                                )}
-                                {addressLine && (
-                                  <div className="text-xs text-gray-500 mb-1 truncate max-w-[220px]">
-                                    {addressLine}
-                                  </div>
-                                )}
-                                <div className="text-gray-900 font-semibold" style={{ fontSize: '18px' }}>
-                                  {customerName}
                                 </div>
-                              </div>
+                              )}
                               
                               {/* Action buttons */}
                               <div className="flex gap-2 items-center">
@@ -10021,23 +10077,26 @@ export default function CalendarPage() {
                       timeRange = event.time;
                     }
                     
+                    const isBlockEvent = event.eventType === 'block';
                     // Get service name
-                    const serviceName = Array.isArray(event.services) 
-                      ? event.services.join(' + ') 
-                      : event.services || event.title || 'Service';
+                    const serviceName = isBlockEvent
+                      ? 'Blocked Time'
+                      : (Array.isArray(event.services) 
+                        ? event.services.join(' + ') 
+                        : event.services || event.title || 'Service');
                     
                     // Get vehicle type
-                    const vehicleType = event.vehicleType || 'Vehicle';
+                    const vehicleType = isBlockEvent ? '' : (event.vehicleType || 'Vehicle');
                     
                     // Get customer info
-                    const customerName = event.customerName || 'Customer';
-                    const customerPhone = event.customerPhone || event.phone || '';
+                    const customerName = isBlockEvent ? '' : (event.customerName || 'Customer');
+                    const customerPhone = isBlockEvent ? '' : (event.customerPhone || event.phone || '');
                     
                     return (
                       <div key={event.id || index} className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
                         {/* Service name with red bullet */}
                         <div className="flex items-start gap-2 mb-2">
-                          <div className="w-2 h-2 bg-red-500 rounded-full mt-2 flex-shrink-0"></div>
+                        <div className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${isBlockEvent ? 'bg-gray-400' : 'bg-red-500'}`}></div>
                           <div className="font-bold text-gray-900 text-sm">
                             {serviceName}
                           </div>
@@ -10051,22 +10110,26 @@ export default function CalendarPage() {
                         )}
                         
                         {/* Vehicle */}
-                        <div className="text-xs text-gray-500 mb-16 ml-4">
-                          {vehicleType}
-                        </div>
+                        {!isBlockEvent && (
+                          <div className="text-xs text-gray-500 mb-16 ml-4">
+                            {vehicleType}
+                          </div>
+                        )}
                         
                         {/* Customer info and Action buttons - aligned horizontally */}
                         <div className="flex items-center justify-between ml-4">
-                          <div className="flex flex-col">
-                            {customerPhone && (
-                              <div className="text-sm text-gray-500 mb-1">
-                                {formatPhoneDisplay(customerPhone)}
+                          {!isBlockEvent && (
+                            <div className="flex flex-col">
+                              {customerPhone && (
+                                <div className="text-sm text-gray-500 mb-1">
+                                  {formatPhoneDisplay(customerPhone)}
+                                </div>
+                              )}
+                              <div className="text-gray-900 font-semibold" style={{ fontSize: '18px' }}>
+                                {customerName}
                               </div>
-                            )}
-                            <div className="text-gray-900 font-semibold" style={{ fontSize: '18px' }}>
-                              {customerName}
                             </div>
-                          </div>
+                          )}
                           
                           {/* Action buttons */}
                           <div className="flex gap-2 items-center">
@@ -10187,6 +10250,7 @@ export default function CalendarPage() {
                       setEditFormData({
                         title: selectedEventData.title || selectedEventData.eventName || '',
                         color: selectedEventData.color || 'blue',
+                        eventType: selectedEventData.eventType || 'appointment',
                         startDate: dateStr,
                         startTime: startTimeStr,
                         endTime: endTimeStr,

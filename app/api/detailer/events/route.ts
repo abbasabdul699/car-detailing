@@ -18,9 +18,12 @@ export async function POST(request: NextRequest) {
 
     const detailerId = session.user.id;
     const body = await request.json();
-    const { title, color, employeeId, startDate, endDate, isAllDay, description, resourceId, time, startTime: startTimeParam, endTime: endTimeParam, customerName, customerPhone, customerEmail, customerAddress, locationType, customerType, vehicleModel, services } = body;
+    const { title, color, employeeId, startDate, endDate, isAllDay, description, resourceId, time, startTime: startTimeParam, endTime: endTimeParam, customerName, customerPhone, customerEmail, customerAddress, locationType, customerType, vehicleModel, services, eventType } = body;
 
-    if (!title || !startDate) {
+    const normalizedEventType = eventType === 'block' ? 'block' : 'appointment';
+    const titleToUse = title?.trim() ? title : (normalizedEventType === 'block' ? 'Blocked Time' : '');
+
+    if (!titleToUse || !startDate) {
       return NextResponse.json({ error: 'Title and start date are required' }, { status: 400 });
     }
 
@@ -140,41 +143,54 @@ export async function POST(request: NextRequest) {
       employeeColor = employee.color || 'blue';
     }
     
-    // Store customer, vehicle, and services info in description as JSON (for backward compatibility)
-    const eventMetadata = {
-      customerName: customerName || null,
-      customerPhone: customerPhone || null,
-      customerAddress: customerAddress || null,
-      locationType: locationType || null,
-      customerType: customerType || null,
-      vehicleModel: vehicleModel || null,
-      services: services || null
-    };
-    
-    // Combine description with metadata
-    const fullDescription = description || '';
-    const metadataJson = JSON.stringify(eventMetadata);
-    const combinedDescription = fullDescription 
-      ? `${fullDescription}\n\n__METADATA__:${metadataJson}`
-      : `__METADATA__:${metadataJson}`;
+    const hasServices = Array.isArray(services) ? services.length > 0 : Boolean(services);
+    const hasCustomerFields = Boolean(
+      customerName || customerPhone || customerEmail || customerAddress || locationType || customerType || vehicleModel || hasServices
+    );
+
+    if (normalizedEventType === 'block' && hasCustomerFields) {
+      return NextResponse.json({ error: 'Block time events cannot include customer or service data' }, { status: 400 });
+    }
+
+    let combinedDescription = description || '';
+    if (normalizedEventType === 'appointment') {
+      // Store customer, vehicle, and services info in description as JSON (for backward compatibility)
+      const eventMetadata = {
+        customerName: customerName || null,
+        customerPhone: customerPhone || null,
+        customerAddress: customerAddress || null,
+        locationType: locationType || null,
+        customerType: customerType || null,
+        vehicleModel: vehicleModel || null,
+        services: services || null
+      };
+      
+      // Combine description with metadata
+      const fullDescription = description || '';
+      const metadataJson = JSON.stringify(eventMetadata);
+      combinedDescription = fullDescription 
+        ? `${fullDescription}\n\n__METADATA__:${metadataJson}`
+        : `__METADATA__:${metadataJson}`;
+    }
     
     // Create the event in the database
     const event = await prisma.event.create({
       data: {
         detailerId,
-        title,
+        title: titleToUse,
         description: combinedDescription,
         date: startDateTime,
         time: startTime || null, // Store time for all-day events with business hours, null otherwise
         allDay: isAllDay || false,
         color: employeeColor, // Use employee's color or provided color
         employeeId: employeeId || null,
-        resourceId: resourceId
+        resourceId: resourceId,
+        eventType: normalizedEventType
       }
     });
 
     // Upsert CustomerSnapshot if customerPhone is provided
-    if (customerPhone) {
+    if (normalizedEventType === 'appointment' && customerPhone) {
       try {
         const normalizedPhone = normalizeToE164(customerPhone) || customerPhone;
         

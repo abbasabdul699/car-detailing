@@ -275,7 +275,7 @@ export async function PATCH(
     const { eventId } = await params;
     const detailerId = session.user.id;
     const body = await request.json();
-    const { title, color, employeeId, startDate, endDate, isAllDay, isMultiDay, description, resourceId, time, startTime: startTimeParam, endTime: endTimeParam, customerName, customerPhone, customerEmail, customerAddress, locationType, customerType, vehicleModel, services } = body;
+    const { title, color, employeeId, startDate, endDate, isAllDay, isMultiDay, description, resourceId, time, startTime: startTimeParam, endTime: endTimeParam, customerName, customerPhone, customerEmail, customerAddress, locationType, customerType, vehicleModel, services, eventType } = body;
 
     if (!eventId) {
       return NextResponse.json({ error: 'Event ID is required' }, { status: 400 });
@@ -432,42 +432,9 @@ export async function PATCH(
       }
     }
 
-    // Handle description and metadata
-    let finalDescription = description !== undefined ? description : event.description || '';
-    
-    // Extract existing metadata if present
-    let existingMetadata: any = {};
-    if (event.description && event.description.includes('__METADATA__:')) {
-      const parts = event.description.split('__METADATA__:');
-      if (description === undefined) {
-        finalDescription = parts[0].trim();
-      }
-      try {
-        existingMetadata = JSON.parse(parts[1] || '{}');
-      } catch (e) {
-        // Ignore parse errors
-      }
-    }
-    
-    // Update metadata with new values
-    const eventMetadata = {
-      customerName: customerName !== undefined ? (customerName || null) : existingMetadata.customerName,
-      customerPhone: customerPhone !== undefined ? (customerPhone || null) : existingMetadata.customerPhone,
-      customerEmail: customerEmail !== undefined ? (customerEmail || null) : existingMetadata.customerEmail,
-      customerAddress: customerAddress !== undefined ? (customerAddress || null) : existingMetadata.customerAddress,
-      locationType: locationType !== undefined ? (locationType || null) : existingMetadata.locationType,
-      customerType: customerType !== undefined ? (customerType || null) : existingMetadata.customerType,
-      vehicleModel: vehicleModel !== undefined ? (vehicleModel || null) : existingMetadata.vehicleModel,
-      services: services !== undefined ? (services || null) : existingMetadata.services,
-      endDate: (isMultiDay && endDateTime) ? endDateTime.toISOString() : (existingMetadata.endDate || null)
-    };
-    
-    // Combine description with metadata
-    const metadataJson = JSON.stringify(eventMetadata);
-    const combinedDescription = finalDescription 
-      ? `${finalDescription}\n\n__METADATA__:${metadataJson}`
-      : `__METADATA__:${metadataJson}`;
-    
+    const normalizedEventType = eventType === 'block' ? 'block' : eventType === 'appointment' ? 'appointment' : undefined;
+    const nextEventType = normalizedEventType || event.eventType || 'appointment';
+
     // Check if any customer-related fields are being updated
     const hasCustomerUpdate = customerName !== undefined || 
                               customerPhone !== undefined || 
@@ -477,6 +444,57 @@ export async function PATCH(
                               customerType !== undefined ||
                               vehicleModel !== undefined ||
                               services !== undefined;
+
+    if (nextEventType === 'block' && hasCustomerUpdate) {
+      return NextResponse.json({ error: 'Block time events cannot include customer or service data' }, { status: 400 });
+    }
+
+    const stripMetadata = (value?: string | null) => {
+      if (!value) return '';
+      if (value.includes('__METADATA__:')) {
+        return value.split('__METADATA__:')[0].trim();
+      }
+      return value;
+    };
+
+    // Handle description and metadata
+    let finalDescription = description !== undefined ? description : stripMetadata(event.description);
+    let existingMetadata: any = {};
+    let combinedDescription = finalDescription;
+
+    if (nextEventType === 'appointment') {
+      // Extract existing metadata if present
+      if (event.description && event.description.includes('__METADATA__:')) {
+        const parts = event.description.split('__METADATA__:');
+        if (description === undefined) {
+          finalDescription = parts[0].trim();
+        }
+        try {
+          existingMetadata = JSON.parse(parts[1] || '{}');
+        } catch (e) {
+          // Ignore parse errors
+        }
+      }
+      
+      // Update metadata with new values
+      const eventMetadata = {
+        customerName: customerName !== undefined ? (customerName || null) : existingMetadata.customerName,
+        customerPhone: customerPhone !== undefined ? (customerPhone || null) : existingMetadata.customerPhone,
+        customerEmail: customerEmail !== undefined ? (customerEmail || null) : existingMetadata.customerEmail,
+        customerAddress: customerAddress !== undefined ? (customerAddress || null) : existingMetadata.customerAddress,
+        locationType: locationType !== undefined ? (locationType || null) : existingMetadata.locationType,
+        customerType: customerType !== undefined ? (customerType || null) : existingMetadata.customerType,
+        vehicleModel: vehicleModel !== undefined ? (vehicleModel || null) : existingMetadata.vehicleModel,
+        services: services !== undefined ? (services || null) : existingMetadata.services,
+        endDate: (isMultiDay && endDateTime) ? endDateTime.toISOString() : (existingMetadata.endDate || null)
+      };
+      
+      // Combine description with metadata
+      const metadataJson = JSON.stringify(eventMetadata);
+      combinedDescription = finalDescription 
+        ? `${finalDescription}\n\n__METADATA__:${metadataJson}`
+        : `__METADATA__:${metadataJson}`;
+    }
     
     // Update the event
     const updatedEvent = await prisma.event.update({
@@ -489,14 +507,15 @@ export async function PATCH(
         ...(time !== undefined && { time: startTime }),
         ...(isAllDay !== undefined && { allDay: isAllDay }),
         // Update description if description is provided OR if customer fields are being updated
-        ...((description !== undefined || hasCustomerUpdate) && { description: combinedDescription }),
-        ...(resourceId !== undefined && { resourceId: resourceId })
+        ...(((description !== undefined || (nextEventType === 'appointment' && hasCustomerUpdate) || (nextEventType === 'block' && event.description && event.description.includes('__METADATA__:'))) && { description: combinedDescription })),
+        ...(resourceId !== undefined && { resourceId: resourceId }),
+        ...(normalizedEventType && { eventType: normalizedEventType })
       }
     });
 
     // Upsert CustomerSnapshot if customerPhone is provided or updated
     const phoneToUse = customerPhone !== undefined ? customerPhone : existingMetadata.customerPhone;
-    if (phoneToUse) {
+    if (nextEventType === 'appointment' && phoneToUse) {
       try {
         const normalizedPhone = normalizeToE164(phoneToUse) || phoneToUse;
         
@@ -569,7 +588,7 @@ export async function PATCH(
           
           const googleEvent = {
             summary: title || event.title,
-            description: description !== undefined ? description : event.description || '',
+            description: finalDescription || '',
             start: {
               dateTime: startDateTime.toISOString(),
               timeZone: 'America/New_York'
@@ -619,6 +638,7 @@ export async function PATCH(
     // Return event with parsed customer fields
     const eventResponse = {
       ...updatedEvent,
+      eventType: updatedEvent.eventType || nextEventType,
       customerName: parsedMetadata.customerName || null,
       customerPhone: parsedMetadata.customerPhone || null,
       customerEmail: parsedMetadata.customerEmail || null,
