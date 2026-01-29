@@ -70,6 +70,16 @@ async function fetchGoogleCalendarEvents(accessToken: string, timeMin?: string, 
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(detailerAuthOptions);
+    const isDev = process.env.NODE_ENV !== "production";
+    if (isDev) {
+      const rawCookie = request.headers.get("cookie") || "";
+      console.log("[api][detailer][calendar-events] auth", {
+        hasDefaultSessionCookie: rawCookie.includes("next-auth.session-token"),
+        hasDetailerSessionCookie: rawCookie.includes("next-auth.detailer.session-token"),
+        sessionUserId: session?.user?.id,
+        sessionEmail: session?.user?.email,
+      });
+    }
     
     if (!session || !session.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

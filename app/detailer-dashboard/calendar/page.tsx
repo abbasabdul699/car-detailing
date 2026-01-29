@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef, useMemo, useImperativeHandle, forwardRef } from "react";
 import { createPortal } from "react-dom";
 import { useSession } from "next-auth/react";
+import Link from "next/link";
 import Image from "next/image";
 import { ChevronLeftIcon, ChevronRightIcon, ChevronDownIcon as ChevronDownIconSolid, PlusIcon } from "@heroicons/react/24/solid";
 import { 
@@ -4695,6 +4696,8 @@ export default function CalendarPage() {
   const eventTapRef = useRef<{ x: number; y: number; time: number } | null>(null);
   const session = useSession();
   const detailerId = session.data?.user?.id;
+  const isDev = process.env.NODE_ENV !== "production";
+  const lastAuthGateLogRef = useRef<string | null>(null);
   const [teamEmployees, setTeamEmployees] = useState<Array<{ id: string; name: string; imageUrl?: string; email?: string; phone?: string }>>([]);
   const [isLoadingEmployees, setIsLoadingEmployees] = useState(false);
   
@@ -4906,7 +4909,27 @@ export default function CalendarPage() {
     }
   }, [monthScale]);
   
-  console.log('Session status:', session.status, 'Session data:', session.data);
+  if (isDev) {
+    const rawCookie = typeof document !== "undefined" ? document.cookie || "" : "";
+    const authGateKey = `${session.status}:${detailerId ?? "no-detailer"}`;
+    if (lastAuthGateLogRef.current !== authGateKey) {
+      lastAuthGateLogRef.current = authGateKey;
+      console.log("[calendar][auth-gate]", {
+        status: session.status,
+        userId: session.data?.user?.id,
+        email: session.data?.user?.email,
+        role: (session.data?.user as any)?.role,
+        businessName: (session.data?.user as any)?.businessName,
+        detailerId,
+        cookies: {
+          hasDefaultSessionCookie: rawCookie.includes("next-auth.session-token"),
+          hasDetailerSessionCookie: rawCookie.includes("next-auth.detailer.session-token"),
+          rawLength: rawCookie.length,
+        },
+        note: "httpOnly auth cookies are not visible via document.cookie",
+      });
+    }
+  }
   
   console.log('Calendar component render - bookings state:', bookings.length, bookings.map(b => ({ title: b.title, date: b.date, allDay: b.allDay, color: b.color })));
 
@@ -5545,6 +5568,20 @@ export default function CalendarPage() {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-lg text-red-600">Please log in to view your calendar.</div>
+      </div>
+    );
+  }
+
+  // Authenticated but missing required detailer context
+  if (session.status === "authenticated" && !detailerId) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-lg text-gray-700">
+          Complete setup to access your calendar.{" "}
+          <Link href="/detailer-dashboard/profile" className="text-green-600 underline">
+            Go to profile setup
+          </Link>
+        </div>
       </div>
     );
   }

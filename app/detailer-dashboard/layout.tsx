@@ -20,7 +20,7 @@ import PlanSelectionModal from "@/app/components/PlanSelectionModal";
 import { usePlanSelection } from "@/app/hooks/usePlanSelection";
 import DetailerSessionProvider from "@/app/components/DetailerSessionProvider";
 
-export default function DetailerDashboardLayout({
+function DetailerDashboardLayoutInner({
   children,
 }: {
   children: React.ReactNode;
@@ -104,7 +104,6 @@ export default function DetailerDashboardLayout({
   };
 
   return (
-    <DetailerSessionProvider>
     <ThemeProvider>
       <div className="detailer-dashboard-border-overlay"></div>
       <div className="h-screen bg-white flex overflow-hidden w-full max-w-full">
@@ -306,6 +305,17 @@ export default function DetailerDashboardLayout({
         />
       </div>
     </ThemeProvider>
+  );
+}
+
+export default function DetailerDashboardLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <DetailerSessionProvider>
+      <DetailerDashboardLayoutInner>{children}</DetailerDashboardLayoutInner>
     </DetailerSessionProvider>
   );
-} 
+}

@@ -8,7 +8,7 @@ import { Eye, EyeOff } from 'lucide-react';
 import { signIn, useSession } from "next-auth/react";
 import DetailerSessionProvider from "@/app/components/DetailerSessionProvider";
 
-export default function DetailerLogin() {
+function DetailerLoginInner() {
   const [form, setForm] = useState({ email: "", password: "" });
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
@@ -77,7 +77,6 @@ export default function DetailerLogin() {
   const handleXLogin = () => alert("X login coming soon!");
 
   return (
-    <DetailerSessionProvider>
     <div className="min-h-screen w-full flex font-sans bg-gray-100">
       {/* Left: Login Form */}
       <div className="flex flex-col justify-center items-start w-full md:w-1/2 px-8 md:px-12 py-16 bg-white relative z-10 shadow-lg">
@@ -192,6 +191,13 @@ export default function DetailerLogin() {
         {/* This div is intentionally left empty to only show the background image. */}
       </div>
     </div>
+  );
+}
+
+export default function DetailerLogin() {
+  return (
+    <DetailerSessionProvider>
+      <DetailerLoginInner />
     </DetailerSessionProvider>
   );
-} 
+}
