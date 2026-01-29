@@ -10,6 +10,7 @@ import { format } from 'date-fns';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { formatPhoneDisplay } from '@/lib/phone';
+import { getCustomerTypeFromHistory } from '@/lib/customerType';
 import {
   FunnelIcon,
 } from '@heroicons/react/24/outline';
@@ -45,6 +46,8 @@ interface Customer {
   vcardSent?: boolean;
   createdAt?: string;
   updatedAt?: string;
+  completedServiceCount?: number;
+  lastCompletedServiceAt?: string | null;
 }
 
 export default function CustomersPage() {
@@ -102,6 +105,16 @@ export default function CustomersPage() {
   const [filterLastSeen, setFilterLastSeen] = useState('all');
   const [filterServices, setFilterServices] = useState<string[]>([]);
   const [filterStation, setFilterStation] = useState('all');
+
+  const getEffectiveCustomerType = (customer: Customer) => {
+    if (customer.customerType?.toLowerCase() === 'maintenance') {
+      return 'maintenance';
+    }
+    return getCustomerTypeFromHistory({
+      completedServiceCount: customer.completedServiceCount,
+      lastCompletedServiceAt: customer.lastCompletedServiceAt
+    });
+  };
   const [formData, setFormData] = useState({
     customerPhone: '',
     customerName: '',
@@ -935,7 +948,11 @@ export default function CustomersPage() {
                           {getInitials(customer.customerName)}
                         </span>
                       </div>
-                      <div className="flex-1 min-w-0">
+                    <div className="flex-1 min-w-0">
+                      {(() => {
+                        const effectiveCustomerType = getEffectiveCustomerType(customer);
+                        return (
+                          <>
                         <div className="font-medium text-gray-900 truncate">
                           {customer.customerName || 'Unnamed Customer'}
                         </div>
@@ -954,18 +971,24 @@ export default function CustomersPage() {
                             </>
                           )}
                           {/* Customer Type */}
-                          {customer.customerType && (
+                          {effectiveCustomerType && (
                             <>
                               {(customer.customerPhone || customer.vehicleModel || customer.vehicle) && (
                                 <span className="text-gray-400">•</span>
                               )}
-                              <span className="capitalize">{customer.customerType}</span>
+                              <span className="capitalize">
+                                {effectiveCustomerType === 'new'
+                                  ? 'New Customer'
+                                  : effectiveCustomerType === 'returning'
+                                  ? 'Returning Customer'
+                                  : effectiveCustomerType}
+                              </span>
                             </>
                           )}
                           {/* Upcoming Job Info */}
                           {upcomingJob && (
                             <>
-                              {(customer.customerPhone || customer.vehicleModel || customer.vehicle || customer.customerType) && (
+                              {(customer.customerPhone || customer.vehicleModel || customer.vehicle || effectiveCustomerType) && (
                                 <span className="text-gray-400">•</span>
                               )}
                               <span className="text-orange-600">Upcoming job</span>
@@ -978,7 +1001,10 @@ export default function CustomersPage() {
                             </>
                           )}
                         </div>
-                      </div>
+                          </>
+                        );
+                      })()}
+                    </div>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -1784,22 +1810,25 @@ export default function CustomersPage() {
 
                     {/* Customer Type and Location Type */}
                     <div className="flex flex-wrap items-center gap-2 mt-3">
-                      {selectedCustomerData.customerType && (
-                        <span className={`text-xs font-semibold px-3 py-1.5 rounded-full inline-block ${
-                          selectedCustomerData.customerType.toLowerCase() === 'new' 
-                            ? 'bg-gray-200 text-gray-700'
-                            : selectedCustomerData.customerType.toLowerCase() === 'returning'
-                            ? 'bg-purple-200 text-purple-800'
-                            : selectedCustomerData.customerType.toLowerCase() === 'maintenance'
-                            ? 'bg-blue-200 text-blue-800'
-                            : 'bg-gray-200 text-gray-700'
-                        }`}>
-                          {selectedCustomerData.customerType === 'new' ? 'New Customer' : 
-                           selectedCustomerData.customerType === 'returning' ? 'Returning Customer' :
-                           selectedCustomerData.customerType === 'maintenance' ? 'Maintenance Customer' :
-                           selectedCustomerData.customerType}
-                        </span>
-                      )}
+                      {selectedCustomerData && (() => {
+                        const effectiveCustomerType = getEffectiveCustomerType(selectedCustomerData);
+                        return (
+                          <span className={`text-xs font-semibold px-3 py-1.5 rounded-full inline-block ${
+                            effectiveCustomerType === 'new'
+                              ? 'bg-gray-200 text-gray-700'
+                              : effectiveCustomerType === 'returning'
+                              ? 'bg-purple-200 text-purple-800'
+                              : effectiveCustomerType === 'maintenance'
+                              ? 'bg-blue-200 text-blue-800'
+                              : 'bg-gray-200 text-gray-700'
+                          }`}>
+                            {effectiveCustomerType === 'new' ? 'New Customer' : 
+                             effectiveCustomerType === 'returning' ? 'Returning Customer' :
+                             effectiveCustomerType === 'maintenance' ? 'Maintenance Customer' :
+                             effectiveCustomerType}
+                          </span>
+                        );
+                      })()}
                       
                       {selectedCustomerData.locationType && (
                         <span className={`text-xs font-semibold px-3 py-1.5 rounded-full inline-block ${

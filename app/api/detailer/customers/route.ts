@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { detailerAuthOptions } from '@/app/api/auth-detailer/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { normalizeToE164 } from '@/lib/phone';
+import { DateTime } from 'luxon';
 
 export async function GET(request: NextRequest) {
   try {
@@ -12,12 +13,124 @@ export async function GET(request: NextRequest) {
     }
 
     const detailerId = session.user.id;
-    const customers = await prisma.customerSnapshot.findMany({
-      where: { detailerId },
-      orderBy: { updatedAt: 'desc' }
+    const now = new Date();
+
+    const [detailer, customers, events, bookings] = await Promise.all([
+      prisma.detailer.findUnique({
+        where: { id: detailerId },
+        select: { timezone: true }
+      }),
+      prisma.customerSnapshot.findMany({
+        where: { detailerId },
+        orderBy: { updatedAt: 'desc' }
+      }),
+      prisma.event.findMany({
+        where: { detailerId },
+        select: { id: true, date: true, time: true, description: true, bookingId: true }
+      }),
+      prisma.booking.findMany({
+        where: { detailerId },
+        select: { id: true, scheduledDate: true, scheduledTime: true, status: true, customerPhone: true }
+      })
+    ]);
+
+    const detailerTimezone = detailer?.timezone || 'America/New_York';
+    const completedServiceStats = new Map<string, { count: number; lastAt: Date }>();
+
+    const updateCompletedServiceStats = (phoneRaw: string | null | undefined, completedAt: Date) => {
+      if (!phoneRaw) return;
+      if (Number.isNaN(completedAt.getTime())) return;
+      if (completedAt.getTime() >= now.getTime()) return;
+
+      const normalizedPhone = normalizeToE164(phoneRaw) || phoneRaw;
+      const existing = completedServiceStats.get(normalizedPhone);
+      if (!existing) {
+        completedServiceStats.set(normalizedPhone, { count: 1, lastAt: completedAt });
+        return;
+      }
+      existing.count += 1;
+      if (completedAt.getTime() > existing.lastAt.getTime()) {
+        existing.lastAt = completedAt;
+      }
+    };
+
+    const getStartDateTime = (date: Date, timeStr?: string | null) => {
+      if (!timeStr) return date;
+      let timePart = timeStr.trim();
+      const rangeMatch = timePart.match(/(\d{1,2}:\d{2}\s*(AM|PM))/i);
+      if (rangeMatch) {
+        timePart = rangeMatch[1];
+      } else if (timePart.includes('to')) {
+        timePart = timePart.split(/\s+to\s+/i)[0]?.trim() || timePart;
+      } else if (timePart.includes('-')) {
+        timePart = timePart.split(/\s*-\s*/)[0]?.trim() || timePart;
+      }
+
+      let hour24: number | null = null;
+      let minute = 0;
+      const match = timePart.match(/(\d{1,2})(?::(\d{2}))?\s*(AM|PM)?/i);
+      if (match) {
+        const hours = parseInt(match[1], 10);
+        minute = match[2] ? parseInt(match[2], 10) : 0;
+        const period = match[3]?.toUpperCase();
+        if (period) {
+          hour24 = hours % 12;
+          if (period === 'PM') {
+            hour24 += 12;
+          }
+        } else {
+          hour24 = hours;
+        }
+      }
+
+      if (hour24 === null || Number.isNaN(hour24) || Number.isNaN(minute)) {
+        return date;
+      }
+
+      const year = date.getUTCFullYear();
+      const month = date.getUTCMonth() + 1;
+      const day = date.getUTCDate();
+      const startDT = DateTime.fromObject(
+        { year, month, day, hour: hour24, minute },
+        { zone: detailerTimezone }
+      );
+      const jsDate = startDT.toUTC().toJSDate();
+      return Number.isNaN(jsDate.getTime()) ? date : jsDate;
+    };
+
+    for (const booking of bookings) {
+      if (booking.status !== 'completed') continue;
+      const startDateTime = getStartDateTime(booking.scheduledDate, booking.scheduledTime);
+      updateCompletedServiceStats(booking.customerPhone, startDateTime);
+    }
+
+    for (const event of events) {
+      if (event.bookingId) continue;
+      if (!event.description || !event.description.includes('__METADATA__:')) continue;
+      const parts = event.description.split('__METADATA__:');
+      const metadataJson = parts[1] || '{}';
+      try {
+        const metadata = JSON.parse(metadataJson);
+        const customerPhone = metadata.customerPhone;
+        if (!customerPhone) continue;
+        const startDateTime = getStartDateTime(event.date, event.time || undefined);
+        updateCompletedServiceStats(customerPhone, startDateTime);
+      } catch (parseError) {
+        continue;
+      }
+    }
+
+    const customersWithHistory = customers.map((customer) => {
+      const normalizedPhone = normalizeToE164(customer.customerPhone) || customer.customerPhone;
+      const stats = completedServiceStats.get(normalizedPhone);
+      return {
+        ...customer,
+        completedServiceCount: stats?.count ?? 0,
+        lastCompletedServiceAt: stats?.lastAt ? stats.lastAt.toISOString() : null
+      };
     });
 
-    return NextResponse.json({ customers });
+    return NextResponse.json({ customers: customersWithHistory });
   } catch (error) {
     console.error('Error fetching customers:', error);
     return NextResponse.json({ error: 'Failed to fetch customers' }, { status: 500 });
@@ -177,4 +290,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to create/update customer' }, { status: 500 });
   }
 }
-

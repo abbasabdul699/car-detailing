@@ -29,6 +29,7 @@ import EventModal from './components/EventModal';
 import AddressAutocompleteInput from './components/AddressAutocompleteInput';
 import NewCustomerModal from './components/NewCustomerModal';
 import { formatPhoneDisplay } from '@/lib/phone';
+import { getCustomerTypeFromHistory } from '@/lib/customerType';
 
 // Discard Changes Modal Component
 const DiscardChangesModal = ({ 
@@ -1400,8 +1401,11 @@ const MonthView = ({ date, events, selectedEvent, onEventClick, scale = 1.0, res
 
     // Get customer type for event
     const getCustomerType = (event: any): string => {
-        if (event.status === 'pending') return 'new';
-        return 'repeat';
+        return getCustomerTypeFromHistory({
+            completedServiceCount: event.completedServiceCount,
+            lastCompletedServiceAt: event.lastCompletedServiceAt,
+            referenceDate: event.start || event.date || new Date()
+        });
     };
 
     const year = date.getFullYear();
@@ -1836,7 +1840,8 @@ const EventHoverPopup = ({
     const serviceName = event.title || event.eventName || (Array.isArray(event.services) ? event.services.join(' + ') : event.services) || 'Service';
     const vehicleModel = event.vehicleType || event.vehicleModel;
     const timeRange = formatTimeRange(event);
-    const customerType = getCustomerType(event);
+    const customerStatus = getCustomerType(event);
+    const effectiveCustomerType = event.customerType === 'maintenance' ? 'maintenance' : customerStatus;
     const paymentStatus = event.paymentStatus || event.status;
     const bookingSource = event.source;
     
@@ -1911,27 +1916,27 @@ const EventHoverPopup = ({
                              event.locationType}
                         </span>
                     ) : null}
-                    {event.customerType === 'new' && (
+                    {effectiveCustomerType === 'new' && (
                         <span className="text-xs font-semibold bg-gray-200 text-gray-700 px-2 py-0.5 rounded">
                             New Customer
                         </span>
                     )}
-                    {event.customerType === 'returning' && (
+                    {effectiveCustomerType === 'returning' && (
                         <span className="text-xs font-semibold bg-purple-200 text-purple-800 px-2 py-0.5 rounded">
                             Repeat Customer
                         </span>
                     )}
-                    {event.customerType === 'maintenance' && (
+                    {effectiveCustomerType === 'maintenance' && (
                         <span className="text-xs font-semibold bg-blue-200 text-blue-800 px-2 py-0.5 rounded">
                             Maintenance Customer
                         </span>
                     )}
-                    {!event.customerType && customerType === 'new' && (
+                    {!event.customerType && customerStatus === 'new' && (
                         <span className="text-xs font-semibold bg-gray-200 text-gray-700 px-2 py-0.5 rounded">
                             New customer
                         </span>
                     )}
-                    {!event.customerType && customerType === 'repeat' && (
+                    {!event.customerType && customerStatus === 'returning' && (
                         <span className="text-xs font-semibold text-white px-2 py-0.5 rounded" style={{ backgroundColor: '#AE5AEF' }}>
                             Repeat customer
                         </span>
@@ -2182,8 +2187,11 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
 
     // Get customer type for event
     const getCustomerType = (event: any): string => {
-        if (event.status === 'pending') return 'new';
-        return 'repeat';
+        return getCustomerTypeFromHistory({
+            completedServiceCount: event.completedServiceCount,
+            lastCompletedServiceAt: event.lastCompletedServiceAt,
+            referenceDate: event.start || event.date || new Date()
+        });
     };
 
     // Calculate days based on numberOfDays parameter or default to week
@@ -2768,7 +2776,7 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                                         New customer
                                                     </span>
                                                 )}
-                                                {getCustomerType(event) === 'repeat' && (
+                                                {getCustomerType(event) === 'returning' && (
                                                     <span className="text-xs font-semibold bg-purple-200 text-purple-800 px-1.5 py-0.5 rounded mt-0.5 inline-block text-left truncate">
                                                         Repeat ...
                                                     </span>
@@ -3455,8 +3463,10 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                             
                                                             {/* Repeat/New Customer Button - Show if height >= 55px */}
                                                             {showRepeatButton && (() => {
-                                                const customerType = event.customerType || getCustomerType(event);
-                                                if (customerType === 'repeat' || customerType === 'returning') {
+                                                const customerType = event.customerType?.toLowerCase() === 'maintenance'
+                                                  ? 'maintenance'
+                                                  : getCustomerType(event);
+                                                if (customerType === 'returning') {
                                                     return (
                                                                         <div 
                                                                             className="flex items-center justify-center w-full"
@@ -4060,14 +4070,13 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
     return { left: Math.round(left * 100) / 100, width };
   };
 
-  // Determine customer type (new vs repeat) - check if customer has previous bookings
+  // Determine customer type (new vs returning) - check if customer has previous bookings
   const getCustomerType = (event: any) => {
-    // For now, we'll use status to determine - pending usually means new
-    // In the future, we can check booking history
-    if (event.status === 'pending') return 'new';
-    // If it's confirmed and has bookingId, it might be a repeat customer
-    // This is a simplified check - you may want to enhance this
-    return 'repeat';
+    return getCustomerTypeFromHistory({
+      completedServiceCount: event.completedServiceCount,
+      lastCompletedServiceAt: event.lastCompletedServiceAt,
+      referenceDate: event.start || event.date || new Date()
+    });
   };
 
   // Format time for display
@@ -4451,7 +4460,9 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
                     // Skip events with 0 width (events without proper start/end times)
                     if (width <= 0) return null;
                     
-                    const customerType = getCustomerType(event);
+                    const customerType = event.customerType?.toLowerCase() === 'maintenance'
+                      ? 'maintenance'
+                      : getCustomerType(event);
                     const isPending = event.status === 'pending';
                     const eventColor = event.color || 'blue'; // Use employee's color, default to blue
                     const addressLine = (() => {
@@ -4566,7 +4577,7 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
                               </span>
                             </div>
                           )}
-                          {!isPending && customerType === 'repeat' && (
+                          {!isPending && customerType === 'returning' && (
                             <div className="mb-1">
                               <span className="text-xs font-semibold bg-purple-200 text-purple-800 px-1.5 py-0.5 rounded">
                                 Repeat customer
@@ -6798,7 +6809,11 @@ export default function CalendarPage() {
                           : (event.services || event.title || event.eventName || 'Event');
                         
                         const locationType = event.locationType || event.customerAddress ? 'Drop off' : null;
-                        const isRepeatCustomer = event.customerId && event.customerId !== 'new';
+                        const isReturningCustomer = getCustomerTypeFromHistory({
+                          completedServiceCount: event.completedServiceCount,
+                          lastCompletedServiceAt: event.lastCompletedServiceAt,
+                          referenceDate: event.start || event.date || new Date()
+                        }) === 'returning';
                         const showEmployeeAvatar = height >= 85;
                 
                 return (
@@ -6880,14 +6895,14 @@ export default function CalendarPage() {
                               </div>
                             )}
                             {/* Badges */}
-                            {(locationType || isRepeatCustomer) && (
+                            {(locationType || isReturningCustomer) && (
                               <div className="mt-auto pt-2 flex flex-wrap gap-1">
                                 {locationType && (
                                   <span className="px-2 py-0.5 text-[11px] font-medium rounded-full bg-pink-200 text-pink-800">
                                     {locationType}
                                   </span>
                                 )}
-                                {isRepeatCustomer && (
+                                {isReturningCustomer && (
                                   <span className="px-2 py-0.5 text-[11px] font-medium rounded-full bg-purple-200 text-purple-800">
                                     Repeat customer
                                   </span>
@@ -9596,22 +9611,34 @@ export default function CalendarPage() {
                         <h3 className="text-sm font-semibold text-gray-900 mb-4">Customer Information</h3>
                         <div className="flex flex-wrap items-center gap-2">
                           {/* Customer Type Tag */}
-                          {selectedEventData.customerType && (
-                            <span className={`text-xs font-semibold px-3 py-1.5 rounded-full inline-block ${
-                              selectedEventData.customerType.toLowerCase() === 'new' 
-                                ? 'bg-gray-200 text-gray-700'
-                                : selectedEventData.customerType.toLowerCase() === 'returning'
-                                ? 'bg-purple-200 text-purple-800'
-                                : selectedEventData.customerType.toLowerCase() === 'maintenance'
-                                ? 'bg-blue-200 text-blue-800'
-                                : 'bg-gray-200 text-gray-700'
-                            }`}>
-                              {selectedEventData.customerType === 'new' ? 'New Customer' : 
-                               selectedEventData.customerType === 'returning' ? 'Repeat Customer' :
-                               selectedEventData.customerType === 'maintenance' ? 'Maintenance Customer' :
-                               selectedEventData.customerType}
-                            </span>
-                          )}
+                          {selectedEventData && (() => {
+                            const customerStatus = getCustomerTypeFromHistory({
+                              completedServiceCount: selectedEventData.completedServiceCount,
+                              lastCompletedServiceAt: selectedEventData.lastCompletedServiceAt,
+                              referenceDate: selectedEventData.start || selectedEventData.date || new Date()
+                            });
+                            const effectiveCustomerType =
+                              selectedEventData.customerType?.toLowerCase() === 'maintenance'
+                                ? 'maintenance'
+                                : customerStatus;
+
+                            return (
+                              <span className={`text-xs font-semibold px-3 py-1.5 rounded-full inline-block ${
+                                effectiveCustomerType === 'new'
+                                  ? 'bg-gray-200 text-gray-700'
+                                  : effectiveCustomerType === 'returning'
+                                  ? 'bg-purple-200 text-purple-800'
+                                  : effectiveCustomerType === 'maintenance'
+                                  ? 'bg-blue-200 text-blue-800'
+                                  : 'bg-gray-200 text-gray-700'
+                              }`}>
+                                {effectiveCustomerType === 'new' ? 'New Customer' : 
+                                 effectiveCustomerType === 'returning' ? 'Repeat Customer' :
+                                 effectiveCustomerType === 'maintenance' ? 'Maintenance Customer' :
+                                 effectiveCustomerType}
+                              </span>
+                            );
+                          })()}
                           
                           {/* Location Type Tag */}
                           {selectedEventData.locationType && (
@@ -9848,7 +9875,11 @@ export default function CalendarPage() {
                         const locationLower = (event.locationType || '').toLowerCase();
                         const isPickup = locationLower === 'pick up' || locationLower === 'pickup';
                         const isDropoff = locationLower === 'drop off' || locationLower === 'dropoff';
-                        const customerStatus = event.status === 'pending' ? 'new' : 'repeat';
+                        const customerStatus = getCustomerTypeFromHistory({
+                          completedServiceCount: event.completedServiceCount,
+                          lastCompletedServiceAt: event.lastCompletedServiceAt,
+                          referenceDate: event.start || event.date || new Date()
+                        });
                         const assignedEmployee = event.employeeId
                           ? allEmployees.find((emp) => emp.id === event.employeeId)
                           : null;

@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { useSession } from 'next-auth/react';
 import { format } from 'date-fns';
 import AddressAutocompleteInput from './AddressAutocompleteInput';
+import { getCustomerTypeFromHistory } from '@/lib/customerType';
 
 // Discard Changes Modal Component
 const DiscardChangesModal = ({ 
@@ -81,8 +82,8 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
     const [isMultiDay, setIsMultiDay] = useState(false); // Default to single-day events
     const [selectedResourceId, setSelectedResourceId] = useState<string>(preSelectedResource?.id || '');
     const [businessHours, setBusinessHours] = useState<any>(null);
-    const [customers, setCustomers] = useState<Array<{ id: string; customerName?: string; customerPhone: string; customerEmail?: string; address?: string; locationType?: string; customerType?: string; vehicleModel?: string; services?: string[]; data?: any }>>([]);
-    const [selectedCustomer, setSelectedCustomer] = useState<{ id: string; customerName?: string; customerPhone: string; customerEmail?: string; address?: string; locationType?: string; customerType?: string; vehicleModel?: string; pastJobs?: Array<{ id: string; date: string; services: string[]; vehicleModel?: string; employeeName?: string }> } | null>(null);
+    const [customers, setCustomers] = useState<Array<{ id: string; customerName?: string; customerPhone: string; customerEmail?: string; address?: string; locationType?: string; customerType?: string; vehicleModel?: string; services?: string[]; data?: any; completedServiceCount?: number; lastCompletedServiceAt?: string | null }>>([]);
+    const [selectedCustomer, setSelectedCustomer] = useState<{ id: string; customerName?: string; customerPhone: string; customerEmail?: string; address?: string; locationType?: string; customerType?: string; vehicleModel?: string; pastJobs?: Array<{ id: string; date: string; services: string[]; vehicleModel?: string; employeeName?: string }>; completedServiceCount?: number; lastCompletedServiceAt?: string | null } | null>(null);
     const [customerSearch, setCustomerSearch] = useState('');
     const [showCustomerDetailsPopup, setShowCustomerDetailsPopup] = useState(false);
     const [customerName, setCustomerName] = useState('');
@@ -358,9 +359,16 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
     };
 
     // Handle customer selection from suggestions - show customer card
-    const handleCustomerSelect = async (customer: { id: string; customerName?: string; customerPhone: string; customerEmail?: string; address?: string; locationType?: string; customerType?: string; vehicleModel?: string; services?: string[]; data?: any }) => {
+    const handleCustomerSelect = async (customer: { id: string; customerName?: string; customerPhone: string; customerEmail?: string; address?: string; locationType?: string; customerType?: string; vehicleModel?: string; services?: string[]; data?: any; completedServiceCount?: number; lastCompletedServiceAt?: string | null }) => {
         // Fetch past jobs for this customer
         const pastJobs = await fetchCustomerPastJobs(customer.id, customer.customerPhone);
+        const computedCustomerType = customer.customerType?.toLowerCase() === 'maintenance'
+            ? 'maintenance'
+            : getCustomerTypeFromHistory({
+                completedServiceCount: customer.completedServiceCount,
+                lastCompletedServiceAt: customer.lastCompletedServiceAt,
+                referenceDate: new Date()
+              });
         
         // Set selected customer with past jobs
         setSelectedCustomer({
@@ -370,8 +378,10 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
             customerEmail: customer.customerEmail,
             address: customer.address,
             locationType: customer.locationType,
-            customerType: customer.customerType,
+            customerType: computedCustomerType,
             vehicleModel: customer.vehicleModel,
+            completedServiceCount: customer.completedServiceCount,
+            lastCompletedServiceAt: customer.lastCompletedServiceAt,
             pastJobs: pastJobs.map((job: any) => ({
                 id: job.id,
                 date: job.scheduledDate || job.createdAt,
@@ -387,7 +397,7 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
         setCustomerEmail(customer.customerEmail || '');
         setCustomerAddress(customer.address || '');
         setLocationType(customer.locationType || '');
-        setCustomerType(customer.customerType || '');
+        setCustomerType(computedCustomerType || '');
         
         // Populate customer notes from data.notes if available
         if (customer.data && typeof customer.data === 'object' && customer.data.notes) {
