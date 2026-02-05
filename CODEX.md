@@ -23,7 +23,7 @@ ReevaCar is a Next.js CRM built for mobile car detailers. It supports detailer o
 - `public/` — Static assets.
 
 ## Auth & Session
-- NextAuth config: `app/api/auth/[...nextauth]/route.ts`.
+- NextAuth configs: `app/api/auth/[...nextauth]/route.ts`, `app/api/auth-detailer/[...nextauth]/route.ts`, `app/api/auth-admin/[...nextauth]/route.ts`.
 - Two credentials providers:
   - Admin: matches `ADMIN_EMAIL`/`ADMIN_PASSWORD`.
   - Detailer: checks Prisma detailer record and bcrypt password.
@@ -56,6 +56,7 @@ Defined in `prisma/schema.prisma` (MongoDB datasource). Core models:
 - Conversations: SMS/voice workflows, conversation state, customer snapshots.
 - Reviews: capture/reply and scheduled review links.
 - Subscription/billing: Stripe plans and customer portal.
+- Services catalog: global `Service` entries linked to detailers via `DetailerService`; `Bundle` is per-detailer with `BundleService` join.
 
 ## Integrations
 - **Stripe**: subscriptions, invoices, webhooks.
@@ -158,3 +159,8 @@ Consolidated from `process.env` usage:
 - `next.config.ts` allows external image domains (S3, Maps).
 - `experimental.serverActions.bodySizeLimit` set to `2mb`.
 - In dev, middleware logs auth cookies for `/admin/*` and `/detailer-dashboard/*`.
+
+## Key Files (Quick Jump)
+- `app/detailer-dashboard/calendar/page.tsx` — core calendar UI + event edit/view side panels.
+- `app/detailer-dashboard/calendar/components/EventModal.tsx` — create event modal.
+- `app/api/detailer/calendar-events/route.ts` — calendar feed aggregation (events + bookings).
