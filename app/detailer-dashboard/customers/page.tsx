@@ -9,7 +9,7 @@ import Image from 'next/image';
 import { format } from 'date-fns';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { formatPhoneDisplay } from '@/lib/phone';
+import { formatPhoneDisplay, normalizeToE164 } from '@/lib/phone';
 import { getCustomerTypeFromHistory } from '@/lib/customerType';
 import {
   FunnelIcon,
@@ -28,6 +28,69 @@ const formatPhoneNumber = (value: string): string => {
     if (limitedDigits.length <= 3) return `(${limitedDigits}`;
     if (limitedDigits.length <= 6) return `(${limitedDigits.slice(0, 3)}) ${limitedDigits.slice(3)}`;
     return `(${limitedDigits.slice(0, 3)}) ${limitedDigits.slice(3, 6)} ${limitedDigits.slice(6)}`;
+};
+
+// Helper function to extract clean description from event description (handle both clean and metadata formats)
+const getCleanDescription = (desc: string | null | undefined): string => {
+  if (!desc) return '';
+  if (desc.includes('__METADATA__:')) {
+    const parts = desc.split('__METADATA__:');
+    return parts[0].trim();
+  }
+  return desc;
+};
+
+const extractNotesFromDescription = (desc: string | null | undefined): string => {
+  if (!desc) return '';
+  if (desc.includes('__METADATA__:')) {
+    return getCleanDescription(desc);
+  }
+  const lines = desc.split('\n');
+  const notesLine = lines.find(line => line.trim().toLowerCase().startsWith('notes:'));
+  if (notesLine) {
+    return notesLine.split(':').slice(1).join(':').trim();
+  }
+  return desc.trim();
+};
+
+const getEventDateValue = (event: any): number => {
+  const raw = event?.date || event?.start || event?.scheduledDate;
+  if (!raw) return 0;
+  const date = new Date(raw);
+  const time = date.getTime();
+  return Number.isNaN(time) ? 0 : time;
+};
+
+const extractPhoneFromDescription = (desc: string | null | undefined): string => {
+  if (!desc) return '';
+  const match = desc.match(/Phone:\s*([^\n]+)/i);
+  if (!match) return '';
+  return match[1].trim();
+};
+
+const normalizePhoneForMatch = (raw: string | null | undefined) => {
+  if (!raw) {
+    return { e164: null as string | null, last10: null as string | null };
+  }
+  const e164 = normalizeToE164(raw) || null;
+  const digits = raw.replace(/\D/g, '');
+  const last10 = digits.length >= 10 ? digits.slice(-10) : null;
+  return { e164, last10 };
+};
+
+const formatJobDateTime = (dateValue?: string | null, timeValue?: string | null) => {
+  if (!dateValue) return 'Date unavailable';
+  try {
+    const date = new Date(dateValue);
+    if (isNaN(date.getTime())) return 'Date unavailable';
+    const dateStr = format(date, 'MMMM d, yyyy');
+    if (timeValue) {
+      return `${dateStr} at ${timeValue}`;
+    }
+    return dateStr;
+  } catch {
+    return 'Date unavailable';
+  }
 };
 
 interface Customer {
@@ -81,6 +144,19 @@ export default function CustomersPage() {
   const [resizeStartWidth, setResizeStartWidth] = useState(0);
   const [isActionSidebarOpen, setIsActionSidebarOpen] = useState(false);
   const [selectedCustomerData, setSelectedCustomerData] = useState<Customer | null>(null);
+  const [isJobModalOpen, setIsJobModalOpen] = useState(false);
+  const [selectedJob, setSelectedJob] = useState<{
+    id: string;
+    date: string;
+    time?: string;
+    services: string[];
+    vehicleModel?: string;
+    locationType?: string;
+    resourceType?: string;
+    isUpcoming?: boolean;
+    employeeName?: string;
+    notes?: string;
+  } | null>(null);
   const [customerPastJobs, setCustomerPastJobs] = useState<Array<{ 
     id: string; 
     date: string; 
@@ -91,6 +167,7 @@ export default function CustomersPage() {
     resourceType?: string;
     isUpcoming?: boolean;
     employeeName?: string;
+    notes?: string;
   }>>([]);
   const actionSidebarRef = useRef<HTMLDivElement>(null);
   const [customerUpcomingJobs, setCustomerUpcomingJobs] = useState<Map<string, { 
@@ -200,6 +277,12 @@ export default function CustomersPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!isJobModalOpen) {
+      setSelectedJob(null);
+    }
+  }, [isJobModalOpen]);
+
   // Handle long press to enter multi-select mode
   const handleLongPressStart = (customerId: string) => {
     longPressCustomerIdRef.current = customerId;
@@ -304,22 +387,37 @@ export default function CustomersPage() {
           resourceMap.set(resource.id, resource.type);
         });
         
-        // Filter events for this customer (completed/confirmed, both past and upcoming)
+        const customerPhones = normalizePhoneForMatch(customer.customerPhone);
+
+        const matchesCustomer = (event: any) => {
+          const eventPhoneRaw = event.customerPhone || extractPhoneFromDescription(event.description);
+          const eventPhones = normalizePhoneForMatch(eventPhoneRaw);
+          if (customerPhones.e164 && eventPhones.e164 && customerPhones.e164 === eventPhones.e164) {
+            return true;
+          }
+          if (customerPhones.last10 && eventPhones.last10 && customerPhones.last10 === eventPhones.last10) {
+            return true;
+          }
+          return false;
+        };
+
+        const isNotCancelled = (event: any) => {
+          const status = typeof event.status === 'string' ? event.status.toLowerCase() : '';
+          return status !== 'cancelled';
+        };
+
+        // Filter events for this customer (all except cancelled, both past and upcoming)
         const now = new Date();
         const customerEvents = allEvents.filter((event: any) => {
-          return event.customerPhone === customer.customerPhone && 
-                 (event.status === 'completed' || event.status === 'confirmed' || !event.status);
-        }).sort((a: any, b: any) => {
-          const dateA = new Date(a.date || a.start || a.scheduledDate || 0).getTime();
-          const dateB = new Date(b.date || b.start || b.scheduledDate || 0).getTime();
-          return dateB - dateA; // Most recent first
+          return matchesCustomer(event) && (isNotCancelled(event) || !event.status);
         });
         
-        // Transform to match the expected format with resource type, upcoming flag, time, and employee
-        setCustomerPastJobs(customerEvents.map((event: any) => {
+        // Transform to match the expected format with resource type, upcoming flag, time, employee, and notes
+        const jobs = customerEvents.map((event: any) => {
           const resourceType = event.resourceId ? resourceMap.get(event.resourceId) : null;
-          const eventDate = new Date(event.date || event.start || event.scheduledDate);
-          const isUpcoming = eventDate >= now;
+          const eventDateValue = getEventDateValue(event);
+          const isUpcoming = eventDateValue >= now.getTime();
+          const notesFromDescription = extractNotesFromDescription(event.description);
           return {
             id: event.id,
             date: event.date || event.start || event.scheduledDate,
@@ -329,9 +427,34 @@ export default function CustomersPage() {
             locationType: event.locationType || null,
             resourceType: resourceType || null,
             isUpcoming: isUpcoming,
-            employeeName: event.employeeName || null
+            employeeName: event.employeeName || null,
+            notes: event.notes || notesFromDescription || ''
           };
-        }));
+        });
+
+        const upcoming = jobs
+          .filter(job => {
+            const time = job.date ? new Date(job.date).getTime() : 0;
+            return time >= now.getTime();
+          })
+          .sort((a, b) => {
+            const dateA = a.date ? new Date(a.date).getTime() : 0;
+            const dateB = b.date ? new Date(b.date).getTime() : 0;
+            return dateA - dateB;
+          });
+
+        const past = jobs
+          .filter(job => {
+            const time = job.date ? new Date(job.date).getTime() : 0;
+            return time < now.getTime();
+          })
+          .sort((a, b) => {
+            const dateA = a.date ? new Date(a.date).getTime() : 0;
+            const dateB = b.date ? new Date(b.date).getTime() : 0;
+            return dateB - dateA;
+          });
+        
+        setCustomerPastJobs([...upcoming, ...past]);
       }
     } catch (error) {
       console.error('Error fetching customer events:', error);
@@ -1729,6 +1852,87 @@ export default function CustomersPage() {
         </div>
       )}
 
+      {isJobModalOpen && selectedJob && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            onClick={() => setIsJobModalOpen(false)}
+          />
+          <div
+            className="relative w-full max-w-lg mx-4 bg-white rounded-2xl shadow-2xl border"
+            style={{ borderColor: '#E2E2DD' }}
+          >
+            <div className="flex items-center justify-between px-6 pt-5 pb-3 border-b" style={{ borderColor: '#E2E2DD' }}>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Service Details</h3>
+                <p className="text-sm text-gray-600">{formatJobDateTime(selectedJob.date, selectedJob.time)}</p>
+              </div>
+              <button
+                onClick={() => setIsJobModalOpen(false)}
+                className="p-1 rounded-lg hover:bg-gray-100 transition-colors"
+              >
+                <XMarkIcon className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            <div className="px-6 py-4 space-y-4">
+              {selectedJob.isUpcoming && (
+                <span className="inline-flex text-xs font-semibold px-2.5 py-1 rounded-full bg-orange-100 text-orange-700">
+                  Upcoming
+                </span>
+              )}
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs text-gray-600 mb-1">Technician</p>
+                  <p className="text-sm text-gray-900">{selectedJob.employeeName || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-600 mb-1">Service</p>
+                  <p className="text-sm text-gray-900">
+                    {selectedJob.services && selectedJob.services.length > 0
+                      ? selectedJob.services.join(', ')
+                      : '—'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-600 mb-1">Pickup/Drop-off</p>
+                  <p className="text-sm text-gray-900">
+                    {selectedJob.resourceType === 'bay' && selectedJob.locationType
+                      ? (selectedJob.locationType === 'pick up' || selectedJob.locationType.toLowerCase() === 'pickup'
+                        ? 'Pick Up'
+                        : selectedJob.locationType === 'drop off' || selectedJob.locationType.toLowerCase() === 'dropoff'
+                        ? 'Drop Off'
+                        : selectedJob.locationType)
+                      : '—'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-600 mb-1">Vehicle</p>
+                  <p className="text-sm text-gray-900">{selectedJob.vehicleModel || '—'}</p>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs text-gray-600 mb-1">Notes</p>
+                <p className="text-sm text-gray-900 whitespace-pre-wrap">
+                  {selectedJob.notes ? selectedJob.notes : 'No notes'}
+                </p>
+              </div>
+            </div>
+
+            <div className="px-6 pb-5">
+              <button
+                onClick={() => setIsJobModalOpen(false)}
+                className="w-full px-4 py-2 bg-gray-900 text-white rounded-xl hover:bg-gray-800 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Mobile backdrop */}
       {isActionSidebarOpen && (
         <div 
@@ -1883,26 +2087,14 @@ export default function CustomersPage() {
                       {customerPastJobs.map((job, index) => (
                         <div 
                           key={job.id || index}
-                          className="p-4 rounded-xl border" 
+                          className="p-4 rounded-xl border h-[200px] flex flex-col justify-between overflow-hidden" 
                           style={{ borderColor: '#E2E2DD', backgroundColor: 'white' }}
                         >
-                          {/* Date and Time */}
-                          <div className="mb-3">
-                            <div className="flex items-center gap-2 flex-wrap">
+                          <div className="flex-1 min-h-0 overflow-hidden">
+                            {/* Date and Time */}
+                            <div className="flex items-center gap-2 flex-wrap mb-2">
                               <p className="text-sm font-semibold text-gray-900">
-                                {job.date ? (() => {
-                                  try {
-                                    const date = new Date(job.date);
-                                    if (isNaN(date.getTime())) return 'Date unavailable';
-                                    const dateStr = format(date, 'MMMM d, yyyy');
-                                    if (job.time) {
-                                      return `${dateStr} at ${job.time}`;
-                                    }
-                                    return dateStr;
-                                  } catch (e) {
-                                    return 'Date unavailable';
-                                  }
-                                })() : 'Date unavailable'}
+                                {formatJobDateTime(job.date, job.time)}
                               </p>
                               {job.isUpcoming && (
                                 <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">
@@ -1910,47 +2102,60 @@ export default function CustomersPage() {
                                 </span>
                               )}
                             </div>
+
+                            <div className="grid grid-cols-2 gap-x-4 gap-y-1 min-h-0">
+                              <div>
+                                <p className="text-xs text-gray-600 mb-1">Technician</p>
+                                <p className="text-sm text-gray-900 truncate">{job.employeeName || '—'}</p>
+                              </div>
+
+                              <div>
+                                <p className="text-xs text-gray-600 mb-1">Service</p>
+                                <p className="text-sm text-gray-900 truncate">
+                                  {job.services && job.services.length > 0
+                                    ? (Array.isArray(job.services) ? job.services.join(', ') : job.services)
+                                    : '—'}
+                                </p>
+                              </div>
+
+                              <div>
+                                <p className="text-xs text-gray-600 mb-1">Pickup/Drop-off</p>
+                                <p className="text-sm text-gray-900 truncate">
+                                  {job.resourceType === 'bay' && job.locationType
+                                    ? (job.locationType === 'pick up' || job.locationType.toLowerCase() === 'pickup'
+                                      ? 'Pick Up'
+                                      : job.locationType === 'drop off' || job.locationType.toLowerCase() === 'dropoff'
+                                      ? 'Drop Off'
+                                      : job.locationType)
+                                    : '—'}
+                                </p>
+                              </div>
+
+                              <div>
+                                <p className="text-xs text-gray-600 mb-1">Vehicle</p>
+                                <p className="text-sm text-gray-900 truncate">{job.vehicleModel || '—'}</p>
+                              </div>
+                            </div>
+
+                            <div className="mt-2">
+                              <p className="text-xs text-gray-600 mb-1">Notes</p>
+                              <p className="text-sm text-gray-900 truncate">
+                                {job.notes ? job.notes : 'No notes'}
+                              </p>
+                            </div>
                           </div>
-                          
-                          {/* Technician */}
-                          {job.employeeName && (
-                            <div className="mb-2">
-                              <p className="text-xs text-gray-600 mb-1">Technician</p>
-                              <p className="text-sm text-gray-900">{job.employeeName}</p>
-                            </div>
-                          )}
-                          
-                          {/* Service */}
-                          {job.services && job.services.length > 0 && (
-                            <div className="mb-2">
-                              <p className="text-xs text-gray-600 mb-1">Service</p>
-                              <p className="text-sm text-gray-900">
-                                {Array.isArray(job.services) ? job.services.join(', ') : job.services}
-                              </p>
-                            </div>
-                          )}
-                          
-                          {/* Pickup/Drop-off (only for BAY appointments) */}
-                          {job.resourceType === 'bay' && job.locationType && (
-                            <div className="mb-2">
-                              <p className="text-xs text-gray-600 mb-1">Pickup/Drop-off</p>
-                              <p className="text-sm text-gray-900">
-                                {job.locationType === 'pick up' || job.locationType.toLowerCase() === 'pickup' 
-                                  ? 'Pick Up' 
-                                  : job.locationType === 'drop off' || job.locationType.toLowerCase() === 'dropoff'
-                                  ? 'Drop Off'
-                                  : job.locationType}
-                              </p>
-                            </div>
-                          )}
-                          
-                          {/* Vehicle */}
-                          {job.vehicleModel && (
-                            <div>
-                              <p className="text-xs text-gray-600 mb-1">Vehicle</p>
-                              <p className="text-sm text-gray-900">{job.vehicleModel}</p>
-                            </div>
-                          )}
+
+                          <div className="pt-2 flex justify-end flex-shrink-0">
+                            <button
+                              onClick={() => {
+                                setSelectedJob(job);
+                                setIsJobModalOpen(true);
+                              }}
+                              className="text-xs font-semibold text-gray-700 hover:text-gray-900"
+                            >
+                              View Details
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>
