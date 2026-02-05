@@ -96,6 +96,7 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
     const [vehicles, setVehicles] = useState<Array<{ id: string; model: string }>>([]);
     const [showAddVehicleModal, setShowAddVehicleModal] = useState(false);
     const [newVehicleModel, setNewVehicleModel] = useState('');
+    const newVehicleModelInputRef = useRef<HTMLInputElement | null>(null);
     const [availableServices, setAvailableServices] = useState<Array<{ id: string; name: string; category?: { name: string } }>>([]);
     const [availableBundles, setAvailableBundles] = useState<Array<{ id: string; name: string; description?: string; price?: number; services?: Array<{ service: { id: string; name: string } }> }>>([]);
     const [selectedServices, setSelectedServices] = useState<Array<{ id: string; name: string; type: 'service' | 'bundle' }>>([]);
@@ -117,6 +118,14 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
             }
         };
     }, []);
+
+    useEffect(() => {
+        if (!showAddVehicleModal) return;
+        const rafId = requestAnimationFrame(() => {
+            newVehicleModelInputRef.current?.focus();
+        });
+        return () => cancelAnimationFrame(rafId);
+    }, [showAddVehicleModal]);
     
     // Store initial values to detect changes (empty form initially)
     const initialValuesRef = useRef({
@@ -1551,9 +1560,10 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                                             <label htmlFor="new-vehicle-model" className="block text-sm font-medium text-gray-700 mb-2">
                                 Vehicle Model
                             </label>
-                            <input 
-                                type="text" 
+                                            <input 
+                                                type="text" 
                                                 id="new-vehicle-model" 
+                                                ref={newVehicleModelInputRef}
                                                 value={newVehicleModel} 
                                                 onChange={e => setNewVehicleModel(e.target.value)} 
                                                 className="w-full px-4 py-2.5 border rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent" 

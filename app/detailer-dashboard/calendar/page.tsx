@@ -258,6 +258,7 @@ const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () =>
   const [newVehicleModel, setNewVehicleModel] = useState('');
   const [serviceSearch, setServiceSearch] = useState('');
   const [showServiceDropdown, setShowServiceDropdown] = useState(false);
+  const newVehicleModelInputRef = useRef<HTMLInputElement | null>(null);
   
   // Store initial values to detect changes
   const initialValuesRef = useRef({
@@ -347,6 +348,14 @@ const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () =>
     };
     setSelectedServices(servicesList);
   }, []);
+
+  useEffect(() => {
+    if (!showAddVehicleModal) return;
+    const rafId = requestAnimationFrame(() => {
+      newVehicleModelInputRef.current?.focus();
+    });
+    return () => cancelAnimationFrame(rafId);
+  }, [showAddVehicleModal]);
 
   // Update customer fields when event prop changes (e.g., after editing customer)
   useEffect(() => {
@@ -877,6 +886,7 @@ const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () =>
                   <input 
                     type="text" 
                     id="new-vehicle-model" 
+                    ref={newVehicleModelInputRef}
                     value={newVehicleModel} 
                     onChange={e => setNewVehicleModel(e.target.value)} 
                     className="w-full px-4 py-2.5 border rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent" 
