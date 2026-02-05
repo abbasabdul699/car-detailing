@@ -55,23 +55,26 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Detailer not found' }, { status: 404 });
   }
   try {
-    // Create or update the DetailerService entry
-    const detailerService = await prisma.detailerService.upsert({
+    const existing = await prisma.detailerService.findUnique({
       where: {
         detailerId_serviceId: {
           detailerId: detailer.id,
           serviceId: data.serviceId,
         },
       },
-      update: {
-        price: data.price,
-      },
-      create: {
+    });
+
+    if (existing) {
+      return NextResponse.json(existing, { status: 200 });
+    }
+
+    const detailerService = await prisma.detailerService.create({
+      data: {
         detailerId: detailer.id,
         serviceId: data.serviceId,
-        price: data.price,
       },
     });
+
     return NextResponse.json(detailerService, { status: 201 });
   } catch (e) {
     return NextResponse.json({ error: 'Failed to add service', details: (e as Error).message }, { status: 500 });
@@ -94,16 +97,14 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: 'Detailer not found' }, { status: 404 });
   }
   try {
-    await prisma.detailerService.delete({
+    const result = await prisma.detailerService.deleteMany({
       where: {
-        detailerId_serviceId: {
-          detailerId: detailer.id,
-          serviceId,
-        },
+        detailerId: detailer.id,
+        serviceId,
       },
     });
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, deletedCount: result.count });
   } catch (e) {
     return NextResponse.json({ error: 'Failed to remove service', details: (e as Error).message }, { status: 500 });
   }
-} 
+}
