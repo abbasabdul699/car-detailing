@@ -119,6 +119,38 @@ const getEventDateString = (event: any): string => {
   return '';
 };
 
+const getEmployeeInitials = (name?: string): string => {
+  if (!name) return '';
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '';
+  if (parts.length === 1) {
+    const word = parts[0];
+    return word.slice(0, 2).toUpperCase();
+  }
+  return parts.slice(0, 2).map(part => part.charAt(0).toUpperCase()).join('');
+};
+
+const getEmployeeBadgeClass = (color?: string): string => {
+  switch ((color || '').toLowerCase()) {
+    case 'blue':
+      return 'bg-blue-500 text-white';
+    case 'green':
+      return 'bg-green-500 text-white';
+    case 'orange':
+      return 'bg-orange-500 text-white';
+    case 'red':
+      return 'bg-red-500 text-white';
+    case 'gray':
+      return 'bg-gray-400 text-gray-900';
+    case 'purple':
+      return 'bg-purple-500 text-white';
+    case 'pink':
+      return 'bg-pink-500 text-white';
+    default:
+      return 'bg-gray-400 text-gray-900';
+  }
+};
+
 // Event Edit Form Component
 const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () => void }, {
   event: any, 
@@ -1139,25 +1171,9 @@ const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () =>
                   onClick={() => setShowEmployeeDropdown(!showEmployeeDropdown)}
                 >
                   <div className="flex items-center gap-3">
-                    {selectedEmployee.imageUrl ? (
-                      <img 
-                        src={selectedEmployee.imageUrl} 
-                        alt={selectedEmployee.name}
-                        className="w-10 h-10 rounded-full object-cover flex-shrink-0 border"
-                        style={{ borderColor: '#E2E2DD' }}
-                      />
-                    ) : (
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold ${
-                        selectedEmployee.color === 'blue' ? 'bg-blue-500' :
-                        selectedEmployee.color === 'green' ? 'bg-green-500' :
-                        selectedEmployee.color === 'orange' ? 'bg-orange-500' :
-                        selectedEmployee.color === 'red' ? 'bg-red-500' :
-                        selectedEmployee.color === 'gray' ? 'bg-gray-500' :
-                        'bg-blue-500'
-                      }`}>
-                        {selectedEmployee.name.charAt(0).toUpperCase()}
-                      </div>
-                    )}
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${getEmployeeBadgeClass(selectedEmployee.color)}`}>
+                      {getEmployeeInitials(selectedEmployee.name)}
+                    </div>
                     <span className="text-sm font-medium text-gray-900">
                       {selectedEmployee.name}
                     </span>
@@ -1190,25 +1206,9 @@ const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () =>
                       selectedEmployeeId === employee.id ? 'bg-gray-50' : ''
                     }`}
                   >
-                    {employee.imageUrl ? (
-                      <img 
-                        src={employee.imageUrl} 
-                        alt={employee.name}
-                        className="w-8 h-8 rounded-full object-cover flex-shrink-0 border"
-                        style={{ borderColor: '#E2E2DD' }}
-                      />
-                    ) : (
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold ${
-                        employee.color === 'blue' ? 'bg-blue-500' :
-                        employee.color === 'green' ? 'bg-green-500' :
-                        employee.color === 'orange' ? 'bg-orange-500' :
-                        employee.color === 'red' ? 'bg-red-500' :
-                        employee.color === 'gray' ? 'bg-gray-500' :
-                        'bg-blue-500'
-                      }`}>
-                        {employee.name.charAt(0).toUpperCase()}
-                      </div>
-                    )}
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold ${getEmployeeBadgeClass(employee.color)}`}>
+                      {getEmployeeInitials(employee.name)}
+                    </div>
                     <span className="text-sm text-gray-900">{employee.name}</span>
                     {selectedEmployeeId === employee.id && (
                       <svg className="w-4 h-4 text-gray-600 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2016,19 +2016,11 @@ const EventHoverPopup = ({
                 {/* Assigned Employee */}
                 {event.employeeName && (
                     <div className="flex items-center gap-3">
-                        {event.employeeImageUrl ? (
-                            <img
-                                src={event.employeeImageUrl}
-                                alt={event.employeeName}
-                                className="w-10 h-10 rounded-full object-cover border border-gray-300"
-                            />
-                        ) : (
-                            <div className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center border border-gray-300">
-                                <span className="text-base font-semibold text-gray-700">
-                                    {event.employeeName.charAt(0).toUpperCase()}
-                                </span>
-                            </div>
-                        )}
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center border border-gray-300 ${getEmployeeBadgeClass(event.color)}`}>
+                            <span className="text-base font-semibold">
+                                {getEmployeeInitials(event.employeeName)}
+                            </span>
+                        </div>
                         <span className="text-base text-gray-700">{event.employeeName}</span>
                     </div>
                 )}
@@ -2804,16 +2796,10 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                                 }}
                                             >
                                                 <div className="flex items-center gap-1.5 w-full">
-                                                    {event.employeeImageUrl ? (
-                                                        <img 
-                                                            src={event.employeeImageUrl} 
-                                                            alt={event.employeeName || 'Employee'}
-                                                            className="w-6 h-6 rounded-full object-cover border border-gray-300 flex-shrink-0"
-                                                        />
-                                                    ) : event.employeeName ? (
-                                                        <div className="w-6 h-6 rounded-full bg-gray-300 flex items-center justify-center border border-gray-300 flex-shrink-0">
-                                                            <span className="text-[9px] font-semibold text-gray-700">
-                                                                {event.employeeName.charAt(0).toUpperCase()}
+                                                    {event.employeeName ? (
+                                                        <div className={`w-6 h-6 rounded-full flex items-center justify-center border border-gray-300 flex-shrink-0 ${getEmployeeBadgeClass(event.color)}`}>
+                                                            <span className="text-[9px] font-semibold">
+                                                                {getEmployeeInitials(event.employeeName)}
                                                             </span>
                                                         </div>
                                                     ) : null}
@@ -3624,16 +3610,10 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                             {/* Profile Picture - Show if height >= 85px */}
                                         {showTechPicture && (
                                                 <div className="relative shrink-0" style={{ width: '24px', height: '24px' }}>
-                                            {event.employeeImageUrl ? (
-                                                <img 
-                                                    src={event.employeeImageUrl} 
-                                                    alt={event.employeeName || 'Employee'}
-                                                            className="w-full h-full rounded-full object-cover"
-                                                />
-                                            ) : event.employeeName ? (
-                                                        <div className="w-full h-full rounded-full bg-gray-300 flex items-center justify-center">
-                                                            <span style={{ fontSize: '9px', fontWeight: 600, color: '#374151' }}>
-                                                        {event.employeeName.charAt(0).toUpperCase()}
+                                            {event.employeeName ? (
+                                                        <div className={`w-full h-full rounded-full flex items-center justify-center ${getEmployeeBadgeClass(event.color)}`}>
+                                                            <span style={{ fontSize: '9px', fontWeight: 600 }}>
+                                                        {getEmployeeInitials(event.employeeName)}
                                                     </span>
                                                 </div>
                                             ) : null}
@@ -4611,16 +4591,10 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
                         }}
                       >
                         <div className="flex items-center gap-2 mb-1">
-                          {event.employeeImageUrl ? (
-                            <img 
-                              src={event.employeeImageUrl} 
-                              alt={event.employeeName || 'Employee'}
-                              className="w-10 h-10 rounded-full object-cover border border-gray-300 flex-shrink-0"
-                            />
-                          ) : event.employeeName ? (
-                            <div className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center border border-gray-300 flex-shrink-0">
-                              <span className="text-xs font-semibold text-gray-700">
-                                {event.employeeName.charAt(0).toUpperCase()}
+                          {event.employeeName ? (
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center border border-gray-300 flex-shrink-0 ${getEmployeeBadgeClass(event.color)}`}>
+                              <span className="text-xs font-semibold">
+                                {getEmployeeInitials(event.employeeName)}
                               </span>
                             </div>
                           ) : null}
@@ -7013,21 +6987,13 @@ export default function CalendarPage() {
                                 )}
                               </div>
                             )}
-                            {showEmployeeAvatar && (event.employeeImageUrl || event.employeeName) && (
+                            {showEmployeeAvatar && event.employeeName && (
                               <div className="pt-2 flex items-center gap-2">
-                                {event.employeeImageUrl ? (
-                                  <img
-                                    src={event.employeeImageUrl}
-                                    alt={event.employeeName || 'Employee'}
-                                    className="w-7 h-7 rounded-full object-cover border border-gray-200"
-                                  />
-                                ) : (
-                                  <div className="w-7 h-7 rounded-full bg-gray-300 flex items-center justify-center border border-gray-200">
-                                    <span className="text-[11px] font-semibold text-gray-700">
-                                      {event.employeeName?.charAt(0).toUpperCase()}
-                                    </span>
-                                  </div>
-                                )}
+                                <div className={`w-7 h-7 rounded-full flex items-center justify-center border border-gray-200 ${getEmployeeBadgeClass(event.color)}`}>
+                                  <span className="text-[11px] font-semibold">
+                                    {getEmployeeInitials(event.employeeName)}
+                                  </span>
+                                </div>
                                 {event.employeeName && (
                                   <span className="text-[12px] font-semibold text-gray-800 truncate">
                                     {event.employeeName}
@@ -7111,17 +7077,11 @@ export default function CalendarPage() {
                       }}
                     className="w-full px-4 py-2 text-sm font-medium transition-colors text-left flex items-center gap-3 bg-transparent hover:bg-gray-50"
                     >
-                      {employee.imageUrl ? (
-                        <img
-                          src={employee.imageUrl}
-                          alt={employee.name}
-                          className="w-8 h-8 rounded-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center">
-                          <UsersIcon className="w-5 h-5 text-gray-600" />
-                        </div>
-                      )}
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${getEmployeeBadgeClass(employee.color)}`}>
+                        <span className="text-[11px] font-semibold">
+                          {getEmployeeInitials(employee.name)}
+                        </span>
+                      </div>
                     <span className="text-gray-900">{employee.name}</span>
                       {isSelected && (
                       <CheckIcon className="w-5 h-5 ml-auto text-black" />
@@ -8534,19 +8494,11 @@ export default function CalendarPage() {
                         }}
                         className="w-full px-4 py-2 text-sm font-medium transition-colors text-left flex items-center gap-3 bg-transparent hover:bg-gray-50"
                       >
-                        {employee.imageUrl ? (
-                          <img 
-                            src={employee.imageUrl} 
-                            alt={employee.name}
-                            className="w-8 h-8 rounded-full object-cover flex-shrink-0 border border-gray-200"
-                          />
-                        ) : (
-                          <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
-                            <span className="text-gray-700 font-semibold text-xs">
-                              {employee.name.charAt(0).toUpperCase()}
-                            </span>
-                          </div>
-                        )}
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${getEmployeeBadgeClass(employee.color)}`}>
+                          <span className="font-semibold text-xs">
+                            {getEmployeeInitials(employee.name)}
+                          </span>
+                        </div>
                         <span className="text-gray-900">{employee.name}</span>
                         {isSelected && (
                           <CheckIcon className="w-5 h-5 ml-auto text-black" />
@@ -8683,19 +8635,11 @@ export default function CalendarPage() {
                               return (
                                 <div key={employee.id} className="border-b border-gray-200 pb-3 last:border-b-0 last:pb-0">
                                   <div className="flex items-center gap-3 mb-2">
-                                    {employee.imageUrl ? (
-                                      <img 
-                                        src={employee.imageUrl} 
-                                        alt={employee.name}
-                                        className="w-10 h-10 rounded-full object-cover flex-shrink-0 border border-gray-200"
-                                      />
-                                    ) : (
-                                      <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
-                                        <span className="text-gray-700 font-semibold text-sm">
-                                          {employee.name.charAt(0).toUpperCase()}
-                                        </span>
-            </div>
-                                    )}
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${getEmployeeBadgeClass(employee.color)}`}>
+                                      <span className="font-semibold text-sm">
+                                        {getEmployeeInitials(employee.name)}
+                                      </span>
+                                    </div>
                                     <div className="flex-1 min-w-0">
                                       <div className="font-medium text-gray-900 text-sm">
                                         {employee.name}
@@ -9903,25 +9847,9 @@ export default function CalendarPage() {
                         : null;
                       return assignedEmployee ? (
                         <div className="bg-white rounded-xl p-4 border flex items-center gap-3" style={{ borderColor: '#E2E2DD' }}>
-                          {assignedEmployee.imageUrl ? (
-                            <img 
-                              src={assignedEmployee.imageUrl} 
-                              alt={assignedEmployee.name}
-                              className="w-10 h-10 rounded-full object-cover flex-shrink-0 border"
-                              style={{ borderColor: '#E2E2DD' }}
-                            />
-                          ) : (
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold ${
-                              assignedEmployee.color === 'blue' ? 'bg-blue-500' :
-                              assignedEmployee.color === 'green' ? 'bg-green-500' :
-                              assignedEmployee.color === 'orange' ? 'bg-orange-500' :
-                              assignedEmployee.color === 'red' ? 'bg-red-500' :
-                              assignedEmployee.color === 'gray' ? 'bg-gray-500' :
-                              'bg-blue-500'
-                            }`}>
-                              {assignedEmployee.name.charAt(0).toUpperCase()}
-                            </div>
-                          )}
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${getEmployeeBadgeClass(assignedEmployee.color)}`}>
+                            {getEmployeeInitials(assignedEmployee.name)}
+                          </div>
                           <span className="text-sm font-medium text-gray-900">
                             {assignedEmployee.name}
                           </span>
@@ -10028,20 +9956,11 @@ export default function CalendarPage() {
                                 </div>
                               </div>
                               {assignedEmployee && (
-                                assignedEmployee.imageUrl ? (
-                                  <img
-                                    src={assignedEmployee.imageUrl}
-                                    alt={assignedEmployee.name}
-                                    className="w-8 h-8 rounded-full object-cover flex-shrink-0 border"
-                                  />
-                                ) : (
-                                  <div
-                                    className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0"
-                                    style={{ backgroundColor: techColor }}
-                                  >
-                                    {assignedEmployee.name.charAt(0).toUpperCase()}
-                                  </div>
-                                )
+                                <div
+                                  className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0 ${getEmployeeBadgeClass(assignedEmployee.color)}`}
+                                >
+                                  {getEmployeeInitials(assignedEmployee.name)}
+                                </div>
                               )}
                             </div>
                             

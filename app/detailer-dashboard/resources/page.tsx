@@ -433,6 +433,37 @@ export default function ResourcesPage() {
     return `${daysWithHours.length} days set`;
   };
 
+  const getEmployeeInitials = (name?: string): string => {
+    if (!name) return '';
+    const parts = name.trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return '';
+    if (parts.length === 1) {
+      return parts[0].slice(0, 2).toUpperCase();
+    }
+    return parts.slice(0, 2).map(part => part.charAt(0).toUpperCase()).join('');
+  };
+
+  const getEmployeeBadgeClass = (color?: string): string => {
+    switch ((color || '').toLowerCase()) {
+      case 'blue':
+        return 'bg-blue-500 text-white';
+      case 'green':
+        return 'bg-green-500 text-white';
+      case 'orange':
+        return 'bg-orange-500 text-white';
+      case 'red':
+        return 'bg-red-500 text-white';
+      case 'gray':
+        return 'bg-gray-400 text-gray-900';
+      case 'purple':
+        return 'bg-purple-500 text-white';
+      case 'pink':
+        return 'bg-pink-500 text-white';
+      default:
+        return 'bg-gray-400 text-gray-900';
+    }
+  };
+
   const currentItems = activeTab === 'employees' ? employees : resources;
 
   return (
@@ -645,19 +676,11 @@ export default function ResourcesPage() {
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap">
                           <div className="flex items-center gap-3">
-                            {employee.imageUrl ? (
-                              <img 
-                                src={employee.imageUrl} 
-                                alt={employee.name}
-                                className="w-10 h-10 rounded-full object-cover flex-shrink-0 border border-gray-200"
-                              />
-                            ) : (
-                              <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
-                                <span className="text-gray-700 font-semibold text-sm">
-                                  {employee.name.charAt(0).toUpperCase()}
-                                </span>
-                              </div>
-                            )}
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${getEmployeeBadgeClass(employee.color)}`}>
+                              <span className="font-semibold text-sm">
+                                {getEmployeeInitials(employee.name)}
+                              </span>
+                            </div>
                             <div className="font-medium text-gray-900">
                               {employee.name}
                             </div>
@@ -819,19 +842,11 @@ export default function ResourcesPage() {
                       Profile Image
                     </label>
                     <div className="flex items-center gap-4">
-                      {formData.imageUrl ? (
-                        <img 
-                          src={formData.imageUrl} 
-                          alt="Employee"
-                          className="w-20 h-20 rounded-full object-cover border border-gray-300"
-                        />
-                      ) : (
-                        <div className="w-20 h-20 rounded-full bg-gray-200 flex items-center justify-center border border-gray-300">
-                          <span className="text-gray-500 text-2xl font-semibold">
-                            {formData.name.charAt(0).toUpperCase() || '?'}
-                          </span>
-                        </div>
-                      )}
+                      <div className={`w-20 h-20 rounded-full flex items-center justify-center border border-gray-300 ${getEmployeeBadgeClass(formData.color)}`}>
+                        <span className="text-2xl font-semibold">
+                          {getEmployeeInitials(formData.name) || '?'}
+                        </span>
+                      </div>
                       <EmployeeImageUploader
                         detailerId={session?.user?.id}
                         currentImageUrl={formData.imageUrl}
@@ -1067,5 +1082,3 @@ function EmployeeImageUploader({
     </div>
   );
 }
-
-
