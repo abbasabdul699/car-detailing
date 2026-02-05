@@ -1992,6 +1992,12 @@ const EventHoverPopup = ({
                         )}
                     </div>
                 )}
+                {/* Address */}
+                {!isBlockEvent && (event.customerAddress || event.address) && (
+                    <div className="text-sm text-gray-600">
+                        {event.customerAddress || event.address}
+                    </div>
+                )}
 
                 {/* Assigned Employee */}
                 {event.employeeName && (
