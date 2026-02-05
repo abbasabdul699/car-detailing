@@ -61,8 +61,8 @@ type EventModalProps = {
     resources?: Array<{ id: string; name: string; type: 'bay' | 'van' }>;
     draftEvent?: { resourceId: string; startTime: string; endTime: string } | null;
     onOpenNewCustomerModal?: (initialName: string) => void;
-    onOpenEditCustomerModal?: (customer: { customerName: string; customerPhone: string; customerAddress?: string }) => void;
-    newCustomerData?: { customerName: string; customerPhone: string; customerEmail?: string; address?: string } | null;
+    onOpenEditCustomerModal?: (customer: { customerName: string; customerPhone: string; customerAddress?: string; customerType?: string }) => void;
+    newCustomerData?: { customerName: string; customerPhone: string; customerEmail?: string; address?: string; customerType?: string } | null;
     onRequestClose?: () => void; // Called when modal wants to close (checks for dirty state)
     renderMode?: 'panel' | 'drawer';
     showHeader?: boolean;
@@ -378,8 +378,8 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
     const handleCustomerSelect = async (customer: { id: string; customerName?: string; customerPhone: string; customerEmail?: string; address?: string; locationType?: string; customerType?: string; vehicleModel?: string; services?: string[]; data?: any; completedServiceCount?: number; lastCompletedServiceAt?: string | null }) => {
         // Fetch past jobs for this customer
         const pastJobs = await fetchCustomerPastJobs(customer.id, customer.customerPhone);
-        const computedCustomerType = customer.customerType?.toLowerCase() === 'maintenance'
-            ? 'maintenance'
+        const computedCustomerType = customer.customerType
+            ? customer.customerType.toLowerCase()
             : getCustomerTypeFromHistory({
                 completedServiceCount: customer.completedServiceCount,
                 lastCompletedServiceAt: customer.lastCompletedServiceAt,
@@ -816,13 +816,17 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                     ...selectedCustomer,
                     customerName: newCustomerData.customerName,
                     customerPhone: newCustomerData.customerPhone,
-                    address: newCustomerData.address || ''
+                    address: newCustomerData.address || '',
+                    customerType: newCustomerData.customerType || selectedCustomer.customerType
                 });
                 
                 // Update form fields
                 setCustomerName(newCustomerData.customerName || '');
                 setCustomerPhone(newCustomerData.customerPhone || '');
                 setCustomerAddress(newCustomerData.address || '');
+                if (newCustomerData.customerType !== undefined) {
+                    setCustomerType(newCustomerData.customerType || '');
+                }
                 return; // Don't fetch from API, we already have the updated data
             }
             
@@ -835,6 +839,7 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                 customerPhone: newCustomerData.customerPhone,
                 customerEmail: newCustomerData.customerEmail,
                 address: newCustomerData.address,
+                customerType: newCustomerData.customerType,
                 pastJobs: []
             });
             
@@ -843,6 +848,7 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
             setCustomerPhone(newCustomerData.customerPhone || '');
             setCustomerEmail(newCustomerData.customerEmail || '');
             setCustomerAddress(newCustomerData.address || '');
+            setCustomerType(newCustomerData.customerType || '');
             setCustomerSearch(''); // Clear search to show customer card
             
             // Then fetch full customer details from API to get ID and other fields
@@ -1338,12 +1344,14 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                                                     console.log('Calling onOpenEditCustomerModal with:', {
                                                         customerName: selectedCustomer.customerName || '',
                                                         customerPhone: selectedCustomer.customerPhone || '',
-                                                        customerAddress: selectedCustomer.address || ''
+                                                        customerAddress: selectedCustomer.address || '',
+                                                        customerType: selectedCustomer.customerType || ''
                                                     });
                                                     onOpenEditCustomerModal({
                                                         customerName: selectedCustomer.customerName || '',
                                                         customerPhone: selectedCustomer.customerPhone || '',
-                                                        customerAddress: selectedCustomer.address || ''
+                                                        customerAddress: selectedCustomer.address || '',
+                                                        customerType: selectedCustomer.customerType || ''
                                                     });
                                                 } else {
                                                     console.error('onOpenEditCustomerModal is not available');
@@ -2069,12 +2077,12 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                         )}
                     </div>
 
-                    {/* Station and Arrival */}
+                    {/* Station, Arrival, Customer Status */}
                     <div className="pt-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             {/* Station Dropdown */}
                             <div>
-                                <label htmlFor="station-select" className="block text-sm font-semibold text-gray-900 mb-2">
+                                <label htmlFor="station-select" className="block text-sm font-semibold text-gray-900 mb-2 whitespace-nowrap">
                                     Station
                                 </label>
                                 <select
@@ -2094,9 +2102,9 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                             </div>
                             
                             {/* Arrival Dropdown */}
-                            {!isBlockTime && (
+                            {!isBlockTime ? (
                                 <div>
-                                    <label htmlFor="location-type" className="block text-sm font-semibold text-gray-900 mb-2">
+                                    <label htmlFor="location-type" className="block text-sm font-semibold text-gray-900 mb-2 whitespace-nowrap">
                                         Arrival
                                     </label>
                                     <select
@@ -2112,6 +2120,29 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                                         <option value="drop off">Drop Off</option>
                                     </select>
                                 </div>
+                            ) : (
+                                <div />
+                            )}
+
+                            {!isBlockTime ? (
+                                <div>
+                                    <label htmlFor="customer-status" className="block text-sm font-semibold text-gray-900 mb-2 whitespace-nowrap">
+                                        Customer Status
+                                    </label>
+                                    <select
+                                        id="customer-status"
+                                        value={customerType}
+                                        onChange={e => setCustomerType(e.target.value)}
+                                        className="w-full px-4 py-2.5 border rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                                        style={{ borderColor: '#E2E2DD' }}
+                                    >
+                                        <option value="new">New</option>
+                                        <option value="returning">Repeat</option>
+                                        <option value="maintenance">Maintenance</option>
+                                    </select>
+                                </div>
+                            ) : (
+                                <div />
                             )}
                         </div>
                     </div>

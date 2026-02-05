@@ -784,12 +784,12 @@ const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () =>
       </div>
       )}
 
-      {/* Station and Arrival Selection */}
+      {/* Station, Arrival, Customer Status */}
       <div className="pt-2" style={{ width: '100%', maxWidth: '100%' }}>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4" style={{ width: '100%', maxWidth: '100%' }}>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4" style={{ width: '100%', maxWidth: '100%' }}>
           {/* Station Dropdown */}
           <div>
-            <label htmlFor="station-select" className="block text-sm font-semibold text-gray-900 mb-2">
+            <label htmlFor="station-select" className="block text-sm font-semibold text-gray-900 mb-2 whitespace-nowrap">
               Station
             </label>
             <select
@@ -809,9 +809,9 @@ const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () =>
           </div>
           
           {/* Arrival Dropdown */}
-          {!isBlockEvent && (
+          {!isBlockEvent ? (
             <div>
-              <label htmlFor="location-type-select" className="block text-sm font-semibold text-gray-900 mb-2">
+              <label htmlFor="location-type-select" className="block text-sm font-semibold text-gray-900 mb-2 whitespace-nowrap">
                 Arrival
               </label>
               <select
@@ -827,6 +827,29 @@ const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () =>
                 <option value="dropoff">Drop Off</option>
               </select>
             </div>
+          ) : (
+            <div />
+          )}
+
+          {!isBlockEvent ? (
+            <div>
+              <label htmlFor="customer-status-select" className="block text-sm font-semibold text-gray-900 mb-2 whitespace-nowrap">
+                Customer Status
+              </label>
+              <select
+                id="customer-status-select"
+                value={customerType}
+                onChange={e => setCustomerType(e.target.value)}
+                className="w-full px-4 py-2.5 border rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                style={{ borderColor: '#E2E2DD' }}
+              >
+                <option value="new">New</option>
+                <option value="returning">Repeat</option>
+                <option value="maintenance">Maintenance</option>
+              </select>
+            </div>
+          ) : (
+            <div />
           )}
         </div>
       </div>
@@ -1879,7 +1902,8 @@ const EventHoverPopup = ({
     const vehicleModel = event.vehicleType || event.vehicleModel;
     const timeRange = formatTimeRange(event);
     const customerStatus = getCustomerType(event);
-    const effectiveCustomerType = event.customerType === 'maintenance' ? 'maintenance' : customerStatus;
+    const normalizedOverride = event.customerType ? String(event.customerType).toLowerCase() : '';
+    const effectiveCustomerType = normalizedOverride || customerStatus;
     const paymentStatus = event.paymentStatus || event.status;
     const bookingSource = event.source;
     
@@ -1968,16 +1992,6 @@ const EventHoverPopup = ({
                     {effectiveCustomerType === 'maintenance' && (
                         <span className="text-xs font-semibold bg-blue-200 text-blue-800 px-2 py-0.5 rounded">
                             Maintenance Customer
-                        </span>
-                    )}
-                    {!event.customerType && customerStatus === 'new' && (
-                        <span className="text-xs font-semibold bg-gray-200 text-gray-700 px-2 py-0.5 rounded">
-                            New customer
-                        </span>
-                    )}
-                    {!event.customerType && customerStatus === 'returning' && (
-                        <span className="text-xs font-semibold text-white px-2 py-0.5 rounded" style={{ backgroundColor: '#AE5AEF' }}>
-                            Repeat customer
                         </span>
                     )}
                 </div>
@@ -2820,16 +2834,34 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                                         {event.customerName || 'Customer'}{event.customerPhone ? ` (${formatPhoneDisplay(event.customerPhone)})` : ''}
                                                     </span>
                                                 )}
-                                                {!isBlockEvent && getCustomerType(event) === 'new' && (
-                                                    <span className="text-xs font-semibold bg-gray-200 text-gray-700 px-1.5 py-0.5 rounded mt-0.5 inline-block text-left">
-                                                        New customer
-                                                    </span>
-                                                )}
-                                                {!isBlockEvent && getCustomerType(event) === 'returning' && (
-                                                    <span className="text-xs font-semibold bg-purple-200 text-purple-800 px-1.5 py-0.5 rounded mt-0.5 inline-block text-left truncate">
-                                                        Repeat ...
-                                                    </span>
-                                                )}
+                                                {(() => {
+                                                    if (isBlockEvent) return null;
+                                                    const effectiveType = event.customerType
+                                                        ? String(event.customerType).toLowerCase()
+                                                        : getCustomerType(event);
+                                                    if (effectiveType === 'new') {
+                                                        return (
+                                                            <span className="text-xs font-semibold bg-gray-200 text-gray-700 px-1.5 py-0.5 rounded mt-0.5 inline-block text-left">
+                                                                New customer
+                                                            </span>
+                                                        );
+                                                    }
+                                                    if (effectiveType === 'returning') {
+                                                        return (
+                                                            <span className="text-xs font-semibold bg-purple-200 text-purple-800 px-1.5 py-0.5 rounded mt-0.5 inline-block text-left truncate">
+                                                                Repeat ...
+                                                            </span>
+                                                        );
+                                                    }
+                                                    if (effectiveType === 'maintenance') {
+                                                        return (
+                                                            <span className="text-xs font-semibold bg-blue-200 text-blue-800 px-1.5 py-0.5 rounded mt-0.5 inline-block text-left truncate">
+                                                                Maintenance
+                                                            </span>
+                                                        );
+                                                    }
+                                                    return null;
+                                                })()}
                                                 {!isBlockEvent && (event.vehicleType || event.vehicleModel) ? (
                                                     <span className="text-xs font-semibold text-gray-600 mt-0.5 truncate text-left w-full">{event.vehicleType || event.vehicleModel}</span>
                                                 ) : null}
@@ -3513,8 +3545,8 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                             
                                                             {/* Repeat/New Customer Button - Show if height >= 55px */}
                                                             {showRepeatButton && (() => {
-                                                const customerType = event.customerType?.toLowerCase() === 'maintenance'
-                                                  ? 'maintenance'
+                                                const customerType = event.customerType
+                                                  ? String(event.customerType).toLowerCase()
                                                   : getCustomerType(event);
                                                 if (customerType === 'returning') {
                                                     return (
@@ -4513,9 +4545,9 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
                     const isBlockEvent = event.eventType === 'block';
                     const customerType = isBlockEvent
                       ? null
-                      : (event.customerType?.toLowerCase() === 'maintenance'
-                      ? 'maintenance'
-                      : getCustomerType(event));
+                      : (event.customerType
+                        ? String(event.customerType).toLowerCase()
+                        : getCustomerType(event));
                     const isPending = event.status === 'pending';
                     const eventColor = isBlockEvent ? 'gray' : (event.color || 'blue'); // Use employee's color, default to blue
                     const addressLine = (() => {
@@ -4746,8 +4778,8 @@ export default function CalendarPage() {
   const [selectedTechnicians, setSelectedTechnicians] = useState<string[]>([]); // Array of employee IDs
   const [isNewCustomerModalOpen, setIsNewCustomerModalOpen] = useState(false);
   const [newCustomerModalInitialName, setNewCustomerModalInitialName] = useState('');
-  const [newCustomerData, setNewCustomerData] = useState<{ customerName: string; customerPhone: string; customerEmail?: string; address?: string } | null>(null);
-  const [editingCustomerData, setEditingCustomerData] = useState<{ customerName: string; customerPhone: string; customerAddress?: string } | null>(null);
+  const [newCustomerData, setNewCustomerData] = useState<{ customerName: string; customerPhone: string; customerEmail?: string; address?: string; customerType?: string } | null>(null);
+  const [editingCustomerData, setEditingCustomerData] = useState<{ customerName: string; customerPhone: string; customerAddress?: string; customerType?: string } | null>(null);
   const [isEditingCustomer, setIsEditingCustomer] = useState(false);
   const [eventDetailsCustomers, setEventDetailsCustomers] = useState<Array<{ id: string; customerName?: string; customerPhone: string; customerEmail?: string; address?: string; locationType?: string; customerType?: string; vehicleModel?: string; services?: string[]; data?: any }>>([]);
   const datePickerRef = useRef<HTMLDivElement>(null);
@@ -6869,11 +6901,13 @@ export default function CalendarPage() {
                           : (event.services || event.title || event.eventName || 'Event');
                         
                         const locationType = event.locationType || event.customerAddress ? 'Drop off' : null;
-                        const isReturningCustomer = getCustomerTypeFromHistory({
-                          completedServiceCount: event.completedServiceCount,
-                          lastCompletedServiceAt: event.lastCompletedServiceAt,
-                          referenceDate: event.start || event.date || new Date()
-                        }) === 'returning';
+                        const effectiveCustomerType = event.customerType
+                          ? String(event.customerType).toLowerCase()
+                          : getCustomerTypeFromHistory({
+                              completedServiceCount: event.completedServiceCount,
+                              lastCompletedServiceAt: event.lastCompletedServiceAt,
+                              referenceDate: event.start || event.date || new Date()
+                            });
                         const showEmployeeAvatar = height >= 85;
                 
                 return (
@@ -6955,16 +6989,26 @@ export default function CalendarPage() {
                               </div>
                             )}
                             {/* Badges */}
-                            {(locationType || isReturningCustomer) && (
+                            {(locationType || effectiveCustomerType) && (
                               <div className="mt-auto pt-2 flex flex-wrap gap-1">
                                 {locationType && (
                                   <span className="px-2 py-0.5 text-[11px] font-medium rounded-full bg-pink-200 text-pink-800">
                                     {locationType}
                                   </span>
                                 )}
-                                {isReturningCustomer && (
+                                {effectiveCustomerType === 'returning' && (
                                   <span className="px-2 py-0.5 text-[11px] font-medium rounded-full bg-purple-200 text-purple-800">
                                     Repeat customer
+                                  </span>
+                                )}
+                                {effectiveCustomerType === 'new' && (
+                                  <span className="px-2 py-0.5 text-[11px] font-medium rounded-full bg-gray-200 text-gray-700">
+                                    New customer
+                                  </span>
+                                )}
+                                {effectiveCustomerType === 'maintenance' && (
+                                  <span className="px-2 py-0.5 text-[11px] font-medium rounded-full bg-blue-200 text-blue-800">
+                                    Maintenance customer
                                   </span>
                                 )}
                               </div>
@@ -7252,7 +7296,8 @@ export default function CalendarPage() {
                 setEditingCustomerData({
                   customerName: customer.customerName,
                   customerPhone: customer.customerPhone,
-                  customerAddress: customer.customerAddress || ''
+                  customerAddress: customer.customerAddress || '',
+                  customerType: customer.customerType || ''
                 });
                 setIsEditingCustomer(true);
                 setIsNewCustomerModalOpen(true);
@@ -7547,7 +7592,8 @@ export default function CalendarPage() {
                       setEditingCustomerData({
                         customerName: selectedEventData.customerName || '',
                         customerPhone: selectedEventData.customerPhone || '',
-                        customerAddress: selectedEventData.customerAddress || ''
+                        customerAddress: selectedEventData.customerAddress || '',
+                        customerType: selectedEventData.customerType || ''
                       });
                       setIsEditingCustomer(true);
                       setIsNewCustomerModalOpen(true);
@@ -8065,10 +8111,11 @@ export default function CalendarPage() {
                   setIsNewCustomerModalOpen(true);
                 }}
                 onOpenEditCustomerModal={(customer) => {
-                  setEditingCustomerData({
+                setEditingCustomerData({
                     customerName: customer.customerName,
                     customerPhone: customer.customerPhone,
-                    customerAddress: customer.customerAddress || ''
+                    customerAddress: customer.customerAddress || '',
+                    customerType: customer.customerType || ''
                   });
                   setIsEditingCustomer(true);
                   setIsNewCustomerModalOpen(true);
@@ -8335,7 +8382,8 @@ export default function CalendarPage() {
                         setEditingCustomerData({
                           customerName: selectedEventData.customerName || '',
                           customerPhone: selectedEventData.customerPhone || '',
-                          customerAddress: selectedEventData.customerAddress || ''
+                          customerAddress: selectedEventData.customerAddress || '',
+                          customerType: selectedEventData.customerType || ''
                         });
                         setIsEditingCustomer(true);
                         setIsNewCustomerModalOpen(true);
@@ -9074,7 +9122,8 @@ export default function CalendarPage() {
               setEditingCustomerData({
                 customerName: customer.customerName,
                 customerPhone: customer.customerPhone,
-                customerAddress: customer.customerAddress || ''
+                customerAddress: customer.customerAddress || '',
+                customerType: customer.customerType || ''
               });
               setIsEditingCustomer(true);
               setIsNewCustomerModalOpen(true);
@@ -9358,7 +9407,8 @@ export default function CalendarPage() {
                       setEditingCustomerData({
                         customerName: selectedEventData.customerName || '',
                         customerPhone: selectedEventData.customerPhone || '',
-                        customerAddress: selectedEventData.customerAddress || ''
+                        customerAddress: selectedEventData.customerAddress || '',
+                        customerType: selectedEventData.customerType || ''
                       });
                       setIsEditingCustomer(true);
                       setIsNewCustomerModalOpen(true);
@@ -9679,10 +9729,10 @@ export default function CalendarPage() {
                                 lastCompletedServiceAt: selectedEventData.lastCompletedServiceAt,
                                 referenceDate: selectedEventData.start || selectedEventData.date || new Date()
                               });
-                              const effectiveCustomerType =
-                                selectedEventData.customerType?.toLowerCase() === 'maintenance'
-                                  ? 'maintenance'
-                                  : customerStatus;
+                              const normalizedOverride = selectedEventData.customerType
+                                ? String(selectedEventData.customerType).toLowerCase()
+                                : '';
+                              const effectiveCustomerType = normalizedOverride || customerStatus;
 
                               return (
                                 <span className={`text-xs font-semibold px-3 py-1.5 rounded-full inline-block ${

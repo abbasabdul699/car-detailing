@@ -14,9 +14,9 @@ declare global {
 type NewCustomerModalProps = {
     isOpen: boolean;
     onClose: () => void;
-    onSuccess: (customer: { customerName: string; customerPhone: string; customerEmail?: string; address?: string }) => void;
+    onSuccess: (customer: { customerName: string; customerPhone: string; customerEmail?: string; address?: string; customerType?: string }) => void;
     initialName?: string;
-    existingCustomer?: { customerName: string; customerPhone: string; customerAddress?: string };
+    existingCustomer?: { customerName: string; customerPhone: string; customerAddress?: string; customerType?: string };
     isEditMode?: boolean;
 };
 
@@ -51,6 +51,7 @@ export default function NewCustomerModal({ isOpen, onClose, onSuccess, initialNa
     const [customerName, setCustomerName] = useState(initialName || existingCustomer?.customerName || '');
     const [phoneNumber, setPhoneNumber] = useState(existingCustomer?.customerPhone || '');
     const [address, setAddress] = useState(existingCustomer?.customerAddress || '');
+    const [customerType, setCustomerType] = useState(existingCustomer?.customerType || '');
     const [city, setCity] = useState('');
     const [state, setState] = useState('');
     const [zipCode, setZipCode] = useState('');
@@ -165,10 +166,12 @@ export default function NewCustomerModal({ isOpen, onClose, onSuccess, initialNa
                 const existingPhone = existingCustomer.customerPhone || '';
                 setPhoneNumber(existingPhone ? formatPhoneNumber(existingPhone) : '');
                 setAddress(existingCustomer.customerAddress || '');
+                setCustomerType(existingCustomer.customerType || '');
             } else {
                 setCustomerName(initialName);
                 setPhoneNumber('');
                 setAddress('');
+                setCustomerType('');
             }
             setCity('');
             setState('');
@@ -217,6 +220,7 @@ export default function NewCustomerModal({ isOpen, onClose, onSuccess, initialNa
                     customerEmail: undefined, // Can be added later if needed
                     address: fullAddress || undefined,
                     locationType: undefined,
+                    customerType: customerType || undefined,
                     vehicleModel: undefined,
                     services: [],
                     vcardSent: false,
@@ -236,6 +240,7 @@ export default function NewCustomerModal({ isOpen, onClose, onSuccess, initialNa
                 customerPhone: phoneDigits,
                 customerEmail: undefined,
                 address: fullAddress || undefined,
+                customerType: customerType || undefined,
             });
 
             // Close modal
@@ -383,6 +388,23 @@ export default function NewCustomerModal({ isOpen, onClose, onSuccess, initialNa
                             className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                             placeholder="02138"
                         />
+                    </div>
+
+                    {/* Customer Status Override */}
+                    <div>
+                        <label htmlFor="customer-status" className="block text-sm font-medium text-gray-700 mb-2">
+                            Customer status
+                        </label>
+                        <select
+                            id="customer-status"
+                            value={customerType}
+                            onChange={(e) => setCustomerType(e.target.value)}
+                            className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                        >
+                            <option value="new">New</option>
+                            <option value="returning">Repeat</option>
+                            <option value="maintenance">Maintenance</option>
+                        </select>
                     </div>
 
                     {/* Action buttons */}
