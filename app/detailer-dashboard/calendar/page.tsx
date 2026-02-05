@@ -4606,6 +4606,11 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
                             {event.vehicleType || 'Vehicle'}
                           </div>
                         )}
+                        {!isBlockEvent && event.description && (
+                          <div className="text-xs text-gray-600 mb-1">
+                            {event.description}
+                          </div>
+                        )}
                         <div className="mt-auto pt-2">
                           {/* Location Type Tag - Only for Bay resources */}
                           {!isBlockEvent && resource.type === 'bay' && event.locationType && (
