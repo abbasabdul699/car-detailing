@@ -3,9 +3,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { XMarkIcon, CheckIcon, PencilIcon, Bars3Icon } from '@heroicons/react/24/solid';
 import Image from 'next/image';
 import { useSession } from 'next-auth/react';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import AddressAutocompleteInput from './AddressAutocompleteInput';
 import { getCustomerTypeFromHistory } from '@/lib/customerType';
+import { normalizeToE164 } from '@/lib/phone';
 
 // Discard Changes Modal Component
 const DiscardChangesModal = ({ 
@@ -84,7 +85,7 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
     const [selectedResourceId, setSelectedResourceId] = useState<string>(preSelectedResource?.id || '');
     const [businessHours, setBusinessHours] = useState<any>(null);
     const [customers, setCustomers] = useState<Array<{ id: string; customerName?: string; customerPhone: string; customerEmail?: string; address?: string; locationType?: string; customerType?: string; vehicleModel?: string; services?: string[]; data?: any; completedServiceCount?: number; lastCompletedServiceAt?: string | null }>>([]);
-    const [selectedCustomer, setSelectedCustomer] = useState<{ id: string; customerName?: string; customerPhone: string; customerEmail?: string; address?: string; locationType?: string; customerType?: string; vehicleModel?: string; pastJobs?: Array<{ id: string; date: string; services: string[]; vehicleModel?: string; employeeName?: string }>; completedServiceCount?: number; lastCompletedServiceAt?: string | null } | null>(null);
+    const [selectedCustomer, setSelectedCustomer] = useState<{ id: string; customerName?: string; customerPhone: string; customerEmail?: string; address?: string; locationType?: string; customerType?: string; vehicleModel?: string; pastJobs?: Array<{ id: string; date: string; services: string[]; vehicleModel?: string; employeeName?: string }>; pastJobsTotal?: number; completedServiceCount?: number; lastCompletedServiceAt?: string | null } | null>(null);
     const [customerSearch, setCustomerSearch] = useState('');
     const [showCustomerDetailsPopup, setShowCustomerDetailsPopup] = useState(false);
     const [customerName, setCustomerName] = useState('');
@@ -109,6 +110,24 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
     const customerDetailsPopupRef = React.useRef<HTMLDivElement>(null);
     const [popupPosition, setPopupPosition] = useState<{ top: number; right: number } | null>(null);
     const customerPopupTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+
+    const parseJobDate = (value: unknown) => {
+        if (!value) return null;
+        if (value instanceof Date) {
+            return Number.isNaN(value.getTime()) ? null : value;
+        }
+        if (typeof value === 'string') {
+            const isoParsed = parseISO(value);
+            if (!Number.isNaN(isoParsed.getTime())) return isoParsed;
+            const fallback = new Date(value);
+            if (!Number.isNaN(fallback.getTime())) return fallback;
+            if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+                const dateOnly = new Date(`${value}T00:00:00`);
+                return Number.isNaN(dateOnly.getTime()) ? null : dateOnly;
+            }
+        }
+        return null;
+    };
     
     // Cleanup timeout on unmount
     useEffect(() => {
@@ -347,37 +366,75 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
             if (eventsResponse.ok) {
                 const eventsData = await eventsResponse.json();
                 const allEvents = eventsData.events || [];
+                const normalizedCustomerPhone = normalizeToE164(customerPhone) || customerPhone;
+                const normalizedCustomerDigits = String(customerPhone || '').replace(/\D/g, '');
+                const now = Date.now();
                 
                 // Filter events for this customer and get completed/confirmed ones
-                const customerEvents = allEvents.filter((event: any) => 
-                    event.customerPhone === customerPhone && 
-                    (event.status === 'confirmed' || event.status === 'completed' || !event.status) // Include events without status
+                const customerEvents = allEvents.filter((event: any) =>
+                    (() => {
+                        const eventPhone = event.customerPhone || '';
+                        const normalizedEventPhone = normalizeToE164(eventPhone) || eventPhone;
+                        if (normalizedCustomerPhone && normalizedEventPhone) {
+                            return normalizedEventPhone === normalizedCustomerPhone;
+                        }
+                        const eventDigits = String(eventPhone).replace(/\D/g, '');
+                        if (eventDigits && normalizedCustomerDigits && eventDigits === normalizedCustomerDigits) {
+                            return true;
+                        }
+                        if (customerId) {
+                            const eventCustomerId = event.customerId || event.customer?.id || event.customer?.customerId;
+                            if (eventCustomerId && eventCustomerId === customerId) {
+                                return true;
+                            }
+                        }
+                        return false;
+                    })() &&
+                    (() => {
+                        const status = String(event.status || '').toLowerCase();
+                        if (status === 'cancelled' || status === 'canceled' || status === 'deleted') {
+                            return false;
+                        }
+                        return true;
+                    })() &&
+                    (() => {
+                        const end = event.end ? new Date(event.end).getTime() : null;
+                        const start = event.start ? new Date(event.start).getTime() : null;
+                        const candidate = end ?? start;
+                        if (!candidate || Number.isNaN(candidate)) return false;
+                        return candidate < now;
+                    })()
                 ).sort((a: any, b: any) => {
                     // Sort by date, most recent first
                     const dateA = new Date(a.start || a.date || 0).getTime();
                     const dateB = new Date(b.start || b.date || 0).getTime();
                     return dateB - dateA;
-                }).slice(0, 10); // Get last 10 events
+                });
                 
                 // Transform to match the expected format
-                return customerEvents.map((event: any) => ({
-                    id: event.id || event.bookingId,
-                    date: event.start || event.date || event.scheduledDate,
-                    services: event.services || (event.title ? [event.title] : []),
-                    vehicleModel: event.vehicleModel || event.vehicleType,
-                    employeeName: event.employeeName
-                }));
+                const jobs = customerEvents.map((event: any) => {
+                    const startValue = event.start?.dateTime || event.start?.date || event.start;
+                    const dateValue = startValue || event.end || event.date || event.scheduledDate || event.createdAt || event.updatedAt;
+                    return {
+                        id: event.id || event.bookingId,
+                        date: dateValue,
+                        services: event.services || (event.title ? [event.title] : []),
+                        vehicleModel: event.vehicleModel || event.vehicleType,
+                        employeeName: event.employeeName
+                    };
+                });
+                return { jobs, totalCount: jobs.length };
             }
         } catch (error) {
             console.error('Error fetching customer bookings:', error);
         }
-        return [];
+        return { jobs: [], totalCount: 0 };
     };
 
     // Handle customer selection from suggestions - show customer card
     const handleCustomerSelect = async (customer: { id: string; customerName?: string; customerPhone: string; customerEmail?: string; address?: string; locationType?: string; customerType?: string; vehicleModel?: string; services?: string[]; data?: any; completedServiceCount?: number; lastCompletedServiceAt?: string | null }) => {
         // Fetch past jobs for this customer
-        const pastJobs = await fetchCustomerPastJobs(customer.id, customer.customerPhone);
+        const { jobs: pastJobs, totalCount: pastJobsTotal } = await fetchCustomerPastJobs(customer.id, customer.customerPhone);
         const computedCustomerType = customer.customerType
             ? customer.customerType.toLowerCase()
             : getCustomerTypeFromHistory({
@@ -400,11 +457,12 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
             lastCompletedServiceAt: customer.lastCompletedServiceAt,
             pastJobs: pastJobs.map((job: any) => ({
                 id: job.id,
-                date: job.scheduledDate || job.createdAt,
+                date: job.date,
                 services: Array.isArray(job.services) ? job.services : (job.services ? [job.services] : []),
-                vehicleModel: job.vehicleType || job.vehicleModel,
+                vehicleModel: job.vehicleModel,
                 employeeName: job.employeeName
-            }))
+            })),
+            pastJobsTotal
         });
         
         // Also populate form fields for submission
@@ -863,7 +921,7 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                         );
                         if (newCustomer) {
                             // Fetch past jobs and set selected customer with full details
-                            const pastJobs = await fetchCustomerPastJobs(newCustomer.id, newCustomer.customerPhone);
+                            const { jobs: pastJobs, totalCount: pastJobsTotal } = await fetchCustomerPastJobs(newCustomer.id, newCustomer.customerPhone);
                             setSelectedCustomer({
                                 id: newCustomer.id,
                                 customerName: newCustomer.customerName,
@@ -874,10 +932,12 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                                 vehicleModel: newCustomer.vehicleModel,
                                 pastJobs: pastJobs.map((job: any) => ({
                                     id: job.id,
-                                    date: job.scheduledDate || job.createdAt,
+                                    date: job.date,
                                     services: Array.isArray(job.services) ? job.services : (job.services ? [job.services] : []),
-                                    vehicleModel: job.vehicleType || job.vehicleModel
-                                }))
+                                    vehicleModel: job.vehicleModel,
+                                    employeeName: job.employeeName
+                                })),
+                                pastJobsTotal
                             });
                             
                             // Update form fields with full customer data
@@ -1304,33 +1364,46 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                                                 {selectedCustomer.address}
                                             </p>
                                         )}
-                                        
-                                        {selectedCustomer.pastJobs && selectedCustomer.pastJobs.length > 0 && (
-                                            <div className="mt-3">
-                                                <p className="font-semibold text-sm text-gray-900 mb-1">
-                                                    {selectedCustomer.pastJobs.length} Past {selectedCustomer.pastJobs.length === 1 ? 'job' : 'jobs'}
-                                                </p>
-                                                {selectedCustomer.pastJobs[0] && selectedCustomer.pastJobs[0].date && (
-                                                    <p className="text-sm text-gray-600">
-                                                        Last detail: {(() => {
-                                                            try {
-                                                                const date = new Date(selectedCustomer.pastJobs[0].date);
-                                                                if (isNaN(date.getTime())) return 'Date unavailable';
-                                                                return format(date, 'MMMM d, yyyy');
-                                                            } catch (e) {
-                                                                return 'Date unavailable';
-                                                            }
-                                                        })()}
-                                                        {selectedCustomer.pastJobs[0].services && selectedCustomer.pastJobs[0].services.length > 0 && (
-                                                            <span>, {Array.isArray(selectedCustomer.pastJobs[0].services) ? selectedCustomer.pastJobs[0].services.join(', ') : selectedCustomer.pastJobs[0].services}</span>
+
+                                        <div className="mt-3">
+                                            {(() => {
+                                                const totalPastJobs = typeof selectedCustomer.pastJobsTotal === 'number'
+                                                    ? selectedCustomer.pastJobsTotal
+                                                    : (typeof selectedCustomer.completedServiceCount === 'number'
+                                                        ? selectedCustomer.completedServiceCount
+                                                        : (selectedCustomer.pastJobs ? selectedCustomer.pastJobs.length : 0));
+                                                const pastJobs = selectedCustomer.pastJobs || [];
+                                                const recentJobs = pastJobs.slice(0, 2);
+
+                                                return (
+                                                    <>
+                                                        <p className="font-semibold text-sm text-gray-900 mb-1">
+                                                            Past jobs: {totalPastJobs}
+                                                        </p>
+                                                        {recentJobs.length > 0 ? (
+                                                            <div className="space-y-1">
+                                                                {recentJobs.map((job, idx) => (
+                                                                    <p key={job.id || idx} className="text-sm text-gray-600">
+                                                                        {(() => {
+                                                                            const parsed = parseJobDate(job.date);
+                                                                            return parsed ? format(parsed, 'MMMM d, yyyy') : 'Date unavailable';
+                                                                        })()}
+                                                                        {job.services && job.services.length > 0 && (
+                                                                            <span>, {Array.isArray(job.services) ? job.services.join(', ') : job.services}</span>
+                                                                        )}
+                                                                        {job.vehicleModel && (
+                                                                            <span> on a {job.vehicleModel}</span>
+                                                                        )}
+                                                                    </p>
+                                                                ))}
+                                                            </div>
+                                                        ) : (
+                                                            <p className="text-sm text-gray-600">No past jobs yet.</p>
                                                         )}
-                                                        {selectedCustomer.pastJobs[0].vehicleModel && (
-                                                            <span> on a {selectedCustomer.pastJobs[0].vehicleModel}</span>
-                                                        )}
-                                                    </p>
-                                                )}
-                                            </div>
-                                        )}
+                                                    </>
+                                                );
+                                            })()}
+                                        </div>
                                     </div>
                                     <div className="flex items-center gap-2 flex-shrink-0" style={{ position: 'relative', zIndex: 20 }}>
                                         <button
@@ -1464,7 +1537,7 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                                                 {selectedCustomer.pastJobs && selectedCustomer.pastJobs.length > 0 && (
                                                     <div>
                                                         <h4 className="text-xs font-semibold text-gray-900 mb-3 uppercase">
-                                                            Past Jobs ({selectedCustomer.pastJobs.length})
+                                                            Past Jobs ({typeof selectedCustomer.pastJobsTotal === 'number' ? selectedCustomer.pastJobsTotal : selectedCustomer.pastJobs.length})
                                                         </h4>
                                                         <div className="space-y-2.5">
                                                             {selectedCustomer.pastJobs.map((job, index) => (
@@ -1475,15 +1548,10 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                                                                 >
                                                        <div className="flex items-start justify-between mb-1.5">
                                                            <p className="text-xs font-semibold text-gray-900">
-                                                               {job.date ? (() => {
-                                                                   try {
-                                                                       const date = new Date(job.date);
-                                                                       if (isNaN(date.getTime())) return 'Date unavailable';
-                                                                       return format(date, 'MMMM d, yyyy');
-                                                                   } catch (e) {
-                                                                       return 'Date unavailable';
-                                                                   }
-                                                               })() : 'Date unavailable'}
+                                                               {(() => {
+                                                                   const parsed = parseJobDate(job.date);
+                                                                   return parsed ? format(parsed, 'MMMM d, yyyy') : 'Date unavailable';
+                                                               })()}
                                                            </p>
                                                                         {job.employeeName && (
                                                                             <span className="text-[10px] text-gray-600 bg-gray-200 px-1.5 py-0.5 rounded-full">
