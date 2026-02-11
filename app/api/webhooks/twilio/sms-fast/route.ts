@@ -1352,15 +1352,25 @@ This lead has been automatically processed and is ready for you to contact!`;
     
     // Find the detailer quickly (robust match: exact E.164 OR last 10 digits)
     const last10 = to.replace(/\D/g, '').slice(-10)
-    const detailer = await prisma.detailer.findFirst({
+    let detailer = await prisma.detailer.findFirst({
       where: {
-        smsEnabled: true,
         OR: [
           { twilioPhoneNumber: to },
           { twilioPhoneNumber: { contains: last10 } },
         ],
       },
     });
+
+    if (!detailer) {
+      const fallbackDetailers = await prisma.detailer.findMany({
+        where: { twilioPhoneNumber: { not: null } },
+        select: { id: true, twilioPhoneNumber: true, smsEnabled: true },
+      });
+      detailer = fallbackDetailers.find((candidate) => {
+        const digits = (candidate.twilioPhoneNumber || '').replace(/\D/g, '');
+        return digits.endsWith(last10);
+      }) as typeof detailer;
+    }
 
     if (!detailer) {
       return NextResponse.json({ error: 'Detailer not found' }, { status: 404 });
@@ -1462,6 +1472,17 @@ This lead has been automatically processed and is ready for you to contact!`;
         status: 'received',
       },
     });
+
+    const aiEnabled = (conversation as any)?.metadata?.aiEnabled === true;
+    if (!detailer.smsEnabled || !aiEnabled) {
+      console.log('AI disabled for conversation, skipping auto-response.', {
+        detailerId: detailer.id,
+        conversationId: conversation.id,
+        smsEnabled: detailer.smsEnabled,
+        aiEnabled
+      });
+      return NextResponse.json({ success: true, aiEnabled });
+    }
 
     // Get detailer's available services from MongoDB with categories
     const detailerServices = await prisma.detailerService.findMany({

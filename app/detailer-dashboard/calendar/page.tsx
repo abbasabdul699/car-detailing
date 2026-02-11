@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef, useMemo, useImperativeHandle, forwardRef } from "react";
+import { useState, useEffect, useRef, useMemo, useImperativeHandle, forwardRef, Fragment, type ReactElement } from "react";
 import { createPortal } from "react-dom";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
@@ -30,6 +30,7 @@ import AddressAutocompleteInput from './components/AddressAutocompleteInput';
 import NewCustomerModal from './components/NewCustomerModal';
 import { formatPhoneDisplay } from '@/lib/phone';
 import { getCustomerTypeFromHistory } from '@/lib/customerType';
+import { HoverCard, HoverCardTrigger, HoverCardContent } from "@/app/components/ui/hover-card";
 
 // Discard Changes Modal Component
 const DiscardChangesModal = ({ 
@@ -149,6 +150,12 @@ const getEmployeeBadgeClass = (color?: string): string => {
     default:
       return 'bg-gray-400 text-gray-900';
   }
+};
+
+const isEventUnpaid = (event: any): boolean => {
+  if (!event) return false;
+  const paymentStatus = (event.paymentStatus ?? event.status ?? '').toString().toLowerCase();
+  return paymentStatus === 'unpaid';
 };
 
 // Event Edit Form Component
@@ -1864,39 +1871,21 @@ const MonthView = ({ date, events, selectedEvent, onEventClick, scale = 1.0, res
     );
 };
 
-// Event Hover Popup Component
-const EventHoverPopup = ({ 
-    event, 
-    position, 
-    formatTimeRange, 
+// Event Hover Content Component
+const EventHoverContent = ({
+    event,
+    formatTimeRange,
     getCustomerType,
-    resources,
-    onMouseEnter,
-    onMouseLeave 
-}: { 
+    resources
+}: {
     event: any;
-    position: { top: number; left: number } | null;
     formatTimeRange: (event: any) => string;
     getCustomerType: (event: any) => string;
     resources?: Array<{ id: string, name: string, type: 'bay' | 'van' }>;
-    onMouseEnter: () => void;
-    onMouseLeave: () => void;
 }) => {
-    if (!event || !position) return null;
+    if (!event) return null;
 
     const isBlockEvent = event.eventType === 'block';
-    const eventColor = isBlockEvent ? 'gray' : (event.color || 'blue');
-    const eventColors: Record<string, { bg: string; border: string }> = {
-        blue: { bg: 'bg-blue-100', border: 'border-blue-500' },
-        green: { bg: 'bg-green-100', border: 'border-green-500' },
-        red: { bg: 'bg-red-100', border: 'border-red-500' },
-        yellow: { bg: 'bg-yellow-100', border: 'border-yellow-500' },
-        purple: { bg: 'bg-purple-100', border: 'border-purple-500' },
-        orange: { bg: 'bg-orange-100', border: 'border-orange-500' },
-        pink: { bg: 'bg-pink-100', border: 'border-pink-500' },
-        indigo: { bg: 'bg-indigo-100', border: 'border-indigo-500' },
-    };
-    const colorConfig = eventColors[eventColor] || eventColors.blue;
 
     const serviceName = isBlockEvent ? 'Blocked Time' : (event.title || event.eventName || (Array.isArray(event.services) ? event.services.join(' + ') : event.services) || 'Service');
     const vehicleModel = event.vehicleType || event.vehicleModel;
@@ -1913,17 +1902,13 @@ const EventHoverPopup = ({
 
     return (
         <div
-            className="fixed bg-white shadow-2xl z-[100] rounded-xl overflow-hidden pointer-events-auto"
+            className="bg-white shadow-2xl rounded-xl overflow-hidden"
             style={{
                 border: '1px solid #E2E2DD',
                 backgroundColor: '#FFFFFF',
                 width: '400px',
-                top: `${position.top}px`,
-                left: `${position.left}px`,
-                maxWidth: 'calc(100vw - 32px)',
+                maxWidth: 'calc(100vw - 32px)'
             }}
-            onMouseEnter={onMouseEnter}
-            onMouseLeave={onMouseLeave}
         >
             <div className="p-5 space-y-4">
                 {/* Header with Service Name, Time, and Payment Status */}
@@ -2075,15 +2060,11 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
   onTouchMove?: (e: React.TouchEvent) => void,
   onDayHeaderClick?: (day: Date) => void
 }) => {
-    // Hover state for event popup
-    const [hoveredEvent, setHoveredEvent] = useState<any | null>(null);
-    const [popupPosition, setPopupPosition] = useState<{ top: number; left: number } | null>(null);
-    const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const mainScrollRef = useRef<HTMLDivElement>(null);
     // Selected cell state for highlighting
     const [selectedCell, setSelectedCell] = useState<{ day: Date; resourceId: string; slotIndex: number } | null>(null);
     const [hoveredColumn, setHoveredColumn] = useState<{ day: Date; resourceId: string } | null>(null);
-    const [hoveredSlot, setHoveredSlot] = useState<{ day: Date; resourceId: string; slotIndex: number } | null>(null);
+    const [hoveredCell, setHoveredCell] = useState<{ day: Date; resourceId: string; slotIndex: number } | null>(null);
 
     // Debug: Log first event with customer data
     if (events.length > 0) {
@@ -2097,83 +2078,6 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
             services: firstEvent.services
         });
     }
-
-    // Handle event hover
-    const handleEventMouseEnter = (event: any, element: HTMLElement) => {
-        if (isMobile) return;
-        // Clear any existing timeout
-        if (hoverTimeoutRef.current) {
-            clearTimeout(hoverTimeoutRef.current);
-        }
-        
-        // Get element position relative to viewport (for fixed positioning)
-        const rect = element.getBoundingClientRect();
-        
-        // Position popup to the right of the event card
-        const popupWidth = 400; // Increased for better desktop visibility
-        const gap = 8; // 8px gap
-        let left = rect.right + gap;
-        let top = rect.top;
-        
-        // Check if popup would overflow right side of viewport
-        if (left + popupWidth > window.innerWidth) {
-            // Position to the left instead
-            left = rect.left - popupWidth - gap;
-            // If still overflow on left, position at left edge
-            if (left < 0) {
-                left = 8;
-            }
-        }
-        
-        // Check if popup would overflow bottom of viewport
-        const popupHeight = 300; // Estimated height
-        if (top + popupHeight > window.innerHeight) {
-            top = window.innerHeight - popupHeight - 8;
-        }
-        
-        // Ensure popup doesn't go above viewport
-        if (top < 8) {
-            top = 8;
-        }
-        
-        setHoveredEvent(event);
-        setPopupPosition({ top, left });
-    };
-
-    // Handle event mouse leave
-    const handleEventMouseLeave = () => {
-        if (isMobile) return;
-        // Small delay to allow moving mouse to popup
-        hoverTimeoutRef.current = setTimeout(() => {
-            setHoveredEvent(null);
-            setPopupPosition(null);
-        }, 100);
-    };
-
-    // Handle popup mouse enter (keep it open when hovering over popup)
-    const handlePopupMouseEnter = () => {
-        if (isMobile) return;
-        if (hoverTimeoutRef.current) {
-            clearTimeout(hoverTimeoutRef.current);
-        }
-    };
-
-    // Handle popup mouse leave
-    const handlePopupMouseLeave = () => {
-        if (isMobile) return;
-        setHoveredEvent(null);
-        setPopupPosition(null);
-    };
-
-    // Cleanup timeout on unmount
-    useEffect(() => {
-        return () => {
-            if (hoverTimeoutRef.current) {
-                clearTimeout(hoverTimeoutRef.current);
-            }
-        };
-    }, []);
-
 
     // Format time range for event cards (e.g., "9:00 AM - 11:00 AM")
     const formatTimeRange = (event: any): string => {
@@ -2235,6 +2139,30 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
             console.error('Error formatting date time range:', e);
             return formatTimeRange(event);
         }
+    };
+
+    const renderEventHoverCard = (key: string, event: any, content: ReactElement) => {
+        if (isMobile) {
+            return <Fragment key={key}>{content}</Fragment>;
+        }
+        return (
+            <HoverCard key={key} openDelay={150} closeDelay={100}>
+                <HoverCardTrigger asChild>{content}</HoverCardTrigger>
+                <HoverCardContent
+                    side="right"
+                    align="start"
+                    sideOffset={8}
+                    className="w-auto p-0 border-none bg-transparent shadow-none"
+                >
+                    <EventHoverContent
+                        event={event}
+                        formatTimeRange={formatDateTimeRange}
+                        getCustomerType={getCustomerType}
+                        resources={displayResources}
+                    />
+                </HoverCardContent>
+            </HoverCard>
+        );
     };
 
     // Get customer type for event
@@ -2434,7 +2362,7 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                             const fullDayName = format(day, 'EEEE');
                             const dayNameMap: { [key: string]: string } = {
                                 'Monday': 'Mon',
-                                'Tuesday': 'Tues',
+                                'Tuesday': 'Tue',
                                 'Wednesday': 'Wed',
                                 'Thursday': 'Thu',
                                 'Friday': 'Fri',
@@ -2757,7 +2685,6 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                     }}
                                     onMouseLeave={isMobile ? undefined : () => {
                                         setHoveredColumn(null);
-                                        setHoveredSlot(null);
                                     }}
                                 >
                                     {!isMobile && hoveredColumn && hoveredColumn.resourceId === resource.id && format(hoveredColumn.day, 'yyyy-MM-dd') === format(day, 'yyyy-MM-dd') && (
@@ -2772,27 +2699,29 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                         const isBlockEvent = event.eventType === 'block';
                                         const eventColor = event.color || 'blue';
                                         const colorConfig = isBlockEvent ? eventColors.gray : (eventColors[eventColor] || eventColors.blue);
+                                        const isUnpaid = isEventUnpaid(event);
+                                        const cardKey = `all-day-${i}-${event.id || i}`;
                                         
                                         // Check if event is in the past (on a past day)
                                         const now = new Date();
                                         const isPastDay = isBefore(day, now);
                                         
-                                        return (
+                                        return renderEventHoverCard(
+                                            cardKey,
+                                            event,
                                             <div
-                                                key={`all-day-${i}-${event.id || i}`}
                                                 onClick={(e) => {
                                                     e.stopPropagation();
                                                     onEventClick(event);
                                                 }}
-                                                onMouseEnter={isMobile ? undefined : (e) => handleEventMouseEnter(event, e.currentTarget)}
-                                                onMouseLeave={isMobile ? undefined : handleEventMouseLeave}
-                                                className={`absolute w-[95%] left-1 top-0 ${colorConfig.bg} p-1.5 rounded-xl flex flex-col items-start text-xs cursor-pointer hover:shadow-lg transition-all z-10`}
+                                                className={`absolute w-[95%] left-1 top-0 ${isUnpaid ? 'border-2 border-red-400 bg-transparent' : colorConfig.bg} p-1.5 rounded-xl flex flex-col items-start text-xs cursor-pointer hover:shadow-lg transition-all z-10`}
                                                 style={{
                                                     pointerEvents: 'auto',
                                                     height: `${totalTimeSlotHeight}px`,
                                                     top: `${i * 40}px`, // Stack multiple all-day events vertically
                                                     zIndex: 5,
-                                                    opacity: isPastDay ? 0.5 : 1
+                                                    opacity: isPastDay ? 0.5 : 1,
+                                                    backgroundColor: isUnpaid ? 'transparent' : undefined
                                                 }}
                                             >
                                                 <div className="flex items-center gap-1.5 w-full">
@@ -2871,6 +2800,11 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                             selectedCell?.resourceId === resource.id && 
                                             selectedCell?.slotIndex === slotIndex &&
                                             format(selectedCell.day, 'yyyy-MM-dd') === format(day, 'yyyy-MM-dd');
+
+                                        const isHovered = hoveredCell?.day &&
+                                            hoveredCell?.resourceId === resource.id &&
+                                            hoveredCell?.slotIndex === slotIndex &&
+                                            format(hoveredCell.day, 'yyyy-MM-dd') === format(day, 'yyyy-MM-dd');
                                         
                                         const slotHour = parseSlotHour(slot);
                                         const isWorkingHour = slotHour !== null ? isWithinWorkingHours(slotHour, day) : true;
@@ -2885,14 +2819,17 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                                 }`}
                                                 style={{ 
                                                     height: `${scaledTimeSlotHeight}px`, 
-                                                    boxSizing: 'border-box'
+                                                    boxSizing: 'border-box',
+                                                    backgroundColor: isSelected
+                                                        ? undefined
+                                                        : isHovered
+                                                            ? '#F3F4F6'
+                                                            : (isWorkingHour ? 'white' : '#FAFAFB')
                                                 }}
                                                 onMouseEnter={isMobile ? undefined : () => {
-                                                    setHoveredSlot({ day, resourceId: resource.id, slotIndex });
+                                                    setHoveredCell({ day, resourceId: resource.id, slotIndex });
                                                 }}
-                                                onMouseLeave={isMobile ? undefined : () => {
-                                                    setHoveredSlot(null);
-                                                }}
+                                                onMouseLeave={isMobile ? undefined : () => setHoveredCell(null)}
                                                 onClick={(e) => {
                                                     // Only handle clicks on blank space, not on events
                                                     const target = e.target as HTMLElement;
@@ -2936,12 +2873,6 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                                     }
                                                 }}
                                             >
-                                                {!isMobile && hoveredSlot && hoveredSlot.resourceId === resource.id && hoveredSlot.slotIndex === slotIndex && format(hoveredSlot.day, 'yyyy-MM-dd') === format(day, 'yyyy-MM-dd') && (
-                                                    <div
-                                                        className="absolute inset-0 pointer-events-none"
-                                                        style={{ backgroundColor: 'rgba(226, 226, 221, 0.16)', zIndex: 2 }}
-                                                    />
-                                                )}
                                             </div>
                                         );
                                     })}
@@ -3229,6 +3160,7 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                         const dayStart = startOfDay(day);
                                         const isPastDay = isBefore(dayStart, todayStart);
                                         const isPastEvent = isPastDay || (isSameDay(day, now) && endTime < now);
+                                        const isUnpaid = isEventUnpaid(event);
                                         
                                         // Adaptive content visibility based on card height (in pixels) - matching Figma designs
                                         // If card is less than or equal to one hour tall, hide time, employee image, and comments
@@ -3286,17 +3218,16 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                             return timeRange;
                                         };
                                         
-                                        return (
+                                        return renderEventHoverCard(
+                                            `event-${i}-${event.id || i}-${resource.id}`,
+                                            event,
                                     <div 
-                                        key={`event-${i}-${event.id || i}-${resource.id}`}
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             e.preventDefault();
                                             // Ensure event click works even when modal/draft is open
                                             onEventClick(event);
                                         }}
-                                        onMouseEnter={isMobile ? undefined : (e) => handleEventMouseEnter(event, e.currentTarget)}
-                                        onMouseLeave={isMobile ? undefined : handleEventMouseLeave}
                                     className={`absolute w-[95%] left-1 rounded-[6px] flex flex-col items-start cursor-pointer hover:shadow-lg transition-all z-20`}
                                     style={{ 
                                         pointerEvents: 'auto',
@@ -3304,7 +3235,8 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                         height: `${height}px`,
                                         minHeight: `${scaledTimeSlotHeight * 0.5}px`,
                                         opacity: isPastEvent ? 0.5 : 1,
-                                        backgroundColor: cardBackgroundColor,
+                                        backgroundColor: isUnpaid ? 'transparent' : cardBackgroundColor,
+                                        border: isUnpaid ? '2px solid #f87171' : undefined,
                                         paddingTop: '8px',
                                         paddingBottom: '8px',
                                         paddingLeft: '7px',
@@ -3631,18 +3563,6 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                     </div>
                 </div>
             </div>
-            {/* Event Hover Popup */}
-            {!isMobile && (
-                <EventHoverPopup
-                    event={hoveredEvent}
-                    position={popupPosition}
-                    formatTimeRange={formatDateTimeRange}
-                    getCustomerType={getCustomerType}
-                    resources={displayResources}
-                    onMouseEnter={handlePopupMouseEnter}
-                    onMouseLeave={handlePopupMouseLeave}
-                />
-            )}
         </div>
     );
 };
@@ -3736,7 +3656,7 @@ const DraftEventCard = ({
   );
 };
 
-const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOpenModal, draftEvent, onDraftEventUpdate, scale = 1.0, businessHours, onEventDrop, scrollToTime }: { 
+const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOpenModal, draftEvent, onDraftEventUpdate, scale = 1.0, businessHours, onEventDrop, scrollToTime, isMobile }: { 
   date: Date, 
   events: any[], 
   resources: Array<{ id: string, name: string, type: 'bay' | 'van' }>,
@@ -3748,16 +3668,17 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
   scale?: number,
   businessHours?: any,
   onEventDrop?: (eventId: string, newResourceId: string) => Promise<void>,
-  scrollToTime?: number | null // Hour (0-23) to scroll to
+  scrollToTime?: number | null, // Hour (0-23) to scroll to
+  isMobile?: boolean
 }) => {
   const [draggedEventId, setDraggedEventId] = useState<string | null>(null);
   const [dragOverResourceId, setDragOverResourceId] = useState<string | null>(null);
   const [hoveredResourceId, setHoveredResourceId] = useState<string | null>(null);
-  const [hoveredTimeSlot, setHoveredTimeSlot] = useState<{ resourceId: string; slotIndex: number } | null>(null);
   const [containerHeight, setContainerHeight] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const hasScrolledTo6AM = useRef(false);
   const hasScrolledToTime = useRef(false);
+  const [hoveredSlot, setHoveredSlot] = useState<{ resourceId: string; slotIndex: number } | null>(null);
   // Store a single base width for all columns (uniform width)
   const [baseColumnWidth, setBaseColumnWidth] = useState<number>(() => {
     // Load from localStorage or default to 120px
@@ -4177,6 +4098,30 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
     return '';
   };
 
+  const renderEventHoverCard = (key: string, event: any, content: ReactElement) => {
+    if (isMobile) {
+      return <Fragment key={key}>{content}</Fragment>;
+    }
+    return (
+      <HoverCard key={key} openDelay={150} closeDelay={100}>
+        <HoverCardTrigger asChild>{content}</HoverCardTrigger>
+        <HoverCardContent
+          side="right"
+          align="start"
+          sideOffset={8}
+          className="w-auto p-0 border-none bg-transparent shadow-none"
+        >
+          <EventHoverContent
+            event={event}
+            formatTimeRange={formatTimeRange}
+            getCustomerType={getCustomerType}
+            resources={resources}
+          />
+        </HoverCardContent>
+      </HoverCard>
+    );
+  };
+
   // Calculate dynamic height for each row
   // All rows get equal height to fit the screen
   const calculateRowHeight = (index: number, totalResources: number) => {
@@ -4468,30 +4413,19 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
                   {timeSlots.map((slot, index) => {
                     const hour = index; // hour is 0-23 (0 = 12 AM, 23 = 11 PM)
                     const isWorkingHour = isWithinWorkingHours(hour);
-                    const isHoveredSlot = hoveredTimeSlot?.resourceId === resource.id && hoveredTimeSlot?.slotIndex === index;
+                    const isHovered = hoveredSlot?.resourceId === resource.id && hoveredSlot?.slotIndex === index;
                     return (
                       <div 
                         key={slot} 
-                      className="time-slot-cell flex-shrink-0 h-full cursor-pointer transition-colors relative"
+                        className="time-slot-cell flex-shrink-0 h-full cursor-pointer transition-colors"
                         style={{ 
                           width: `${columnWidths[index] * scale}px`,
-                        borderRight: '1px solid #F0F0EE',
-                        backgroundColor: isWorkingHour ? 'white' : '#FAFAFB'
-                      }}
-                      onMouseEnter={() => {
-                        setHoveredTimeSlot({ resourceId: resource.id, slotIndex: index });
-                      }}
-                      onMouseLeave={() => {
-                        setHoveredTimeSlot(null);
-                      }}
-                    >
-                      {isHoveredSlot && (
-                        <div
-                          className="absolute inset-0 pointer-events-none"
-                          style={{ backgroundColor: 'rgba(226, 226, 221, 0.16)', zIndex: 2 }}
-                        />
-                      )}
-                    </div>
+                          borderRight: '1px solid #F0F0EE',
+                          backgroundColor: isHovered ? '#F3F4F6' : (isWorkingHour ? 'white' : '#FAFAFB')
+                        }}
+                        onMouseEnter={() => setHoveredSlot({ resourceId: resource.id, slotIndex: index })}
+                        onMouseLeave={() => setHoveredSlot(null)}
+                      />
                     );
                   })}
                   
@@ -4517,7 +4451,7 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
                   })()}
                   
                   {/* Event blocks positioned absolutely */}
-                  {resourceEvents.filter(event => event && event.start && event.end).map((event) => {
+                  {resourceEvents.filter(event => event && event.start && event.end).map((event, index) => {
                     const { left, width } = getEventPosition(event);
                     // Skip events with 0 width (events without proper start/end times)
                     if (width <= 0) return null;
@@ -4529,7 +4463,8 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
                         ? String(event.customerType).toLowerCase()
                         : getCustomerType(event));
                     const isPending = event.status === 'pending';
-                    const eventColor = isBlockEvent ? 'gray' : (event.color || 'blue'); // Use employee's color, default to blue
+                    const isUnpaid = isEventUnpaid(event);
+                    const eventColor = isBlockEvent ? 'gray' : (event.color || 'blue');
                     const addressLine = (() => {
                       const city = (event as any).customerCity || (event as any).city;
                       const rawAddress = event.customerAddress || (event as any).address;
@@ -4557,9 +4492,10 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
                         isPastEvent = eventEndTime < now;
                     }
                     
-                    return (
+                    return renderEventHoverCard(
+                      `day-event-${event.id || index}`,
+                      event,
                       <div
-                        key={event.id}
                         draggable={!isPending}
                         onDragStart={(e) => {
                           e.dataTransfer.effectAllowed = 'move';
@@ -4579,7 +4515,9 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
                         className={`absolute top-2 bottom-2 rounded-xl p-2 transition-all hover:shadow-lg ${
                           isPending 
                             ? 'border-2 border-dashed border-gray-400 bg-white cursor-not-allowed' 
-                            : `${eventColors[eventColor]?.bg || eventColors.blue.bg} border-l-4 ${eventColors[eventColor]?.border || eventColors.blue.border} cursor-move`
+                            : isUnpaid
+                              ? 'border-2 border-red-400 bg-transparent cursor-move'
+                              : `${eventColors[eventColor]?.bg || eventColors.blue.bg} border-l-4 ${eventColors[eventColor]?.border || eventColors.blue.border} cursor-move`
                         }`}
                         style={{ 
                           left: `${Math.max(0, left)}px`, 
@@ -9019,6 +8957,7 @@ export default function CalendarPage() {
                   businessHours={businessHours}
                   onEventDrop={handleEventDrop}
                   scrollToTime={scrollToTime}
+                  isMobile={isMobile}
                   onOpenModal={(draft) => {
                     // Check for unsaved changes in edit form
                     if (isEditingEvent && isEditFormDirty) {
