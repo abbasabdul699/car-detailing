@@ -28,6 +28,7 @@ export default function DetailerDashboardLayout({
   const pathname = usePathname();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [isSidebarHovered, setIsSidebarHovered] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const dropdownMenuRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -109,10 +110,15 @@ export default function DetailerDashboardLayout({
       <div className="detailer-dashboard-border-overlay"></div>
       <div className="h-screen bg-white flex overflow-hidden w-full max-w-full">
           {/* Sidebar */}
-          <div className="hidden md:flex w-16 flex-col h-screen md:fixed md:top-0 md:left-0" style={{ backgroundColor: '#F8F8F7', zIndex: 10, borderRight: '1px solid #E2E2DD', boxShadow: 'none' }}>
+          <div
+            className={`hidden md:flex flex-col h-screen md:fixed md:top-0 md:left-0 transition-[width] duration-200 ease-out ${isSidebarHovered ? 'w-56' : 'w-16'}`}
+            style={{ backgroundColor: '#F8F8F7', zIndex: 10, borderRight: '1px solid #E2E2DD', boxShadow: 'none' }}
+            onMouseEnter={() => setIsSidebarHovered(true)}
+            onMouseLeave={() => setIsSidebarHovered(false)}
+          >
           {/* Logo at top */}
-          <div className="flex items-center justify-center h-16 px-2 pt-2">
-            <Link href="/detailer-dashboard" className="flex items-center justify-center w-12 h-12 bg-black rounded-full overflow-hidden">
+          <div className={`flex items-center h-16 pt-2 ${isSidebarHovered ? 'justify-start px-4' : 'justify-center px-2'}`}>
+            <Link href="/detailer-dashboard" className="flex items-center justify-center w-12 h-12 bg-black rounded-full overflow-hidden shrink-0">
               <Image 
                 src="/REEVA LOGO.png" 
                 alt="Reeva Logo" 
@@ -121,21 +127,28 @@ export default function DetailerDashboardLayout({
                 className="object-contain"
               />
             </Link>
+            <span
+              className={`text-sm font-semibold whitespace-nowrap overflow-hidden transition-all duration-200 ${
+                isSidebarHovered ? 'ml-3 opacity-100 max-w-[140px]' : 'ml-0 opacity-0 max-w-0'
+              }`}
+            >
+              Reeva
+            </span>
           </div>
           
           {/* Navigation - icon only, square style, centered vertically */}
-          <nav className="flex-1 flex flex-col items-center justify-center space-y-3">
+          <nav className={`flex-1 flex flex-col justify-center space-y-2 ${isSidebarHovered ? 'items-stretch px-3' : 'items-center'}`}>
             {navigation.map((item) => {
               const isActive = pathname === item.href;
               return (
                 <Link
                   key={item.name}
                   href={item.href}
-                  className={`group flex flex-col items-center justify-center transition-all ${
+                  className={`group flex items-center transition-all ${
                     isActive
                       ? "text-gray-900"
                       : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-                  }`}
+                  } ${isSidebarHovered ? 'w-full px-3 py-2 rounded-xl justify-start' : 'flex-col items-center justify-center'}`}
                   style={isActive ? { backgroundColor: 'transparent' } : {}}
                   title={item.name}
                 >
@@ -157,17 +170,24 @@ export default function DetailerDashboardLayout({
                       }`}
                     />
                   </div>
+                  <span
+                    className={`ml-3 text-sm font-medium whitespace-nowrap overflow-hidden transition-all duration-200 ${
+                      isSidebarHovered ? 'opacity-100 max-w-[140px]' : 'opacity-0 max-w-0'
+                    }`}
+                  >
+                    {item.name}
+                  </span>
                 </Link>
               );
             })}
           </nav>
           
           {/* Profile dropdown at bottom */}
-          <div className="flex flex-shrink-0 p-4 flex-col items-center space-y-3 relative" ref={dropdownRef}>
+          <div className={`flex flex-shrink-0 p-4 flex-col space-y-3 relative ${isSidebarHovered ? 'items-stretch' : 'items-center'}`} ref={dropdownRef}>
             {/* Resources button */}
             <Link
               href="/detailer-dashboard/resources"
-              className="flex flex-col items-center justify-center text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-all focus:outline-none"
+              className={`flex items-center text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-all focus:outline-none ${isSidebarHovered ? 'w-full px-3 py-2 rounded-xl justify-start' : ''}`}
               title="Resources"
             >
               <div className="flex items-center justify-center w-10 h-10 rounded-full">
@@ -179,21 +199,37 @@ export default function DetailerDashboardLayout({
                   className="opacity-75"
                 />
               </div>
+              <span
+                className={`ml-3 text-sm font-medium whitespace-nowrap overflow-hidden transition-all duration-200 ${
+                  isSidebarHovered ? 'opacity-100 max-w-[140px]' : 'opacity-0 max-w-0'
+                }`}
+              >
+                Resources
+              </span>
             </Link>
             
             {/* Profile image button */}
-            <button
-              ref={buttonRef}
-              onClick={() => setDropdownOpen(!dropdownOpen)}
-              className="flex items-center justify-center w-10 h-10 rounded-full overflow-hidden bg-gray-200 hover:bg-gray-300 transition-all focus:outline-none relative z-50"
-              title="Profile"
-            >
-              <img
-                className="w-full h-full object-cover"
-                src={session?.user?.image || '/images/default-avatar.png'}
-                alt="User avatar"
-              />
-            </button>
+            <div className={`flex items-center ${isSidebarHovered ? 'w-full px-3 py-2 rounded-xl hover:bg-gray-100' : ''}`}>
+              <button
+                ref={buttonRef}
+                onClick={() => setDropdownOpen(!dropdownOpen)}
+                className="flex items-center justify-center w-10 h-10 rounded-full overflow-hidden bg-gray-200 hover:bg-gray-300 transition-all focus:outline-none relative z-50"
+                title="Profile"
+              >
+                <img
+                  className="w-full h-full object-cover"
+                  src={session?.user?.image || '/images/default-avatar.png'}
+                  alt="User avatar"
+                />
+              </button>
+              <span
+                className={`ml-3 text-sm font-medium whitespace-nowrap overflow-hidden transition-all duration-200 ${
+                  isSidebarHovered ? 'opacity-100 max-w-[140px]' : 'opacity-0 max-w-0'
+                }`}
+              >
+                Profile
+              </span>
+            </div>
 
             {/* Dropdown menu - rendered via portal to escape all overflow containers */}
             {dropdownOpen && mounted && createPortal(
@@ -281,7 +317,9 @@ export default function DetailerDashboardLayout({
           </div>
         </div>
         {/* Main content area, with left padding for sidebar */}
-        <div className="flex-1 flex flex-col min-w-0 overflow-hidden md:ml-16">
+        <div
+          className={`flex-1 flex flex-col min-w-0 overflow-hidden transition-[margin] duration-200 ease-out ${isSidebarHovered ? 'md:ml-56' : 'md:ml-16'}`}
+        >
           {/* Mobile Hamburger Menu */}
           <MobileMenu />
           <main className="flex-1 min-w-0 overflow-hidden" style={{ backgroundColor: '#ffffff' }}>

@@ -70,7 +70,13 @@ export async function POST(request: NextRequest) {
           data: {
             customerName: customerName || existingConversation.customerName || null,
             status: 'active',
-            lastMessageAt: new Date()
+            lastMessageAt: new Date(),
+            metadata: {
+              ...(typeof existingConversation.metadata === 'object' && existingConversation.metadata !== null
+                ? existingConversation.metadata
+                : {}),
+              aiEnabled: false
+            }
           }
         });
       } else {
@@ -88,39 +94,16 @@ export async function POST(request: NextRequest) {
           detailerId: detailer.id,
           customerPhone: e164Phone,
           customerName: customerName || null,
-          status: 'active'
+          status: 'active',
+          metadata: {
+            aiEnabled: false
+          }
         }
       });
       console.log('Conversation created successfully:', conversation.id);
     }
 
-    // Create initial AI message - short and natural
-    const initialMessage = `Hey${customerName ? ` ${customerName}` : ''}! This is Arian from ${detailer.businessName}. What can I help you with today?`;
-
-    // Send SMS via Twilio
-    try {
-      await client.messages.create({
-        body: initialMessage,
-        from: detailer.twilioPhoneNumber,
-        to: e164Phone
-      });
-    } catch (twilioError: any) {
-      console.error('Twilio error:', twilioError);
-      // Don't fail the request if SMS fails, just log it
-    }
-
-    // Save the initial message to database
-    console.log('Saving initial message to database for conversation:', conversation.id);
-    const savedMessage = await prisma.message.create({
-      data: {
-        conversationId: conversation.id,
-        direction: 'outbound',
-        content: initialMessage,
-        status: 'sent',
-        twilioSid: `start-conversation-${conversation.id}-${Date.now()}` // Unique SID for initial message
-      }
-    });
-    console.log('Message saved successfully:', savedMessage.id);
+    // Do not send an initial AI message when AI is disabled by default
 
     // Send vCard to new customer (atomic transaction)
     try {

@@ -103,6 +103,19 @@ export async function GET(request: NextRequest) {
         }))
       });
 
+      // Backfill AI setting default if missing
+      if (!conversation.metadata || typeof conversation.metadata !== 'object' || !('aiEnabled' in conversation.metadata)) {
+        const nextMetadata = {
+          ...(typeof conversation.metadata === 'object' && conversation.metadata !== null ? conversation.metadata : {}),
+          aiEnabled: false,
+        };
+        await prisma.conversation.update({
+          where: { id: conversation.id },
+          data: { metadata: nextMetadata },
+        });
+        conversation.metadata = nextMetadata;
+      }
+
       // Only extract name from messages if not already set and no customer snapshot name
       if (!conversation.customerName && (!conversation.customer || !conversation.customer.firstName)) {
         const extractedName = extractCustomerNameFromMessages(conversation.messages);
@@ -146,6 +159,30 @@ export async function GET(request: NextRequest) {
         orderBy: { lastMessageAt: 'desc' },
       });
 
+      // Backfill AI setting default for any conversation missing it
+      const backfillUpdates = conversations.flatMap((conversation) => {
+        const hasMetadata = typeof conversation.metadata === 'object' && conversation.metadata !== null;
+        const hasAiEnabled = hasMetadata && Object.prototype.hasOwnProperty.call(conversation.metadata as Record<string, any>, 'aiEnabled');
+        if (hasAiEnabled) {
+          return [];
+        }
+        const nextMetadata = {
+          ...(hasMetadata ? (conversation.metadata as Record<string, any>) : {}),
+          aiEnabled: false,
+        };
+        conversation.metadata = nextMetadata;
+        return [
+          prisma.conversation.update({
+            where: { id: conversation.id },
+            data: { metadata: nextMetadata },
+          }),
+        ];
+      });
+
+      if (backfillUpdates.length > 0) {
+        await prisma.$transaction(backfillUpdates);
+      }
+
       // Extract customer names for conversations that don't have them
       const updatedConversations = await Promise.all(
         conversations.map(async (conversation) => {
@@ -182,5 +219,81 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Error fetching conversations:', error);
     return NextResponse.json({ error: 'Failed to fetch conversations' }, { status: 500 });
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const session = await getServerSession(detailerAuthOptions);
+    if (!session || !session.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { conversationId, aiEnabled } = await request.json();
+    if (!conversationId || typeof aiEnabled !== 'boolean') {
+      return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
+    }
+
+    const conversation = await prisma.conversation.findFirst({
+      where: {
+        id: conversationId,
+        detailerId: session.user.id,
+      },
+    });
+
+    if (!conversation) {
+      return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
+    }
+
+    const nextMetadata = {
+      ...(typeof conversation.metadata === 'object' && conversation.metadata !== null ? conversation.metadata : {}),
+      aiEnabled,
+    };
+
+    const updated = await prisma.conversation.update({
+      where: { id: conversation.id },
+      data: { metadata: nextMetadata },
+    });
+
+    return NextResponse.json({ success: true, conversation: updated });
+  } catch (error) {
+    console.error('Error updating conversation:', error);
+    return NextResponse.json({ error: 'Failed to update conversation' }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const session = await getServerSession(detailerAuthOptions);
+    if (!session || !session.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const conversationId = searchParams.get('conversationId');
+    if (!conversationId) {
+      return NextResponse.json({ error: 'Conversation ID is required' }, { status: 400 });
+    }
+
+    const conversation = await prisma.conversation.findFirst({
+      where: {
+        id: conversationId,
+        detailerId: session.user.id,
+      },
+    });
+
+    if (!conversation) {
+      return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
+    }
+
+    await prisma.$transaction([
+      prisma.message.deleteMany({ where: { conversationId } }),
+      prisma.conversation.delete({ where: { id: conversationId } }),
+    ]);
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting conversation:', error);
+    return NextResponse.json({ error: 'Failed to delete conversation' }, { status: 500 });
   }
 }
