@@ -275,7 +275,7 @@ export async function PATCH(
     const { eventId } = await params;
     const detailerId = session.user.id;
     const body = await request.json();
-    const { title, color, employeeId, startDate, endDate, isAllDay, isMultiDay, description, resourceId, time, startTime: startTimeParam, endTime: endTimeParam, customerName, customerPhone, customerEmail, customerAddress, locationType, customerType, vehicleModel, services, eventType } = body;
+    const { title, color, employeeId, startDate, endDate, isAllDay, isMultiDay, description, customerNotes: customerNotesParam, resourceId, time, startTime: startTimeParam, endTime: endTimeParam, customerName, customerPhone, customerEmail, customerAddress, locationType, customerType, vehicleModel, services, eventType, paid } = body;
 
     if (!eventId) {
       return NextResponse.json({ error: 'Event ID is required' }, { status: 400 });
@@ -509,7 +509,8 @@ export async function PATCH(
         // Update description if description is provided OR if customer fields are being updated
         ...(((description !== undefined || (nextEventType === 'appointment' && hasCustomerUpdate) || (nextEventType === 'block' && event.description && event.description.includes('__METADATA__:'))) && { description: combinedDescription })),
         ...(resourceId !== undefined && { resourceId: resourceId }),
-        ...(normalizedEventType && { eventType: normalizedEventType })
+        ...(normalizedEventType && { eventType: normalizedEventType }),
+        ...(paid !== undefined && { paid: paid === true })
       }
     });
 
@@ -524,9 +525,8 @@ export async function PATCH(
         const finalCustomerAddress = customerAddress !== undefined ? customerAddress : existingMetadata.customerAddress;
         const finalVehicleModel = vehicleModel !== undefined ? vehicleModel : existingMetadata.vehicleModel;
         const finalServices = services !== undefined ? services : existingMetadata.services;
-        const finalDescription = description !== undefined ? description : (event.description && event.description.includes('__METADATA__:') ? event.description.split('__METADATA__:')[0].trim() : event.description || '');
         
-        // Get existing customer snapshot to merge notes
+        // Get existing customer snapshot to merge data
         const existingSnapshot = await prisma.customerSnapshot.findUnique({
           where: { 
             detailerId_customerPhone: { 
@@ -536,11 +536,10 @@ export async function PATCH(
           }
         });
         
-        // Prepare customer notes - merge with existing data if present
-        const customerNotes = finalDescription || null;
+        // Prepare snapshot data - update customer notes if provided
         let snapshotData: any = existingSnapshot?.data ? (typeof existingSnapshot.data === 'object' ? existingSnapshot.data : {}) : {};
-        if (customerNotes) {
-          snapshotData.notes = customerNotes;
+        if (customerNotesParam !== undefined) {
+          snapshotData.notes = customerNotesParam || '';
         }
         
         const finalCustomerEmail = customerEmail !== undefined ? customerEmail : existingMetadata.customerEmail;
@@ -559,6 +558,18 @@ export async function PATCH(
           services: finalServices || null,
           data: Object.keys(snapshotData).length > 0 ? snapshotData : null
         });
+        
+        // Also save customer notes to the Customer model (persistent across jobs)
+        if (customerNotesParam !== undefined) {
+          try {
+            await prisma.customer.updateMany({
+              where: { detailerId, phone: normalizedPhone },
+              data: { notes: customerNotesParam || '' }
+            });
+          } catch (customerUpdateError) {
+            console.error('❌ Error updating Customer notes:', customerUpdateError);
+          }
+        }
         
         console.log('✅ CustomerSnapshot updated for phone:', normalizedPhone);
       } catch (snapshotError) {
@@ -626,8 +637,10 @@ export async function PATCH(
 
     // Parse metadata from description to include customer fields in response
     let parsedMetadata: any = {};
+    let cleanEventDescription = updatedEvent.description || '';
     if (updatedEvent.description && updatedEvent.description.includes('__METADATA__:')) {
       const parts = updatedEvent.description.split('__METADATA__:');
+      cleanEventDescription = parts[0].trim();
       try {
         parsedMetadata = JSON.parse(parts[1] || '{}');
       } catch (e) {
@@ -635,9 +648,10 @@ export async function PATCH(
       }
     }
     
-    // Return event with parsed customer fields
+    // Return event with parsed customer fields and separate notes
     const eventResponse = {
       ...updatedEvent,
+      description: cleanEventDescription, // Clean event notes (no metadata)
       eventType: updatedEvent.eventType || nextEventType,
       customerName: parsedMetadata.customerName || null,
       customerPhone: parsedMetadata.customerPhone || null,
@@ -646,7 +660,8 @@ export async function PATCH(
       locationType: parsedMetadata.locationType || null,
       customerType: parsedMetadata.customerType || null,
       vehicleModel: parsedMetadata.vehicleModel || null,
-      services: parsedMetadata.services || null
+      services: parsedMetadata.services || null,
+      customerNotes: customerNotesParam !== undefined ? customerNotesParam : null
     };
 
     return NextResponse.json({ 

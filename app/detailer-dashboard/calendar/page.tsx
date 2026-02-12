@@ -154,6 +154,9 @@ const getEmployeeBadgeClass = (color?: string): string => {
 
 const isEventUnpaid = (event: any): boolean => {
   if (!event) return false;
+  // Check the `paid` field from Event model (false = unpaid, true = paid)
+  if (event.paid !== undefined) return event.paid === false;
+  // Fallback for bookings that use paymentStatus/status
   const paymentStatus = (event.paymentStatus ?? event.status ?? '').toString().toLowerCase();
   return paymentStatus === 'unpaid';
 };
@@ -268,6 +271,8 @@ const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () =>
   });
   const [selectedResourceId, setSelectedResourceId] = useState(event.resourceId || '');
   const [description, setDescription] = useState(getCleanDescription(event.description));
+  const [customerNotes, setCustomerNotes] = useState(event.customerNotes || '');
+  const [isPaid, setIsPaid] = useState(event.paid === true);
   const isBlockEvent = event?.eventType === 'block';
   const [businessHours, setBusinessHours] = useState<any>(null);
   const [customerName, setCustomerName] = useState(event.customerName || '');
@@ -308,6 +313,8 @@ const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () =>
     isAllDay: event.allDay || false,
     selectedResourceId: event.resourceId || '',
     description: event.description || '',
+    customerNotes: event.customerNotes || '',
+    isPaid: event.paid === true,
     customerName: event.customerName || '',
     customerPhone: event.customerPhone || '',
     customerAddress: event.customerAddress || '',
@@ -377,6 +384,8 @@ const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () =>
       isAllDay: event.allDay || false,
       selectedResourceId: event.resourceId || '',
       description: event.description || '',
+      customerNotes: event.customerNotes || '',
+      isPaid: event.paid === true,
       customerName: event.customerName || '',
       customerPhone: event.customerPhone || '',
       customerAddress: event.customerAddress || '',
@@ -413,6 +422,8 @@ const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () =>
       isAllDay,
       selectedResourceId,
       description,
+      customerNotes,
+      isPaid,
       customerName,
       customerPhone,
       customerAddress,
@@ -430,6 +441,8 @@ const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () =>
       isAllDay: initialValuesRef.current.isAllDay,
       selectedResourceId: initialValuesRef.current.selectedResourceId,
       description: initialValuesRef.current.description,
+      customerNotes: initialValuesRef.current.customerNotes,
+      isPaid: initialValuesRef.current.isPaid,
       customerName: initialValuesRef.current.customerName,
       customerPhone: initialValuesRef.current.customerPhone,
       customerAddress: initialValuesRef.current.customerAddress,
@@ -449,7 +462,7 @@ const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () =>
       onDirtyChange(isDirty);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedEmployeeId, startDate, startTime, endTime, isAllDay, selectedResourceId, description, 
+  }, [selectedEmployeeId, startDate, startTime, endTime, isAllDay, selectedResourceId, description, customerNotes, isPaid,
       customerName, customerPhone, customerAddress, customerType, locationType, vehicles.length, selectedServices.length]);
 
   // Handle cancel with dirty check
@@ -599,6 +612,16 @@ const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () =>
     const cleanDesc = getCleanDescription(event.description);
     setDescription(cleanDesc);
   }, [event.description]);
+
+  // Update paid status when event changes
+  useEffect(() => {
+    setIsPaid(event.paid === true);
+  }, [event.paid]);
+
+  // Update customer notes when event changes (e.g., after saving or switching events)
+  useEffect(() => {
+    setCustomerNotes(event.customerNotes || '');
+  }, [event.customerNotes]);
 
   // Fetch business hours
   useEffect(() => {
@@ -752,7 +775,9 @@ const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () =>
       time: timeToStore,
       startTime: startTimeToSend || undefined, // Send start time separately for timed events
       endTime: endTimeToSend || undefined, // Send end time separately for timed events
-      description,
+      description, // Event-specific notes
+      customerNotes: isBlockEvent ? undefined : customerNotes, // Customer notes (persistent across jobs)
+      paid: isPaid, // Payment status
       resourceId: selectedResourceId || undefined,
       ...(isBlockEvent
         ? {}
@@ -1380,23 +1405,61 @@ const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () =>
         </div>
       </div>
 
-      {/* Customer Notes */}
+      {/* Payment Status Toggle */}
+      {!isBlockEvent && (
+        <div className="border-t border-gray-200 pt-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900">Payment Status</h3>
+              <p className="text-xs text-gray-500 mt-0.5">{isPaid ? 'Marked as paid' : 'Marked as unpaid'}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsPaid(!isPaid)}
+              className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 ${isPaid ? 'bg-orange-500' : 'bg-gray-300'}`}
+            >
+              <span
+                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${isPaid ? 'translate-x-5' : 'translate-x-0'}`}
+              />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Customer Notes - persistent across jobs */}
+      {!isBlockEvent && (
+        <div className="border-t border-gray-200 pt-6">
+          <h3 className="text-sm font-semibold text-gray-900 mb-4">Customer Notes</h3>
+          <div>
+            <textarea
+              value={customerNotes}
+              onChange={e => setCustomerNotes(e.target.value)}
+              rows={3}
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+              style={{ boxSizing: 'border-box' }}
+              placeholder="e.g., Customer prefers hand-wash only, always 5 minutes late, prefers early morning appointments..."
+            />
+            <p className="mt-1 text-xs text-gray-500">These notes stay with the customer and will appear on all their future jobs</p>
+          </div>
+        </div>
+      )}
+
+      {/* Event Notes - specific to this event/job */}
       <div className="border-t border-gray-200 pt-6">
         <h3 className="text-sm font-semibold text-gray-900 mb-4">
-          {isBlockEvent ? 'Notes' : 'Customer Notes'}
+          {isBlockEvent ? 'Notes' : 'Event Notes'}
         </h3>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Notes</label>
           <textarea
             value={description}
             onChange={e => setDescription(e.target.value)}
-            rows={4}
+            rows={3}
             className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
             style={{ boxSizing: 'border-box' }}
-            placeholder={isBlockEvent ? 'Add any notes...' : 'e.g., Customer prefers hand-wash only, always 5 minutes late, prefers early morning appointments...'}
+            placeholder={isBlockEvent ? 'Add any notes...' : 'e.g., Customer wants extra attention on door panel scratches, bring ceramic spray...'}
           />
           {!isBlockEvent && (
-            <p className="mt-1 text-xs text-gray-500">Add quick notes about customer preferences, behavior, or reminders</p>
+            <p className="mt-1 text-xs text-gray-500">These notes are specific to this event only</p>
           )}
         </div>
       </div>
@@ -1893,7 +1956,7 @@ const EventHoverContent = ({
     const customerStatus = getCustomerType(event);
     const normalizedOverride = event.customerType ? String(event.customerType).toLowerCase() : '';
     const effectiveCustomerType = normalizedOverride || customerStatus;
-    const paymentStatus = event.paymentStatus || event.status;
+    const eventIsPaid = event.paid === true;
     const bookingSource = event.source;
     
     // Find the resource for this event to check if it's a van
@@ -1930,15 +1993,18 @@ const EventHoverContent = ({
                             </div>
                         )}
                     </div>
-                    {paymentStatus === 'paid' || paymentStatus === 'PAID' ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-green-100 text-green-700 text-xs font-semibold flex-shrink-0">
-                            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                                <path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z" />
-                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clipRule="evenodd" />
-                            </svg>
-                            PAID
-                        </span>
-                    ) : null}
+                    {!isBlockEvent && (
+                        eventIsPaid ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold flex-shrink-0 bg-green-100 text-green-700">
+                                <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+                                Paid
+                            </span>
+                        ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold flex-shrink-0 bg-red-50 text-red-600 border border-red-200">
+                                Unpaid
+                            </span>
+                        )
+                    )}
                 </div>
 
                 {/* Tags */}
@@ -2028,11 +2094,20 @@ const EventHoverContent = ({
                     </div>
                 )}
 
-                {/* Description */}
-                {event.description && (
+                {/* Customer Notes */}
+                {event.customerNotes && (
                     <div className="text-sm border-t border-gray-200 pt-4 mt-4">
-                        <div className="line-clamp-3">
-                            <span className="font-semibold text-gray-700">Notes: </span>
+                        <div className="line-clamp-2">
+                            <span className="font-semibold text-gray-700">Customer Notes: </span>
+                            <span className="text-gray-600">{event.customerNotes}</span>
+                        </div>
+                    </div>
+                )}
+                {/* Event Notes */}
+                {event.description && (
+                    <div className={`text-sm ${!event.customerNotes ? 'border-t border-gray-200 pt-4 mt-4' : 'mt-2'}`}>
+                        <div className="line-clamp-2">
+                            <span className="font-semibold text-gray-700">{event.eventType === 'block' ? 'Notes: ' : 'Event Notes: '}</span>
                             <span className="text-gray-600">{event.description}</span>
                         </div>
                     </div>
@@ -3246,6 +3321,10 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                     >
                                         {/* Top Section: Title, Time, Vehicle, Notes */}
                                         <div className="flex flex-col items-start w-full" style={{ gap: '4px' }}>
+                                            {/* UNPAID badge */}
+                                            {isUnpaid && !isBlockEvent && (
+                                                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold text-red-600 bg-red-50 border border-red-200 leading-none uppercase">Unpaid</span>
+                                            )}
                                             {/* 1. Service/Title - Always visible */}
                                             <div className="flex items-center gap-1.5 w-full">
                                         {event.source === 'google' && (
@@ -4528,6 +4607,9 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
                           opacity: isPastEvent || draggedEventId === event.id ? 0.5 : 1
                         }}
                       >
+                        {isUnpaid && !isBlockEvent && (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold text-red-600 bg-red-50 border border-red-200 leading-none uppercase mb-1 inline-block">Unpaid</span>
+                        )}
                         <div className="flex items-center gap-2 mb-1">
                           {event.employeeName ? (
                             <div className={`w-10 h-10 rounded-full flex items-center justify-center border border-gray-300 flex-shrink-0 ${getEmployeeBadgeClass(event.color)}`}>
@@ -6013,6 +6095,8 @@ export default function CalendarPage() {
       startTime: eventData.startTime || undefined,
       endTime: eventData.endTime || undefined,
       description: eventData.description || '',
+      customerNotes: eventData.customerNotes || undefined,
+      paid: eventData.paid === true,
       resourceId: eventData.resourceId || undefined,
       customerName: eventData.customerName || undefined,
       customerPhone: eventData.customerPhone || undefined,
@@ -10121,12 +10205,64 @@ export default function CalendarPage() {
                 </div>
               )}
             
-            {/* Customer Notes - keep inside scrollable content */}
+            {/* Payment Status + Notes sections - keep inside scrollable content */}
             {selectedEventData && !isEditingEvent && (
-              <div className="p-6 pt-0">
-                <h3 className="text-sm font-semibold text-gray-900 mb-3">Notes</h3>
-                <div className="text-sm text-gray-700">
-                  {getCleanDescription(selectedEventData.description) || 'No notes added'}
+              <div className="p-6 pt-0 space-y-4">
+                {/* Payment Status Toggle */}
+                {selectedEventData.eventType !== 'block' && (
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-900">Payment Status</h3>
+                        <p className="text-xs text-gray-500 mt-0.5">{selectedEventData.paid === true ? 'Marked as paid' : 'Marked as unpaid'}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const newPaid = !(selectedEventData.paid === true);
+                          // Optimistic update
+                          setSelectedEventData({ ...selectedEventData, paid: newPaid });
+                          // Also update events list optimistically
+                          setEvents((prev: any[]) => prev.map((e: any) => e.id === selectedEventData.id ? { ...e, paid: newPaid } : e));
+                          try {
+                            await fetch(`/api/detailer/events/${selectedEventData.id}`, {
+                              method: 'PATCH',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ paid: newPaid }),
+                            });
+                            fetchCalendarEvents();
+                          } catch (err) {
+                            // Revert on error
+                            setSelectedEventData({ ...selectedEventData, paid: !newPaid });
+                            setEvents((prev: any[]) => prev.map((e: any) => e.id === selectedEventData.id ? { ...e, paid: !newPaid } : e));
+                          }
+                        }}
+                        className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 ${selectedEventData.paid === true ? 'bg-orange-500' : 'bg-gray-300'}`}
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${selectedEventData.paid === true ? 'translate-x-5' : 'translate-x-0'}`}
+                        />
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {/* Customer Notes - persistent across jobs */}
+                {selectedEventData.eventType !== 'block' && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-900 mb-2">Customer Notes</h3>
+                    <div className="text-sm text-gray-700 bg-gray-50 rounded-lg p-3">
+                      {selectedEventData.customerNotes || <span className="text-gray-400 italic">No customer notes</span>}
+                    </div>
+                  </div>
+                )}
+                {/* Event Notes - specific to this event */}
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 mb-2">
+                    {selectedEventData.eventType === 'block' ? 'Notes' : 'Event Notes'}
+                  </h3>
+                  <div className="text-sm text-gray-700 bg-gray-50 rounded-lg p-3">
+                    {getCleanDescription(selectedEventData.description) || <span className="text-gray-400 italic">{selectedEventData.eventType === 'block' ? 'No notes added' : 'No event notes'}</span>}
+                  </div>
                 </div>
               </div>
             )}

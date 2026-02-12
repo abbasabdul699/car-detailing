@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
 
     const detailerId = session.user.id;
     const body = await request.json();
-    const { title, color, employeeId, startDate, endDate, isAllDay, description, resourceId, time, startTime: startTimeParam, endTime: endTimeParam, customerName, customerPhone, customerEmail, customerAddress, locationType, customerType, vehicleModel, services, eventType } = body;
+    const { title, color, employeeId, startDate, endDate, isAllDay, description, customerNotes: customerNotesParam, resourceId, time, startTime: startTimeParam, endTime: endTimeParam, customerName, customerPhone, customerEmail, customerAddress, locationType, customerType, vehicleModel, services, eventType, paid } = body;
 
     const normalizedEventType = eventType === 'block' ? 'block' : 'appointment';
     const titleToUse = title?.trim() ? title : (normalizedEventType === 'block' ? 'Blocked Time' : '');
@@ -152,7 +152,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Block time events cannot include customer or service data' }, { status: 400 });
     }
 
-    let combinedDescription = description || '';
+    // Event notes (description) are event-specific; customer notes are separate
+    const eventNotes = description || '';
+    const customerNotes = customerNotesParam || '';
+    
+    let combinedDescription = eventNotes;
     if (normalizedEventType === 'appointment') {
       // Store customer, vehicle, and services info in description as JSON (for backward compatibility)
       const eventMetadata = {
@@ -166,10 +170,9 @@ export async function POST(request: NextRequest) {
       };
       
       // Combine description with metadata
-      const fullDescription = description || '';
       const metadataJson = JSON.stringify(eventMetadata);
-      combinedDescription = fullDescription 
-        ? `${fullDescription}\n\n__METADATA__:${metadataJson}`
+      combinedDescription = eventNotes 
+        ? `${eventNotes}\n\n__METADATA__:${metadataJson}`
         : `__METADATA__:${metadataJson}`;
     }
     
@@ -185,7 +188,8 @@ export async function POST(request: NextRequest) {
         color: employeeColor, // Use employee's color or provided color
         employeeId: employeeId || null,
         resourceId: resourceId,
-        eventType: normalizedEventType
+        eventType: normalizedEventType,
+        paid: paid === true ? true : false
       }
     });
 
@@ -194,7 +198,7 @@ export async function POST(request: NextRequest) {
       try {
         const normalizedPhone = normalizeToE164(customerPhone) || customerPhone;
         
-        // Get existing customer snapshot to merge notes
+        // Get existing customer snapshot to merge data
         const existingSnapshot = await prisma.customerSnapshot.findUnique({
           where: { 
             detailerId_customerPhone: { 
@@ -204,8 +208,7 @@ export async function POST(request: NextRequest) {
           }
         });
         
-        // Prepare customer notes - merge with existing data if present
-        const customerNotes = description || null;
+        // Prepare snapshot data - store customer notes in data.notes
         let snapshotData: any = existingSnapshot?.data ? (typeof existingSnapshot.data === 'object' ? existingSnapshot.data : {}) : {};
         if (customerNotes) {
           snapshotData.notes = customerNotes;
@@ -223,6 +226,18 @@ export async function POST(request: NextRequest) {
           services: services || null,
           data: Object.keys(snapshotData).length > 0 ? snapshotData : null
         });
+        
+        // Also save customer notes to the Customer model (persistent across jobs)
+        if (customerNotes) {
+          try {
+            await prisma.customer.updateMany({
+              where: { detailerId, phone: normalizedPhone },
+              data: { notes: customerNotes }
+            });
+          } catch (customerUpdateError) {
+            console.error('❌ Error updating Customer notes:', customerUpdateError);
+          }
+        }
         
         console.log('✅ CustomerSnapshot updated for phone:', normalizedPhone);
       } catch (snapshotError) {

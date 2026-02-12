@@ -213,6 +213,7 @@ export async function GET(request: NextRequest) {
               customerType: true,
               vehicleModel: true,
               services: true,
+              data: true,
               updatedAt: true
             }
           })
@@ -519,6 +520,7 @@ export async function GET(request: NextRequest) {
         }
         
         // Enrich with CustomerSnapshot data if available (source of truth)
+        let customerNotesFromSnapshot: string | null = null;
         if (customerPhone) {
           const normalizedEventPhone = normalizeToE164(customerPhone) || customerPhone;
           const customerSnapshot = customerMap.get(normalizedEventPhone);
@@ -530,6 +532,10 @@ export async function GET(request: NextRequest) {
             customerType = customerSnapshot.customerType || customerType;
             vehicleModel = customerSnapshot.vehicleModel || vehicleModel;
             services = customerSnapshot.services || services;
+            // Extract customer notes from snapshot data
+            if (customerSnapshot.data && typeof customerSnapshot.data === 'object' && (customerSnapshot.data as any).notes) {
+              customerNotesFromSnapshot = (customerSnapshot.data as any).notes;
+            }
             // Keep the phone from metadata (it should match, but metadata is the source for phone)
           }
         }
@@ -553,10 +559,12 @@ export async function GET(request: NextRequest) {
           employeeId: event.employeeId || null,
           employeeName: employee ? employee.name : null,
           employeeImageUrl: employee ? employee.imageUrl : null,
-          description: cleanDescription,
+          description: cleanDescription, // Event-specific notes
+          customerNotes: customerNotesFromSnapshot || '', // Customer notes from snapshot (persistent)
           location: event.location || '',
           source: 'local',
           eventType: event.eventType || 'appointment',
+          paid: event.paid === true, // Payment status
           bookingId: event.bookingId,
           resourceId: event.resourceId || null,
           customerName,

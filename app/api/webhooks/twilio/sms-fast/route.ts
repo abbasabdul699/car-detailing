@@ -8,6 +8,16 @@ import { validateAndNormalizeState } from '@/lib/stateValidation';
 import { formatDuration } from '@/lib/utils';
 import { processConversationState } from '@/lib/conversationState';
 import { validateServiceRadius } from '@/lib/distance';
+
+// Helper: Return a proper TwiML response so Twilio doesn't throw 12300 Content-Type errors.
+// Twilio expects text/xml (TwiML) from SMS webhooks; returning JSON causes warnings and potential retries.
+function twimlResponse(status: number = 200): Response {
+  const twiml = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>';
+  return new Response(twiml, {
+    status,
+    headers: { 'Content-Type': 'text/xml' },
+  });
+}
 import twilio from 'twilio';
 
 // Helper function to generate .ics calendar file content
@@ -1184,7 +1194,7 @@ export async function POST(request: NextRequest) {
         
         if (existing) {
           console.log('🚫 DUPLICATE WEBHOOK DETECTED - MessageSid already processed:', messageSid);
-          return NextResponse.json({ success: true, deduped: true, reason: 'message_already_processed' });
+          return twimlResponse();
         }
         
         // Note: We rely on the unique constraint on twilioSid to prevent duplicates
@@ -1193,7 +1203,7 @@ export async function POST(request: NextRequest) {
       } catch (error: any) {
         if (error.code === 'P2002') { // Unique constraint violation
           console.log('🚫 DUPLICATE MESSAGESID - Another worker is processing this:', messageSid);
-          return NextResponse.json({ success: true, deduped: true, reason: 'unique_constraint' });
+          return twimlResponse();
         }
         throw error;
       }
@@ -1216,7 +1226,7 @@ export async function POST(request: NextRequest) {
     const lockAcquired = acquireLock(conversationId, 30000); // 30 second timeout
     if (!lockAcquired) {
       console.log(`🚫 CONVERSATION LOCKED - Another process is handling this conversation: ${conversationId}`);
-      return NextResponse.json({ success: true, deduped: true, reason: 'conversation_locked' });
+      return twimlResponse();
     }
     
     console.log(`🔒 Lock acquired for conversation: ${conversationId}`);
@@ -1263,7 +1273,8 @@ export async function POST(request: NextRequest) {
       });
 
       if (!detailer) {
-        return NextResponse.json({ error: 'Detailer not found' }, { status: 404 });
+        releaseLock(conversationId);
+        return twimlResponse(200);
       }
 
       // Parse the Meta lead data
@@ -1341,13 +1352,8 @@ This lead has been automatically processed and is ready for you to contact!`;
       });
 
       console.log('=== META LEAD PROCESSED SUCCESSFULLY ===');
-      return NextResponse.json({ 
-        success: true,
-        metaLead: true,
-        customerId: customer?.id,
-        twilioSid: twilioSid,
-        processingTimeMs: Date.now() - startTime
-      });
+      releaseLock(conversationId);
+      return twimlResponse();
     }
     
     // Find the detailer quickly (robust match: exact E.164 OR last 10 digits)
@@ -1373,7 +1379,8 @@ This lead has been automatically processed and is ready for you to contact!`;
     }
 
     if (!detailer) {
-      return NextResponse.json({ error: 'Detailer not found' }, { status: 404 });
+      releaseLock(conversationId);
+      return twimlResponse(200);
     }
 
     // Find or create conversation
@@ -1438,7 +1445,8 @@ This lead has been automatically processed and is ready for you to contact!`;
     }
 
     if (!conversation) {
-      return NextResponse.json({ error: 'Conversation unavailable' }, { status: 500 })
+      releaseLock(conversationId);
+      return twimlResponse(200);
     }
 
     // Check if this is a first-time customer BEFORE storing the inbound message
@@ -1481,7 +1489,8 @@ This lead has been automatically processed and is ready for you to contact!`;
         smsEnabled: detailer.smsEnabled,
         aiEnabled
       });
-      return NextResponse.json({ success: true, aiEnabled });
+      releaseLock(conversationId);
+      return twimlResponse();
     }
 
     // Get detailer's available services from MongoDB with categories
@@ -2592,21 +2601,24 @@ Be conversational and natural.`;
           
           console.log('✅ Rescheduled existing booking');
           await safeSend(client, from, detailer.phone, aiResponse);
-          return NextResponse.json({ success: true });
+          releaseLock(conversationId);
+          return twimlResponse();
         } else if (newDate) {
           // They provided a date but no time, ask for time
           aiResponse = `Great! I can reschedule your appointment to ${newDate.toLocaleDateString()}. What time would work best for you?`;
           
           console.log('📝 Asking for reschedule time');
           await safeSend(client, from, detailer.phone, aiResponse);
-          return NextResponse.json({ success: true });
+          releaseLock(conversationId);
+          return twimlResponse();
         } else {
           // They want to reschedule but didn't provide new date/time
           aiResponse = `I can help you reschedule your appointment. What new date and time would work better for you?`;
           
           console.log('📝 Asking for new reschedule date/time');
           await safeSend(client, from, detailer.phone, aiResponse);
-          return NextResponse.json({ success: true });
+          releaseLock(conversationId);
+          return twimlResponse();
         }
       } else {
         // No existing booking found, proceed with new booking
@@ -2847,7 +2859,8 @@ Be conversational and natural.`;
                   to: from
                 });
               }
-              return NextResponse.json({ message: 'Booking rejected - outside service radius' });
+              releaseLock(conversationId);
+              return twimlResponse();
             }
              
              console.log(`✅ Distance validation passed: ${distanceValidation.message}`);
@@ -3121,7 +3134,7 @@ Please let me know what you'd prefer!`;
                  await saveErrorMessageToDatabase(conversation.id, aiResponse, twilioSid);
                  
                  releaseLock(conversationId);
-                 return new Response(aiResponse, { status: 200 });
+                 return twimlResponse();
                }
              }
              
@@ -3143,7 +3156,7 @@ Please let me know what you'd prefer!`;
              await saveErrorMessageToDatabase(conversation.id, aiResponse, twilioSid);
              
              releaseLock(conversationId);
-             return new Response(aiResponse, { status: 200 });
+             return twimlResponse();
            }
 
                 // Create customer record if needed
@@ -3485,7 +3498,8 @@ Which day and time would work best for you?`;
             console.log('🚨 SAVED FIRST 200 CHARS:', savedMessage.content?.substring(0, 200) || 'N/A');
             console.log('🚨🚨🚨 END SAVED TO DATABASE SUCCESS (MMS PATH) 🚨🚨🚨');
             
-            return NextResponse.json({ success: true, aiResponse, twilioSid })
+            releaseLock(conversationId);
+            return twimlResponse();
           } else {
             console.log('❌ MMS failed, falling back to SMS')
           }
@@ -3865,7 +3879,7 @@ What time would work better for you?`;
             
             // Don't create the booking, send conflict message instead
             releaseLock(conversationId);
-            return new Response(aiResponse, { status: 200 });
+            return twimlResponse();
           }
         }
 
@@ -3953,7 +3967,8 @@ What time would work better for you?`;
                 to: from
               });
             }
-            return NextResponse.json({ message: 'Booking rejected - outside service radius' });
+            releaseLock(conversationId);
+            return twimlResponse();
           }
           
           console.log(`✅ Distance validation passed: ${distanceValidation.message}`);
@@ -4055,7 +4070,7 @@ Please let me know what you'd prefer!`;
               await saveErrorMessageToDatabase(conversation.id, aiResponse, twilioSid);
               
               releaseLock(conversationId);
-              return new Response(aiResponse, { status: 200 });
+              return twimlResponse();
             }
           }
           
@@ -4077,7 +4092,7 @@ Please let me know what you'd prefer!`;
           await saveErrorMessageToDatabase(conversation.id, aiResponse, twilioSid);
           
           releaseLock(conversationId);
-          return new Response(aiResponse, { status: 200 });
+          return twimlResponse();
         }
 
         // Create or update customer record
@@ -4341,19 +4356,7 @@ Notes: ${parsed.note || 'Auto-captured from SMS conversation'}
     releaseLock(conversationId);
     console.log(`🔓 Lock released for conversation: ${conversationId} (success case)`);
     
-    return NextResponse.json({ 
-      success: true,
-      aiResponse,
-      twilioSid: twilioSid,
-      processingTimeMs: processingTime,
-      traceId,
-      phaseTransition: `${currentPhase} → ${newPhase}`,
-      availabilityAudit: {
-        reevaBookingsCount: existingBookings?.length || 0,
-        reevaEventsCount: existingEvents?.length || 0,
-        availableSlotsCount: availableSlots?.length || 0
-      }
-    });
+    return twimlResponse();
 
   } catch (error) {
     console.error('=== FAST SMS WEBHOOK ERROR ===');
@@ -4372,9 +4375,7 @@ Notes: ${parsed.note || 'Auto-captured from SMS conversation'}
       console.error('Error releasing conversation lock:', lockError);
     }
     
-    return NextResponse.json({
-      error: 'Fast webhook error',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    }, { status: 500 });
+    // Return TwiML even on error to prevent Twilio 12300 Content-Type warnings
+    return twimlResponse(200);
   }
 }

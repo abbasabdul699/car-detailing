@@ -271,6 +271,7 @@ model Customer {
   flexibility           String? // "urgent", "this_week", or "whenever"
   avgResponseTime       String? // Mean reply speed (e.g., "00:04:00")
   avgGapBetweenMessages String? // Avg time between texts
+  notes                 String? // Persistent customer notes that follow the customer across jobs
   tags                  String[] // Tags like "VIP", "no show risk"
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
@@ -325,6 +326,7 @@ model Event {
   time          String?
   allDay        Boolean   @default(false)
   eventType     String    @default("appointment")
+  paid          Boolean   @default(false) // Payment status: false = unpaid, true = paid
   color         String    @default("blue") // Kept for backward compatibility, but will be derived from employee
   employeeId    String?   @db.ObjectId // Employee assigned to this event
   employee      Employee? @relation(fields: [employeeId], references: [id])

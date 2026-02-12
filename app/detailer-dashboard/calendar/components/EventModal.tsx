@@ -103,7 +103,9 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
     const [selectedServices, setSelectedServices] = useState<Array<{ id: string; name: string; type: 'service' | 'bundle' }>>([]);
     const [serviceSearch, setServiceSearch] = useState('');
     const [showServiceDropdown, setShowServiceDropdown] = useState(false);
-    const [description, setDescription] = useState('');
+    const [description, setDescription] = useState(''); // Event-specific notes
+    const [customerNotes, setCustomerNotes] = useState(''); // Customer notes (persistent across jobs)
+    const [isPaid, setIsPaid] = useState(false); // Payment status toggle
     const [showCustomerSuggestions, setShowCustomerSuggestions] = useState(false);
     const [selectedCustomerIndex, setSelectedCustomerIndex] = useState(-1);
     const customerCardRef = React.useRef<HTMLDivElement>(null);
@@ -165,7 +167,9 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
       customerType: '',
       vehicles: [] as Array<{ id: string; model: string }>,
       selectedServices: [] as Array<{ id: string; name: string; type: 'service' | 'bundle' }>,
-      description: ''
+      description: '',
+      customerNotes: '',
+      isPaid: false
     });
 
     // Check if form has been modified
@@ -188,7 +192,9 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
         customerType,
         vehicles: vehicles.map(v => v.model).sort().join(','),
         selectedServices: selectedServices.map(s => s.name).sort().join(','),
-        description
+        description,
+        customerNotes,
+        isPaid
       };
 
       const initial = {
@@ -209,7 +215,9 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
         customerType: initialValuesRef.current.customerType,
         vehicles: initialValuesRef.current.vehicles.map(v => v.model).sort().join(','),
         selectedServices: initialValuesRef.current.selectedServices.map(s => s.name).sort().join(','),
-        description: initialValuesRef.current.description
+        description: initialValuesRef.current.description,
+        customerNotes: initialValuesRef.current.customerNotes,
+        isPaid: initialValuesRef.current.isPaid
       };
 
       return JSON.stringify(current) !== JSON.stringify(initial);
@@ -251,6 +259,8 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
         setVehicles([]);
         setSelectedServices([]);
         setDescription('');
+        setCustomerNotes('');
+        setIsPaid(false);
         setSelectedCustomer(null);
         setCustomerSearch('');
         
@@ -273,7 +283,9 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
           customerType: '',
           vehicles: [],
           selectedServices: [],
-          description: ''
+          description: '',
+          customerNotes: '',
+          isPaid: false
         };
       }
     }, [isOpen, preSelectedResource]);
@@ -475,10 +487,12 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
         
         // Populate customer notes from data.notes if available
         if (customer.data && typeof customer.data === 'object' && customer.data.notes) {
-            setDescription(customer.data.notes || '');
+            setCustomerNotes(customer.data.notes || '');
         } else {
-            setDescription('');
+            setCustomerNotes('');
         }
+        // Clear event notes when selecting a new customer (event notes are event-specific)
+        setDescription('');
         
         // Set vehicles - if customer has vehicleModel, add it as a vehicle
         if (customer.vehicleModel) {
@@ -529,6 +543,8 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
         setSelectedServices([]);
         setServiceSearch('');
         setDescription('');
+        setCustomerNotes('');
+        setIsPaid(false);
     };
     
     // Handle "Add new customer" selection
@@ -644,7 +660,9 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                     time: timeToStore, // Include time for all-day events with business hours, or time range for timed events
                     startTime: startTimeToSend || undefined, // Send start time separately for timed events
                     endTime: endTimeToSend || undefined, // Send end time separately for timed events
-                    description: description || '',
+                    description: description || '', // Event-specific notes
+                    customerNotes: isBlockTime ? undefined : (customerNotes || ''), // Customer notes (persistent)
+                    paid: isBlockTime ? undefined : isPaid, // Payment status
                     resourceId: selectedResourceId || undefined,
                     ...(isBlockTime
                         ? {}
@@ -703,6 +721,8 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                 setSelectedServices([]);
                 setServiceSearch('');
                 setDescription('');
+                setCustomerNotes('');
+                setIsPaid(false);
                 setShowCustomerSuggestions(false);
                 setSelectedCustomerIndex(-1);
             } else {
@@ -858,7 +878,9 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                     customerType: '',
                     vehicles: [],
                     selectedServices: [],
-                    description: ''
+                    description: '',
+                    customerNotes: '',
+                    isPaid: false
                 };
             }, 50);
         }
@@ -949,10 +971,11 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                             
                             // Populate customer notes from data.notes if available
                             if (newCustomer.data && typeof newCustomer.data === 'object' && newCustomer.data.notes) {
-                                setDescription(newCustomer.data.notes || '');
+                                setCustomerNotes(newCustomer.data.notes || '');
                             } else {
-                                setDescription('');
+                                setCustomerNotes('');
                             }
+                            setDescription(''); // Clear event notes for new event
                             
                             // Set vehicles from customer's vehicleModel if available
                             if (newCustomer.vehicleModel) {
@@ -1019,7 +1042,9 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                                     customerType: '',
                                     vehicles: currentVehicles,
                                     selectedServices: currentServices,
-                                    description: (newCustomer.data && typeof newCustomer.data === 'object' && newCustomer.data.notes) ? newCustomer.data.notes : ''
+                                    description: '',
+                                    customerNotes: (newCustomer.data && typeof newCustomer.data === 'object' && newCustomer.data.notes) ? newCustomer.data.notes : '',
+                                    isPaid: false
                                 };
                             }, 100);
                         }
@@ -1061,6 +1086,8 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
             setSelectedServices([]);
             setServiceSearch('');
             setDescription('');
+            setCustomerNotes('');
+            setIsPaid(false);
             setShowCustomerSuggestions(false);
             setSelectedCustomerIndex(-1);
             setSelectedCustomer(null);
@@ -2215,21 +2242,64 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                         </div>
                     </div>
 
-                    {/* Customer Notes */}
+                    {/* Payment Status Toggle */}
+                    {!isBlockTime && (
                     <div className="pt-4">
-                        <h3 className="text-sm font-semibold text-gray-900 mb-4">
-                            {isBlockTime ? 'Notes' : 'Customer Notes'}
-                        </h3>
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h3 className="text-sm font-semibold text-gray-900">Payment Status</h3>
+                                <p className="text-xs text-gray-500 mt-0.5">{isPaid ? 'Marked as paid' : 'Marked as unpaid'}</p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setIsPaid(!isPaid)}
+                                className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 ${isPaid ? 'bg-orange-500' : 'bg-gray-300'}`}
+                            >
+                                <span
+                                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${isPaid ? 'translate-x-5' : 'translate-x-0'}`}
+                                />
+                            </button>
+                        </div>
+                    </div>
+                    )}
+
+                    {/* Customer Notes - persistent across jobs */}
+                    {!isBlockTime && (
+                    <div className="pt-4">
+                        <h3 className="text-sm font-semibold text-gray-900 mb-4">Customer Notes</h3>
                         <div>
                             <textarea 
                                 id="customer-notes"
-                                value={description} 
-                                onChange={e => setDescription(e.target.value)} 
-                                rows={4}
+                                value={customerNotes} 
+                                onChange={e => setCustomerNotes(e.target.value)} 
+                                rows={3}
                                 className="w-full px-4 py-2.5 border rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent resize-none" 
-                                placeholder={isBlockTime ? 'Add any notes...' : 'e.g., Customer prefers hand-wash only, always 5 minutes late, prefers early morning appointments...'}
+                                placeholder="e.g., Customer prefers hand-wash only, always 5 minutes late, prefers early morning appointments..."
                                 style={{ borderColor: '#E2E2DD' }}
                             />
+                            <p className="mt-1 text-xs text-gray-500">These notes stay with the customer and will appear on all their future jobs</p>
+                        </div>
+                    </div>
+                    )}
+
+                    {/* Event Notes - specific to this event/job */}
+                    <div className="pt-4">
+                        <h3 className="text-sm font-semibold text-gray-900 mb-4">
+                            {isBlockTime ? 'Notes' : 'Event Notes'}
+                        </h3>
+                        <div>
+                            <textarea 
+                                id="event-notes"
+                                value={description} 
+                                onChange={e => setDescription(e.target.value)} 
+                                rows={3}
+                                className="w-full px-4 py-2.5 border rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent resize-none" 
+                                placeholder={isBlockTime ? 'Add any notes...' : 'e.g., Customer wants extra attention on door panel scratches, bring ceramic spray...'}
+                                style={{ borderColor: '#E2E2DD' }}
+                            />
+                            {!isBlockTime && (
+                                <p className="mt-1 text-xs text-gray-500">These notes are specific to this event only</p>
+                            )}
                         </div>
                         </div>
                     </div>
