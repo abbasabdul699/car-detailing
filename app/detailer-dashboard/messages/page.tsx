@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { formatPhoneDisplay } from '@/lib/phone';
 
@@ -58,6 +58,8 @@ export default function MessagesPage() {
   const [channelFilter, setChannelFilter] = useState<'all' | 'sms' | 'phone'>('all');
   const [isInfoPanelOpen, setIsInfoPanelOpen] = useState(false);
   const [isAiEnabled, setIsAiEnabled] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const messagesContainerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (session?.user?.id) {
@@ -83,6 +85,18 @@ export default function MessagesPage() {
       return () => clearInterval(messagesInterval);
     }
   }, [selectedConversation]);
+
+  useEffect(() => {
+    if (!selectedConversation?.messages?.length) return;
+    const container = messagesContainerRef.current;
+    if (container) {
+      requestAnimationFrame(() => {
+        container.scrollTop = container.scrollHeight;
+      });
+    } else {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [selectedConversation?.id, selectedConversation?.messages?.length]);
 
   useEffect(() => {
     if (!selectedConversation) return;
@@ -135,6 +149,7 @@ export default function MessagesPage() {
       setConversations(data);
       setPreviousMessageCounts(newCounts);
       setLastRefresh(new Date());
+      return data as Conversation[];
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch conversations');
     } finally {
@@ -150,6 +165,19 @@ export default function MessagesPage() {
     try {
       const response = await fetch(`/api/detailer/conversations?conversationId=${conversationId}`);
       if (!response.ok) {
+        if (response.status === 404 && selectedConversation?.customerPhone) {
+          const updatedList = await fetchConversations();
+          const replacement = updatedList?.find(
+            (conversation) => conversation.customerPhone === selectedConversation.customerPhone
+          );
+          if (replacement && replacement.id !== conversationId) {
+            console.warn('Conversation ID changed, reloading thread.', {
+              previousId: conversationId,
+              nextId: replacement.id,
+            });
+            return fetchConversationMessages(replacement.id);
+          }
+        }
         throw new Error('Failed to fetch messages');
       }
       const conversation = await response.json();
@@ -251,6 +279,11 @@ export default function MessagesPage() {
     } else {
       return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
     }
+  };
+
+  const formatPhoneNumber = (phone?: string) => {
+    if (!phone) return '';
+    return formatPhoneDisplay(phone);
   };
 
   const normalizePhoneDigits = (value: string) => value.replace(/\D/g, '');
@@ -643,7 +676,7 @@ export default function MessagesPage() {
               </div>
 
               {/* Messages */}
-              <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4">
+              <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-6 py-6 space-y-4">
                 {selectedConversation.messages?.length > 0 ? (
                   selectedConversation.messages.map((message) => (
                     <div
@@ -678,6 +711,7 @@ export default function MessagesPage() {
                     <p>No messages yet. Start the conversation!</p>
                   </div>
                 )}
+                <div ref={messagesEndRef} />
               </div>
 
               {/* Message Input */}
