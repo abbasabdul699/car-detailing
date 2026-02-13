@@ -12,25 +12,40 @@ declare global {
 interface AddressAutocompleteInputProps {
   value: string;
   onChange: (value: string) => void;
+  onPlaceSelected?: (address: string) => void;
   placeholder?: string;
   className?: string;
   id?: string;
+  autoFocus?: boolean;
 }
 
 export default function AddressAutocompleteInput({
   value,
   onChange,
+  onPlaceSelected,
   placeholder = "Start typing address...",
   className = "",
-  id
+  id,
+  autoFocus = false
 }: AddressAutocompleteInputProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
+  const onChangeRef = useRef(onChange);
+  const onPlaceSelectedRef = useRef(onPlaceSelected);
+  onChangeRef.current = onChange;
+  onPlaceSelectedRef.current = onPlaceSelected;
 
   const { isLoaded, loadError } = useLoadScript({
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
     libraries: GOOGLE_MAPS_LIBRARIES as any,
   });
+
+  // Auto-focus when component mounts if autoFocus is true
+  useEffect(() => {
+    if (autoFocus && inputRef.current && isLoaded) {
+      inputRef.current.focus();
+    }
+  }, [autoFocus, isLoaded]);
 
   useEffect(() => {
     if (!isLoaded || !window.google || !inputRef.current) return;
@@ -50,7 +65,12 @@ export default function AddressAutocompleteInput({
       const place = autocomplete.getPlace();
       
       if (place.formatted_address) {
-        onChange(place.formatted_address);
+        // Update the controlled value first
+        onChangeRef.current(place.formatted_address);
+        // Then fire the dedicated place-selected callback
+        if (onPlaceSelectedRef.current) {
+          onPlaceSelectedRef.current(place.formatted_address);
+        }
       }
     });
 
@@ -61,7 +81,7 @@ export default function AddressAutocompleteInput({
         google.maps.event.clearInstanceListeners(autocompleteRef.current);
       }
     };
-  }, [isLoaded, onChange]);
+  }, [isLoaded]); // Stable refs, no need to depend on onChange/onPlaceSelected
 
   if (loadError) {
     return (

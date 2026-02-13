@@ -72,6 +72,7 @@ function DetailerDashboardLayoutInner({
   }, [dropdownOpen]);
   
   const navigation = [
+    { name: "Home", href: "/detailer-dashboard", iconPath: null, exact: true },
     { name: "Calendar", href: "/detailer-dashboard/calendar", iconPath: "/icons/calendar (1).png" },
     { name: "Customer", href: "/detailer-dashboard/customers", iconPath: "/icons/book-alt (1).png" },
     { name: "Conversation", href: "/detailer-dashboard/messages", iconPath: "/icons/messages (1).png" },
@@ -126,7 +127,7 @@ function DetailerDashboardLayoutInner({
           {/* Navigation - icon only, square style, centered vertically */}
           <nav className={`flex-1 flex flex-col justify-center space-y-2 ${isSidebarHovered ? 'items-stretch px-3' : 'items-center'}`}>
             {navigation.map((item) => {
-              const isActive = pathname === item.href;
+              const isActive = (item as any).exact ? pathname === item.href : pathname === item.href;
               return (
                 <Link
                   key={item.name}
@@ -145,6 +146,7 @@ function DetailerDashboardLayoutInner({
                     }`}
                     style={isActive ? { backgroundColor: '#E2E2DD' } : {}}
                   >
+                    {item.iconPath ? (
                     <Image
                       src={item.iconPath}
                       alt={item.name}
@@ -156,6 +158,12 @@ function DetailerDashboardLayoutInner({
                           : "opacity-75 group-hover:opacity-85"
                       }`}
                     />
+                    ) : (
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className={`transition-opacity ${isActive ? "opacity-100" : "opacity-75 group-hover:opacity-85"}`}>
+                        <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                        <polyline points="9 22 9 12 15 12 15 22" />
+                      </svg>
+                    )}
                   </div>
                   <span
                     className={`ml-3 text-sm font-medium whitespace-nowrap overflow-hidden transition-all duration-200 ${

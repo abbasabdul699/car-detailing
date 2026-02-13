@@ -198,6 +198,11 @@ body.bottom-sheet-open {
     50% { transform: translateY(-10px); }
   }
   
+  /* Google Places autocomplete dropdown - ensure it appears above all panels */
+  .pac-container {
+    z-index: 99999 !important;
+  }
+
   /* Calendar dropdown fix - ensure dropdowns escape overflow containers */
   #calendar-scroll-container [role="menu"],
   #calendar-scroll-container [role="listbox"],

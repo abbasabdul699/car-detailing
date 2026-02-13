@@ -87,6 +87,7 @@ model Detailer {
   scheduledReviews  ScheduledReview[]
   resources         Resource[]
   employees         Employee[]
+  todoItems         TodoItem[]
 }
 
 model Image {
@@ -326,7 +327,7 @@ model Event {
   time          String?
   allDay        Boolean   @default(false)
   eventType     String    @default("appointment")
-  paid          Boolean   @default(false) // Payment status: false = unpaid, true = paid
+  paid          Boolean   @default(true) // Payment status: false = unpaid, true = paid
   color         String    @default("blue") // Kept for backward compatibility, but will be derived from employee
   employeeId    String?   @db.ObjectId // Employee assigned to this event
   employee      Employee? @relation(fields: [employeeId], references: [id])
@@ -469,4 +470,24 @@ model ScheduledReview {
   updatedAt     DateTime @updatedAt
 
   @@map("scheduledReviews")
+}
+
+model TodoItem {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  detailer      Detailer  @relation(fields: [detailerId], references: [id])
+  detailerId    String    @db.ObjectId
+  title         String
+  subtitle      String?
+  type          String    @default("todo") // "needs_response" or "todo"
+  status        String    @default("active") // "active" or "completed"
+  priority      String    @default("medium") // "high", "medium", "low"
+  customerPhone String? // Optional link to a conversation
+  customerName  String?
+  dueDate       DateTime? // Deadline date
+  dueTime       String? // Deadline time (e.g. "14:00", "9:30 AM")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  completedAt   DateTime?
+
+  @@map("todoItems")
 }

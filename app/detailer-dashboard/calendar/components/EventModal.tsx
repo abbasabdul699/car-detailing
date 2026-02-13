@@ -105,7 +105,7 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
     const [showServiceDropdown, setShowServiceDropdown] = useState(false);
     const [description, setDescription] = useState(''); // Event-specific notes
     const [customerNotes, setCustomerNotes] = useState(''); // Customer notes (persistent across jobs)
-    const [isPaid, setIsPaid] = useState(false); // Payment status toggle
+    const [isPaid, setIsPaid] = useState(true); // Payment status toggle - defaults to paid
     const [showCustomerSuggestions, setShowCustomerSuggestions] = useState(false);
     const [selectedCustomerIndex, setSelectedCustomerIndex] = useState(-1);
     const customerCardRef = React.useRef<HTMLDivElement>(null);
@@ -169,7 +169,7 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
       selectedServices: [] as Array<{ id: string; name: string; type: 'service' | 'bundle' }>,
       description: '',
       customerNotes: '',
-      isPaid: false
+      isPaid: true
     });
 
     // Check if form has been modified
@@ -260,7 +260,7 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
         setSelectedServices([]);
         setDescription('');
         setCustomerNotes('');
-        setIsPaid(false);
+        setIsPaid(true);
         setSelectedCustomer(null);
         setCustomerSearch('');
         
@@ -285,7 +285,7 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
           selectedServices: [],
           description: '',
           customerNotes: '',
-          isPaid: false
+          isPaid: true
         };
       }
     }, [isOpen, preSelectedResource]);
@@ -544,7 +544,7 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
         setServiceSearch('');
         setDescription('');
         setCustomerNotes('');
-        setIsPaid(false);
+        setIsPaid(true);
     };
     
     // Handle "Add new customer" selection
@@ -722,7 +722,7 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                 setServiceSearch('');
                 setDescription('');
                 setCustomerNotes('');
-                setIsPaid(false);
+                setIsPaid(true);
                 setShowCustomerSuggestions(false);
                 setSelectedCustomerIndex(-1);
             } else {
@@ -880,7 +880,7 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                     selectedServices: [],
                     description: '',
                     customerNotes: '',
-                    isPaid: false
+                    isPaid: true
                 };
             }, 50);
         }
@@ -1044,7 +1044,7 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                                     selectedServices: currentServices,
                                     description: '',
                                     customerNotes: (newCustomer.data && typeof newCustomer.data === 'object' && newCustomer.data.notes) ? newCustomer.data.notes : '',
-                                    isPaid: false
+                                    isPaid: true
                                 };
                             }, 100);
                         }
@@ -1087,7 +1087,7 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
             setServiceSearch('');
             setDescription('');
             setCustomerNotes('');
-            setIsPaid(false);
+            setIsPaid(true);
             setShowCustomerSuggestions(false);
             setSelectedCustomerIndex(-1);
             setSelectedCustomer(null);

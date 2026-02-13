@@ -161,6 +161,569 @@ const isEventUnpaid = (event: any): boolean => {
   return paymentStatus === 'unpaid';
 };
 
+// ── Inline-Editable Property Row Components (Notion-style) ─────────────────
+
+// Text / Date / Time property row
+const InlinePropertyRow = ({ icon, label, value, displayValue, placeholder, onSave, type = 'text', suffix, onInfoHover, onInfoLeave }: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  displayValue?: string;
+  placeholder: string;
+  onSave: (val: string) => void;
+  type?: 'text' | 'date' | 'time' | 'address';
+  suffix?: React.ReactNode;
+  onInfoHover?: (e: React.MouseEvent) => void;
+  onInfoLeave?: () => void;
+}) => {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const inputRef = useRef<HTMLInputElement>(null);
+  // For custom date picker calendar
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [calendarMonth, setCalendarMonth] = useState(() => {
+    if (value) { try { const d = parseISO(value); if (!isNaN(d.getTime())) return d; } catch {} }
+    return new Date();
+  });
+  const calendarRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => { setDraft(value); }, [value]);
+  useEffect(() => { if (editing && inputRef.current) inputRef.current.focus(); }, [editing]);
+  // Update calendar month when value changes
+  useEffect(() => {
+    if (value) { try { const d = parseISO(value); if (!isNaN(d.getTime())) setCalendarMonth(d); } catch {} }
+  }, [value]);
+  // Close calendar on outside click
+  useEffect(() => {
+    if (!calendarOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (calendarRef.current && !calendarRef.current.contains(e.target as Node)) {
+        setCalendarOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [calendarOpen]);
+
+  const commit = () => {
+    setEditing(false);
+    if (draft !== value) onSave(draft);
+  };
+
+  // Helper: get days in month
+  const calGetDaysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
+
+  // For date type, render custom calendar popup
+  if (type === 'date') {
+    const selectedDate = value ? (() => { try { const d = parseISO(value); return isNaN(d.getTime()) ? null : d; } catch { return null; } })() : null;
+    const firstDayOfMonth = getDay(startOfMonth(calendarMonth));
+    const daysInMonth = calGetDaysInMonth(calendarMonth.getFullYear(), calendarMonth.getMonth());
+
+    return (
+      <div
+        className="relative flex items-center gap-3 px-4 py-3 border-t cursor-pointer hover:bg-gray-50 transition-colors group"
+        style={{ borderColor: '#E2E2DD' }}
+        onClick={() => { if (!calendarOpen) setCalendarOpen(true); }}
+        onMouseEnter={onInfoHover}
+        onMouseLeave={onInfoLeave}
+      >
+        <div className="flex-shrink-0 w-4">{icon}</div>
+        <span className="text-sm text-gray-500 font-medium w-24 flex-shrink-0">{label}</span>
+        <div className="flex-1 min-w-0 flex items-center">
+          <span className={`text-sm truncate ${(displayValue || value) ? 'text-gray-900' : 'text-gray-400'}`}>
+            {displayValue || value || placeholder}
+          </span>
+          {suffix}
+        </div>
+        {!calendarOpen && (
+          <svg className="w-3.5 h-3.5 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+        )}
+
+        {/* Custom Calendar Popup */}
+        {calendarOpen && (
+          <div
+            ref={calendarRef}
+            className="absolute top-full left-0 mt-1 bg-white rounded-lg shadow-xl border border-gray-200 z-[100] p-4"
+            style={{ minWidth: '280px' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Month navigation header */}
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-semibold text-gray-900">
+                {format(calendarMonth, 'MMMM yyyy')}
+              </span>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={(e) => { e.stopPropagation(); setCalendarMonth(subMonths(calendarMonth, 1)); }}
+                  className="p-1 rounded hover:bg-gray-100"
+                >
+                  <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" /></svg>
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setCalendarMonth(addMonths(calendarMonth, 1)); }}
+                  className="p-1 rounded hover:bg-gray-100"
+                >
+                  <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Day-of-week headers */}
+            <div className="grid grid-cols-7 gap-1 mb-1">
+              {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, i) => (
+                <div key={`${day}-${i}`} className="text-[10px] font-medium text-gray-500 text-center py-1">
+                  {day}
+                </div>
+              ))}
+            </div>
+
+            {/* Day grid */}
+            <div className="grid grid-cols-7 gap-1">
+              {/* Empty cells before month starts */}
+              {Array(firstDayOfMonth).fill(null).map((_, i) => (
+                <div key={`empty-${i}`} className="p-1.5" />
+              ))}
+
+              {/* Day buttons */}
+              {Array(daysInMonth).fill(null).map((_, i) => {
+                const day = i + 1;
+                const date = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), day);
+                const isTodayDate = isToday(date);
+                const isSelected = selectedDate ? isSameDay(date, selectedDate) : false;
+
+                return (
+                  <button
+                    key={day}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+                      onSave(dateStr);
+                      setCalendarOpen(false);
+                    }}
+                    className={`text-xs p-1.5 rounded hover:bg-gray-100 transition-colors ${
+                      isSelected
+                        ? 'bg-[#F97316] text-white font-semibold'
+                        : isTodayDate
+                        ? 'bg-gray-200 text-gray-900 font-semibold'
+                        : 'text-gray-700'
+                    }`}
+                  >
+                    {day}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Footer actions */}
+            <div className="flex items-center justify-between mt-3 pt-2 border-t border-gray-100">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSave('');
+                  setCalendarOpen(false);
+                }}
+                className="text-xs text-[#F97316] hover:text-orange-600 font-medium"
+              >
+                Clear
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const today = new Date();
+                  const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+                  onSave(dateStr);
+                  setCalendarOpen(false);
+                }}
+                className="text-xs text-[#F97316] hover:text-orange-600 font-medium"
+              >
+                Today
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Address type: Google Places autocomplete
+  const addressRowRef = useRef<HTMLDivElement>(null);
+  const addressSelectedRef = useRef(false);
+
+  // Close address editing on outside click
+  useEffect(() => {
+    if (!editing || type !== 'address') return;
+    const handler = (e: MouseEvent) => {
+      // Don't close if clicking on Google autocomplete dropdown (.pac-container)
+      const target = e.target as HTMLElement;
+      if (target.closest('.pac-container')) return;
+      if (addressRowRef.current && !addressRowRef.current.contains(target)) {
+        // Save whatever is in draft on outside click
+        if (draft !== value) onSave(draft);
+        setEditing(false);
+      }
+    };
+    // Use setTimeout to avoid immediately closing from the same click that opened editing
+    const timer = setTimeout(() => document.addEventListener('mousedown', handler), 0);
+    return () => { clearTimeout(timer); document.removeEventListener('mousedown', handler); };
+  }, [editing, type, draft, value, onSave]);
+
+  if (type === 'address') {
+    return (
+      <div
+        ref={addressRowRef}
+        className="relative flex items-center gap-3 px-4 py-3 border-t cursor-pointer hover:bg-gray-50 transition-colors group"
+        style={{ borderColor: '#E2E2DD' }}
+        onClick={() => { if (!editing) { addressSelectedRef.current = false; setEditing(true); } }}
+        onMouseEnter={onInfoHover}
+        onMouseLeave={onInfoLeave}
+      >
+        <div className="flex-shrink-0 w-4">{icon}</div>
+        <span className="text-sm text-gray-500 font-medium w-24 flex-shrink-0">{label}</span>
+        <div className="flex-1 min-w-0 flex items-center">
+          {editing ? (
+            <AddressAutocompleteInput
+              value={draft}
+              onChange={(val) => {
+                setDraft(val);
+              }}
+              onPlaceSelected={(address) => {
+                setDraft(address);
+                addressSelectedRef.current = true;
+                onSave(address);
+                setEditing(false);
+              }}
+              placeholder={placeholder}
+              className="w-full text-sm text-gray-900 bg-transparent border-none outline-none ring-0 p-0"
+              autoFocus
+            />
+          ) : (
+            <span className={`text-sm truncate ${(displayValue || value) ? 'text-gray-900' : 'text-gray-400'}`}>
+              {displayValue || value || placeholder}
+            </span>
+          )}
+          {suffix}
+        </div>
+        {!editing && (
+          <svg className="w-3.5 h-3.5 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+          </svg>
+        )}
+      </div>
+    );
+  }
+
+  // Text / Time types: keep existing behavior
+  return (
+    <div
+      className="flex items-center gap-3 px-4 py-3 border-t cursor-pointer hover:bg-gray-50 transition-colors group"
+      style={{ borderColor: '#E2E2DD' }}
+      onClick={() => { if (!editing) setEditing(true); }}
+      onMouseEnter={onInfoHover}
+      onMouseLeave={onInfoLeave}
+    >
+      <div className="flex-shrink-0 w-4">{icon}</div>
+      <span className="text-sm text-gray-500 font-medium w-24 flex-shrink-0">{label}</span>
+      <div className="flex-1 min-w-0 flex items-center">
+        {editing ? (
+          <input
+            ref={inputRef}
+            type={type}
+            value={draft}
+            onChange={e => setDraft(e.target.value)}
+            onBlur={commit}
+            onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { setDraft(value); setEditing(false); } }}
+            className="w-full text-sm text-gray-900 bg-transparent border-none outline-none ring-0 p-0"
+            placeholder={placeholder}
+          />
+        ) : (
+          <span className={`text-sm truncate ${(displayValue || value) ? 'text-gray-900' : 'text-gray-400'}`}>
+            {displayValue || value || placeholder}
+          </span>
+        )}
+        {suffix}
+      </div>
+      {!editing && (
+        <svg className="w-3.5 h-3.5 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+        </svg>
+      )}
+    </div>
+  );
+};
+
+// Dropdown property row
+const InlineDropdownRow = ({ icon, label, value, displayValue, placeholder, options, onSave, renderOption, renderDisplay }: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  displayValue?: string;
+  placeholder: string;
+  options: Array<{ value: string; label: string; icon?: string }>;
+  onSave: (val: string) => void;
+  renderOption?: (opt: { value: string; label: string }) => React.ReactNode;
+  renderDisplay?: () => React.ReactNode;
+}) => {
+  const [open, setOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleClick = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [open]);
+
+  return (
+    <div ref={dropdownRef} className="relative">
+      <div
+        className="flex items-center gap-3 px-4 py-3 border-t cursor-pointer hover:bg-gray-50 transition-colors group"
+        style={{ borderColor: '#E2E2DD' }}
+        onClick={() => setOpen(!open)}
+      >
+        <div className="flex-shrink-0 w-4">{icon}</div>
+        <span className="text-sm text-gray-500 font-medium w-24 flex-shrink-0">{label}</span>
+        <div className="flex-1 min-w-0">
+          {renderDisplay && value ? renderDisplay() : (
+            <span className={`text-sm truncate block ${(displayValue || value) ? 'text-gray-900' : 'text-gray-400'}`}>
+              {displayValue || value || placeholder}
+            </span>
+          )}
+        </div>
+        <ChevronDownIconSolid className={`w-3.5 h-3.5 text-gray-300 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0 ${open ? 'rotate-180 opacity-100' : ''}`} />
+      </div>
+      {open && (
+        <div className="absolute left-12 right-4 top-full z-50 mt-1 bg-white rounded-lg shadow-lg border py-1 max-h-48 overflow-y-auto" style={{ borderColor: '#E2E2DD' }}>
+          {/* Clear / unset option */}
+          <button
+            className="w-full text-left px-3 py-2 text-sm text-gray-400 hover:bg-gray-50 transition-colors"
+            onClick={() => { onSave(''); setOpen(false); }}
+          >
+            None
+          </button>
+          {options.map(opt => (
+            <button
+              key={opt.value}
+              className={`w-full text-left px-3 py-2 text-sm hover:bg-orange-50 transition-colors flex items-center gap-2 ${opt.value === value ? 'bg-orange-50 text-orange-600 font-medium' : 'text-gray-700'}`}
+              onClick={() => { onSave(opt.value); setOpen(false); }}
+            >
+              {opt.icon && <span>{opt.icon}</span>}
+              {renderOption ? renderOption(opt) : <span>{opt.label}</span>}
+              {opt.value === value && <CheckIcon className="w-4 h-4 text-orange-500 ml-auto" />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Multi-select services row
+const InlineServicesRow = ({ selectedServices, availableServices, availableBundles, onSave }: {
+  selectedServices: Array<{ id: string; name: string; type: 'service' | 'bundle' }>;
+  availableServices: Array<{ id: string; name: string; category?: { name: string } }>;
+  availableBundles: Array<{ id: string; name: string }>;
+  onSave: (serviceNames: string[]) => void;
+}) => {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const containerRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleClick = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) { setOpen(false); setSearch(''); }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [open]);
+
+  useEffect(() => { if (open && searchInputRef.current) searchInputRef.current.focus(); }, [open]);
+
+  const selectedNames = new Set(selectedServices.map(s => s.name));
+
+  const toggleService = (name: string, type: 'service' | 'bundle') => {
+    let newNames: string[];
+    if (selectedNames.has(name)) {
+      newNames = selectedServices.filter(s => s.name !== name).map(s => s.name);
+    } else {
+      newNames = [...selectedServices.map(s => s.name), name];
+    }
+    onSave(newNames);
+  };
+
+  const filteredServices = availableServices.filter(s => s.name.toLowerCase().includes(search.toLowerCase()));
+  const filteredBundles = availableBundles.filter(b => b.name.toLowerCase().includes(search.toLowerCase()));
+
+  return (
+    <div ref={containerRef} className="border-t px-4 py-3" style={{ borderColor: '#E2E2DD' }}>
+      <div className="flex items-start gap-3">
+        <div className="flex-shrink-0 w-4 mt-0.5">
+          <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+        </div>
+        <span className="text-sm text-gray-500 font-medium w-24 flex-shrink-0 mt-0.5">Services</span>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between mb-1">
+            <div />
+            <button
+              onClick={() => setOpen(!open)}
+              className="text-xs text-orange-500 hover:text-orange-600 font-medium"
+            >
+              {open ? 'Done' : '+ Edit'}
+            </button>
+          </div>
+          {selectedServices.length > 0 ? (
+            <div className="flex flex-wrap gap-1.5">
+              {selectedServices.map(item => (
+                <span key={`${item.type}-${item.id}`} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gray-800 text-white text-xs font-medium">
+                  {item.name}
+                  {item.type === 'bundle' && <span className="text-[9px] px-1 py-0.5 rounded-full bg-blue-500">Bundle</span>}
+                  {open && (
+                    <button onClick={() => toggleService(item.name, item.type)} className="ml-0.5 hover:text-red-300">
+                      <XMarkIcon className="w-3 h-3" />
+                    </button>
+                  )}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-400">No services selected</p>
+          )}
+      {open && (
+        <div className="mt-2 bg-white rounded-lg border shadow-lg max-h-48 overflow-y-auto" style={{ borderColor: '#E2E2DD' }}>
+          <div className="sticky top-0 bg-white p-2 border-b" style={{ borderColor: '#E2E2DD' }}>
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search services..."
+              className="w-full text-sm px-2 py-1.5 border rounded-md bg-gray-50 outline-none focus:ring-1 focus:ring-orange-300"
+              style={{ borderColor: '#E2E2DD' }}
+            />
+          </div>
+          {filteredBundles.length > 0 && (
+            <div className="px-2 pt-2">
+              <p className="text-[10px] font-semibold text-gray-400 uppercase px-1 mb-1">Bundles</p>
+              {filteredBundles.map(b => (
+                <button
+                  key={b.id}
+                  className={`w-full text-left px-2 py-1.5 text-sm rounded hover:bg-orange-50 flex items-center gap-2 ${selectedNames.has(b.name) ? 'text-orange-600 font-medium' : 'text-gray-700'}`}
+                  onClick={() => toggleService(b.name, 'bundle')}
+                >
+                  <div className={`w-4 h-4 rounded border flex items-center justify-center ${selectedNames.has(b.name) ? 'bg-orange-500 border-orange-500' : 'border-gray-300'}`}>
+                    {selectedNames.has(b.name) && <CheckIcon className="w-3 h-3 text-white" />}
+                  </div>
+                  {b.name}
+                  <span className="text-[9px] px-1 py-0.5 rounded bg-blue-100 text-blue-600 ml-auto">Bundle</span>
+                </button>
+              ))}
+            </div>
+          )}
+          {filteredServices.length > 0 && (
+            <div className="px-2 pt-2 pb-1">
+              <p className="text-[10px] font-semibold text-gray-400 uppercase px-1 mb-1">Services</p>
+              {filteredServices.map(s => (
+                <button
+                  key={s.id}
+                  className={`w-full text-left px-2 py-1.5 text-sm rounded hover:bg-orange-50 flex items-center gap-2 ${selectedNames.has(s.name) ? 'text-orange-600 font-medium' : 'text-gray-700'}`}
+                  onClick={() => toggleService(s.name, 'service')}
+                >
+                  <div className={`w-4 h-4 rounded border flex items-center justify-center ${selectedNames.has(s.name) ? 'bg-orange-500 border-orange-500' : 'border-gray-300'}`}>
+                    {selectedNames.has(s.name) && <CheckIcon className="w-3 h-3 text-white" />}
+                  </div>
+                  {s.name}
+                </button>
+              ))}
+            </div>
+          )}
+          {filteredServices.length === 0 && filteredBundles.length === 0 && (
+            <p className="text-sm text-gray-400 p-3 text-center">No matches</p>
+          )}
+        </div>
+      )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Textarea property row (for notes) – Notion-style inline row
+const InlineTextareaRow = ({ icon, label, value, placeholder, onSave }: {
+  icon?: React.ReactNode;
+  label: string;
+  value: string;
+  placeholder: string;
+  onSave: (val: string) => void;
+}) => {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => { setDraft(value); }, [value]);
+  useEffect(() => {
+    if (editing && textareaRef.current) {
+      textareaRef.current.focus();
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
+    }
+  }, [editing]);
+
+  const commit = () => {
+    setEditing(false);
+    if (draft !== value) onSave(draft);
+  };
+
+  return (
+    <div className="border-t px-4 py-3 group" style={{ borderColor: '#E2E2DD' }}>
+      <div className="flex items-start gap-3">
+        {icon && <div className="flex-shrink-0 w-4 mt-0.5">{icon}</div>}
+        <span className="text-sm text-gray-500 font-medium w-24 flex-shrink-0 mt-0.5">{label}</span>
+        <div className="flex-1 min-w-0">
+          {editing ? (
+            <textarea
+              ref={textareaRef}
+              value={draft}
+              onChange={e => {
+                setDraft(e.target.value);
+                if (textareaRef.current) {
+                  textareaRef.current.style.height = 'auto';
+                  textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
+                }
+              }}
+              onBlur={commit}
+              onKeyDown={e => { if (e.key === 'Escape') { setDraft(value); setEditing(false); } }}
+              placeholder={placeholder}
+              className="w-full text-sm text-gray-700 bg-white border rounded-lg p-2 outline-none focus:ring-1 focus:ring-orange-300 resize-none min-h-[48px]"
+              style={{ borderColor: '#E2E2DD' }}
+            />
+          ) : (
+            <div
+              onClick={() => setEditing(true)}
+              className="text-sm cursor-pointer hover:bg-gray-50 rounded-md px-1 py-0.5 -mx-1 transition-colors min-h-[24px]"
+            >
+              {value ? (
+                <span className="text-gray-900 whitespace-pre-wrap">{value}</span>
+              ) : (
+                <span className="text-gray-400">{placeholder}</span>
+              )}
+            </div>
+          )}
+        </div>
+        {!editing && (
+          <svg className="w-3.5 h-3.5 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+          </svg>
+        )}
+      </div>
+    </div>
+  );
+};
+
 // Event Edit Form Component
 const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () => void }, {
   event: any, 
@@ -1949,7 +2512,6 @@ const EventHoverContent = ({
     if (!event) return null;
 
     const isBlockEvent = event.eventType === 'block';
-
     const serviceName = isBlockEvent ? 'Blocked Time' : (event.title || event.eventName || (Array.isArray(event.services) ? event.services.join(' + ') : event.services) || 'Service');
     const vehicleModel = event.vehicleType || event.vehicleModel;
     const timeRange = formatTimeRange(event);
@@ -1957,162 +2519,174 @@ const EventHoverContent = ({
     const normalizedOverride = event.customerType ? String(event.customerType).toLowerCase() : '';
     const effectiveCustomerType = normalizedOverride || customerStatus;
     const eventIsPaid = event.paid === true;
-    const bookingSource = event.source;
-    
-    // Find the resource for this event to check if it's a van
+
+    // Find the resource for this event
     const eventResource = resources?.find(r => r.id === event.resourceId);
     const isVan = eventResource?.type === 'van';
+    const stationName = eventResource?.name || '';
+
+    // Location badge text
+    const getLocationLabel = () => {
+        if (isVan) return 'Van';
+        const lt = event.locationType?.toLowerCase();
+        if (lt === 'pick up' || lt === 'pickup') return 'Pick up';
+        if (lt === 'drop off' || lt === 'dropoff') return 'Drop off';
+        return event.locationType || null;
+    };
+    const locationLabel = getLocationLabel();
+    const locationBadgeClass = isVan ? 'bg-[#f0f0ee] text-[#6b6a5e]'
+        : (event.locationType?.toLowerCase() === 'pick up' || event.locationType?.toLowerCase() === 'pickup') ? 'bg-blue-50 text-blue-600'
+        : (event.locationType?.toLowerCase() === 'drop off' || event.locationType?.toLowerCase() === 'dropoff') ? 'bg-emerald-50 text-emerald-600'
+        : 'bg-[#f0f0ee] text-[#6b6a5e]';
+
+    // Customer type badge
+    const getCustomerBadge = () => {
+        if (effectiveCustomerType === 'returning') return { label: 'Repeat', cls: 'bg-purple-50 text-purple-600' };
+        if (effectiveCustomerType === 'maintenance') return { label: 'Maintenance', cls: 'bg-blue-50 text-blue-600' };
+        return { label: 'New', cls: 'bg-emerald-50 text-emerald-600' };
+    };
+    const custBadge = getCustomerBadge();
 
     return (
         <div
             className="bg-white shadow-2xl rounded-xl overflow-hidden"
-            style={{
-                border: '1px solid #E2E2DD',
-                backgroundColor: '#FFFFFF',
-                width: '400px',
-                maxWidth: 'calc(100vw - 32px)'
-            }}
+            style={{ border: '1px solid #f0f0ee', width: '260px', maxWidth: 'calc(100vw - 32px)' }}
         >
-            <div className="p-5 space-y-4">
-                {/* Header with Service Name, Time, and Payment Status */}
-                <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1">
-                        <h3 className="text-lg font-bold text-gray-900">
-                            {serviceName}
-                        </h3>
-                        {/* Time Range */}
-                        {timeRange && (
-                            <div className="text-base font-semibold mt-1.5" style={{ color: 'rgba(64, 64, 58, 0.7)' }}>
-                                {timeRange}
+            {isBlockEvent ? (
+                <>
+                    {/* Header - Blocked */}
+                    <div className="px-4 py-3 border-b" style={{ borderColor: '#f0f0ee', backgroundColor: '#F8F8F7' }}>
+                        <h3 className="text-sm font-semibold" style={{ color: '#57564d' }}>Blocked</h3>
+                        {timeRange && <p className="text-xs mt-0.5" style={{ color: '#6b6a5e' }}>{timeRange}</p>}
+                    </div>
+                    <div className="divide-y" style={{ borderColor: '#f0f0ee' }}>
+                        {/* Technician */}
+                        {event.employeeName && (
+                            <div className="px-4 py-2 flex items-center gap-3">
+                                <svg className="h-3.5 w-3.5 flex-shrink-0" style={{ color: '#9e9d92' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                                </svg>
+                                <div className="flex items-center gap-2">
+                                    <div className={`h-5 w-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white ${getEmployeeBadgeClass(event.color)}`}>
+                                        {getEmployeeInitials(event.employeeName)}
+                                    </div>
+                                    <span className="text-xs" style={{ color: '#2B2B26' }}>{event.employeeName}</span>
+                                </div>
                             </div>
                         )}
-                        {/* Vehicle */}
-                        {!isBlockEvent && vehicleModel && (
-                            <div className="text-base font-medium mt-1.5" style={{ color: 'rgba(64, 64, 58, 0.7)' }}>
-                                {vehicleModel}
+                        {/* Notes */}
+                        {event.description && (
+                            <div className="px-4 py-2 flex items-start gap-3">
+                                <svg className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" style={{ color: '#9e9d92' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+                                </svg>
+                                <span className="text-xs italic" style={{ color: '#6b6a5e' }}>{event.description}</span>
                             </div>
                         )}
                     </div>
-                    {!isBlockEvent && (
-                        eventIsPaid ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold flex-shrink-0 bg-green-100 text-green-700">
-                                <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
-                                Paid
-                            </span>
-                        ) : (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold flex-shrink-0 bg-red-50 text-red-600 border border-red-200">
-                                Unpaid
-                            </span>
-                        )
-                    )}
-                </div>
+                </>
+            ) : (
+                <>
+                    {/* Header - Service + Time + Paid/Unpaid */}
+                    <div className="px-4 py-3" style={{ borderBottom: '1px solid #f0f0ee' }}>
+                        <div className="flex items-start justify-between">
+                            <div>
+                                <h3 className="text-sm font-semibold" style={{ color: '#2B2B26' }}>{serviceName}</h3>
+                                {timeRange && <p className="text-xs mt-0.5" style={{ color: '#6b6a5e' }}>{timeRange}</p>}
+                            </div>
+                            {eventIsPaid ? (
+                                <span className="text-[10px] flex items-center gap-1 flex-shrink-0" style={{ color: '#059669' }}>
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                    Paid
+                                </span>
+                            ) : (
+                                <span className="text-[10px] flex-shrink-0" style={{ color: '#d97706' }}>Unpaid</span>
+                            )}
+                        </div>
+                    </div>
 
-                {/* Tags */}
-                {!isBlockEvent && (
-                <div className="flex flex-wrap items-center gap-2">
-                    {/* Show "Van" tag for van resources, or locationType (Drop off/Pick up) for bay resources */}
-                    {isVan ? (
-                        <span className="text-xs font-semibold px-2 py-0.5 rounded bg-gray-100 text-gray-700">
-                            Van
-                        </span>
-                    ) : event.locationType ? (
-                        <span className={`text-xs font-semibold px-2 py-0.5 rounded ${
-                            event.locationType.toLowerCase() === 'pick up' || event.locationType.toLowerCase() === 'pickup'
-                                ? 'bg-blue-100 text-blue-700'
-                                : event.locationType.toLowerCase() === 'drop off' || event.locationType.toLowerCase() === 'dropoff'
-                                ? 'bg-pink-100 text-pink-700'
-                                : 'bg-gray-100 text-gray-700'
-                        }`}>
-                            {event.locationType?.toLowerCase() === 'pickup' ? 'Pick Up' : 
-                             event.locationType?.toLowerCase() === 'dropoff' ? 'Drop Off' :
-                             event.locationType?.toLowerCase() === 'pick up' ? 'Pick Up' :
-                             event.locationType?.toLowerCase() === 'drop off' ? 'Drop Off' :
-                             event.locationType}
-                        </span>
-                    ) : null}
-                    {effectiveCustomerType === 'new' && (
-                        <span className="text-xs font-semibold bg-gray-200 text-gray-700 px-2 py-0.5 rounded">
-                            New Customer
-                        </span>
-                    )}
-                    {effectiveCustomerType === 'returning' && (
-                        <span className="text-xs font-semibold bg-purple-200 text-purple-800 px-2 py-0.5 rounded">
-                            Repeat Customer
-                        </span>
-                    )}
-                    {effectiveCustomerType === 'maintenance' && (
-                        <span className="text-xs font-semibold bg-blue-200 text-blue-800 px-2 py-0.5 rounded">
-                            Maintenance Customer
-                        </span>
-                    )}
-                </div>
-                )}
+                    {/* Property Rows */}
+                    <div className="divide-y" style={{ borderColor: '#f0f0ee' }}>
+                        {/* Customer */}
+                        {(event.customerName || event.customerPhone) && (
+                            <div className="px-4 py-2 flex items-center gap-3">
+                                <svg className="h-3.5 w-3.5 flex-shrink-0" style={{ color: '#9e9d92' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                                </svg>
+                                <div className="flex items-center gap-2 flex-1 min-w-0">
+                                    <span className="text-xs truncate" style={{ color: '#2B2B26' }}>{event.customerName || 'Customer'}</span>
+                                    <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded flex-shrink-0 ${custBadge.cls}`}>
+                                        {custBadge.label}
+                                    </span>
+                                </div>
+                            </div>
+                        )}
 
-                {/* Customer Information */}
-                {!isBlockEvent && (event.customerName || event.customerPhone) && (
-                    <div className="text-base text-gray-700">
-                        <span className="font-semibold">{event.customerName || 'Customer'}</span>
+                        {/* Phone */}
                         {event.customerPhone && (
-                            <span className="text-gray-600 ml-1">({formatPhoneDisplay(event.customerPhone)})</span>
+                            <div className="px-4 py-2 flex items-center gap-3">
+                                <svg className="h-3.5 w-3.5 flex-shrink-0" style={{ color: '#9e9d92' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
+                                </svg>
+                                <span className="text-xs" style={{ color: '#2B2B26' }}>{formatPhoneDisplay(event.customerPhone)}</span>
+                            </div>
+                        )}
+
+                        {/* Address */}
+                        {(event.customerAddress || event.address) && (
+                            <div className="px-4 py-2 flex items-center gap-3">
+                                <svg className="h-3.5 w-3.5 flex-shrink-0" style={{ color: '#9e9d92' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 0115 0z" />
+                                </svg>
+                                <span className="text-xs truncate" style={{ color: '#2B2B26' }}>{event.customerAddress || event.address}</span>
+                            </div>
+                        )}
+
+                        {/* Vehicle */}
+                        {vehicleModel && (
+                            <div className="px-4 py-2 flex items-center gap-3">
+                                <svg className="h-3.5 w-3.5 flex-shrink-0" style={{ color: '#9e9d92' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 00-10.026 0 1.106 1.106 0 00-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12" />
+                                </svg>
+                                <span className="text-xs" style={{ color: '#2B2B26' }}>{vehicleModel}</span>
+                            </div>
+                        )}
+
+                        {/* Station / Location */}
+                        {(locationLabel || stationName) && (
+                            <div className="px-4 py-2 flex items-center gap-3">
+                                <svg className="h-3.5 w-3.5 flex-shrink-0" style={{ color: '#9e9d92' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
+                                </svg>
+                                <div className="flex items-center gap-2">
+                                    {locationLabel && (
+                                        <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded ${locationBadgeClass}`}>
+                                            {locationLabel}
+                                        </span>
+                                    )}
+                                    {stationName && <span className="text-xs" style={{ color: '#2B2B26' }}>{stationName}</span>}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Technician */}
+                        {event.employeeName && (
+                            <div className="px-4 py-2 flex items-center gap-3">
+                                <svg className="h-3.5 w-3.5 flex-shrink-0" style={{ color: '#9e9d92' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                                </svg>
+                                <div className="flex items-center gap-2">
+                                    <div className={`h-5 w-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white ${getEmployeeBadgeClass(event.color)}`}>
+                                        {getEmployeeInitials(event.employeeName)}
+                                    </div>
+                                    <span className="text-xs" style={{ color: '#2B2B26' }}>{event.employeeName}</span>
+                                </div>
+                            </div>
                         )}
                     </div>
-                )}
-                {/* Address */}
-                {!isBlockEvent && (event.customerAddress || event.address) && (
-                    <div className="text-sm text-gray-600">
-                        {event.customerAddress || event.address}
-                    </div>
-                )}
-
-                {/* Assigned Employee */}
-                {event.employeeName && (
-                    <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center border border-gray-300 ${getEmployeeBadgeClass(event.color)}`}>
-                            <span className="text-base font-semibold">
-                                {getEmployeeInitials(event.employeeName)}
-                            </span>
-                        </div>
-                        <span className="text-base text-gray-700">{event.employeeName}</span>
-                    </div>
-                )}
-
-                {/* Booking Source - Only show for Google Calendar and Woocommerce, hide Local */}
-                {bookingSource && bookingSource !== 'local' && bookingSource !== 'local-booking' && bookingSource !== 'local-google-synced' && (
-                    <div className="flex items-center gap-2 text-xs text-gray-600">
-                        {bookingSource === 'google' && (
-                            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                            </svg>
-                        )}
-                        {bookingSource === 'woocommerce' && (
-                            <span className="inline-flex items-center justify-center w-4 h-4 rounded bg-purple-100 text-purple-700 text-[10px] font-bold">W</span>
-                        )}
-                        <span className="capitalize">{bookingSource === 'woocommerce' ? 'Woocommerce' : bookingSource}</span>
-                    </div>
-                )}
-
-                {/* Customer Notes */}
-                {event.customerNotes && (
-                    <div className="text-sm border-t border-gray-200 pt-4 mt-4">
-                        <div className="line-clamp-2">
-                            <span className="font-semibold text-gray-700">Customer Notes: </span>
-                            <span className="text-gray-600">{event.customerNotes}</span>
-                        </div>
-                    </div>
-                )}
-                {/* Event Notes */}
-                {event.description && (
-                    <div className={`text-sm ${!event.customerNotes ? 'border-t border-gray-200 pt-4 mt-4' : 'mt-2'}`}>
-                        <div className="line-clamp-2">
-                            <span className="font-semibold text-gray-700">{event.eventType === 'block' ? 'Notes: ' : 'Event Notes: '}</span>
-                            <span className="text-gray-600">{event.description}</span>
-                        </div>
-                    </div>
-                )}
-            </div>
+                </>
+            )}
         </div>
     );
 };
@@ -5468,6 +6042,11 @@ export default function CalendarPage() {
       if (showDiscardModal || (isEditingEvent && isEditFormDirty)) {
         return;
       }
+      // Don't close sidebar if clicking on Google Places autocomplete dropdown
+      const target = event.target as HTMLElement;
+      if (target.closest('.pac-container')) {
+        return;
+      }
       if (actionSidebarRef.current && !actionSidebarRef.current.contains(event.target as Node)) {
         setIsActionSidebarOpen(false);
         setSelectedEventData(null);
@@ -5884,6 +6463,53 @@ export default function CalendarPage() {
     }
   };
 
+  // Auto-save helper: PATCHes individual fields and refreshes
+  const saveField = async (fieldUpdates: Record<string, any>) => {
+    if (!selectedEventData?.id) return;
+    const previousData = { ...selectedEventData };
+    // Optimistic update
+    setSelectedEventData((prev: any) => prev ? { ...prev, ...fieldUpdates } : prev);
+    try {
+      const res = await fetch(`/api/detailer/events/${selectedEventData.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(fieldUpdates),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const serverEvent = data.event || data;
+        setSelectedEventData(serverEvent);
+        // Refresh services from server response
+        if (serverEvent.services) {
+          const eventServicesList = Array.isArray(serverEvent.services) ? serverEvent.services : [serverEvent.services];
+          const matchedItems: Array<{ id: string; name: string; type: 'service' | 'bundle' }> = eventServicesList
+            .map((serviceName: string) => {
+              const svc = availableServices.find((s: any) => s.name === serviceName);
+              if (svc) return { id: svc.id, name: svc.name, type: 'service' as const };
+              const bnd = availableBundles.find((b: any) => b.name === serviceName);
+              if (bnd) return { id: bnd.id, name: bnd.name, type: 'bundle' as const };
+              return { id: `temp-${serviceName}`, name: serviceName, type: 'service' as const };
+            });
+          setSelectedServices(matchedItems);
+        }
+        // Refresh vehicles from server response
+        if (serverEvent.vehicles && Array.isArray(serverEvent.vehicles)) {
+          setEventVehicles(serverEvent.vehicles.map((v: string, idx: number) => ({ id: `vehicle-${idx}`, model: v })));
+        } else if (serverEvent.vehicleModel) {
+          setEventVehicles([{ id: 'vehicle-0', model: serverEvent.vehicleModel }]);
+        }
+        fetchCalendarEvents();
+      } else {
+        // Revert on failure
+        setSelectedEventData(previousData);
+        console.error('Auto-save failed:', await res.json());
+      }
+    } catch (err) {
+      setSelectedEventData(previousData);
+      console.error('Auto-save error:', err);
+    }
+  };
+
   const handleEventClick = (event: any) => {
     console.log('Event clicked:', {
       id: event.id,
@@ -5917,14 +6543,14 @@ export default function CalendarPage() {
     // Clear optimistic customer update refs when selecting a new event
     optimisticCustomerRemovalRef.current = null;
     optimisticCustomerUpdateRef.current = null;
-    // On mobile: always open in edit mode in bottom sheet. On desktop: open action sidebar in view mode
+    // On mobile: open in edit mode in bottom sheet. On desktop: open action sidebar (inline-editable panel)
     if (isMobile) {
-      setIsEditingEvent(true); // Mobile: always in edit mode
+      setIsEditingEvent(true); // Mobile: always in edit mode via EventEditForm
       setIsActionSidebarOpen(false); // Don't open desktop sidebar on mobile
       setBottomSheetState('minimized'); // Start minimized on mobile
     } else {
-      setIsActionSidebarOpen(true); // Desktop: open action sidebar
-      setIsEditingEvent(false); // Desktop: start in view mode
+      setIsActionSidebarOpen(true); // Desktop: open action sidebar with inline-editable panel
+      setIsEditingEvent(false); // Desktop: no longer uses edit toggle
     }
     setEventDetailsOpen(false); // Close modal if it was open
     setIsEditFormDirty(false); // Reset dirty state
@@ -9338,17 +9964,13 @@ export default function CalendarPage() {
                 </div>
                 <button
                   onClick={() => {
-                    if (isEditingEvent && isEditFormDirty) {
-                      setShowDiscardModal(true);
-                    } else {
-                      setIsActionSidebarOpen(false);
-                      setSelectedEventData(null);
-                      setSelectedEvent(null);
-                      setIsEditingEvent(false);
-                      setShowCustomerDetailsPopup(false);
-                      setSelectedDay(null);
-                      setSelectedDayEvents([]);
-                    }
+                    setIsActionSidebarOpen(false);
+                    setSelectedEventData(null);
+                    setSelectedEvent(null);
+                    setIsEditingEvent(false);
+                    setShowCustomerDetailsPopup(false);
+                    setSelectedDay(null);
+                    setSelectedDayEvents([]);
                   }}
                   className="p-1 rounded-lg hover:bg-gray-100 transition-colors"
                 >
@@ -9360,531 +9982,431 @@ export default function CalendarPage() {
             {/* Content - Show event details if event is selected, otherwise show selected day's events (month view) or today's events */}
             <div className="flex-1 overflow-y-auto min-h-0">
               {selectedEventData ? (
-                isEditingEvent ? (
-                  // Show edit form
-                  <div className="px-6 pt-6 pb-24">
-                  <EventEditForm
-                    ref={eventEditFormRef}
-                    event={selectedEventData}
-                    resources={resources}
-                    onDirtyChange={(isDirty) => setIsEditFormDirty(isDirty)}
-                    onRequestDiscard={() => setShowDiscardModal(true)}
-                    onEditCustomer={() => {
-                      // Set up customer data for editing
-                      setEditingCustomerData({
-                        customerName: selectedEventData.customerName || '',
-                        customerPhone: selectedEventData.customerPhone || '',
-                        customerAddress: selectedEventData.customerAddress || '',
-                        customerType: selectedEventData.customerType || ''
-                      });
-                      setIsEditingCustomer(true);
-                      setIsNewCustomerModalOpen(true);
-                    }}
-                    onSave={async (updatedData: any) => {
-                      try {
-                        const response = await fetch(`/api/detailer/events/${selectedEventData.id}`, {
-                          method: 'PATCH',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify(updatedData),
-                        });
-
-                        if (response.ok) {
-                          const result = await response.json();
-                          fetchCalendarEvents();
-                          setIsEditingEvent(false);
-                          setIsEditFormDirty(false);
-
-                          const serverEvent = result?.event || null;
-                          if (serverEvent) {
-                            setSelectedEventData(serverEvent);
-                            
-                            // Refresh services from server response to keep selection in sync
-                            const eventServicesList = Array.isArray(serverEvent.services) ? serverEvent.services : serverEvent.services ? [serverEvent.services] : [];
-                            if (eventServicesList.length > 0) {
-                              const matchedItems: Array<{ id: string; name: string; type: 'service' | 'bundle' }> = eventServicesList
-                                .map((serviceName: string) => {
-                                  const service = availableServices.find((s: any) => s.name === serviceName);
-                                  if (service) {
-                                    return { id: service.id, name: service.name, type: 'service' as const };
-                                  }
-                                  const bundle = availableBundles.find((b: any) => b.name === serviceName);
-                                  if (bundle) {
-                                    return { id: bundle.id, name: bundle.name, type: 'bundle' as const };
-                                  }
-                                  return { id: `temp-${serviceName}`, name: serviceName, type: 'service' as const };
-                                })
-                                .filter((s) => s !== null);
-                              setSelectedServices(matchedItems);
-                            } else {
-                              setSelectedServices([]);
-                            }
-
-                            // Refresh vehicles from server response
-                            if (serverEvent.vehicles && Array.isArray(serverEvent.vehicles)) {
-                              setEventVehicles(serverEvent.vehicles.map((v: string, idx: number) => ({ id: `vehicle-${idx}`, model: v })));
-                            } else if (serverEvent.vehicleModel) {
-                              setEventVehicles([{ id: 'vehicle-0', model: serverEvent.vehicleModel }]);
-                            } else {
-                              setEventVehicles([]);
-                            }
-                          } else {
-                            // Fallback to local data if server response is missing
-                            let updatedEventData = { ...selectedEventData, ...updatedData };
-                            
-                            if (updatedData.startDate) {
-                              updatedEventData.start = updatedData.startDate;
-                            }
-                            if (updatedData.endDate) {
-                              updatedEventData.end = updatedData.endDate;
-                            } else if (updatedData.startDate) {
-                              updatedEventData.end = updatedData.startDate;
-                            }
-                            
-                            if (updatedData.time !== undefined) {
-                              updatedEventData.time = updatedData.time;
-                            }
-                            
-                            setSelectedEventData(updatedEventData);
-                          }
-                        } else {
-                          const error = await response.json();
-                          console.error('Failed to update event:', error.error);
-                        }
-                      } catch (error) {
-                        console.error('Error updating event:', error);
-                      }
-                    }}
-                    onCancel={() => {
-                      // onCancel is called after user confirms discard in modal
-                      setIsEditingEvent(false);
-                      setIsEditFormDirty(false);
-                      setEditFormData(null);
-                    }}
-                  />
-                  </div>
-                ) : (
-                  // Show selected event details
-                  <div className="p-6">
-                    <div className="space-y-3">
-                      {/* Customer Information */}
-                      <div className="pt-2">
-                        <h3 className="text-sm font-semibold text-gray-900 mb-4">Customer</h3>
-                    {(selectedEventData.customerName || selectedEventData.customerPhone || selectedEventData.customerAddress) ? (
-                      <div 
-                        ref={eventDetailsCustomerCardRef}
-                        className="bg-gray-50 rounded-xl p-4 border relative" 
-                        style={{ borderColor: '#E2E2DD' }}
-                      >
-                        <div 
-                          className="hover:bg-gray-100 -m-2 p-2 rounded-lg transition-colors"
-                          onMouseEnter={() => {
-                            if (customerPopupTimeoutRef.current) {
-                              clearTimeout(customerPopupTimeoutRef.current);
-                              customerPopupTimeoutRef.current = null;
-                            }
-                            
-                            if (eventDetailsCustomerCardRef.current) {
-                              const rect = eventDetailsCustomerCardRef.current.getBoundingClientRect();
-                              const actionPanelWidth = 400;
-                              const gap = 4;
-                              
-                              setCustomerPopupPosition({
-                                top: rect.top,
-                                right: actionPanelWidth + gap
-                              });
-                            }
-                            setShowCustomerDetailsPopup(true);
-                          }}
-                          onMouseLeave={() => {
-                            customerPopupTimeoutRef.current = setTimeout(() => {
-                              setShowCustomerDetailsPopup(false);
-                            }, 200);
-                          }}
-                        >
-                          <div className="flex items-start justify-between mb-2">
-                            <h4 className="font-semibold text-gray-900 text-base">
-                              {selectedEventData.customerName || 'Unnamed Customer'}
-                            </h4>
-                            {selectedEventData.customerPhone && (
-                              <span className="text-sm text-gray-600 ml-2">
-                                {formatPhoneDisplay(selectedEventData.customerPhone)}
-                              </span>
-                            )}
-                          </div>
-                        
-                          {selectedEventData.customerAddress && (
-                            <p className="text-sm text-gray-600 mb-3">
-                              {selectedEventData.customerAddress}
-                            </p>
-                          )}
-                        
-                          {customerPastJobs && customerPastJobs.length > 0 && (
-                            <div className="mt-3">
-                              <p className="font-semibold text-sm text-gray-900 mb-1">
-                                {customerPastJobs.length} Past {customerPastJobs.length === 1 ? 'job' : 'jobs'}
-                              </p>
-                              {customerPastJobs[0] && customerPastJobs[0].date && (
-                                <p className="text-sm text-gray-600">
-                                  Last detail: {(() => {
-                                    try {
-                                      const date = new Date(customerPastJobs[0].date);
-                                      if (isNaN(date.getTime())) return 'Date unavailable';
-                                      return format(date, 'MMMM d, yyyy');
-                                    } catch (e) {
-                                      return 'Date unavailable';
-                                    }
-                                  })()}
-                                  {customerPastJobs[0].services && customerPastJobs[0].services.length > 0 && (
-                                    <span>, {Array.isArray(customerPastJobs[0].services) ? customerPastJobs[0].services.join(' + ') : customerPastJobs[0].services}</span>
-                                  )}
-                                  {customerPastJobs[0].vehicleModel && (
-                                    <span> on a {customerPastJobs[0].vehicleModel}</span>
-                                  )}
-                                </p>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="text-sm text-gray-500">No customer information available</div>
+                // Inline-editable panel (Notion-style)
+                <div className="px-5 pt-4 pb-8">
+                  {/* Hero: Service Title + Time Range */}
+                  <div className="mb-5">
+                    <h3 className="text-lg font-bold text-gray-900">
+                      {selectedEventData.eventType === 'block' 
+                        ? 'Blocked Time' 
+                        : (Array.isArray(selectedEventData.services) 
+                            ? selectedEventData.services.join(' + ') 
+                            : selectedEventData.services || selectedEventData.title || 'Event')}
+                    </h3>
+                    {selectedEventData.start && selectedEventData.end && !selectedEventData.allDay && (
+                      <p className="text-sm text-gray-500 mt-1">
+                        {format(typeof selectedEventData.start === 'string' ? parseISO(selectedEventData.start) : new Date(selectedEventData.start), 'h:mm a')}
+                        {' - '}
+                        {format(typeof selectedEventData.end === 'string' ? parseISO(selectedEventData.end) : new Date(selectedEventData.end), 'h:mm a')}
+                      </p>
+                    )}
+                    {selectedEventData.allDay && (
+                      <p className="text-sm text-gray-500 mt-1">All Day</p>
                     )}
                   </div>
 
-                  {/* Customer Details Popup - appears outside action panel, adjacent to customer box */}
-                  {showCustomerDetailsPopup && selectedEventData && customerPopupPosition && (
-                    <>
-                      {/* Popup Panel - Positioned to the left of action panel, adjacent to customer box */}
-                      <div 
-                        ref={customerDetailsPopupRef}
-                        className="fixed w-80 bg-white shadow-2xl z-[60] rounded-xl overflow-hidden" 
-                        onMouseEnter={() => {
-                          // Clear any pending timeout when hovering over popup
+                  {/* Property Rows */}
+                  <div className="space-y-0 border rounded-xl overflow-visible" style={{ borderColor: '#E2E2DD' }}>
+                    
+                    {/* Customer Name */}
+                    {selectedEventData.eventType !== 'block' && (
+                      <InlinePropertyRow
+                        icon={<svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>}
+                        label="Customer"
+                        value={selectedEventData.customerName || ''}
+                        placeholder="Add customer name"
+                        onSave={(val) => saveField({ customerName: val })}
+                        type="text"
+                        suffix={customerPastJobs.length > 0 ? (
+                          <span className="ml-2 text-[10px] px-2 py-0.5 rounded-full bg-gray-200 text-gray-600 whitespace-nowrap">
+                            {customerPastJobs.length} past {customerPastJobs.length === 1 ? 'job' : 'jobs'}
+                          </span>
+                        ) : undefined}
+                        onInfoHover={(e) => {
                           if (customerPopupTimeoutRef.current) {
                             clearTimeout(customerPopupTimeoutRef.current);
                             customerPopupTimeoutRef.current = null;
                           }
+                          const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                          setCustomerPopupPosition({ top: rect.top, right: 424 });
+                          setShowCustomerDetailsPopup(true);
                         }}
-                        onMouseLeave={() => {
-                          // Close popup when leaving
-                          setShowCustomerDetailsPopup(false);
+                        onInfoLeave={() => {
+                          customerPopupTimeoutRef.current = setTimeout(() => setShowCustomerDetailsPopup(false), 200);
                         }}
-                        style={{ 
-                          border: '1px solid #E2E2DD', 
-                          backgroundColor: '#F8F8F7', 
-                          maxHeight: '90vh',
-                          right: `${customerPopupPosition.right}px`,
-                          top: `${customerPopupPosition.top}px`,
-                        }}>
-                        <div className="flex flex-col overflow-hidden" style={{ backgroundColor: '#F8F8F7' }}>
-                          {/* Header */}
-                          <div className="flex-shrink-0 p-4 border-b" style={{ borderColor: '#E2E2DD' }}>
-                            <div className="flex justify-between items-center">
-                              <h3 className="text-base font-bold text-gray-900">Customer Details</h3>
-                              <button
-                                onClick={() => setShowCustomerDetailsPopup(false)}
-                                className="p-1 rounded-lg hover:bg-gray-100 transition-colors"
-                              >
-                                <XMarkIcon className="w-4 h-4 text-gray-500" />
-                              </button>
-                            </div>
-                          </div>
-                          
-                          {/* Content */}
-                          <div className="flex-1 overflow-y-auto p-4" style={{ maxHeight: 'calc(90vh - 60px)' }}>
-                            <div className="space-y-4">
-                              {/* Customer Information */}
-                              <div>
-                                <h4 className="text-xs font-semibold text-gray-900 mb-3 uppercase">Contact Information</h4>
-                                <div className="space-y-2.5">
-                                  <div>
-                                    <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Name</label>
-                                    <p className="text-sm text-gray-900 mt-0.5">
-                                      {selectedEventData.customerName || 'Not provided'}
-                                    </p>
-                                  </div>
-                                  <div>
-                                    <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Phone Number</label>
-                                    <p className="text-sm text-gray-900 mt-0.5">
-                                      {selectedEventData.customerPhone ? formatPhoneDisplay(selectedEventData.customerPhone) : 'Not provided'}
-                                    </p>
-                                  </div>
-                                  <div>
-                                    <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Email</label>
-                                    <p className="text-sm text-gray-900 mt-0.5">
-                                      {selectedEventData.customerEmail || 'Not provided'}
-                                    </p>
-                                  </div>
-                                  <div>
-                                    <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Address</label>
-                                    <p className="text-sm text-gray-900 mt-0.5">
-                                      {selectedEventData.customerAddress || 'Not provided'}
-                                    </p>
-                                  </div>
-                                  <div>
-                                    <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Arrival</label>
-                                    <p className="text-sm text-gray-900 mt-0.5 capitalize">
-                                      {selectedEventData.locationType || 'Not provided'}
-                                    </p>
-                                  </div>
-                                </div>
+                      />
+                    )}
+
+                    {/* Phone */}
+                    {selectedEventData.eventType !== 'block' && (
+                      <InlinePropertyRow
+                        icon={<svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>}
+                        label="Phone"
+                        value={selectedEventData.customerPhone || ''}
+                        displayValue={selectedEventData.customerPhone ? formatPhoneDisplay(selectedEventData.customerPhone) : ''}
+                        placeholder="Add phone number"
+                        onSave={(val) => saveField({ customerPhone: val })}
+                        type="text"
+                      />
+                    )}
+
+                    {/* Address */}
+                    {selectedEventData.eventType !== 'block' && (
+                      <InlinePropertyRow
+                        icon={<svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}
+                        label="Address"
+                        value={selectedEventData.customerAddress || ''}
+                        placeholder="Add address"
+                        onSave={(val) => saveField({ customerAddress: val })}
+                        type="address"
+                      />
+                    )}
+
+                    {/* Vehicle */}
+                    {selectedEventData.eventType !== 'block' && (
+                      <InlinePropertyRow
+                        icon={<svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M1 16h22" /></svg>}
+                        label="Vehicle"
+                        value={eventVehicles.map(v => v.model).join(', ')}
+                        placeholder="Add vehicle"
+                        onSave={(val) => saveField({ vehicleModel: val.trim() })}
+                        type="text"
+                      />
+                    )}
+
+                    {/* Date */}
+                    <InlinePropertyRow
+                      icon={<svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>}
+                      label="Date"
+                      value={(() => {
+                        const eventDate = selectedEventData.start || selectedEventData.date;
+                        if (!eventDate) return '';
+                        if (typeof eventDate === 'string') return eventDate.includes('T') ? eventDate.split('T')[0] : eventDate;
+                        const d = new Date(eventDate);
+                        return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+                      })()}
+                      displayValue={(() => {
+                        const eventDate = selectedEventData.start || selectedEventData.date;
+                        if (!eventDate) return '';
+                        try { return format(typeof eventDate === 'string' ? parseISO(eventDate) : new Date(eventDate), 'EEE, MMM d, yyyy'); } catch { return ''; }
+                      })()}
+                      placeholder="Set date"
+                      onSave={(val) => {
+                        // Include existing times so they're preserved during date change
+                        const updates: Record<string, any> = { startDate: val };
+                        if (!selectedEventData.allDay && selectedEventData.start && selectedEventData.end) {
+                          updates.startTime = format(typeof selectedEventData.start === 'string' ? parseISO(selectedEventData.start) : new Date(selectedEventData.start), 'HH:mm');
+                          updates.endTime = format(typeof selectedEventData.end === 'string' ? parseISO(selectedEventData.end) : new Date(selectedEventData.end), 'HH:mm');
+                        }
+                        saveField(updates);
+                      }}
+                      type="date"
+                    />
+
+                    {/* Start Time */}
+                    {!selectedEventData.allDay && (
+                      <InlinePropertyRow
+                        icon={<svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+                        label="Start Time"
+                        value={(() => {
+                          if (selectedEventData.start) {
+                            const d = typeof selectedEventData.start === 'string' ? parseISO(selectedEventData.start) : new Date(selectedEventData.start);
+                            return format(d, 'HH:mm');
+                          }
+                          return selectedEventData.time || '';
+                        })()}
+                        displayValue={(() => {
+                          if (selectedEventData.start) {
+                            const d = typeof selectedEventData.start === 'string' ? parseISO(selectedEventData.start) : new Date(selectedEventData.start);
+                            return format(d, 'h:mm a');
+                          }
+                          return selectedEventData.time || '';
+                        })()}
+                        placeholder="Set start time"
+                        onSave={(val) => {
+                          // Send startDate + startTime + existing endTime together so the API properly adjusts
+                          const eventDate = selectedEventData.start || selectedEventData.date;
+                          let dateStr = '';
+                          if (eventDate) {
+                            if (typeof eventDate === 'string') dateStr = eventDate.includes('T') ? eventDate.split('T')[0] : eventDate;
+                            else { const d = new Date(eventDate); dateStr = `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`; }
+                          }
+                          const endTime = selectedEventData.end ? format(typeof selectedEventData.end === 'string' ? parseISO(selectedEventData.end) : new Date(selectedEventData.end), 'HH:mm') : '';
+                          saveField({ startDate: dateStr, startTime: val, endTime: endTime || val });
+                        }}
+                        type="time"
+                      />
+                    )}
+
+                    {/* End Time */}
+                    {!selectedEventData.allDay && (
+                      <InlinePropertyRow
+                        icon={<svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+                        label="End Time"
+                        value={(() => {
+                          if (selectedEventData.end) {
+                            const d = typeof selectedEventData.end === 'string' ? parseISO(selectedEventData.end) : new Date(selectedEventData.end);
+                            return format(d, 'HH:mm');
+                          }
+                          return '';
+                        })()}
+                        displayValue={(() => {
+                          if (selectedEventData.end) {
+                            const d = typeof selectedEventData.end === 'string' ? parseISO(selectedEventData.end) : new Date(selectedEventData.end);
+                            return format(d, 'h:mm a');
+                          }
+                          return '';
+                        })()}
+                        placeholder="Set end time"
+                        onSave={(val) => {
+                          // Send startDate + startTime + endTime together so the API properly adjusts
+                          const eventDate = selectedEventData.start || selectedEventData.date;
+                          let dateStr = '';
+                          if (eventDate) {
+                            if (typeof eventDate === 'string') dateStr = eventDate.includes('T') ? eventDate.split('T')[0] : eventDate;
+                            else { const d = new Date(eventDate); dateStr = `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`; }
+                          }
+                          const startTime = selectedEventData.start ? format(typeof selectedEventData.start === 'string' ? parseISO(selectedEventData.start) : new Date(selectedEventData.start), 'HH:mm') : '';
+                          saveField({ startDate: dateStr, startTime: startTime || val, endTime: val });
+                        }}
+                        type="time"
+                      />
+                    )}
+
+                    {/* Station / Resource */}
+                    <InlineDropdownRow
+                      icon={<svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>}
+                      label="Station"
+                      value={selectedEventData.resourceId || ''}
+                      displayValue={(() => { const r = resources.find(r => r.id === selectedEventData.resourceId); return r ? r.name : ''; })()}
+                      placeholder="Assign station"
+                      options={resources.map(r => ({ value: r.id, label: r.name, icon: r.type === 'bay' ? '🏗️' : '🚐' }))}
+                      onSave={(val) => saveField({ resourceId: val })}
+                    />
+
+                    {/* Arrival / Location Type */}
+                    {selectedEventData.eventType !== 'block' && (
+                      <InlineDropdownRow
+                        icon={<svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>}
+                        label="Arrival"
+                        value={selectedEventData.locationType || ''}
+                        displayValue={(() => {
+                          const lt = (selectedEventData.locationType || '').toLowerCase();
+                          if (lt === 'pickup' || lt === 'pick up') return 'Pick Up';
+                          if (lt === 'dropoff' || lt === 'drop off') return 'Drop Off';
+                          return selectedEventData.locationType || '';
+                        })()}
+                        placeholder="Set arrival type"
+                        options={[{ value: 'Drop Off', label: 'Drop Off' }, { value: 'Pick Up', label: 'Pick Up' }]}
+                        onSave={(val) => saveField({ locationType: val })}
+                      />
+                    )}
+
+                    {/* Customer Type */}
+                    {selectedEventData.eventType !== 'block' && (
+                      <InlineDropdownRow
+                        icon={<svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}
+                        label="Status"
+                        value={selectedEventData.customerType || ''}
+                        displayValue={(() => {
+                          const customerStatus = getCustomerTypeFromHistory({
+                            completedServiceCount: selectedEventData.completedServiceCount,
+                            lastCompletedServiceAt: selectedEventData.lastCompletedServiceAt,
+                            referenceDate: selectedEventData.start || selectedEventData.date || new Date()
+                          });
+                          const normalizedOverride = selectedEventData.customerType ? String(selectedEventData.customerType).toLowerCase() : '';
+                          const effectiveType = normalizedOverride || customerStatus;
+                          if (effectiveType === 'new') return 'New Customer';
+                          if (effectiveType === 'returning') return 'Repeat Customer';
+                          if (effectiveType === 'maintenance') return 'Maintenance Customer';
+                          return effectiveType || '';
+                        })()}
+                        placeholder="Set customer type"
+                        options={[
+                          { value: 'new', label: 'New Customer' },
+                          { value: 'returning', label: 'Repeat Customer' },
+                          { value: 'maintenance', label: 'Maintenance Customer' },
+                        ]}
+                        onSave={(val) => saveField({ customerType: val })}
+                      />
+                    )}
+
+                    {/* Technician / Employee */}
+                    <InlineDropdownRow
+                      icon={<svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}
+                      label="Technician"
+                      value={selectedEventData.employeeId || ''}
+                      displayValue={(() => { const emp = allEmployees.find(e => e.id === selectedEventData.employeeId); return emp ? emp.name : ''; })()}
+                      placeholder="Assign technician"
+                      options={allEmployees.map(e => ({ value: e.id, label: e.name }))}
+                      onSave={(val) => saveField({ employeeId: val })}
+                      renderOption={(opt) => {
+                        const emp = allEmployees.find(e => e.id === opt.value);
+                        return (
+                          <div className="flex items-center gap-2">
+                            {emp && (
+                              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold ${getEmployeeBadgeClass(emp.color)}`}>
+                                {getEmployeeInitials(emp.name)}
                               </div>
-                              
-                              {/* Past Jobs */}
-                              {customerPastJobs && customerPastJobs.length > 0 && (
-                                <div>
-                                  <h4 className="text-xs font-semibold text-gray-900 mb-3 uppercase">
-                                    Past Jobs ({customerPastJobs.length})
-                                  </h4>
-                                  <div className="space-y-2.5">
-                                    {customerPastJobs.map((job, index) => (
-                                      <div 
-                                        key={job.id || index}
-                                        className="p-3 rounded-lg border" 
-                                        style={{ borderColor: '#E2E2DD', backgroundColor: 'white' }}
-                                      >
-                                        <div className="flex items-start justify-between mb-1.5">
-                                          <p className="text-xs font-semibold text-gray-900">
-                                            {job.date ? (() => {
-                                              try {
-                                                const date = new Date(job.date);
-                                                if (isNaN(date.getTime())) return 'Date unavailable';
-                                                return format(date, 'MMMM d, yyyy');
-                                              } catch (e) {
-                                                return 'Date unavailable';
-                                              }
-                                            })() : 'Date unavailable'}
-                                          </p>
-                                          {job.employeeName && (
-                                            <span className="text-[10px] text-gray-600 bg-gray-200 px-1.5 py-0.5 rounded-full">
-                                              {job.employeeName}
-                                            </span>
-                                          )}
-                                        </div>
-                                        {job.services && job.services.length > 0 && (
-                                          <p className="text-xs text-gray-700 mb-1">
-                                            {Array.isArray(job.services) ? job.services.join(', ') : job.services}
-                                          </p>
-                                        )}
-                                        {job.vehicleModel && (
-                                          <p className="text-[10px] text-gray-600">
-                                            Vehicle: {job.vehicleModel}
-                                          </p>
-                                        )}
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
+                            )}
+                            <span>{opt.label}</span>
                           </div>
+                        );
+                      }}
+                      renderDisplay={() => {
+                        const emp = allEmployees.find(e => e.id === selectedEventData.employeeId);
+                        if (!emp) return null;
+                        return (
+                          <div className="flex items-center gap-2">
+                            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold ${getEmployeeBadgeClass(emp.color)}`}>
+                              {getEmployeeInitials(emp.name)}
+                            </div>
+                            <span className="text-sm text-gray-900">{emp.name}</span>
+                          </div>
+                        );
+                      }}
+                    />
+
+                    {/* Payment Status Toggle */}
+                    {selectedEventData.eventType !== 'block' && (
+                      <div className="flex items-center justify-between px-4 py-3 border-t" style={{ borderColor: '#E2E2DD' }}>
+                        <div className="flex items-center gap-3">
+                          <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                          <span className="text-sm text-gray-500 font-medium">Payment</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-gray-500">{selectedEventData.paid === true ? 'Paid' : 'Unpaid'}</span>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const newPaid = !(selectedEventData.paid === true);
+                              setSelectedEventData((prev: any) => prev ? { ...prev, paid: newPaid } : prev);
+                              setEvents((prev: any[]) => prev.map((e: any) => e.id === selectedEventData.id ? { ...e, paid: newPaid } : e));
+                              try {
+                                await fetch(`/api/detailer/events/${selectedEventData.id}`, {
+                                  method: 'PATCH',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ paid: newPaid }),
+                                });
+                                fetchCalendarEvents();
+                              } catch (err) {
+                                setSelectedEventData((prev: any) => prev ? { ...prev, paid: !newPaid } : prev);
+                                setEvents((prev: any[]) => prev.map((e: any) => e.id === selectedEventData.id ? { ...e, paid: !newPaid } : e));
+                              }
+                            }}
+                            className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${selectedEventData.paid === true ? 'bg-orange-500' : 'bg-gray-300'}`}
+                          >
+                            <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${selectedEventData.paid === true ? 'translate-x-4' : 'translate-x-0'}`} />
+                          </button>
                         </div>
                       </div>
-                    </>
-                  )}
+                    )}
 
-                      {selectedEventData?.eventType !== 'block' && (
-                      <>
-                        {/* Customer Type and Location Type */}
-                        <div>
-                          <h3 className="text-sm font-semibold text-gray-900 mb-4">Customer Information</h3>
-                          <div className="flex flex-wrap items-center gap-2">
-                            {/* Customer Type Tag */}
-                            {selectedEventData && (() => {
-                              const customerStatus = getCustomerTypeFromHistory({
-                                completedServiceCount: selectedEventData.completedServiceCount,
-                                lastCompletedServiceAt: selectedEventData.lastCompletedServiceAt,
-                                referenceDate: selectedEventData.start || selectedEventData.date || new Date()
-                              });
-                              const normalizedOverride = selectedEventData.customerType
-                                ? String(selectedEventData.customerType).toLowerCase()
-                                : '';
-                              const effectiveCustomerType = normalizedOverride || customerStatus;
+                    {/* Services */}
+                    {selectedEventData.eventType !== 'block' && (
+                      <InlineServicesRow
+                        selectedServices={selectedServices}
+                        availableServices={availableServices}
+                        availableBundles={availableBundles}
+                        onSave={(serviceNames) => saveField({ services: serviceNames })}
+                      />
+                    )}
 
-                              return (
-                                <span className={`text-xs font-semibold px-3 py-1.5 rounded-full inline-block ${
-                                  effectiveCustomerType === 'new'
-                                    ? 'bg-gray-200 text-gray-700'
-                                    : effectiveCustomerType === 'returning'
-                                    ? 'bg-purple-200 text-purple-800'
-                                    : effectiveCustomerType === 'maintenance'
-                                    ? 'bg-blue-200 text-blue-800'
-                                    : 'bg-gray-200 text-gray-700'
-                                }`}>
-                                  {effectiveCustomerType === 'new' ? 'New Customer' : 
-                                   effectiveCustomerType === 'returning' ? 'Repeat Customer' :
-                                   effectiveCustomerType === 'maintenance' ? 'Maintenance Customer' :
-                                   effectiveCustomerType}
-                                </span>
-                              );
-                            })()}
-                            
-                            {/* Location Type Tag */}
-                            {selectedEventData.locationType && (
-                              <span className={`text-xs font-semibold px-3 py-1.5 rounded-full inline-block ${
-                                (selectedEventData.locationType?.toLowerCase() === 'pick up' || selectedEventData.locationType?.toLowerCase() === 'pickup')
-                                  ? 'bg-blue-500 text-white'
-                                  : (selectedEventData.locationType?.toLowerCase() === 'drop off' || selectedEventData.locationType?.toLowerCase() === 'dropoff')
-                                  ? 'bg-pink-500 text-white'
-                                  : 'bg-gray-200 text-gray-700'
-                              }`}>
-                                {selectedEventData.locationType?.toLowerCase() === 'pickup' ? 'Pick Up' : 
-                                 selectedEventData.locationType?.toLowerCase() === 'dropoff' ? 'Drop Off' :
-                                 selectedEventData.locationType?.toLowerCase() === 'pick up' ? 'Pick Up' :
-                                 selectedEventData.locationType?.toLowerCase() === 'drop off' ? 'Drop Off' :
-                                 selectedEventData.locationType}
-                              </span>
+                    {/* Customer Notes */}
+                    {selectedEventData.eventType !== 'block' && (
+                      <InlineTextareaRow
+                        icon={<svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>}
+                        label="Cust. Notes"
+                        value={selectedEventData.customerNotes || ''}
+                        placeholder="Add customer notes..."
+                        onSave={(val) => saveField({ customerNotes: val })}
+                      />
+                    )}
+
+                    {/* Event Notes */}
+                    <InlineTextareaRow
+                      icon={<svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>}
+                      label={selectedEventData.eventType === 'block' ? 'Notes' : 'Event Notes'}
+                      value={getCleanDescription(selectedEventData.description) || ''}
+                      placeholder={selectedEventData.eventType === 'block' ? 'Add notes...' : 'Add event notes...'}
+                      onSave={(val) => saveField({ description: val })}
+                    />
+                  </div>
+
+                  {/* Customer Details Popup - floating */}
+                  {showCustomerDetailsPopup && selectedEventData && customerPopupPosition && (
+                    <div 
+                      ref={customerDetailsPopupRef}
+                      className="fixed w-80 bg-white shadow-2xl z-[60] rounded-xl overflow-hidden" 
+                      onMouseEnter={() => {
+                        if (customerPopupTimeoutRef.current) {
+                          clearTimeout(customerPopupTimeoutRef.current);
+                          customerPopupTimeoutRef.current = null;
+                        }
+                      }}
+                      onMouseLeave={() => setShowCustomerDetailsPopup(false)}
+                      style={{ border: '1px solid #E2E2DD', backgroundColor: '#F8F8F7', maxHeight: '90vh', right: `${customerPopupPosition.right}px`, top: `${customerPopupPosition.top}px` }}>
+                      <div className="flex flex-col overflow-hidden" style={{ backgroundColor: '#F8F8F7' }}>
+                        <div className="flex-shrink-0 p-4 border-b" style={{ borderColor: '#E2E2DD' }}>
+                          <div className="flex justify-between items-center">
+                            <h3 className="text-base font-bold text-gray-900">Customer Details</h3>
+                            <button onClick={() => setShowCustomerDetailsPopup(false)} className="p-1 rounded-lg hover:bg-gray-100 transition-colors">
+                              <XMarkIcon className="w-4 h-4 text-gray-500" />
+                            </button>
+                          </div>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-4" style={{ maxHeight: 'calc(90vh - 60px)' }}>
+                          <div className="space-y-4">
+                            <div>
+                              <h4 className="text-xs font-semibold text-gray-900 mb-3 uppercase">Contact Information</h4>
+                              <div className="space-y-2.5">
+                                <div>
+                                  <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Name</label>
+                                  <p className="text-sm text-gray-900 mt-0.5">{selectedEventData.customerName || 'Not provided'}</p>
+                                </div>
+                                <div>
+                                  <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Phone</label>
+                                  <p className="text-sm text-gray-900 mt-0.5">{selectedEventData.customerPhone ? formatPhoneDisplay(selectedEventData.customerPhone) : 'Not provided'}</p>
+                                </div>
+                                <div>
+                                  <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Email</label>
+                                  <p className="text-sm text-gray-900 mt-0.5">{selectedEventData.customerEmail || 'Not provided'}</p>
+                                </div>
+                                <div>
+                                  <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Address</label>
+                                  <p className="text-sm text-gray-900 mt-0.5">{selectedEventData.customerAddress || 'Not provided'}</p>
+                                </div>
+                              </div>
+                            </div>
+                            {customerPastJobs && customerPastJobs.length > 0 && (
+                              <div>
+                                <h4 className="text-xs font-semibold text-gray-900 mb-3 uppercase">Past Jobs ({customerPastJobs.length})</h4>
+                                <div className="space-y-2.5">
+                                  {customerPastJobs.map((job, index) => (
+                                    <div key={job.id || index} className="p-3 rounded-lg border" style={{ borderColor: '#E2E2DD', backgroundColor: 'white' }}>
+                                      <p className="text-xs font-semibold text-gray-900">
+                                        {job.date ? (() => { try { const d = new Date(job.date); return isNaN(d.getTime()) ? 'Date unavailable' : format(d, 'MMMM d, yyyy'); } catch { return 'Date unavailable'; } })() : 'Date unavailable'}
+                                      </p>
+                                      {job.services && job.services.length > 0 && (
+                                        <div className="flex flex-wrap gap-1 mt-1">
+                                          {(Array.isArray(job.services) ? job.services : [job.services]).map((service, si) => (
+                                            <span key={si} className="text-[10px] px-2 py-0.5 rounded-full bg-gray-200 text-gray-700">{service}</span>
+                                          ))}
+                                        </div>
+                                      )}
+                                      {job.vehicleModel && <p className="text-[10px] text-gray-500 mt-1.5">Vehicle: {job.vehicleModel}</p>}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
                             )}
                           </div>
                         </div>
-
-                        {/* Vehicle Information (Car Model) */}
-                        <div>
-                          <h3 className="text-sm font-semibold text-gray-900 mb-4">Car model</h3>
-                          {eventVehicles.length > 0 ? (
-                            <div className="flex flex-wrap items-center gap-2">
-                              {eventVehicles.map((vehicle) => (
-                                <div
-                                  key={vehicle.id}
-                                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-800 text-white text-sm font-medium"
-                                >
-                                  <span>{vehicle.model}</span>
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <div className="text-sm text-gray-500">No car model provided</div>
-                          )}
-                        </div>
-
-                        {/* Services (Job Details) */}
-                        <div>
-                          <h3 className="text-sm font-semibold text-gray-900 mb-4">Job Details</h3>
-                          {selectedServices.length > 0 ? (
-                            <div className="flex flex-wrap items-center gap-2">
-                              {selectedServices.map((item) => (
-                                <div
-                                  key={`${item.type}-${item.id}`}
-                                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-800 text-white text-sm font-medium"
-                                >
-                                  <span>{item.name}</span>
-                                  {item.type === 'bundle' && (
-                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-500 text-white">Bundle</span>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <div className="text-sm text-gray-500">No services selected</div>
-                          )}
-                        </div>
-                      </>
-                      )}
-
-                      {/* Date and Time (Scheduling) */}
-                      <div>
-                        <h3 className="text-sm font-semibold text-gray-900 mb-4">Scheduling</h3>
-                    {(selectedEventData.date || selectedEventData.start) && (() => {
-                      // Helper function to format a date string to "Day, Month Day, Year"
-                      const formatDateDisplay = (dateStr: string): string => {
-                        const [year, month, day] = dateStr.split('-').map(Number);
-                        const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-                        const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-                        const utcDate = new Date(Date.UTC(year, month - 1, day));
-                        const dayOfWeek = dayNames[utcDate.getUTCDay()];
-                        const monthName = monthNames[month - 1];
-                        return `${dayOfWeek}, ${monthName} ${day}, ${year}`;
-                      };
-                      
-                      // Extract start date
-                      let startDateStr = '';
-                      if (selectedEventData.start) {
-                        const eventStart = selectedEventData.start;
-                        if (typeof eventStart === 'string') {
-                          startDateStr = eventStart.includes('T') ? eventStart.split('T')[0] : eventStart;
-                        } else {
-                          const date = new Date(eventStart);
-                          startDateStr = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
-                        }
-                      } else if (selectedEventData.date) {
-                        if (typeof selectedEventData.date === 'string' && selectedEventData.date.match(/^\d{4}-\d{2}-\d{2}$/)) {
-                          startDateStr = selectedEventData.date;
-                        } else {
-                          const date = new Date(selectedEventData.date);
-                          startDateStr = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
-                        }
-                      }
-                      
-                      // Extract end date (for multi-day events)
-                      let endDateStr = '';
-                      if (selectedEventData.end) {
-                        const eventEnd = selectedEventData.end;
-                        if (typeof eventEnd === 'string') {
-                          endDateStr = eventEnd.includes('T') ? eventEnd.split('T')[0] : eventEnd;
-                        } else {
-                          const date = new Date(eventEnd);
-                          endDateStr = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
-                        }
-                      }
-                      
-                      if (!startDateStr) return null;
-                      
-                      // Check if it's a multi-day event
-                      const isMultiDay = endDateStr && startDateStr !== endDateStr;
-                      
-                      // Format the date(s)
-                      const formattedStartDate = formatDateDisplay(startDateStr);
-                      const formattedEndDate = isMultiDay ? formatDateDisplay(endDateStr) : '';
-                      
-                      // Format time if available (for non-all-day events)
-                      let timeDisplay = '';
-                      if (!selectedEventData.allDay && selectedEventData.start && selectedEventData.end) {
-                        const startDate = typeof selectedEventData.start === 'string' 
-                          ? parseISO(selectedEventData.start) 
-                          : new Date(selectedEventData.start);
-                        const endDate = typeof selectedEventData.end === 'string' 
-                          ? parseISO(selectedEventData.end) 
-                          : new Date(selectedEventData.end);
-                        timeDisplay = ` @ ${format(startDate, 'h:mm a')} - ${format(endDate, 'h:mm a')}`;
-                      }
-                      
-                      // Combine date(s) and time
-                      const dateDisplay = isMultiDay 
-                        ? `${formattedStartDate} - ${formattedEndDate}`
-                        : formattedStartDate;
-                      
-                      return (
-                        <p className="text-sm text-gray-900">
-                          {dateDisplay}{timeDisplay}
-                        </p>
-                      );
-                    })()}
-                  </div>
-
-                      {/* Technician/Employee */}
-                      <div>
-                        <h3 className="text-sm font-semibold text-gray-900 mb-4">Technician</h3>
-                    {(() => {
-                      const assignedEmployee = selectedEventData.employeeId
-                        ? allEmployees.find(e => e.id === selectedEventData.employeeId)
-                        : null;
-                      return assignedEmployee ? (
-                        <div className="bg-white rounded-xl p-4 border flex items-center gap-3" style={{ borderColor: '#E2E2DD' }}>
-                          <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${getEmployeeBadgeClass(assignedEmployee.color)}`}>
-                            {getEmployeeInitials(assignedEmployee.name)}
-                          </div>
-                          <span className="text-sm font-medium text-gray-900">
-                            {assignedEmployee.name}
-                          </span>
-                        </div>
-                      ) : (
-                        <div className="text-sm text-gray-500">No technician assigned</div>
-                      );
-                    })()}
-                  </div>
+                      </div>
                     </div>
-                  </div>
-                )
+                  )}
+                </div>
+
               ) : (viewMode === 'month' && selectedDay) ? (
                 selectedDayEvents.length === 0 ? (
                   <div className="p-6 text-center text-gray-500 mt-8">
@@ -10205,140 +10727,19 @@ export default function CalendarPage() {
                 </div>
               )}
             
-            {/* Payment Status + Notes sections - keep inside scrollable content */}
-            {selectedEventData && !isEditingEvent && (
-              <div className="p-6 pt-0 space-y-4">
-                {/* Payment Status Toggle */}
-                {selectedEventData.eventType !== 'block' && (
-                  <div>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="text-sm font-semibold text-gray-900">Payment Status</h3>
-                        <p className="text-xs text-gray-500 mt-0.5">{selectedEventData.paid === true ? 'Marked as paid' : 'Marked as unpaid'}</p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          const newPaid = !(selectedEventData.paid === true);
-                          // Optimistic update
-                          setSelectedEventData({ ...selectedEventData, paid: newPaid });
-                          // Also update events list optimistically
-                          setEvents((prev: any[]) => prev.map((e: any) => e.id === selectedEventData.id ? { ...e, paid: newPaid } : e));
-                          try {
-                            await fetch(`/api/detailer/events/${selectedEventData.id}`, {
-                              method: 'PATCH',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ paid: newPaid }),
-                            });
-                            fetchCalendarEvents();
-                          } catch (err) {
-                            // Revert on error
-                            setSelectedEventData({ ...selectedEventData, paid: !newPaid });
-                            setEvents((prev: any[]) => prev.map((e: any) => e.id === selectedEventData.id ? { ...e, paid: !newPaid } : e));
-                          }
-                        }}
-                        className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 ${selectedEventData.paid === true ? 'bg-orange-500' : 'bg-gray-300'}`}
-                      >
-                        <span
-                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${selectedEventData.paid === true ? 'translate-x-5' : 'translate-x-0'}`}
-                        />
-                      </button>
-                    </div>
-                  </div>
-                )}
-                {/* Customer Notes - persistent across jobs */}
-                {selectedEventData.eventType !== 'block' && (
-                  <div>
-                    <h3 className="text-sm font-semibold text-gray-900 mb-2">Customer Notes</h3>
-                    <div className="text-sm text-gray-700 bg-gray-50 rounded-lg p-3">
-                      {selectedEventData.customerNotes || <span className="text-gray-400 italic">No customer notes</span>}
-                    </div>
-                  </div>
-                )}
-                {/* Event Notes - specific to this event */}
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-900 mb-2">
-                    {selectedEventData.eventType === 'block' ? 'Notes' : 'Event Notes'}
-                  </h3>
-                  <div className="text-sm text-gray-700 bg-gray-50 rounded-lg p-3">
-                    {getCleanDescription(selectedEventData.description) || <span className="text-gray-400 italic">{selectedEventData.eventType === 'block' ? 'No notes added' : 'No event notes'}</span>}
-                  </div>
-                </div>
-              </div>
-            )}
             </div>
             
-            {/* Footer - Action Buttons (only show when viewing event details, not editing) */}
-            {selectedEventData && !isEditingEvent && (
-              <div className="flex-shrink-0 p-6" style={{ backgroundColor: '#F8F8F7' }}>
+            {/* Footer - Delete button (only when viewing event details) */}
+            {selectedEventData && (
+              <div className="flex-shrink-0 px-5 pb-4" style={{ backgroundColor: '#F8F8F7' }}>
                 <div className="flex gap-3 w-full">
                   <button
                     onClick={() => handleDeleteEvent(selectedEventData)}
-                    className="flex-1 px-4 py-2 bg-[#FFDDDD] hover:bg-[#FFC1C1] text-[#DE0000] rounded-xl font-medium transition-colors"
+                    className="flex-1 px-4 py-2 bg-[#FFDDDD] hover:bg-[#FFC1C1] text-[#DE0000] rounded-xl font-medium transition-colors text-sm"
                   >
                     Delete Event
                   </button>
-                  <button
-                    onClick={() => {
-                      setIsEditingEvent(true);
-                      // Initialize form data from selected event
-                      const eventDate = selectedEventData.date || selectedEventData.start;
-                      let dateStr = '';
-                      if (eventDate) {
-                        // Extract date part directly from ISO string to avoid timezone issues
-                        if (typeof eventDate === 'string') {
-                          if (eventDate.includes('T')) {
-                            dateStr = eventDate.split('T')[0];
-                          } else if (eventDate.match(/^\d{4}-\d{2}-\d{2}/)) {
-                            dateStr = eventDate;
-                          }
-                        }
-                        if (!dateStr) {
-                          // Fallback to formatting the date object using UTC
-                          const date = new Date(eventDate);
-                          const year = date.getUTCFullYear();
-                          const month = String(date.getUTCMonth() + 1).padStart(2, '0');
-                          const day = String(date.getUTCDate()).padStart(2, '0');
-                          dateStr = `${year}-${month}-${day}`;
-                        }
-                      }
-                      let startTimeStr = '';
-                      let endTimeStr = '';
-                      
-                      if (selectedEventData.start && selectedEventData.end && !selectedEventData.allDay) {
-                        startTimeStr = format(new Date(selectedEventData.start), 'HH:mm');
-                        endTimeStr = format(new Date(selectedEventData.end), 'HH:mm');
-                      } else if (selectedEventData.time) {
-                        startTimeStr = selectedEventData.time;
-                      }
-                      
-                      setEditFormData({
-                        title: selectedEventData.title || selectedEventData.eventName || '',
-                        color: selectedEventData.color || 'blue',
-                        eventType: selectedEventData.eventType || 'appointment',
-                        startDate: dateStr,
-                        startTime: startTimeStr,
-                        endTime: endTimeStr,
-                        isAllDay: selectedEventData.allDay || false,
-                        isMultiDay: false,
-                        description: selectedEventData.description || '',
-                        resourceId: selectedEventData.resourceId || '',
-                        customerName: selectedEventData.customerName || '',
-                        customerPhone: selectedEventData.customerPhone || '',
-                        customerAddress: selectedEventData.customerAddress || '',
-                        vehicleModel: selectedEventData.vehicleType || selectedEventData.vehicleModel || '',
-                        services: Array.isArray(selectedEventData.services) 
-                          ? selectedEventData.services.join(', ') 
-                          : (selectedEventData.services || ''),
-                      });
-                    }}
-                    className="flex-1 px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-xl font-medium transition-colors"
-                  >
-                    Edit Event
-                  </button>
                 </div>
-
-                {/* Back button */}
                 <div className="text-center pt-2">
                   <button
                     onClick={() => {
@@ -10354,40 +10755,6 @@ export default function CalendarPage() {
             )}
           </div>
 
-          {/* Fixed Action Buttons - Only show when editing event */}
-          {isEditingEvent && selectedEventData && (
-            <div className="flex-shrink-0 p-6 border-t border-gray-200" style={{ backgroundColor: '#F8F8F7', position: 'sticky', bottom: 0, zIndex: 10 }}>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => {
-                    if (eventEditFormRef.current) {
-                      eventEditFormRef.current.handleCancel();
-                    }
-                  }}
-                  className="flex-1 px-6 py-2 border rounded-xl text-gray-700 hover:bg-gray-50 transition-colors"
-                  style={{ borderColor: '#E2E2DD' }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    if (eventEditFormRef.current) {
-                      eventEditFormRef.current.handleSubmit();
-                    } else {
-                      console.error('EventEditForm ref is not set');
-                    }
-                  }}
-                  className="flex-1 px-6 py-2 bg-orange-500 text-white rounded-xl hover:bg-orange-600 transition-colors flex items-center justify-center gap-2"
-                >
-                  <CheckIcon className="w-5 h-5" />
-                  <span>Save</span>
-                </button>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Column Sidebar - Only show when action panel is closed */}

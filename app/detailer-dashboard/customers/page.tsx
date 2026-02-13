@@ -170,6 +170,7 @@ export default function CustomersPage() {
     notes?: string;
   }>>([]);
   const actionSidebarRef = useRef<HTMLDivElement>(null);
+  const [expandedJobs, setExpandedJobs] = useState<Set<number>>(new Set());
   const [customerUpcomingJobs, setCustomerUpcomingJobs] = useState<Map<string, { 
     vehicleModel?: string;
     services: string[];
@@ -182,6 +183,16 @@ export default function CustomersPage() {
   const [filterLastSeen, setFilterLastSeen] = useState('all');
   const [filterServices, setFilterServices] = useState<string[]>([]);
   const [filterStation, setFilterStation] = useState('all');
+
+  // Notion-style secondary sidebar & filters
+  const [contactView, setContactView] = useState<'customers' | 'prospects'>('customers');
+  const [secondarySidebarOpen, setSecondarySidebarOpen] = useState(true);
+  const [contactsFilterValue, setContactsFilterValue] = useState('all');
+  const [contactsSortValue, setContactsSortValue] = useState('lastVisit');
+  const [showContactsFilter, setShowContactsFilter] = useState(false);
+  const [showContactsSort, setShowContactsSort] = useState(false);
+  const contactsFilterRef = useRef<HTMLDivElement>(null);
+  const contactsSortRef = useRef<HTMLDivElement>(null);
 
   const getEffectiveCustomerType = (customer: Customer) => {
     if (customer.customerType?.toLowerCase() === 'maintenance') {
@@ -626,6 +637,106 @@ export default function CustomersPage() {
     });
   }, [filteredCustomers, sortConfig]);
 
+  // Close filter/sort dropdowns on outside click
+  React.useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (contactsFilterRef.current && !contactsFilterRef.current.contains(e.target as Node)) {
+        setShowContactsFilter(false);
+      }
+      if (contactsSortRef.current && !contactsSortRef.current.contains(e.target as Node)) {
+        setShowContactsSort(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Reset filter/sort defaults when switching views
+  React.useEffect(() => {
+    setContactsFilterValue('all');
+    setContactsSortValue(contactView === 'customers' ? 'lastVisit' : 'newest');
+  }, [contactView]);
+
+  // ─── Notion-style computed helpers ──────────────────────────────────
+  const getDaysSinceVisit = (customer: Customer): number | null => {
+    if (!customer.lastCompletedServiceAt) return null;
+    const last = new Date(customer.lastCompletedServiceAt);
+    if (isNaN(last.getTime())) return null;
+    return Math.floor((Date.now() - last.getTime()) / (1000 * 60 * 60 * 24));
+  };
+
+  const getReengageStatus = (customer: Customer): { label: string; color: string } => {
+    const upcoming = customerUpcomingJobs.get(customer.id);
+    if (upcoming) return { label: 'Just Booked', color: 'text-emerald-600 bg-emerald-50' };
+    const days = getDaysSinceVisit(customer);
+    if (days === null) return { label: 'New', color: 'text-blue-600 bg-blue-50' };
+    if (days > 45) return { label: 'Overdue', color: 'text-red-600 bg-red-50' };
+    if (days > 25) return { label: 'Due Soon', color: 'text-amber-600 bg-amber-50' };
+    return { label: 'Active', color: 'text-emerald-600 bg-emerald-50' };
+  };
+
+  const getCustomerStatus = (customer: Customer): { label: string; color: string } => {
+    const upcoming = customerUpcomingJobs.get(customer.id);
+    if (upcoming) {
+      try {
+        const d = new Date(upcoming.date);
+        const dateStr = format(d, 'MMM d, yyyy');
+        return { label: `Scheduled: ${dateStr}`, color: 'bg-[#E3F2FD] text-[#1565C0]' };
+      } catch {
+        return { label: 'Scheduled', color: 'bg-[#E3F2FD] text-[#1565C0]' };
+      }
+    }
+    const count = customer.completedServiceCount || 0;
+    if (count >= 2) return { label: `Repeat: ${count} past jobs`, color: 'bg-[#F3E5F5] text-[#7B1FA2]' };
+    return { label: 'Lead', color: 'bg-[#E8F5E9] text-[#2E7D32]' };
+  };
+
+  // Split customers into customers (have visits) and prospects (new/no visits)
+  const actualCustomers = React.useMemo(() => {
+    return filteredCustomers.filter(c => (c.completedServiceCount || 0) >= 1 || customerUpcomingJobs.has(c.id));
+  }, [filteredCustomers, customerUpcomingJobs]);
+
+  const prospectCustomers = React.useMemo(() => {
+    return filteredCustomers.filter(c => (c.completedServiceCount || 0) === 0 && !customerUpcomingJobs.has(c.id));
+  }, [filteredCustomers, customerUpcomingJobs]);
+
+  // Apply Notion-style filtering and sorting for customers view
+  const notionFilteredCustomers = React.useMemo(() => {
+    const base = contactView === 'customers' ? actualCustomers : prospectCustomers;
+    let filtered = base;
+    if (contactView === 'customers') {
+      if (contactsFilterValue === 'frequent') filtered = filtered.filter(c => (c.completedServiceCount || 0) >= 5);
+      else if (contactsFilterValue === 'regular') filtered = filtered.filter(c => { const ct = c.completedServiceCount || 0; return ct >= 2 && ct <= 4; });
+      else if (contactsFilterValue === 'new') filtered = filtered.filter(c => (c.completedServiceCount || 0) === 1);
+    }
+    // Sort
+    return [...filtered].sort((a, b) => {
+      if (contactView === 'customers') {
+        if (contactsSortValue === 'lastVisit') {
+          const aTime = a.lastCompletedServiceAt ? new Date(a.lastCompletedServiceAt).getTime() : 0;
+          const bTime = b.lastCompletedServiceAt ? new Date(b.lastCompletedServiceAt).getTime() : 0;
+          return bTime - aTime;
+        }
+        if (contactsSortValue === 'mostVisits') return (b.completedServiceCount || 0) - (a.completedServiceCount || 0);
+        if (contactsSortValue === 'name') return (a.customerName || '').localeCompare(b.customerName || '');
+        if (contactsSortValue === 'totalSpend') return (b.completedServiceCount || 0) - (a.completedServiceCount || 0); // Proxy since no real spend data
+      } else {
+        if (contactsSortValue === 'newest') {
+          const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return bTime - aTime;
+        }
+        if (contactsSortValue === 'oldest') {
+          const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return aTime - bTime;
+        }
+        if (contactsSortValue === 'name') return (a.customerName || '').localeCompare(b.customerName || '');
+      }
+      return 0;
+    });
+  }, [contactView, actualCustomers, prospectCustomers, contactsFilterValue, contactsSortValue, customerUpcomingJobs]);
+
   const handleBulkDelete = async () => {
     if (selectedCustomers.size === 0) return;
     
@@ -916,363 +1027,264 @@ export default function CustomersPage() {
   };
 
   return (
-    <div className="h-full min-h-screen bg-white overflow-y-auto">
-      <div className={`w-full ${isActionSidebarOpen ? 'pr-0 md:pr-[400px] lg:pr-[420px]' : 'pr-0 md:pr-16'}`}>
-        {/* Header Section */}
-        <div className="px-4 md:px-6 pt-4 md:pt-6 pb-4 md:border-b border-gray-200">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl md:text-3xl font-bold text-gray-900 pl-10 md:pl-0">
-              Customers
-            </h1>
-            </div>
-            <div className="flex items-center gap-2 md:gap-3">
-              <button
-                onClick={() => setIsImportModalOpen(true)}
-                className="bg-black text-white w-10 h-10 md:w-auto md:h-auto md:px-4 md:py-2 rounded-full text-sm md:text-base font-semibold hover:bg-gray-800 transition flex items-center justify-center gap-2"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                </svg>
-                <span className="hidden md:inline">Import Customers</span>
-              </button>
-              <button
-                onClick={() => handleOpenModal()}
-                className="hidden md:flex bg-black text-white px-4 py-2 rounded-full font-semibold hover:bg-gray-800 transition items-center justify-center gap-2"
-              >
-                <FaPlus className="w-4 h-4" />
-                <span>Add Customer</span>
+    <div className="h-full flex bg-white overflow-hidden">
+      {/* ═══ Secondary Sidebar (Desktop) ═══ */}
+      {secondarySidebarOpen && (
+        <div className="hidden md:flex flex-col w-[200px] border-r border-[#F0F0EE] bg-white shrink-0">
+          <div className="px-5 h-[52px] border-b border-[#F0F0EE] flex items-center">
+            <h2 className="text-sm font-semibold text-[#2B2B26]">Contacts</h2>
+          </div>
+          <div className="py-3 px-3 space-y-0.5">
+            <button
+              onClick={() => setContactView('customers')}
+              className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-[13px] transition-colors ${
+                contactView === 'customers'
+                  ? 'bg-[#f0f0ee] text-[#2B2B26] font-medium'
+                  : 'text-[#6b6a5e] hover:bg-[#f8f8f7] hover:text-[#2B2B26]'
+              }`}
+            >
+              <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" /></svg>
+              <span>Customers</span>
+              <span className="ml-auto text-[10px] text-[#9e9d92]">{actualCustomers.length}</span>
+            </button>
+            <button
+              onClick={() => setContactView('prospects')}
+              className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-[13px] transition-colors ${
+                contactView === 'prospects'
+                  ? 'bg-[#f0f0ee] text-[#2B2B26] font-medium'
+                  : 'text-[#6b6a5e] hover:bg-[#f8f8f7] hover:text-[#2B2B26]'
+              }`}
+            >
+              <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" /></svg>
+              <span>Prospects</span>
+              <span className="ml-auto text-[10px] text-[#9e9d92]">{prospectCustomers.length}</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ Main Content ═══ */}
+      <div className={`flex-1 flex flex-col overflow-hidden ${isActionSidebarOpen ? 'md:pr-[400px] lg:pr-[420px]' : ''}`}>
+        {/* ── Mobile Header ── */}
+        <div className="md:hidden px-4 pt-4 pb-3 border-b border-gray-200">
+          <div className="flex items-center justify-between mb-3">
+            <h1 className="text-xl font-bold text-[#2B2B26] pl-10">{contactView === 'customers' ? 'Customers' : 'Prospects'}</h1>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setIsImportModalOpen(true)} className="w-9 h-9 bg-[#2B2B26] text-white rounded-full flex items-center justify-center">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
               </button>
             </div>
           </div>
-          
-          {/* Search Bar */}
-          <div className="flex items-center gap-3 mt-4">
-            <div className="relative flex-1 md:flex-none" style={{ maxWidth: '500px' }}>
+          {/* Mobile view toggle */}
+          <div className="flex items-center gap-2 mb-3">
+            <button onClick={() => setContactView('customers')} className={`px-3 py-1.5 rounded-full text-xs font-medium transition ${contactView === 'customers' ? 'bg-[#2B2B26] text-white' : 'bg-[#f0f0ee] text-[#6b6a5e]'}`}>Customers</button>
+            <button onClick={() => setContactView('prospects')} className={`px-3 py-1.5 rounded-full text-xs font-medium transition ${contactView === 'prospects' ? 'bg-[#2B2B26] text-white' : 'bg-[#f0f0ee] text-[#6b6a5e]'}`}>Prospects</button>
+          </div>
+          {/* Mobile search */}
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <svg className="h-5 w-5 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
+                <svg className="h-4 w-4 text-[#9e9d92]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
               </div>
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search customers"
-                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-full focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-              />
+              <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search..." className="w-full pl-9 pr-3 py-2 text-sm border border-[#deded9] rounded-lg focus:outline-none focus:border-[#9e9d92]" />
             </div>
-            {/* Filter Button */}
-            <button
-              onClick={() => setIsFilterModalOpen(true)}
-              className="w-10 h-10 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-50 transition flex-shrink-0"
-              aria-label="Filter"
-            >
-              <svg className="w-5 h-5 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 7h18M5 12h12M7 17h8" />
-              </svg>
+            <button onClick={() => setIsFilterModalOpen(true)} className="w-9 h-9 rounded-lg border border-[#deded9] flex items-center justify-center hover:bg-[#f8f8f7]">
+              <svg className="w-4 h-4 text-[#6b6a5e]" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 7h18M5 12h12M7 17h8" /></svg>
             </button>
           </div>
         </div>
 
-        {/* Bulk Actions Toolbar */}
-        {selectedCustomers.size > 0 && (
-          <div className="px-4 md:px-6 py-3 bg-gray-100 border-b border-gray-200 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="text-sm font-medium text-gray-900 truncate">
-                {selectedCustomers.size} customer{selectedCustomers.size !== 1 ? 's' : ''} selected
-              </span>
+        {/* ── Desktop Header Row ── */}
+        <div className="hidden md:flex h-[52px] px-4 bg-white border-b border-[#F0F0EE] items-center gap-3">
+          <button
+            onClick={() => setSecondarySidebarOpen(!secondarySidebarOpen)}
+            className="p-1.5 text-[#57564d] hover:text-[#2B2B26] hover:bg-[#f8f8f7] rounded-md transition-colors"
+            title={secondarySidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+          >
+            {secondarySidebarOpen ? (
+              <svg className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" strokeWidth={1.75} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25H12" /></svg>
+            ) : (
+              <svg className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" strokeWidth={1.75} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg>
+            )}
+          </button>
+          <h1 className="text-sm font-semibold text-[#2B2B26]">{contactView === 'customers' ? 'Customers' : 'Prospects'}</h1>
+          <div className="flex-1" />
+          {/* Search in toolbar */}
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
+              <svg className="h-3.5 w-3.5 text-[#9e9d92]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
             </div>
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <button
-                onClick={handleBulkDelete}
-                className="px-2 md:px-3 py-1.5 text-xs md:text-sm font-medium bg-red-500 text-white hover:bg-red-600 rounded-xl transition"
-              >
-                <span className="hidden sm:inline">Delete Selected</span>
-                <span className="sm:hidden">Delete</span>
-              </button>
-              <button
-                onClick={handleExportSelected}
-                className="px-2 md:px-3 py-1.5 text-xs md:text-sm font-medium bg-gray-600 text-white hover:bg-gray-700 rounded-xl transition hidden sm:block"
-              >
-                Export Selected
-              </button>
-              <button
-                onClick={() => {
-                  if (isMultiSelectMode) {
-                    exitMultiSelectMode();
-                  } else {
-                    setSelectedCustomers(new Set());
-                  }
-                }}
-                className="px-2 md:px-3 py-1.5 text-xs md:text-sm font-medium bg-gray-600 text-white hover:bg-gray-700 rounded-xl transition"
-              >
-                <span className="hidden sm:inline">{isMultiSelectMode ? 'Done' : 'Clear Selection'}</span>
-                <span className="sm:hidden">{isMultiSelectMode ? 'Done' : 'Clear'}</span>
-              </button>
+            <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search..." className="pl-8 pr-3 py-1.5 text-[12px] border border-[#deded9] rounded-md focus:outline-none focus:border-[#9e9d92] w-[180px] bg-white text-[#2B2B26] placeholder:text-[#9e9d92]" />
+          </div>
+          <button onClick={() => setIsImportModalOpen(true)} className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium text-[#6b6a5e] hover:text-[#2B2B26] hover:bg-[#f8f8f7] rounded-md transition-colors">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+            <span>Import</span>
+          </button>
+          <button onClick={() => handleOpenModal()} className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium text-white bg-[#F97316] hover:bg-[#EA580C] rounded-md transition-colors">
+            <FaPlus className="w-3 h-3" />
+            <span>Add Customer</span>
+          </button>
+        </div>
+
+        {/* ── Desktop Filter/Sort Row ── */}
+        <div className="hidden md:flex h-10 px-4 bg-white border-b border-[#F0F0EE] items-center gap-2">
+          <div className="relative" ref={contactsFilterRef}>
+            <button
+              onClick={() => { setShowContactsFilter(!showContactsFilter); setShowContactsSort(false); }}
+              className={`flex items-center gap-1.5 px-2 py-1 text-[13px] rounded-md transition-colors ${
+                showContactsFilter || contactsFilterValue !== 'all'
+                  ? 'text-[#2B2B26] bg-[#f0f0ee]'
+                  : 'text-[#6b6a5e] hover:bg-[#f8f8f7] hover:text-[#2B2B26]'
+              }`}
+            >
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 01-.659 1.591l-5.432 5.432a2.25 2.25 0 00-.659 1.591v2.927a2.25 2.25 0 01-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 00-.659-1.591L3.659 7.409A2.25 2.25 0 013 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0112 3z" /></svg>
+              <span>Filter</span>
+              {contactsFilterValue !== 'all' && <span className="ml-0.5 px-1.5 py-0.5 bg-[#2B2B26] text-white text-[10px] rounded-full">1</span>}
+            </button>
+            {showContactsFilter && (
+              <div className="absolute top-full left-0 mt-1 bg-white border border-[#F0F0EE] rounded-lg shadow-lg py-1 z-50 min-w-[160px]">
+                {contactView === 'customers' ? (
+                  <>
+                    <button onClick={() => { setContactsFilterValue('all'); setShowContactsFilter(false); }} className={`w-full px-3 py-2 text-left text-[12px] hover:bg-[#f8f8f7] ${contactsFilterValue === 'all' ? 'bg-[#f8f8f7] font-medium' : ''}`}>All Customers</button>
+                    <button onClick={() => { setContactsFilterValue('frequent'); setShowContactsFilter(false); }} className={`w-full px-3 py-2 text-left text-[12px] hover:bg-[#f8f8f7] ${contactsFilterValue === 'frequent' ? 'bg-[#f8f8f7] font-medium' : ''}`}>Frequent (5+ visits)</button>
+                    <button onClick={() => { setContactsFilterValue('regular'); setShowContactsFilter(false); }} className={`w-full px-3 py-2 text-left text-[12px] hover:bg-[#f8f8f7] ${contactsFilterValue === 'regular' ? 'bg-[#f8f8f7] font-medium' : ''}`}>Regular (2-4 visits)</button>
+                    <button onClick={() => { setContactsFilterValue('new'); setShowContactsFilter(false); }} className={`w-full px-3 py-2 text-left text-[12px] hover:bg-[#f8f8f7] ${contactsFilterValue === 'new' ? 'bg-[#f8f8f7] font-medium' : ''}`}>New (1 visit)</button>
+                  </>
+                ) : (
+                  <>
+                    <button onClick={() => { setContactsFilterValue('all'); setShowContactsFilter(false); }} className={`w-full px-3 py-2 text-left text-[12px] hover:bg-[#f8f8f7] ${contactsFilterValue === 'all' ? 'bg-[#f8f8f7] font-medium' : ''}`}>All Prospects</button>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+          <div className="relative" ref={contactsSortRef}>
+            <button
+              onClick={() => { setShowContactsSort(!showContactsSort); setShowContactsFilter(false); }}
+              className={`flex items-center gap-1.5 px-2 py-1 text-[13px] rounded-md transition-colors ${
+                showContactsSort
+                  ? 'text-[#2B2B26] bg-[#f0f0ee]'
+                  : 'text-[#6b6a5e] hover:bg-[#f8f8f7] hover:text-[#2B2B26]'
+              }`}
+            >
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M3 7.5L7.5 3m0 0L12 7.5M7.5 3v13.5m13.5 0L16.5 21m0 0L12 16.5m4.5 4.5V7.5" /></svg>
+              <span>Sort</span>
+            </button>
+            {showContactsSort && (
+              <div className="absolute top-full left-0 mt-1 bg-white border border-[#F0F0EE] rounded-lg shadow-lg py-1 z-50 min-w-[160px]">
+                {contactView === 'customers' ? (
+                  <>
+                    <button onClick={() => { setContactsSortValue('lastVisit'); setShowContactsSort(false); }} className={`w-full px-3 py-2 text-left text-[12px] hover:bg-[#f8f8f7] ${contactsSortValue === 'lastVisit' ? 'bg-[#f8f8f7] font-medium' : ''}`}>Last Visit</button>
+                    <button onClick={() => { setContactsSortValue('mostVisits'); setShowContactsSort(false); }} className={`w-full px-3 py-2 text-left text-[12px] hover:bg-[#f8f8f7] ${contactsSortValue === 'mostVisits' ? 'bg-[#f8f8f7] font-medium' : ''}`}>Most Visits</button>
+                    <button onClick={() => { setContactsSortValue('name'); setShowContactsSort(false); }} className={`w-full px-3 py-2 text-left text-[12px] hover:bg-[#f8f8f7] ${contactsSortValue === 'name' ? 'bg-[#f8f8f7] font-medium' : ''}`}>Name A-Z</button>
+                    <button onClick={() => { setContactsSortValue('totalSpend'); setShowContactsSort(false); }} className={`w-full px-3 py-2 text-left text-[12px] hover:bg-[#f8f8f7] ${contactsSortValue === 'totalSpend' ? 'bg-[#f8f8f7] font-medium' : ''}`}>Total Spend</button>
+                  </>
+                ) : (
+                  <>
+                    <button onClick={() => { setContactsSortValue('newest'); setShowContactsSort(false); }} className={`w-full px-3 py-2 text-left text-[12px] hover:bg-[#f8f8f7] ${contactsSortValue === 'newest' ? 'bg-[#f8f8f7] font-medium' : ''}`}>Newest First</button>
+                    <button onClick={() => { setContactsSortValue('oldest'); setShowContactsSort(false); }} className={`w-full px-3 py-2 text-left text-[12px] hover:bg-[#f8f8f7] ${contactsSortValue === 'oldest' ? 'bg-[#f8f8f7] font-medium' : ''}`}>Oldest First</button>
+                    <button onClick={() => { setContactsSortValue('name'); setShowContactsSort(false); }} className={`w-full px-3 py-2 text-left text-[12px] hover:bg-[#f8f8f7] ${contactsSortValue === 'name' ? 'bg-[#f8f8f7] font-medium' : ''}`}>Name A-Z</button>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ── Bulk Actions (preserved) ── */}
+        {selectedCustomers.size > 0 && (
+          <div className="px-4 py-2 bg-[#f8f8f7] border-b border-[#F0F0EE] flex items-center justify-between gap-2">
+            <span className="text-[12px] font-medium text-[#2B2B26]">{selectedCustomers.size} selected</span>
+            <div className="flex items-center gap-2">
+              <button onClick={handleBulkDelete} className="px-2.5 py-1 text-[11px] font-medium bg-red-500 text-white hover:bg-red-600 rounded-md transition">Delete</button>
+              <button onClick={handleExportSelected} className="px-2.5 py-1 text-[11px] font-medium bg-[#6b6a5e] text-white hover:bg-[#57564d] rounded-md transition hidden sm:block">Export</button>
+              <button onClick={() => { if (isMultiSelectMode) exitMultiSelectMode(); else setSelectedCustomers(new Set()); }} className="px-2.5 py-1 text-[11px] font-medium bg-[#6b6a5e] text-white hover:bg-[#57564d] rounded-md transition">{isMultiSelectMode ? 'Done' : 'Clear'}</button>
             </div>
           </div>
         )}
 
-        {/* Mobile List View */}
-        <div className="md:hidden pb-4">
-        {loading ? (
-          <div className="text-center py-12 text-gray-600">Loading...</div>
-        ) : error ? (
-          <div className="text-center py-12 text-red-600">{error}</div>
-        ) : sortedCustomers.length === 0 ? (
-            <div className="text-center py-12 text-gray-500 px-4">
-            {searchQuery.trim() 
-              ? `No customers found matching "${searchQuery}". Try a different search term.`
-              : 'No customers found. Click "Add Customer" to create one.'}
-          </div>
-        ) : (
-            <>
-              {/* Customer List */}
-              <div>
-                {sortedCustomers.map((customer, index) => {
-                  const upcomingJob = customerUpcomingJobs.get(customer.id);
-                  return (
-                    <div key={customer.id}>
-                      {index > 0 && (
-                        <div className="px-4">
-                          <div className="border-t border-gray-200"></div>
-                        </div>
-                      )}
-                      <div
-                        className="px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition cursor-pointer active:bg-gray-100"
-                        onClick={(e) => {
-                          if (isMultiSelectMode) {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            handleSelectCustomer(customer.id);
-                          } else {
-                            handleCustomerClick(customer);
-                          }
-                        }}
-                        onTouchStart={() => handleLongPressStart(customer.id)}
-                        onTouchEnd={handleLongPressEnd}
-                        onMouseDown={() => handleLongPressStart(customer.id)}
-                        onMouseUp={handleLongPressEnd}
-                        onMouseLeave={handleLongPressEnd}
-                      >
-                      {/* Checkbox - only show in multi-select mode */}
-                      {isMultiSelectMode && (
-                        <input
-                          type="checkbox"
-                          checked={selectedCustomers.has(customer.id)}
-                          onChange={() => handleSelectCustomer(customer.id)}
-                          onClick={(e) => e.stopPropagation()}
-                          className="w-4 h-4 text-gray-900 border-gray-300 rounded focus:ring-gray-900 cursor-pointer flex-shrink-0"
-                        />
-                      )}
-                      <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
-                        <span className="text-sm font-semibold text-gray-700">
-                          {getInitials(customer.customerName)}
-                        </span>
+        {/* ── Mobile List View ── */}
+        <div className="md:hidden flex-1 overflow-y-auto pb-20">
+          {loading ? (
+            <div className="text-center py-12 text-[#9e9d92] text-sm">Loading...</div>
+          ) : error ? (
+            <div className="text-center py-12 text-red-600 text-sm">{error}</div>
+          ) : notionFilteredCustomers.length === 0 ? (
+            <div className="text-center py-12 text-[#9e9d92] text-sm px-4">
+              {searchQuery.trim() ? `No results for "${searchQuery}"` : `No ${contactView} found.`}
+            </div>
+          ) : (
+            <div>
+              {notionFilteredCustomers.map((customer, index) => {
+                const upcomingJob = customerUpcomingJobs.get(customer.id);
+                return (
+                  <div key={customer.id}>
+                    {index > 0 && <div className="px-4"><div className="border-t border-[#F0F0EE]" /></div>}
+                    <div
+                      className="px-4 py-3 flex items-center gap-3 hover:bg-[#f8f8f7] transition cursor-pointer active:bg-[#f0f0ee]"
+                      onClick={(e) => { if (isMultiSelectMode) { e.preventDefault(); handleSelectCustomer(customer.id); } else { handleCustomerClick(customer); } }}
+                      onTouchStart={() => handleLongPressStart(customer.id)}
+                      onTouchEnd={handleLongPressEnd}
+                      onMouseDown={() => handleLongPressStart(customer.id)}
+                      onMouseUp={handleLongPressEnd}
+                      onMouseLeave={handleLongPressEnd}
+                    >
+                      {isMultiSelectMode && <input type="checkbox" checked={selectedCustomers.has(customer.id)} onChange={() => handleSelectCustomer(customer.id)} onClick={(e) => e.stopPropagation()} className="w-4 h-4 rounded border-[#deded9] flex-shrink-0" />}
+                      <div className="w-9 h-9 rounded-full bg-[#deded9] flex items-center justify-center flex-shrink-0">
+                        <span className="text-[11px] font-medium text-[#40403a]">{getInitials(customer.customerName)}</span>
                       </div>
-                    <div className="flex-1 min-w-0">
-                      {(() => {
-                        const effectiveCustomerType = getEffectiveCustomerType(customer);
-                        return (
-                          <>
-                        <div className="font-medium text-gray-900 truncate">
-                          {customer.customerName || 'Unnamed Customer'}
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-[13px] text-[#2B2B26] truncate">{customer.customerName || 'Unnamed'}</div>
+                        <div className="text-[11px] text-[#9e9d92] mt-0.5 flex items-center gap-1 flex-wrap">
+                          {customer.customerPhone && <span className="truncate">{formatPhoneDisplay(customer.customerPhone)}</span>}
+                          {(customer.vehicleModel || customer.vehicle) && <><span className="text-[#c1c0b8]">·</span><span className="truncate">{customer.vehicleModel || customer.vehicle}</span></>}
+                          {upcomingJob && <><span className="text-[#c1c0b8]">·</span><span className="text-[#F97316]">Upcoming</span></>}
                         </div>
-                        <div className="text-xs text-gray-600 mt-0.5 flex items-center gap-1 flex-wrap">
-                          {/* Phone Number */}
-                          {customer.customerPhone && (
-                            <span className="truncate">{formatPhoneDisplay(customer.customerPhone)}</span>
-                          )}
-                          {/* Vehicle */}
-                          {(customer.vehicleModel || customer.vehicle) && (
-                            <>
-                              {customer.customerPhone && (
-                                <span className="text-gray-400">•</span>
-                              )}
-                              <span className="truncate">{customer.vehicleModel || customer.vehicle}</span>
-                            </>
-                          )}
-                          {/* Customer Type */}
-                          {effectiveCustomerType && (
-                            <>
-                              {(customer.customerPhone || customer.vehicleModel || customer.vehicle) && (
-                                <span className="text-gray-400">•</span>
-                              )}
-                              <span className="capitalize">
-                                {effectiveCustomerType === 'new'
-                                  ? 'New Customer'
-                                  : effectiveCustomerType === 'returning'
-                                  ? 'Returning Customer'
-                                  : effectiveCustomerType}
-                              </span>
-                            </>
-                          )}
-                          {/* Upcoming Job Info */}
-                          {upcomingJob && (
-                            <>
-                              {(customer.customerPhone || customer.vehicleModel || customer.vehicle || effectiveCustomerType) && (
-                                <span className="text-gray-400">•</span>
-                              )}
-                              <span className="text-orange-600">Upcoming job</span>
-                              {upcomingJob.services.length > 0 && (
-                                <>
-                                  <span className="text-gray-400">•</span>
-                                  <span className="text-gray-500">{upcomingJob.services[0]}</span>
-                                </>
-                              )}
-                            </>
-                          )}
-                        </div>
-                          </>
-                        );
-                      })()}
-                    </div>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleSendSMS(customer);
-                        }}
-                        className="w-10 h-10 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition flex-shrink-0"
-                        title="Send SMS"
-                      >
-                        <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                        </svg>
+                      </div>
+                      <button onClick={(e) => { e.stopPropagation(); handleSendSMS(customer); }} className="w-8 h-8 rounded-full bg-[#f0f0ee] hover:bg-[#deded9] flex items-center justify-center transition flex-shrink-0">
+                        <svg className="w-4 h-4 text-[#6b6a5e]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
                       </button>
-                      </div>
                     </div>
-                  );
-                })}
-              </div>
-            </>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
 
-        {/* Floating Action Button - Mobile Only */}
-        <button
-          onClick={() => handleOpenModal()}
-          className="md:hidden fixed bottom-6 right-6 w-14 h-14 bg-black text-white rounded-full shadow-lg hover:bg-gray-800 transition flex items-center justify-center z-30"
-          aria-label="Add Customer"
-        >
-          <FaPlus className="w-6 h-6" />
+        {/* Floating Action Button - Mobile */}
+        <button onClick={() => handleOpenModal()} className="md:hidden fixed bottom-6 right-6 w-14 h-14 bg-[#F97316] text-white rounded-full shadow-lg hover:bg-[#EA580C] transition flex items-center justify-center z-30">
+          <FaPlus className="w-5 h-5" />
         </button>
 
-        {/* Filter Modal - Mobile Only */}
+        {/* ── Filter Modal (Mobile) ── */}
         {isFilterModalOpen && (
           <>
-            {/* Backdrop */}
-            <div 
-              className="md:hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-40"
-              onClick={() => setIsFilterModalOpen(false)}
-            />
-            {/* Filter Dialog - Bottom Sheet */}
+            <div className="md:hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-40" onClick={() => setIsFilterModalOpen(false)} />
             <div className="md:hidden fixed inset-x-0 bottom-0 bg-white z-50 rounded-t-2xl shadow-2xl max-h-[85vh] overflow-y-auto">
-              {/* Header */}
-              <div className="sticky top-0 bg-white border-b border-gray-200 px-4 py-4 flex items-center justify-between rounded-t-2xl">
-                <h2 className="text-lg font-semibold text-gray-900">Filter</h2>
-                <button
-                  onClick={() => setIsFilterModalOpen(false)}
-                  className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition"
-                  aria-label="Close filter"
-                >
-                  <XMarkIcon className="w-5 h-5 text-gray-600" />
-                </button>
+              <div className="sticky top-0 bg-white border-b border-[#F0F0EE] px-4 py-4 flex items-center justify-between rounded-t-2xl">
+                <h2 className="text-lg font-semibold text-[#2B2B26]">Filter</h2>
+                <button onClick={() => setIsFilterModalOpen(false)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[#f8f8f7]"><XMarkIcon className="w-5 h-5 text-[#6b6a5e]" /></button>
               </div>
-
-              {/* Filter Content */}
               <div className="px-4 py-6 space-y-6">
-                {/* Last seen Section */}
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-900 mb-3">Last seen</h3>
+                  <h3 className="text-sm font-semibold text-[#2B2B26] mb-3">Last seen</h3>
                   <div className="flex flex-wrap gap-2">
-                    {['all', '30', '31-90', '91-120'].map((option) => {
-                      const labels: { [key: string]: string } = {
-                        'all': 'All time',
-                        '30': 'Last 30 days',
-                        '31-90': '31-90 days',
-                        '91-120': '91-120 days'
-                      };
-                      const isSelected = filterLastSeen === option;
-                      return (
-                        <button
-                          key={option}
-                          onClick={() => setFilterLastSeen(option)}
-                          className={`px-4 py-2 rounded-full text-sm font-medium transition ${
-                            isSelected
-                              ? 'text-white'
-                              : 'bg-white text-gray-700 border border-gray-300'
-                          }`}
-                          style={isSelected ? { backgroundColor: '#6B6A5E' } : {}}
-                        >
-                          {labels[option]}
-                        </button>
-                      );
+                    {['all', '30', '31-90', '91-120'].map((opt) => {
+                      const labels: Record<string, string> = { 'all': 'All time', '30': 'Last 30 days', '31-90': '31-90 days', '91-120': '91-120 days' };
+                      return <button key={opt} onClick={() => setFilterLastSeen(opt)} className={`px-4 py-2 rounded-full text-sm font-medium transition ${filterLastSeen === opt ? 'bg-[#2B2B26] text-white' : 'bg-white text-[#6b6a5e] border border-[#deded9]'}`}>{labels[opt]}</button>;
                     })}
                   </div>
                 </div>
-
-                {/* Services Section */}
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-900 mb-3">Services</h3>
+                  <h3 className="text-sm font-semibold text-[#2B2B26] mb-3">Services</h3>
                   <div className="space-y-3">
-                    {[
-                      { id: 'maintenance', label: 'Maintenance' },
-                      { id: 'full-detail', label: 'Full detail' },
-                      { id: 'high-ticket', label: 'High-ticket (ceramic, correction, etc.)' },
-                      { id: 'first-time', label: 'First-time customer' }
-                    ].map((service) => {
-                      const isChecked = filterServices.includes(service.id);
-                      return (
-                        <label
-                          key={service.id}
-                          className="flex items-center gap-3 cursor-pointer"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setFilterServices([...filterServices, service.id]);
-                              } else {
-                                setFilterServices(filterServices.filter(s => s !== service.id));
-                              }
-                            }}
-                            className="w-5 h-5 text-gray-900 border-gray-300 rounded focus:ring-gray-900"
-                          />
-                          <span className="text-sm text-gray-700">{service.label}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Station Section */}
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-900 mb-3">Station</h3>
-                  <div className="flex flex-wrap gap-2">
-                    {['all', 'in-shop', 'mobile'].map((option) => {
-                      const labels: { [key: string]: string } = {
-                        'all': 'All stations',
-                        'in-shop': 'In-shop',
-                        'mobile': 'Mobile'
-                      };
-                      const isSelected = filterStation === option;
-                      return (
-                        <button
-                          key={option}
-                          onClick={() => setFilterStation(option)}
-                          className={`px-4 py-2 rounded-full text-sm font-medium transition ${
-                            isSelected
-                              ? 'text-white'
-                              : 'bg-white text-gray-700 border border-gray-300'
-                          }`}
-                          style={isSelected ? { backgroundColor: '#6B6A5E' } : {}}
-                        >
-                          {labels[option]}
-                        </button>
-                      );
-                    })}
+                    {[{ id: 'maintenance', label: 'Maintenance' }, { id: 'full-detail', label: 'Full detail' }, { id: 'high-ticket', label: 'High-ticket' }, { id: 'first-time', label: 'First-time customer' }].map((s) => (
+                      <label key={s.id} className="flex items-center gap-3 cursor-pointer">
+                        <input type="checkbox" checked={filterServices.includes(s.id)} onChange={(e) => e.target.checked ? setFilterServices([...filterServices, s.id]) : setFilterServices(filterServices.filter(x => x !== s.id))} className="w-5 h-5 rounded border-[#deded9]" />
+                        <span className="text-sm text-[#40403a]">{s.label}</span>
+                      </label>
+                    ))}
                   </div>
                 </div>
               </div>
@@ -1280,275 +1292,189 @@ export default function CustomersPage() {
           </>
         )}
 
-        {/* Desktop Table View */}
-        {loading ? (
-          <div className="hidden md:block text-center py-12 text-gray-600">Loading...</div>
-        ) : error ? (
-          <div className="hidden md:block text-center py-12 text-red-600">{error}</div>
-        ) : sortedCustomers.length === 0 ? (
-          <div className="hidden md:block text-center py-12 text-gray-500">
-            {searchQuery.trim() 
-              ? `No customers found matching "${searchQuery}". Try a different search term.`
-              : 'No customers found. Click "Add Customer" to create one.'}
-          </div>
-        ) : (
-          <div className="hidden md:block overflow-x-auto">
-            <table className="w-full table-fixed">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-12">
-                    <input
-                      type="checkbox"
-                      checked={selectedCustomers.size === customers.length && customers.length > 0}
-                      onChange={handleSelectAll}
-                      className="w-4 h-4 text-gray-900 border-gray-300 rounded focus:ring-gray-900"
-                    />
-                  </th>
-                  {selectedCustomers.size > 0 && (
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-12">
-                    #
-                  </th>
-                  )}
-                  <th 
-                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition relative"
-                    onClick={() => handleSort('customerName')}
-                    style={{ width: columnWidths.name, minWidth: columnWidths.name, maxWidth: columnWidths.name }}
-                  >
-                    <div className="flex items-center gap-1">
-                      <span>Name</span>
-                      {getSortIcon('customerName')}
-                    </div>
-                    <div
-                      className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-gray-400 z-10"
-                      onMouseDown={(e) => handleResizeMouseDown(e, 'name')}
-                    />
-                  </th>
-                  <th 
-                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition relative"
-                    onClick={() => handleSort('customerPhone')}
-                    style={{ width: columnWidths.phone, minWidth: columnWidths.phone, maxWidth: columnWidths.phone }}
-                  >
-                    <div className="flex items-center gap-1">
-                      <span>Phone number</span>
-                      {getSortIcon('customerPhone')}
-                    </div>
-                    <div
-                      className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-gray-400 z-10"
-                      onMouseDown={(e) => handleResizeMouseDown(e, 'phone')}
-                    />
-                  </th>
-                  <th 
-                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition relative"
-                    onClick={() => handleSort('customerEmail')}
-                    style={{ width: columnWidths.email, minWidth: columnWidths.email, maxWidth: columnWidths.email }}
-                  >
-                    <div className="flex items-center gap-1">
-                      <span>Email</span>
-                      {getSortIcon('customerEmail')}
-                    </div>
-                    <div
-                      className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-gray-400 z-10"
-                      onMouseDown={(e) => handleResizeMouseDown(e, 'email')}
-                    />
-                  </th>
-                  <th 
-                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition relative"
-                    onClick={() => handleSort('address')}
-                    style={{ width: columnWidths.address, minWidth: columnWidths.address, maxWidth: columnWidths.address }}
-                  >
-                    <div className="flex items-center gap-1">
-                      <span>Address</span>
-                      {getSortIcon('address')}
-                    </div>
-                    <div
-                      className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-gray-400 z-10"
-                      onMouseDown={(e) => handleResizeMouseDown(e, 'address')}
-                    />
-                  </th>
-                  <th 
-                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition relative"
-                    onClick={() => handleSort('vehicle')}
-                    style={{ width: columnWidths.vehicle, minWidth: columnWidths.vehicle, maxWidth: columnWidths.vehicle }}
-                  >
-                    <div className="flex items-center gap-1">
-                      <span>Vehicle(s)</span>
-                      {getSortIcon('vehicle')}
-                    </div>
-                    <div
-                      className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-gray-400 z-10"
-                      onMouseDown={(e) => handleResizeMouseDown(e, 'vehicle')}
-                    />
-                  </th>
-                  <th 
-                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative"
-                    style={{ width: columnWidths.services, minWidth: columnWidths.services, maxWidth: columnWidths.services }}
-                  >
-                    Service(s)
-                    <div
-                      className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-gray-400 z-10"
-                      onMouseDown={(e) => handleResizeMouseDown(e, 'services')}
-                    />
-                  </th>
-                  <th 
-                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative"
-                    style={{ width: columnWidths.action, minWidth: columnWidths.action, maxWidth: columnWidths.action }}
-                  >
-                    Action
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {sortedCustomers.map((customer, index) => (
-                  <tr 
-                    key={customer.id} 
-                    className="hover:bg-gray-50 transition cursor-pointer"
-                    onClick={() => handleCustomerClick(customer)}
-                  >
-                    <td className="px-4 py-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                      <input
-                        type="checkbox"
-                        checked={selectedCustomers.has(customer.id)}
-                        onChange={() => handleSelectCustomer(customer.id)}
-                        className="w-4 h-4 text-gray-900 border-gray-300 rounded focus:ring-gray-900 cursor-pointer"
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                    </td>
-                    {selectedCustomers.size > 0 && (
-                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {index + 1}
-                    </td>
+        {/* ═══ Desktop Table View ═══ */}
+        <div className="hidden md:block flex-1 overflow-y-auto">
+          {loading ? (
+            <div className="text-center py-12 text-[#9e9d92] text-sm">Loading...</div>
+          ) : error ? (
+            <div className="text-center py-12 text-red-600 text-sm">{error}</div>
+          ) : notionFilteredCustomers.length === 0 ? (
+            <div className="text-center py-12 text-[#9e9d92] text-sm">
+              {searchQuery.trim() ? `No results for "${searchQuery}"` : `No ${contactView} found. Click "Add Customer" to create one.`}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[900px] text-left">
+                <thead>
+                  <tr className="border-b border-[#F0F0EE]">
+                    <th className="px-3 py-2 text-[10px] font-medium text-[#9e9d92] min-w-[180px] whitespace-nowrap">Name</th>
+                    {contactView === 'customers' ? (
+                      <>
+                        <th className="px-3 py-2 text-[10px] font-medium text-[#9e9d92] min-w-[160px] whitespace-nowrap">Status</th>
+                        <th className="px-3 py-2 text-[10px] font-medium text-[#9e9d92] min-w-[150px] whitespace-nowrap">Vehicle</th>
+                        <th className="px-3 py-2 text-[10px] font-medium text-[#9e9d92] min-w-[160px] whitespace-nowrap">Phone</th>
+                        <th className="px-3 py-2 text-[10px] font-medium text-[#9e9d92] min-w-[160px] whitespace-nowrap">Email</th>
+                        <th className="px-3 py-2 text-[10px] font-medium text-[#9e9d92] min-w-[150px] whitespace-nowrap">Services</th>
+                        <th className="px-3 py-2 text-[10px] font-medium text-[#9e9d92] min-w-[120px] whitespace-nowrap">Lifetime Value</th>
+                        <th className="px-3 py-2 text-[10px] font-medium text-[#9e9d92] min-w-[80px] whitespace-nowrap">Visits</th>
+                        <th className="px-3 py-2 text-[10px] font-medium text-[#9e9d92] min-w-[120px] whitespace-nowrap">Days Since Visit</th>
+                        <th className="px-3 py-2 text-[10px] font-medium text-[#9e9d92] min-w-[120px] whitespace-nowrap">Re-engage Status</th>
+                      </>
+                    ) : (
+                      <>
+                        <th className="px-3 py-2 text-[10px] font-medium text-[#9e9d92] min-w-[160px] whitespace-nowrap">Phone</th>
+                        <th className="px-3 py-2 text-[10px] font-medium text-[#9e9d92] min-w-[160px] whitespace-nowrap">Email</th>
+                        <th className="px-3 py-2 text-[10px] font-medium text-[#9e9d92] min-w-[150px] whitespace-nowrap">Vehicle</th>
+                        <th className="px-3 py-2 text-[10px] font-medium text-[#9e9d92] min-w-[150px] whitespace-nowrap">Services</th>
+                        <th className="px-3 py-2 text-[10px] font-medium text-[#9e9d92] min-w-[140px] whitespace-nowrap">First Contact</th>
+                        <th className="px-3 py-2 text-[10px] font-medium text-[#9e9d92] min-w-[140px] whitespace-nowrap">Last Updated</th>
+                      </>
                     )}
-                    <td 
-                      className="px-4 py-4"
-                      style={{ width: columnWidths.name, minWidth: columnWidths.name, maxWidth: columnWidths.name }}
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
-                          <span className="text-sm font-semibold text-gray-700">
-                            {getInitials(customer.customerName)}
-                          </span>
-                        </div>
-                        <div className="font-medium text-gray-900 hover:text-gray-600 transition truncate min-w-0">
-                        {customer.customerName || '-'}
-                        </div>
-                      </div>
-                    </td>
-                    <td 
-                      className="px-4 py-4 text-sm text-gray-600 truncate"
-                      style={{ width: columnWidths.phone, minWidth: columnWidths.phone, maxWidth: columnWidths.phone }}
-                    >
-                      <span className="truncate block">{formatPhoneDisplay(customer.customerPhone)}</span>
-                    </td>
-                    <td 
-                      className="px-4 py-4 text-sm relative group truncate"
-                      style={{ width: columnWidths.email, minWidth: columnWidths.email, maxWidth: columnWidths.email }}
-                      onMouseEnter={(e) => {
-                        if (customer.customerEmail && customer.customerEmail !== '-') {
-                          const rect = e.currentTarget.getBoundingClientRect();
-                          setHoveredCell({
-                            rowId: customer.id,
-                            column: 'email',
-                            content: customer.customerEmail,
-                            x: rect.left + rect.width / 2,
-                            y: rect.top
-                          });
-                        }
-                      }}
-                      onMouseLeave={() => {
-                        if (hoveredCell?.rowId === customer.id && hoveredCell?.column === 'email') {
-                          setHoveredCell(null);
-                        }
-                      }}
-                    >
-                      <span className={`truncate block relative z-10 ${customer.customerEmail && customer.customerEmail !== '-' ? 'cursor-pointer text-gray-600 group-hover:text-black' : 'text-gray-600'}`}>
-                      {customer.customerEmail || '-'}
-                      </span>
-                      {customer.customerEmail && customer.customerEmail !== '-' && (
-                        <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none rounded" style={{ backgroundColor: '#F0F0EE' }} />
-                      )}
-                    </td>
-                    <td 
-                      className="px-4 py-4 text-sm truncate relative group"
-                      style={{ width: columnWidths.address, minWidth: columnWidths.address, maxWidth: columnWidths.address }}
-                      onMouseEnter={(e) => {
-                        if (customer.address && customer.address !== '-') {
-                          const rect = e.currentTarget.getBoundingClientRect();
-                          setHoveredCell({
-                            rowId: customer.id,
-                            column: 'address',
-                            content: customer.address,
-                            x: rect.left + rect.width / 2,
-                            y: rect.top
-                          });
-                        }
-                      }}
-                      onMouseLeave={() => {
-                        if (hoveredCell?.rowId === customer.id && hoveredCell?.column === 'address') {
-                          setHoveredCell(null);
-                        }
-                      }}
-                    >
-                      <span className={`truncate block relative z-10 ${customer.address && customer.address !== '-' ? 'cursor-pointer text-gray-600 group-hover:text-black' : 'text-gray-600'}`}>
-                      {customer.address || '-'}
-                      </span>
-                      {customer.address && customer.address !== '-' && (
-                        <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none rounded" style={{ backgroundColor: '#F0F0EE' }} />
-                      )}
-                    </td>
-                    <td 
-                      className="px-4 py-4 text-sm text-gray-600 truncate"
-                      style={{ width: columnWidths.vehicle, minWidth: columnWidths.vehicle, maxWidth: columnWidths.vehicle }}
-                    >
-                      <span className="truncate block">{customer.vehicle || customer.vehicleModel || '-'}</span>
-                    </td>
-                    <td 
-                      className="px-4 py-4 text-sm text-gray-600 truncate"
-                      style={{ width: columnWidths.services, minWidth: columnWidths.services, maxWidth: columnWidths.services }}
-                    >
-                      <span className="truncate block">
-                      {customer.services && customer.services.length > 0 
-                          ? `(${customer.services.length}) ${customer.services.join(' + ')}`
-                        : '-'}
-                      </span>
-                    </td>
-                    <td 
-                      className="px-4 py-4 whitespace-nowrap text-sm" 
-                      onClick={(e) => e.stopPropagation()}
-                      style={{ width: columnWidths.action }}
-                    >
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleCall(customer.customerPhone);
-                          }}
-                          className="w-10 h-10 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition"
-                          title="Call"
-                        >
-                          <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                          </svg>
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleSendSMS(customer);
-                          }}
-                          className="w-10 h-10 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition"
-                          title="Send SMS"
-                        >
-                          <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                          </svg>
-                        </button>
-                      </div>
-                    </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                </thead>
+                <tbody className="divide-y divide-[#e8e8e6]">
+                  {notionFilteredCustomers.map((customer) => {
+                    const status = getCustomerStatus(customer);
+                    const reengage = getReengageStatus(customer);
+                    const daysSince = getDaysSinceVisit(customer);
+                    const visits = customer.completedServiceCount || 0;
+                    const estimatedValue = visits * 150; // rough estimate per visit
+                    const services = customer.services || [];
+
+                    return (
+                      <tr
+                        key={customer.id}
+                        onClick={() => handleCustomerClick(customer)}
+                        className="hover:bg-[#f8f8f7] cursor-pointer group"
+                      >
+                        {/* Name */}
+                        <td className="px-3 py-1.5 border-r border-[#F0F0EE] min-w-[180px]">
+                          <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1.5 px-1.5 py-0.5 rounded transition-all group-hover:bg-[#deded9] group-hover:shadow-sm">
+                              <div className="h-5 w-5 rounded-full bg-[#deded9] flex items-center justify-center font-medium text-[8px] text-[#40403a] flex-shrink-0">
+                                {getInitials(customer.customerName)}
+                              </div>
+                              <p className="font-medium text-[11px] text-[#2B2B26] whitespace-nowrap">{customer.customerName || '—'}</p>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  router.push(`/detailer-dashboard/customers/${customer.id}`);
+                                }}
+                                className="h-4 w-4 rounded-full bg-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-[#F0F0EE]"
+                                title="View profile"
+                              >
+                                <svg className="h-2.5 w-2.5 text-[#2B2B26]" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M7 17L17 7M17 7H7M17 7v10" /></svg>
+                              </button>
+                            </div>
+                          </div>
+                        </td>
+
+                        {contactView === 'customers' ? (
+                          <>
+                            {/* Status */}
+                            <td className="px-3 py-1.5 border-r border-[#F0F0EE]">
+                              <span className={`px-2 py-0.5 rounded text-[8px] font-medium tracking-wide whitespace-nowrap ${status.color}`}>
+                                {status.label}
+                              </span>
+                            </td>
+                            {/* Vehicle */}
+                            <td className="px-3 py-1.5 border-r border-[#F0F0EE]">
+                              <span className="text-[11px] font-normal text-[#40403a] whitespace-nowrap">{customer.vehicleModel || customer.vehicle || '—'}</span>
+                            </td>
+                            {/* Phone */}
+                            <td className="px-3 py-1.5 border-r border-[#F0F0EE]">
+                              <span className="text-[11px] font-normal text-[#40403a] whitespace-nowrap">{formatPhoneDisplay(customer.customerPhone)}</span>
+                            </td>
+                            {/* Email */}
+                            <td className="px-3 py-1.5 border-r border-[#F0F0EE]">
+                              <span className="text-[11px] font-normal text-[#40403a] whitespace-nowrap">{customer.customerEmail || '—'}</span>
+                            </td>
+                            {/* Services */}
+                            <td className="px-3 py-1.5 border-r border-[#F0F0EE]">
+                              <div className="flex items-center gap-1 relative">
+                                {services.length === 0 ? (
+                                  <span className="text-[9px] text-[#9e9d92]">—</span>
+                                ) : (
+                                  <>
+                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-medium whitespace-nowrap bg-[#F0F0EE] text-[#40403a]">{services[0]}</span>
+                                    {services.length > 1 && (
+                                      <div className="relative group/badge inline-flex items-center">
+                                        <span className="px-1.5 py-0.5 rounded text-[9px] font-medium whitespace-nowrap bg-[#deded9] text-[#57564d] cursor-pointer hover:bg-[#c1c0b8] peer">+{services.length - 1}</span>
+                                        <div className="absolute left-0 top-full mt-1 z-50 hidden peer-hover:flex flex-wrap gap-1 p-2 bg-white border border-[#deded9] rounded-md shadow-lg max-w-[200px] pointer-events-none">
+                                          {services.map((s, i) => <span key={i} className="px-1.5 py-0.5 rounded text-[9px] font-medium whitespace-nowrap bg-[#F0F0EE] text-[#40403a]">{s}</span>)}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                            </td>
+                            {/* Lifetime Value */}
+                            <td className="px-3 py-1.5 border-r border-[#F0F0EE]">
+                              <span className="text-[11px] font-normal text-[#40403a] whitespace-nowrap">${estimatedValue.toLocaleString()}</span>
+                            </td>
+                            {/* Visits */}
+                            <td className="px-3 py-1.5 border-r border-[#F0F0EE]">
+                              <span className="text-[11px] font-normal text-[#40403a] whitespace-nowrap">{visits} {visits === 1 ? 'visit' : 'visits'}</span>
+                            </td>
+                            {/* Days Since Visit */}
+                            <td className="px-3 py-1.5 border-r border-[#F0F0EE]">
+                              <span className="text-[11px] font-normal text-[#57564d] whitespace-nowrap">{daysSince !== null ? `${daysSince} days ago` : '—'}</span>
+                            </td>
+                            {/* Re-engage Status */}
+                            <td className="px-3 py-1.5">
+                              <span className={`px-1.5 py-0.5 rounded text-[9px] font-medium whitespace-nowrap ${reengage.color}`}>{reengage.label}</span>
+                            </td>
+                          </>
+                        ) : (
+                          <>
+                            {/* Phone */}
+                            <td className="px-3 py-1.5 border-r border-[#F0F0EE]">
+                              <span className="text-[11px] font-normal text-[#40403a] whitespace-nowrap">{formatPhoneDisplay(customer.customerPhone)}</span>
+                            </td>
+                            {/* Email */}
+                            <td className="px-3 py-1.5 border-r border-[#F0F0EE]">
+                              <span className="text-[11px] font-normal text-[#40403a] whitespace-nowrap">{customer.customerEmail || '—'}</span>
+                            </td>
+                            {/* Vehicle */}
+                            <td className="px-3 py-1.5 border-r border-[#F0F0EE]">
+                              <span className="text-[11px] font-normal text-[#40403a] whitespace-nowrap">{customer.vehicleModel || customer.vehicle || '—'}</span>
+                            </td>
+                            {/* Services */}
+                            <td className="px-3 py-1.5 border-r border-[#F0F0EE]">
+                              <div className="flex items-center gap-1">
+                                {services.length === 0 ? (
+                                  <span className="text-[9px] text-[#9e9d92]">—</span>
+                                ) : (
+                                  <>
+                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-medium whitespace-nowrap bg-[#F0F0EE] text-[#40403a]">{services[0]}</span>
+                                    {services.length > 1 && <span className="px-1.5 py-0.5 rounded text-[9px] font-medium whitespace-nowrap bg-[#deded9] text-[#57564d]">+{services.length - 1}</span>}
+                                  </>
+                                )}
+                              </div>
+                            </td>
+                            {/* First Contact */}
+                            <td className="px-3 py-1.5 border-r border-[#F0F0EE]">
+                              <span className="text-[11px] font-normal text-[#57564d] whitespace-nowrap">
+                                {customer.createdAt ? format(new Date(customer.createdAt), 'MMM d, yyyy') : '—'}
+                              </span>
+                            </td>
+                            {/* Last Updated */}
+                            <td className="px-3 py-1.5">
+                              <span className="text-[11px] font-normal text-[#57564d] whitespace-nowrap">
+                                {customer.updatedAt ? format(new Date(customer.updatedAt), 'MMM d, yyyy') : '—'}
+                              </span>
+                            </td>
+                          </>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Modal */}
@@ -1951,260 +1877,300 @@ export default function CustomersPage() {
           isActionSidebarOpen ? 'translate-x-0' : 'translate-x-full'
         }`} style={{ backgroundColor: '#F8F8F7', borderLeft: '1px solid #E2E2DD', boxShadow: 'none' }}>
         <div className="h-full flex flex-col overflow-hidden" style={{ backgroundColor: '#F8F8F7' }}>
-          {/* Header */}
-          <div className="flex-shrink-0 px-6 pt-6 pb-2">
-            <div className="flex justify-between items-center">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full flex items-center justify-center relative" style={{ backgroundColor: '#E2E2DD' }}>
-                  <Image 
-                    src="/icons/layouting.png" 
-                    alt="Customer Details" 
-                    width={20} 
-                    height={20}
-                    className="object-contain"
-                  />
-                  <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2" style={{ borderColor: '#F8F8F7' }}></div>
-                </div>
-                <h2 className="text-xl font-bold text-gray-900">
-                  Customer Details
-                </h2>
-              </div>
-              <button
-                onClick={() => {
-                  setIsActionSidebarOpen(false);
-                  setSelectedCustomerData(null);
-                }}
-                className="p-1 rounded-lg hover:bg-gray-100 transition-colors"
-              >
-                <XMarkIcon className="w-5 h-5 text-gray-500" />
-              </button>
-            </div>
+          {/* Header - simplified Replit style */}
+          <div className="flex-shrink-0 flex items-center h-[60px] px-4" style={{ borderBottom: '1px solid #F0F0EE' }}>
+            <button
+              onClick={() => {
+                setIsActionSidebarOpen(false);
+                setSelectedCustomerData(null);
+                setExpandedJobs(new Set());
+              }}
+              className="p-1.5 rounded-lg transition-colors hover:bg-black/5"
+            >
+              <XMarkIcon className="w-5 h-5" style={{ color: '#6b6a5e' }} />
+            </button>
           </div>
 
-          {/* Content */}
+          {/* Scrollable Content */}
           {selectedCustomerData && (
-            <div className="flex-1 overflow-y-auto p-6">
-              <div className="space-y-6">
-                {/* Customer Information */}
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-900 mb-4">Customer</h3>
-                  <div className="bg-gray-50 rounded-xl p-4 border" style={{ borderColor: '#E2E2DD', borderRadius: '12px' }}>
-                    <div className="flex items-start justify-between mb-2">
-                      <h4 className="font-semibold text-gray-900 text-base">
-                        {selectedCustomerData.customerName || 'Unnamed Customer'}
-                      </h4>
-                      {selectedCustomerData.customerPhone && (
-                        <span className="text-sm text-gray-600">
-                          {formatPhoneDisplay(selectedCustomerData.customerPhone)}
-                        </span>
-                      )}
-                    </div>
-                    
-                    {selectedCustomerData.customerEmail && (
-                      <p className="text-sm text-gray-600 mb-2">
-                        {selectedCustomerData.customerEmail}
-                      </p>
-                    )}
-                    
-                    {selectedCustomerData.address && (
-                      <p className="text-sm text-gray-600 mb-3">
-                        {selectedCustomerData.address}
-                      </p>
-                    )}
+            <div className="flex-1 overflow-y-auto">
+              <div className="px-6 pt-6 pb-24">
 
-                    {/* Customer Type and Location Type */}
-                    <div className="flex flex-wrap items-center gap-2 mt-3">
-                      {selectedCustomerData && (() => {
-                        const effectiveCustomerType = getEffectiveCustomerType(selectedCustomerData);
-                        return (
-                          <span className={`text-xs font-semibold px-3 py-1.5 rounded-full inline-block ${
-                            effectiveCustomerType === 'new'
-                              ? 'bg-gray-200 text-gray-700'
-                              : effectiveCustomerType === 'returning'
-                              ? 'bg-purple-200 text-purple-800'
-                              : effectiveCustomerType === 'maintenance'
-                              ? 'bg-blue-200 text-blue-800'
-                              : 'bg-gray-200 text-gray-700'
-                          }`}>
-                            {effectiveCustomerType === 'new' ? 'New Customer' : 
-                             effectiveCustomerType === 'returning' ? 'Returning Customer' :
-                             effectiveCustomerType === 'maintenance' ? 'Maintenance Customer' :
-                             effectiveCustomerType}
-                          </span>
-                        );
-                      })()}
-                      
-                      {selectedCustomerData.locationType && (
-                        <span className={`text-xs font-semibold px-3 py-1.5 rounded-full inline-block ${
-                          (selectedCustomerData.locationType?.toLowerCase() === 'pick up' || selectedCustomerData.locationType?.toLowerCase() === 'pickup')
-                            ? 'bg-blue-500 text-white'
-                            : (selectedCustomerData.locationType?.toLowerCase() === 'drop off' || selectedCustomerData.locationType?.toLowerCase() === 'dropoff')
-                            ? 'bg-pink-500 text-white'
-                            : 'bg-gray-200 text-gray-700'
-                        }`}>
-                          {selectedCustomerData.locationType?.toLowerCase() === 'pickup' ? 'Pick Up' : 
-                           selectedCustomerData.locationType?.toLowerCase() === 'dropoff' ? 'Drop Off' :
-                           selectedCustomerData.locationType?.toLowerCase() === 'pick up' ? 'Pick Up' :
-                           selectedCustomerData.locationType?.toLowerCase() === 'drop off' ? 'Drop Off' :
-                           selectedCustomerData.locationType}
+                {/* Profile Header: Avatar + Name + Tags */}
+                <div className="flex flex-col items-center text-center mb-6">
+                  <div className="w-16 h-16 rounded-full flex items-center justify-center mb-3" style={{ backgroundColor: '#deded9' }}>
+                    <span className="text-xl font-semibold" style={{ color: '#6b6a5e' }}>
+                      {(selectedCustomerData.customerName || 'U')
+                        .split(' ')
+                        .map((w: string) => w[0])
+                        .join('')
+                        .toUpperCase()
+                        .slice(0, 2)}
+                    </span>
+                  </div>
+                  <h2 className="text-xl font-semibold mb-2" style={{ color: '#2B2B26' }}>
+                    {selectedCustomerData.customerName || 'Unnamed Customer'}
+                  </h2>
+                  <div className="flex flex-wrap items-center justify-center gap-1.5">
+                    {/* Customer Type Badge */}
+                    {(() => {
+                      const effectiveCustomerType = getEffectiveCustomerType(selectedCustomerData);
+                      const typeConfig: Record<string, { bg: string; text: string; label: string }> = {
+                        new: { bg: '#F0F0EE', text: '#6b6a5e', label: 'New Customer' },
+                        returning: { bg: '#f3e8ff', text: '#7c3aed', label: 'Returning Customer' },
+                        maintenance: { bg: '#dbeafe', text: '#2563eb', label: 'Maintenance Customer' },
+                      };
+                      const cfg = typeConfig[effectiveCustomerType] || typeConfig.new;
+                      return (
+                        <span
+                          className="text-[11px] font-medium px-2.5 py-1 rounded-full"
+                          style={{ backgroundColor: cfg.bg, color: cfg.text }}
+                        >
+                          {cfg.label}
                         </span>
-                      )}
-                    </div>
+                      );
+                    })()}
+                    {/* Past Jobs Count Badge */}
+                    {customerPastJobs && customerPastJobs.length > 0 && (
+                      <span
+                        className="text-[11px] font-medium px-2.5 py-1 rounded-full"
+                        style={{ backgroundColor: '#f3e8ff', color: '#7c3aed' }}
+                      >
+                        {customerPastJobs.length} past job{customerPastJobs.length !== 1 ? 's' : ''}
+                      </span>
+                    )}
+                    {/* Location Type Badge */}
+                    {selectedCustomerData.locationType && (
+                      <span
+                        className="text-[11px] font-medium px-2.5 py-1 rounded-full"
+                        style={{ backgroundColor: '#dbeafe', color: '#2563eb' }}
+                      >
+                        {selectedCustomerData.locationType?.toLowerCase() === 'pickup' || selectedCustomerData.locationType?.toLowerCase() === 'pick up'
+                          ? 'Pick Up'
+                          : selectedCustomerData.locationType?.toLowerCase() === 'dropoff' || selectedCustomerData.locationType?.toLowerCase() === 'drop off'
+                          ? 'Drop Off'
+                          : selectedCustomerData.locationType}
+                      </span>
+                    )}
                   </div>
                 </div>
 
-                {/* Vehicle Information */}
-                {(selectedCustomerData.vehicle || selectedCustomerData.vehicleModel) && (
-                  <div>
-                    <h3 className="text-sm font-semibold text-gray-900 mb-4">Car model</h3>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-800 text-white text-sm font-medium">
-                        <span>{selectedCustomerData.vehicleModel || selectedCustomerData.vehicle}</span>
-                      </div>
+                {/* Contact Info - Notion-style property rows */}
+                <div className="mb-6" style={{ borderTop: '1px solid #F0F0EE' }}>
+                  {/* Email Row */}
+                  <div className="flex items-center py-2.5" style={{ borderBottom: '1px solid #F0F0EE' }}>
+                    <div className="flex items-center gap-2 w-24 flex-shrink-0">
+                      <svg className="w-3.5 h-3.5" style={{ color: '#9e9d92' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
+                      </svg>
+                      <span className="text-xs" style={{ color: '#9e9d92' }}>Email</span>
                     </div>
+                    <span className="text-sm flex-1 truncate" style={{ color: selectedCustomerData.customerEmail ? '#2B2B26' : '#9e9d92' }}>
+                      {selectedCustomerData.customerEmail || 'No email'}
+                    </span>
                   </div>
-                )}
+                  {/* Phone Row */}
+                  <div className="flex items-center py-2.5" style={{ borderBottom: '1px solid #F0F0EE' }}>
+                    <div className="flex items-center gap-2 w-24 flex-shrink-0">
+                      <svg className="w-3.5 h-3.5" style={{ color: '#9e9d92' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
+                      </svg>
+                      <span className="text-xs" style={{ color: '#9e9d92' }}>Phone</span>
+                    </div>
+                    <span className="text-sm flex-1 truncate" style={{ color: selectedCustomerData.customerPhone ? '#2B2B26' : '#9e9d92' }}>
+                      {selectedCustomerData.customerPhone ? formatPhoneDisplay(selectedCustomerData.customerPhone) : 'No phone'}
+                    </span>
+                  </div>
+                  {/* Address Row */}
+                  <div className="flex items-center py-2.5" style={{ borderBottom: '1px solid #F0F0EE' }}>
+                    <div className="flex items-center gap-2 w-24 flex-shrink-0">
+                      <svg className="w-3.5 h-3.5" style={{ color: '#9e9d92' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 0115 0z" />
+                      </svg>
+                      <span className="text-xs" style={{ color: '#9e9d92' }}>Address</span>
+                    </div>
+                    <span className="text-sm flex-1" style={{ color: selectedCustomerData.address ? '#2B2B26' : '#9e9d92' }}>
+                      {selectedCustomerData.address || 'No address'}
+                    </span>
+                  </div>
+                </div>
 
-                {/* Customer Notes */}
-                {selectedCustomerData && (selectedCustomerData as any).data && typeof (selectedCustomerData as any).data === 'object' && (selectedCustomerData as any).data.notes && (
-                  <div>
-                    <h3 className="text-sm font-semibold text-gray-900 mb-4">Notes</h3>
-                    <div className="bg-white rounded-xl p-4 border" style={{ borderColor: '#E2E2DD', borderRadius: '12px' }}>
-                      <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                {/* Vehicles Section */}
+                <div className="mb-6">
+                  <div className="flex items-center justify-between mb-3" style={{ borderBottom: '1px solid #F0F0EE', paddingBottom: '8px' }}>
+                    <h3 className="text-sm font-semibold" style={{ color: '#2B2B26' }}>Vehicles</h3>
+                  </div>
+                  {(selectedCustomerData.vehicle || selectedCustomerData.vehicleModel) ? (
+                    <div className="flex flex-wrap gap-2">
+                      <span className="text-sm px-2.5 py-1.5 rounded" style={{ backgroundColor: '#f8f8f7', color: '#2B2B26' }}>
+                        {selectedCustomerData.vehicleModel || selectedCustomerData.vehicle}
+                      </span>
+                    </div>
+                  ) : (
+                    <p className="text-sm italic" style={{ color: '#9e9d92' }}>No vehicles added</p>
+                  )}
+                </div>
+
+                {/* Notes Section */}
+                <div className="mb-6">
+                  <div className="flex items-center justify-between mb-3" style={{ borderBottom: '1px solid #F0F0EE', paddingBottom: '8px' }}>
+                    <h3 className="text-sm font-semibold" style={{ color: '#2B2B26' }}>Notes</h3>
+                  </div>
+                  {selectedCustomerData && (selectedCustomerData as any).data && typeof (selectedCustomerData as any).data === 'object' && (selectedCustomerData as any).data.notes ? (
+                    <div className="p-3 rounded-lg" style={{ backgroundColor: '#f8f8f7' }}>
+                      <p className="text-sm whitespace-pre-wrap" style={{ color: '#2B2B26' }}>
                         {(selectedCustomerData as any).data.notes}
                       </p>
                     </div>
-                  </div>
-                )}
+                  ) : (
+                    <p className="text-sm italic" style={{ color: '#9e9d92' }}>No notes</p>
+                  )}
+                </div>
 
-                {/* Service History */}
-                {customerPastJobs && customerPastJobs.length > 0 && (
-                  <div>
-                    <h3 className="text-sm font-semibold text-gray-900 mb-4">
-                      Service History ({customerPastJobs.length})
+                {/* Past Jobs Section - Collapsible */}
+                <div className="mb-6">
+                  <div className="flex items-center justify-between mb-3" style={{ borderBottom: '1px solid #F0F0EE', paddingBottom: '8px' }}>
+                    <h3 className="text-sm font-semibold" style={{ color: '#2B2B26' }}>
+                      Past Jobs {customerPastJobs && customerPastJobs.length > 0 ? `(${customerPastJobs.length})` : ''}
                     </h3>
-                    <div className="space-y-3">
-                      {customerPastJobs.map((job, index) => (
-                        <div 
-                          key={job.id || index}
-                          className="p-4 rounded-xl border h-[200px] flex flex-col justify-between overflow-hidden" 
-                          style={{ borderColor: '#E2E2DD', backgroundColor: 'white' }}
-                        >
-                          <div className="flex-1 min-h-0 overflow-hidden">
-                            {/* Date and Time */}
-                            <div className="flex items-center gap-2 flex-wrap mb-2">
-                              <p className="text-sm font-semibold text-gray-900">
-                                {formatJobDateTime(job.date, job.time)}
-                              </p>
-                              {job.isUpcoming && (
-                                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">
-                                  Upcoming
-                                </span>
-                              )}
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-x-4 gap-y-1 min-h-0">
-                              <div>
-                                <p className="text-xs text-gray-600 mb-1">Technician</p>
-                                <p className="text-sm text-gray-900 truncate">{job.employeeName || '—'}</p>
-                              </div>
-
-                              <div>
-                                <p className="text-xs text-gray-600 mb-1">Service</p>
-                                <p className="text-sm text-gray-900 truncate">
-                                  {job.services && job.services.length > 0
-                                    ? (Array.isArray(job.services) ? job.services.join(', ') : job.services)
-                                    : '—'}
-                                </p>
-                              </div>
-
-                              <div>
-                                <p className="text-xs text-gray-600 mb-1">Pickup/Drop-off</p>
-                                <p className="text-sm text-gray-900 truncate">
-                                  {job.resourceType === 'bay' && job.locationType
-                                    ? (job.locationType === 'pick up' || job.locationType.toLowerCase() === 'pickup'
-                                      ? 'Pick Up'
-                                      : job.locationType === 'drop off' || job.locationType.toLowerCase() === 'dropoff'
-                                      ? 'Drop Off'
-                                      : job.locationType)
-                                    : '—'}
-                                </p>
-                              </div>
-
-                              <div>
-                                <p className="text-xs text-gray-600 mb-1">Vehicle</p>
-                                <p className="text-sm text-gray-900 truncate">{job.vehicleModel || '—'}</p>
-                              </div>
-                            </div>
-
-                            <div className="mt-2">
-                              <p className="text-xs text-gray-600 mb-1">Notes</p>
-                              <p className="text-sm text-gray-900 truncate">
-                                {job.notes ? job.notes : 'No notes'}
-                              </p>
-                            </div>
-                          </div>
-
-                          <div className="pt-2 flex justify-end flex-shrink-0">
+                  </div>
+                  {customerPastJobs && customerPastJobs.length > 0 ? (
+                    <div className="space-y-0.5">
+                      {customerPastJobs.map((job, index) => {
+                        const isExpanded = expandedJobs.has(index);
+                        return (
+                          <div key={job.id || index}>
+                            {/* Collapsible Header Row */}
                             <button
                               onClick={() => {
-                                setSelectedJob(job);
-                                setIsJobModalOpen(true);
+                                setExpandedJobs(prev => {
+                                  const next = new Set(prev);
+                                  if (next.has(index)) {
+                                    next.delete(index);
+                                  } else {
+                                    next.add(index);
+                                  }
+                                  return next;
+                                });
                               }}
-                              className="text-xs font-semibold text-gray-700 hover:text-gray-900"
+                              className="w-full flex items-center justify-between py-2.5 px-2 rounded-lg transition-colors hover:bg-black/[0.03]"
                             >
-                              View Details
+                              <div className="flex items-center gap-2 min-w-0">
+                                {/* Chevron */}
+                                <svg
+                                  className={`w-3.5 h-3.5 flex-shrink-0 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`}
+                                  style={{ color: '#9e9d92' }}
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                  stroke="currentColor"
+                                  strokeWidth={2}
+                                >
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                                </svg>
+                                <span className="text-sm truncate" style={{ color: '#2B2B26' }}>
+                                  {job.services && job.services.length > 0
+                                    ? (Array.isArray(job.services) ? job.services.join(', ') : job.services)
+                                    : 'Service'}
+                                </span>
+                                {job.isUpcoming && (
+                                  <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ backgroundColor: '#FFF7ED', color: '#C2410C' }}>
+                                    Upcoming
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-xs flex-shrink-0 ml-2" style={{ color: '#9e9d92' }}>
+                                {formatJobDateTime(job.date, job.time)}
+                              </span>
                             </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
 
-                {/* Action Buttons */}
-                <div className="flex gap-3 pt-4">
-                  <button
-                    onClick={() => {
-                      handleOpenModal(selectedCustomerData);
-                      setIsActionSidebarOpen(false);
-                    }}
-                    className="flex-1 px-6 py-2 bg-orange-500 text-white rounded-xl hover:bg-orange-600 transition-colors"
-                  >
-                    Edit
-                  </button>
+                            {/* Expanded Details */}
+                            {isExpanded && (
+                              <div className="ml-6 mr-2 mb-2 p-3 rounded-lg" style={{ backgroundColor: '#f8f8f7' }}>
+                                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                                  <div>
+                                    <p className="text-xs mb-0.5" style={{ color: '#9e9d92' }}>Date & Time</p>
+                                    <p style={{ color: '#2B2B26' }}>{formatJobDateTime(job.date, job.time)}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-xs mb-0.5" style={{ color: '#9e9d92' }}>Technician</p>
+                                    <p style={{ color: '#2B2B26' }}>{job.employeeName || '\u2014'}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-xs mb-0.5" style={{ color: '#9e9d92' }}>Vehicle</p>
+                                    <p style={{ color: '#2B2B26' }}>{job.vehicleModel || '\u2014'}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-xs mb-0.5" style={{ color: '#9e9d92' }}>Pickup/Drop-off</p>
+                                    <p style={{ color: '#2B2B26' }}>
+                                      {job.resourceType === 'bay' && job.locationType
+                                        ? (job.locationType === 'pick up' || job.locationType.toLowerCase() === 'pickup'
+                                          ? 'Pick Up'
+                                          : job.locationType === 'drop off' || job.locationType.toLowerCase() === 'dropoff'
+                                          ? 'Drop Off'
+                                          : job.locationType)
+                                        : '\u2014'}
+                                    </p>
+                                  </div>
+                                </div>
+                                {job.notes && (
+                                  <div className="mt-2 text-sm">
+                                    <p className="text-xs mb-0.5" style={{ color: '#9e9d92' }}>Notes</p>
+                                    <p className="whitespace-pre-wrap" style={{ color: '#2B2B26' }}>{job.notes}</p>
+                                  </div>
+                                )}
+                                <button
+                                  onClick={() => {
+                                    setSelectedJob(job);
+                                    setIsJobModalOpen(true);
+                                  }}
+                                  className="mt-2 text-xs font-medium"
+                                  style={{ color: '#F97316' }}
+                                >
+                                  View Details
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-sm italic" style={{ color: '#9e9d92' }}>No past jobs</p>
+                  )}
                 </div>
+
+                {/* Activity Section */}
+                <div className="mb-6">
+                  <div className="flex items-center justify-between mb-3" style={{ borderBottom: '1px solid #F0F0EE', paddingBottom: '8px' }}>
+                    <h3 className="text-sm font-semibold" style={{ color: '#2B2B26' }}>Activity</h3>
+                  </div>
+                  <p className="text-sm italic" style={{ color: '#9e9d92' }}>No activity yet</p>
+                </div>
+
               </div>
+            </div>
+          )}
+
+          {/* Fixed Bottom Bar - Edit Button */}
+          {selectedCustomerData && (
+            <div className="flex-shrink-0 px-4 py-3" style={{ borderTop: '1px solid #F0F0EE', backgroundColor: '#F8F8F7' }}>
+              <button
+                onClick={() => {
+                  handleOpenModal(selectedCustomerData);
+                  setIsActionSidebarOpen(false);
+                }}
+                className="w-full py-2.5 rounded-xl text-sm font-semibold text-white transition-colors hover:opacity-90"
+                style={{ backgroundColor: '#F97316' }}
+              >
+                Edit
+              </button>
             </div>
           )}
         </div>
       </div>
 
-      {/* Column Sidebar - Only show when action panel is closed on desktop */}
-      {!isActionSidebarOpen && (
-        <div
-          onClick={() => {
-            // Open sidebar with first customer if available
-            if (customers.length > 0) {
-              handleCustomerClick(customers[0]);
-            } else {
-              setIsActionSidebarOpen(true);
-            }
-          }}
-          className="hidden md:flex fixed right-0 top-0 h-full w-16 border-l border-gray-200 z-30 cursor-pointer transition-colors items-start justify-center"
-          style={{ backgroundColor: '#F8F8F7', paddingTop: '32px' }}
-          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#E8E8E7'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#F8F8F7'; }}
-        >
-          <Image 
-            src="/icons/layouting.png" 
-            alt="Action Panel" 
-            width={28} 
-            height={28}
-            className="object-contain"
-          />
-        </div>
-      )}
+      
     </div>
   );
 }

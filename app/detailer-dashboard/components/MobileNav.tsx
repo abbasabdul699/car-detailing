@@ -12,13 +12,15 @@ import {
   PhotoIcon,
   CubeIcon,
   UserGroupIcon,
-  CreditCardIcon
+  CreditCardIcon,
+  HomeIcon,
 } from "@heroicons/react/24/outline";
 import {
   UsersIcon as UsersIconSolid,
   ChatBubbleLeftRightIcon as ChatBubbleLeftRightIconSolid,
   CalendarDaysIcon as CalendarDaysIconSolid,
   UserIcon as UserIconSolid,
+  HomeIcon as HomeIconSolid,
 } from "@heroicons/react/24/solid";
 import { useState, useMemo } from "react";
 
@@ -30,6 +32,12 @@ type NavItem = {
 };
 
 const items: NavItem[] = [
+  {
+    name: "Home",
+    href: "/detailer-dashboard",
+    icon: HomeIcon,
+    iconSolid: HomeIconSolid
+  },
   { 
     name: "Resources", 
     href: "/detailer-dashboard/resources", 
