@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useSession } from 'next-auth/react';
+import { useSearchParams } from 'next/navigation';
 import { formatPhoneDisplay } from '@/lib/phone';
 
 interface Message {
@@ -36,11 +37,13 @@ interface Conversation {
 
 export default function MessagesPage() {
   const { data: session } = useSession();
+  const searchParams = useSearchParams();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showConversationList, setShowConversationList] = useState(true); // For mobile view
+  const autoSelectPhoneRef = useRef<string | null>(searchParams.get('phone'));
   const [newMessage, setNewMessage] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
@@ -73,6 +76,22 @@ export default function MessagesPage() {
       return () => clearInterval(conversationsInterval);
     }
   }, [session?.user?.id]);
+
+  // Auto-select conversation when navigated with ?phone= query param
+  useEffect(() => {
+    if (!autoSelectPhoneRef.current || conversations.length === 0 || selectedConversation) return;
+    const phoneParam = autoSelectPhoneRef.current.replace(/\D/g, '');
+    if (!phoneParam) return;
+    const match = conversations.find((c) => {
+      const convPhone = (c.customerPhone || '').replace(/\D/g, '');
+      return convPhone === phoneParam || convPhone.endsWith(phoneParam) || phoneParam.endsWith(convPhone);
+    });
+    if (match) {
+      fetchConversationMessages(match.id);
+      setShowConversationList(false); // On mobile, show the chat directly
+      autoSelectPhoneRef.current = null; // Only auto-select once
+    }
+  }, [conversations]);
 
   // Auto-refresh selected conversation messages
   useEffect(() => {

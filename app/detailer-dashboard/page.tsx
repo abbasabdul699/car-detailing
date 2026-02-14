@@ -413,6 +413,19 @@ export default function DetailerDashboardPage() {
     }
   }, [detailerId, fetchTodos, fetchDetailerProfile, fetchCustomers]);
 
+  // Set body/html background to match dashboard so there are no white bars on mobile
+  useEffect(() => {
+    const bg = "#f5f5f3";
+    const prevBodyBg = document.body.style.backgroundColor;
+    const prevHtmlBg = document.documentElement.style.backgroundColor;
+    document.body.style.backgroundColor = bg;
+    document.documentElement.style.backgroundColor = bg;
+    return () => {
+      document.body.style.backgroundColor = prevBodyBg;
+      document.documentElement.style.backgroundColor = prevHtmlBg;
+    };
+  }, []);
+
   // Filtered customer suggestions
   const nameFilteredCustomers = allCustomers.filter((c) =>
     c.name && newTodoCustomerName.trim().length > 0 &&
@@ -697,7 +710,7 @@ export default function DetailerDashboardPage() {
   // ─── Render ─────────────────────────────────────────────────────────
   if (status === "loading" || loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#f5f5f3" }}>
+      <div className="absolute inset-0 flex items-center justify-center" style={{ backgroundColor: "#f5f5f3" }}>
         <div className="animate-pulse text-sm" style={{ color: "#9e9d92" }}>Loading...</div>
       </div>
     );
@@ -705,7 +718,7 @@ export default function DetailerDashboardPage() {
 
   if (!session?.user) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#f5f5f3" }}>
+      <div className="absolute inset-0 flex items-center justify-center" style={{ backgroundColor: "#f5f5f3" }}>
         <div className="text-sm" style={{ color: "#9e9d92" }}>Not logged in</div>
       </div>
     );
@@ -716,7 +729,7 @@ export default function DetailerDashboardPage() {
     const isSelected = selectedTodoId === item.id;
     return (
       <div
-        onClick={() => { setSelectedTodoId(item.id); setShowCustomerInfo(false); }}
+        onClick={() => { setSelectedTodoId(prev => prev === item.id ? null : item.id); setShowCustomerInfo(false); }}
         className={`group cursor-pointer transition-all rounded-lg border ${
           isCompleted
             ? isSelected
@@ -801,8 +814,145 @@ export default function DetailerDashboardPage() {
     );
   };
 
+  // ─── Mobile Inline Conversation (shown below selected task) ────────
+  const MobileConversationInline = ({ item }: { item: TodoItem }) => {
+    if (selectedTodoId !== item.id) return null;
+    return (
+      <div className="md:hidden mt-1 bg-white rounded-lg border overflow-hidden" style={{ borderColor: "#deded9" }}>
+        {item.customerPhone ? (
+          <>
+            {/* Header */}
+            <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: "#f0f0ee" }}>
+              <div className="flex items-center gap-2">
+                <div className="h-7 w-7 rounded-full bg-[#deded9] flex items-center justify-center text-[10px] font-medium text-[#2B2B26]">
+                  {item.customerName ? getInitials(item.customerName) : "?"}
+                </div>
+                <span className="text-sm font-medium text-[#2B2B26]">
+                  {item.customerName || item.customerPhone}
+                </span>
+              </div>
+              <Link
+                href="/detailer-dashboard/messages"
+                className="h-7 w-7 rounded-md hover:bg-[#f8f8f7] flex items-center justify-center transition-colors"
+                title="Open in messages"
+              >
+                <MessageSquareIcon className="h-4 w-4 text-[#9e9d92]" />
+              </Link>
+            </div>
+
+            {/* Messages */}
+            <div className="max-h-[300px] overflow-y-auto px-4 py-3">
+              <div className="space-y-3">
+                {conversationLoading ? (
+                  <div className="text-center py-6">
+                    <p className="text-sm text-[#9e9d92] animate-pulse">Loading messages...</p>
+                  </div>
+                ) : conversationMessages.length === 0 ? (
+                  <div className="text-center py-6">
+                    <p className="text-sm text-[#9e9d92]">
+                      {conversationId ? "No previous messages" : "No conversation found"}
+                    </p>
+                  </div>
+                ) : (
+                  conversationMessages.map((msg) => (
+                    <div key={msg.id} className="flex gap-2.5">
+                      {msg.direction === "inbound" ? (
+                        <>
+                          <div className="h-6 w-6 rounded-full bg-[#deded9] flex items-center justify-center text-[9px] font-medium text-[#2B2B26] shrink-0">
+                            {item.customerName ? getInitials(item.customerName) : "?"}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 mb-0.5">
+                              <span className="text-[11px] font-medium text-[#2B2B26]">{item.customerName || "Customer"}</span>
+                              <span className="text-[10px] text-[#9e9d92]">{format(new Date(msg.createdAt), "h:mm a")}</span>
+                            </div>
+                            <p className="text-[13px] text-[#4a4a42] leading-snug">{msg.content}</p>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="h-6 w-6 rounded-full bg-[#F97316] flex items-center justify-center shrink-0">
+                            <span className="text-[9px] font-bold text-white">{detailerName ? getInitials(detailerName) : "Y"}</span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 mb-0.5">
+                              <span className="text-[11px] font-medium text-[#2B2B26]">{detailerName || "You"}</span>
+                              <span className="text-[10px] text-[#9e9d92]">{format(new Date(msg.createdAt), "h:mm a")}</span>
+                            </div>
+                            <p className="text-[13px] text-[#4a4a42] leading-snug">{msg.content}</p>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* AI Summary */}
+            {item.subtitle && (
+              <div className="mx-4 mb-3 p-2.5 bg-[#f8f8f7] rounded-lg border" style={{ borderColor: "#deded9" }}>
+                <div className="flex items-center gap-1.5">
+                  <div className="h-4 w-4 rounded-full bg-[#FF3700] flex items-center justify-center shrink-0">
+                    <span className="text-[7px] font-bold text-white">AI</span>
+                  </div>
+                  <p className="text-[10px] text-[#9e9d92]">AI summary</p>
+                </div>
+                <p className="text-[13px] text-[#2B2B26] leading-snug mt-1.5 ml-[22px]">{item.subtitle}</p>
+              </div>
+            )}
+
+            {/* Reply input */}
+            <div className="px-4 py-3 border-t" style={{ borderColor: "#f0f0ee" }}>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={messageInput}
+                  onChange={(e) => setMessageInput(e.target.value)}
+                  disabled={!conversationId || sendingMessage}
+                  placeholder={conversationId ? "Type a message..." : "No conversation available"}
+                  className={`w-full bg-white border rounded-full py-2.5 pl-4 pr-11 text-sm text-[#2B2B26] placeholder:text-[#9e9d92] focus:outline-none focus:border-[#c1c0b8] transition-colors ${!conversationId ? "opacity-50 cursor-not-allowed" : ""}`}
+                  style={{ borderColor: "#deded9" }}
+                  onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) sendMessage(); }}
+                />
+                <button
+                  onClick={sendMessage}
+                  disabled={!messageInput.trim() || sendingMessage || !conversationId}
+                  className={`absolute right-1.5 top-1/2 -translate-y-1/2 h-7 w-7 rounded-full flex items-center justify-center transition-all ${
+                    messageInput.trim() && !sendingMessage && conversationId
+                      ? "bg-[#F97316] text-white hover:bg-[#EA580C]"
+                      : "bg-[#deded9] text-[#9e9d92] cursor-not-allowed"
+                  }`}
+                >
+                  <ArrowUpIcon className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          </>
+        ) : (
+          /* No conversation linked */
+          <div className="px-4 py-6 text-center">
+            <div className="h-10 w-10 mx-auto mb-2 rounded-full bg-[#f0f0ee] flex items-center justify-center">
+              <MessageSquareIcon className="h-4 w-4 text-[#9e9d92]" />
+            </div>
+            <p className="text-sm font-medium text-[#2B2B26]">{item.title}</p>
+            {item.subtitle && <p className="text-xs text-[#9e9d92] mt-1">{item.subtitle}</p>}
+            <p className="text-xs text-[#c1c0b8] mt-2">No conversation linked to this task</p>
+            <button
+              onClick={() => toggleTodoStatus(item.id, item.status)}
+              className="mt-3 text-xs text-[#838274] hover:text-[#2B2B26] transition-colors flex items-center gap-1 mx-auto"
+            >
+              <CheckIcon className="h-3.5 w-3.5" />
+              {item.status === "completed" ? "Unmark as done" : "Mark as done"}
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
-    <div className="min-h-screen overflow-y-auto" style={{ backgroundColor: "#f5f5f3" }}>
+    <div className="absolute inset-0 overflow-y-auto" style={{ backgroundColor: "#f5f5f3" }}>
       <div className="min-h-full flex flex-col">
         <div className="max-w-5xl w-full mx-auto px-4 md:px-5 py-8 md:py-12 mt-6">
           {/* ─── Greeting ─────────────────────────────────────────── */}
@@ -1160,7 +1310,10 @@ export default function DetailerDashboardPage() {
                   </div>
                   <div className="space-y-1">
                     {needsResponseItems.map((item) => (
-                      <TodoCard key={item.id} item={item} />
+                      <div key={item.id}>
+                        <TodoCard item={item} />
+                        <MobileConversationInline item={item} />
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -1182,7 +1335,10 @@ export default function DetailerDashboardPage() {
                   </div>
                   <div className="space-y-1">
                     {todoItems.map((item) => (
-                      <TodoCard key={item.id} item={item} />
+                      <div key={item.id}>
+                        <TodoCard item={item} />
+                        <MobileConversationInline item={item} />
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -1202,7 +1358,10 @@ export default function DetailerDashboardPage() {
                   </div>
                   <div className="space-y-1">
                     {completedTodos.map((item) => (
-                      <TodoCard key={item.id} item={item} isCompleted />
+                      <div key={item.id}>
+                        <TodoCard item={item} isCompleted />
+                        <MobileConversationInline item={item} />
+                      </div>
                     ))}
                   </div>
                 </div>

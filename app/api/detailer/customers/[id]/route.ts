@@ -53,6 +53,8 @@ export async function PATCH(
       vehicleYear, 
       vehicleMake, 
       vehicleModel,
+      vehicles,       // string[] - multiple vehicles support
+      customerNotes,  // Array<{id, text, createdAt}> - multiple notes support
       services,
       vcardSent,
       data
@@ -71,9 +73,17 @@ export async function PATCH(
     const normalizedPhone = customerPhone ? (normalizeToE164(customerPhone) || customerPhone) : existing.customerPhone;
 
     // Merge data field with existing data
-    let mergedData = existing.data ? (typeof existing.data === 'object' ? existing.data : {}) : {};
+    let mergedData: Record<string, any> = existing.data ? (typeof existing.data === 'object' ? existing.data as Record<string, any> : {}) : {};
     if (data && typeof data === 'object') {
       mergedData = { ...mergedData, ...data };
+    }
+    // Store vehicles array in data.vehicles if provided
+    if (vehicles !== undefined) {
+      mergedData.vehicles = Array.isArray(vehicles) ? vehicles : [];
+    }
+    // Store customerNotes array in data.customerNotes if provided
+    if (customerNotes !== undefined) {
+      mergedData.customerNotes = Array.isArray(customerNotes) ? customerNotes : [];
     }
 
     // Determine the final customer values (use provided values or keep existing)
@@ -82,7 +92,11 @@ export async function PATCH(
     const finalAddress = address !== undefined ? address : existing.address;
     const finalLocationType = locationType !== undefined ? locationType : existing.locationType;
     const finalCustomerType = customerType !== undefined ? customerType : existing.customerType;
-    const finalVehicleModel = vehicleModel !== undefined ? vehicleModel : existing.vehicleModel;
+    // Sync vehicleModel with first vehicle in vehicles array for backward compat
+    let finalVehicleModel = vehicleModel !== undefined ? vehicleModel : existing.vehicleModel;
+    if (vehicles !== undefined && Array.isArray(vehicles)) {
+      finalVehicleModel = vehicles.length > 0 ? vehicles[0] : null;
+    }
     const finalServices = services !== undefined ? services : existing.services;
 
     // If phone changed, we need to handle the unique constraint

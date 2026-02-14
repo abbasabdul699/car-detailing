@@ -13,8 +13,12 @@ interface AddressAutocompleteInputProps {
   value: string;
   onChange: (value: string) => void;
   onPlaceSelected?: (address: string) => void;
+  onBlur?: () => void;
+  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+  onClick?: (e: React.MouseEvent<HTMLInputElement>) => void;
   placeholder?: string;
   className?: string;
+  style?: React.CSSProperties;
   id?: string;
   autoFocus?: boolean;
 }
@@ -23,8 +27,12 @@ export default function AddressAutocompleteInput({
   value,
   onChange,
   onPlaceSelected,
+  onBlur,
+  onKeyDown,
+  onClick,
   placeholder = "Start typing address...",
   className = "",
+  style,
   id,
   autoFocus = false
 }: AddressAutocompleteInputProps) {
@@ -104,7 +112,11 @@ export default function AddressAutocompleteInput({
       id={id}
       value={value}
       onChange={(e) => onChange(e.target.value)}
+      onBlur={onBlur}
+      onKeyDown={onKeyDown}
+      onClick={onClick}
       className={className}
+      style={style}
       placeholder={isLoaded ? placeholder : "Loading Google Maps..."}
       autoComplete="off"
       disabled={!isLoaded}

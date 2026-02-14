@@ -14,6 +14,8 @@ import { getCustomerTypeFromHistory } from '@/lib/customerType';
 import {
   FunnelIcon,
 } from '@heroicons/react/24/outline';
+import { motion, AnimatePresence } from 'framer-motion';
+import { VEHICLE_BY_BRAND, getBrandForModel } from './vehicle-brands';
 
 // Format phone number as (XXX) XXX XXXX
 const formatPhoneNumber = (value: string): string => {
@@ -28,6 +30,15 @@ const formatPhoneNumber = (value: string): string => {
     if (limitedDigits.length <= 3) return `(${limitedDigits}`;
     if (limitedDigits.length <= 6) return `(${limitedDigits.slice(0, 3)}) ${limitedDigits.slice(3)}`;
     return `(${limitedDigits.slice(0, 3)}) ${limitedDigits.slice(3, 6)} ${limitedDigits.slice(6)}`;
+};
+
+// Format duration in minutes to human-readable string
+const formatDuration = (minutes: number): string => {
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  if (mins === 0) return `${hours} hr${hours > 1 ? 's' : ''}`;
+  return `${hours} hr${hours > 1 ? 's' : ''} ${mins} min`;
 };
 
 // Helper function to extract clean description from event description (handle both clean and metadata formats)
@@ -93,6 +104,12 @@ const formatJobDateTime = (dateValue?: string | null, timeValue?: string | null)
   }
 };
 
+interface CustomerNote {
+  id: string;
+  text: string;
+  createdAt: string;
+}
+
 interface Customer {
   id: string;
   customerPhone: string;
@@ -111,7 +128,34 @@ interface Customer {
   updatedAt?: string;
   completedServiceCount?: number;
   lastCompletedServiceAt?: string | null;
+  data?: any;
 }
+
+// Helper: get all vehicles for a customer (backward compat with single vehicleModel)
+const getCustomerVehicles = (customer: Customer): string[] => {
+  if (customer.data && typeof customer.data === 'object' && Array.isArray(customer.data.vehicles)) {
+    return customer.data.vehicles.filter((v: any) => typeof v === 'string' && v.trim());
+  }
+  // Fallback to legacy single vehicle field
+  const legacy = customer.vehicleModel || customer.vehicle;
+  return legacy ? [legacy] : [];
+};
+
+// Helper: get all customer notes (backward compat with single data.notes string)
+const getCustomerNotes = (customer: Customer): CustomerNote[] => {
+  if (customer.data && typeof customer.data === 'object' && Array.isArray(customer.data.customerNotes)) {
+    return customer.data.customerNotes;
+  }
+  // Fallback to legacy single notes string
+  if (customer.data && typeof customer.data === 'object' && customer.data.notes) {
+    return [{
+      id: 'legacy',
+      text: customer.data.notes,
+      createdAt: customer.updatedAt || new Date().toISOString(),
+    }];
+  }
+  return [];
+};
 
 export default function CustomersPage() {
   const { data: session } = useSession();
@@ -156,6 +200,8 @@ export default function CustomersPage() {
     isUpcoming?: boolean;
     employeeName?: string;
     notes?: string;
+    duration?: number;
+    totalPrice?: number;
   } | null>(null);
   const [customerPastJobs, setCustomerPastJobs] = useState<Array<{ 
     id: string; 
@@ -168,9 +214,39 @@ export default function CustomersPage() {
     isUpcoming?: boolean;
     employeeName?: string;
     notes?: string;
+    duration?: number;
+    totalPrice?: number;
   }>>([]);
   const actionSidebarRef = useRef<HTMLDivElement>(null);
   const [expandedJobs, setExpandedJobs] = useState<Set<number>>(new Set());
+  // Inline editing state for customer profile sidebar
+  const [editingField, setEditingField] = useState<'email' | 'phone' | 'address' | null>(null);
+  const [editingValue, setEditingValue] = useState('');
+  const editingValueRef = useRef('');
+  const [isSavingField, setIsSavingField] = useState(false);
+  // Vehicle add state
+  const [isAddingVehicle, setIsAddingVehicle] = useState(false);
+  const [newVehicleName, setNewVehicleName] = useState('');
+  // Note add state
+  const [isAddingNote, setIsAddingNote] = useState(false);
+  const [newNoteText, setNewNoteText] = useState('');
+  // Note editing state
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editingNoteText, setEditingNoteText] = useState('');
+  // Vehicle brand picker state
+  const [showVehicleSearch, setShowVehicleSearch] = useState(false);
+  const [hoveredBrand, setHoveredBrand] = useState<string | null>(null);
+  const vehiclePopupRef = useRef<HTMLDivElement>(null);
+  // Swipe-to-close refs
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  // Track if Google Places selection just happened (to skip blur save)
+  const addressPlaceSelectedRef = useRef(false);
+  const addressSaveInProgressRef = useRef(false);
+  // Helper to update editingValue and keep the ref in sync
+  const updateEditingValue = (val: string) => {
+    setEditingValue(val);
+    editingValueRef.current = val;
+  };
   const [customerUpcomingJobs, setCustomerUpcomingJobs] = useState<Map<string, { 
     vehicleModel?: string;
     services: string[];
@@ -211,10 +287,12 @@ export default function CustomersPage() {
     locationType: '',
     customerType: '',
     vehicleModel: '',
+    vehicles: [] as string[],
     services: [] as string[],
     vcardSent: false,
     customerNotes: ''
   });
+  const [modalVehicleInput, setModalVehicleInput] = useState('');
 
   useEffect(() => {
     fetchCustomers();
@@ -264,9 +342,21 @@ export default function CustomersPage() {
   // Close action sidebar when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      // Don't close if clicking on Google Places autocomplete dropdown
+      const target = event.target as HTMLElement;
+      if (target.closest('.pac-container')) return;
+      // Don't close sidebar if the job detail modal is open (clicks on modal backdrop shouldn't close the drawer)
+      if (isJobModalOpen) return;
       if (actionSidebarRef.current && !actionSidebarRef.current.contains(event.target as Node)) {
         setIsActionSidebarOpen(false);
         setSelectedCustomerData(null);
+        setEditingField(null);
+        setIsAddingVehicle(false);
+        setIsAddingNote(false);
+        setEditingNoteId(null);
+        setEditingNoteText('');
+        setShowVehicleSearch(false);
+        setHoveredBrand(null);
       }
     };
 
@@ -277,7 +367,35 @@ export default function CustomersPage() {
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
+  }, [isActionSidebarOpen, isJobModalOpen]);
+
+  // Toggle body class to hide hamburger menu when customer profile sidebar is open
+  useEffect(() => {
+    if (isActionSidebarOpen) {
+      document.body.classList.add('customer-profile-open');
+    } else {
+      document.body.classList.remove('customer-profile-open');
+    }
+    return () => {
+      document.body.classList.remove('customer-profile-open');
+    };
   }, [isActionSidebarOpen]);
+
+  // Click-outside handler for vehicle brand picker popup
+  useEffect(() => {
+    const handleVehiclePopupClickOutside = (event: MouseEvent) => {
+      if (vehiclePopupRef.current && !vehiclePopupRef.current.contains(event.target as Node)) {
+        setShowVehicleSearch(false);
+        setHoveredBrand(null);
+      }
+    };
+    if (showVehicleSearch) {
+      document.addEventListener('mousedown', handleVehiclePopupClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleVehiclePopupClickOutside);
+    };
+  }, [showVehicleSearch]);
 
   // Clear long press timer on unmount
   useEffect(() => {
@@ -333,6 +451,151 @@ export default function CustomersPage() {
     }
   };
 
+  // Inline save for individual field edits in customer profile sidebar
+  const handleInlineFieldSave = async (field: 'email' | 'phone' | 'address', value: string) => {
+    if (!selectedCustomerData) return;
+    
+    // Build the PATCH body based on which field was edited
+    const body: Record<string, any> = {};
+    if (field === 'email') {
+      // If value unchanged, skip
+      if (value === (selectedCustomerData.customerEmail || '')) { setEditingField(null); return; }
+      body.customerEmail = value || '';
+    } else if (field === 'phone') {
+      const digits = value.replace(/\D/g, '');
+      if (digits === (selectedCustomerData.customerPhone || '').replace(/\D/g, '')) { setEditingField(null); return; }
+      if (digits.length !== 10 && digits.length !== 0) { setEditingField(null); return; } // silently skip invalid
+      body.customerPhone = digits;
+    } else if (field === 'address') {
+      if (value === (selectedCustomerData.address || '')) { setEditingField(null); return; }
+      body.address = value || '';
+    }
+
+    setIsSavingField(true);
+    try {
+      const response = await fetch(`/api/detailer/customers/${selectedCustomerData.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        // Update the selected customer data in place
+        setSelectedCustomerData(data.customer);
+        // Refresh the main customer list
+        await fetchCustomers();
+      }
+    } catch (err) {
+      console.error('Inline save failed:', err);
+    } finally {
+      setIsSavingField(false);
+      setEditingField(null);
+    }
+  };
+
+  // Add a vehicle to the customer's vehicles array
+  const handleAddVehicle = async (name: string) => {
+    if (!selectedCustomerData || !name.trim()) { setIsAddingVehicle(false); setNewVehicleName(''); return; }
+    const currentVehicles = getCustomerVehicles(selectedCustomerData);
+    const updated = [...currentVehicles, name.trim()];
+    try {
+      const response = await fetch(`/api/detailer/customers/${selectedCustomerData.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ vehicles: updated }),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setSelectedCustomerData(data.customer);
+        await fetchCustomers();
+      }
+    } catch (err) { console.error('Add vehicle failed:', err); }
+    finally { setIsAddingVehicle(false); setNewVehicleName(''); }
+  };
+
+  // Remove a vehicle by index
+  const handleRemoveVehicle = async (index: number) => {
+    if (!selectedCustomerData) return;
+    const currentVehicles = getCustomerVehicles(selectedCustomerData);
+    const updated = currentVehicles.filter((_, i) => i !== index);
+    try {
+      const response = await fetch(`/api/detailer/customers/${selectedCustomerData.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ vehicles: updated }),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setSelectedCustomerData(data.customer);
+        await fetchCustomers();
+      }
+    } catch (err) { console.error('Remove vehicle failed:', err); }
+  };
+
+  // Add a customer note
+  const handleAddNote = async (text: string) => {
+    if (!selectedCustomerData || !text.trim()) { setIsAddingNote(false); setNewNoteText(''); return; }
+    const currentNotes = getCustomerNotes(selectedCustomerData);
+    const newNote: CustomerNote = {
+      id: Date.now().toString(),
+      text: text.trim(),
+      createdAt: new Date().toISOString(),
+    };
+    const updated = [...currentNotes, newNote];
+    try {
+      const response = await fetch(`/api/detailer/customers/${selectedCustomerData.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customerNotes: updated }),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setSelectedCustomerData(data.customer);
+        await fetchCustomers();
+      }
+    } catch (err) { console.error('Add note failed:', err); }
+    finally { setIsAddingNote(false); setNewNoteText(''); }
+  };
+
+  // Remove a customer note by id
+  const handleRemoveNote = async (noteId: string) => {
+    if (!selectedCustomerData) return;
+    const currentNotes = getCustomerNotes(selectedCustomerData);
+    const updated = currentNotes.filter(n => n.id !== noteId);
+    try {
+      const response = await fetch(`/api/detailer/customers/${selectedCustomerData.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customerNotes: updated }),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setSelectedCustomerData(data.customer);
+        await fetchCustomers();
+      }
+    } catch (err) { console.error('Remove note failed:', err); }
+  };
+
+  // Edit a customer note by id
+  const handleEditNote = async (noteId: string, newText: string) => {
+    if (!selectedCustomerData || !newText.trim()) { setEditingNoteId(null); setEditingNoteText(''); return; }
+    const currentNotes = getCustomerNotes(selectedCustomerData);
+    const updated = currentNotes.map(n => n.id === noteId ? { ...n, text: newText.trim() } : n);
+    try {
+      const response = await fetch(`/api/detailer/customers/${selectedCustomerData.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customerNotes: updated }),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setSelectedCustomerData(data.customer);
+        await fetchCustomers();
+      }
+    } catch (err) { console.error('Edit note failed:', err); }
+    finally { setEditingNoteId(null); setEditingNoteText(''); }
+  };
+
   const handleOpenModal = (customer?: Customer) => {
     if (customer) {
       setEditingCustomer(customer);
@@ -341,6 +604,7 @@ export default function CustomersPage() {
         ? (customer as any).data.notes 
         : '';
       const existingPhone = customer.customerPhone || '';
+      const existingVehicles = getCustomerVehicles(customer);
       setFormData({
         customerPhone: existingPhone ? formatPhoneNumber(existingPhone) : '',
         customerName: customer.customerName || '',
@@ -349,6 +613,7 @@ export default function CustomersPage() {
         locationType: customer.locationType || '',
         customerType: customer.customerType || '',
         vehicleModel: customer.vehicleModel || '',
+        vehicles: existingVehicles,
         services: customer.services || [],
         vcardSent: customer.vcardSent || false,
         customerNotes: notes
@@ -363,11 +628,13 @@ export default function CustomersPage() {
         locationType: '',
         customerType: '',
         vehicleModel: '',
+        vehicles: [],
         services: [],
         vcardSent: false,
         customerNotes: ''
       });
     }
+    setModalVehicleInput('');
     setIsModalOpen(true);
   };
 
@@ -439,7 +706,9 @@ export default function CustomersPage() {
             resourceType: resourceType || null,
             isUpcoming: isUpcoming,
             employeeName: event.employeeName || null,
-            notes: event.notes || notesFromDescription || ''
+            notes: event.notes || notesFromDescription || '',
+            duration: event.duration || null,
+            totalPrice: event.totalPrice || null,
           };
         });
 
@@ -484,10 +753,12 @@ export default function CustomersPage() {
       locationType: '',
       customerType: '',
       vehicleModel: '',
+      vehicles: [],
       services: [],
       vcardSent: false,
       customerNotes: ''
     });
+    setModalVehicleInput('');
   };
 
   const handleSave = async () => {
@@ -523,7 +794,8 @@ export default function CustomersPage() {
         address: formData.address || undefined,
         locationType: formData.locationType || undefined,
         customerType: formData.customerType || undefined,
-        vehicleModel: formData.vehicleModel || undefined,
+        vehicleModel: formData.vehicles.length > 0 ? formData.vehicles[0] : (formData.vehicleModel || undefined),
+        vehicles: formData.vehicles.length > 0 ? formData.vehicles : undefined,
         services: formData.services,
         vcardSent: formData.vcardSent,
         data: Object.keys(data).length > 0 ? data : undefined
@@ -989,12 +1261,15 @@ export default function CustomersPage() {
     };
   }, [resizingColumn, resizeStartX, resizeStartWidth]);
 
-  // Handle SMS button - start conversation with AI
+  // Handle SMS button - start conversation with AI and navigate directly to the chat
   const handleSendSMS = async (customer: Customer) => {
     if (!customer.customerPhone) {
       alert('Customer phone number is required');
       return;
     }
+
+    // Normalize phone to digits for the URL param
+    const phoneDigits = customer.customerPhone.replace(/\D/g, '');
 
     try {
       const response = await fetch('/api/detailer/start-conversation', {
@@ -1011,23 +1286,23 @@ export default function CustomersPage() {
       const result = await response.json();
 
       if (!response.ok) {
-        // If conversation already exists, that's okay - redirect to messages
+        // If conversation already exists, that's okay - redirect to messages with phone param
         if (response.status === 409) {
-          window.location.href = '/detailer-dashboard/messages';
+          router.push(`/detailer-dashboard/messages?phone=${encodeURIComponent(phoneDigits)}`);
           return;
         }
         throw new Error(result.error || 'Failed to start conversation');
       }
 
-      // Redirect to messages page to see the conversation
-      window.location.href = '/detailer-dashboard/messages';
+      // Redirect to messages page with phone param to auto-select the conversation
+      router.push(`/detailer-dashboard/messages?phone=${encodeURIComponent(phoneDigits)}`);
     } catch (err: any) {
       alert(err.message || 'Failed to send SMS');
     }
   };
 
   return (
-    <div className="h-full flex bg-white overflow-hidden">
+    <div className="h-full min-h-0 flex bg-white overflow-hidden">
       {/* ═══ Secondary Sidebar (Desktop) ═══ */}
       {secondarySidebarOpen && (
         <div className="hidden md:flex flex-col w-[200px] border-r border-[#F0F0EE] bg-white shrink-0">
@@ -1064,7 +1339,7 @@ export default function CustomersPage() {
       )}
 
       {/* ═══ Main Content ═══ */}
-      <div className={`flex-1 flex flex-col overflow-hidden ${isActionSidebarOpen ? 'md:pr-[400px] lg:pr-[420px]' : ''}`}>
+      <div className={`flex-1 min-h-0 flex flex-col overflow-hidden ${isActionSidebarOpen ? 'md:pr-[400px] lg:pr-[420px]' : ''}`}>
         {/* ── Mobile Header ── */}
         <div className="md:hidden px-4 pt-4 pb-3 border-b border-gray-200">
           <div className="flex items-center justify-between mb-3">
@@ -1204,7 +1479,7 @@ export default function CustomersPage() {
         )}
 
         {/* ── Mobile List View ── */}
-        <div className="md:hidden flex-1 overflow-y-auto pb-20">
+        <div className="md:hidden flex-1 min-h-0 overflow-y-scroll overscroll-contain pb-20">
           {loading ? (
             <div className="text-center py-12 text-[#9e9d92] text-sm">Loading...</div>
           ) : error ? (
@@ -1480,7 +1755,7 @@ export default function CustomersPage() {
       {/* Modal */}
       {isModalOpen && (
         <div 
-          className="fixed inset-0 flex items-center justify-center z-50 p-4 overflow-y-auto" 
+          className="fixed inset-0 flex items-center justify-center z-[10001] p-4 overflow-y-auto" 
           style={{ backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', backgroundColor: 'rgba(0, 0, 0, 0.3)' }}
           onClick={handleCloseModal}
         >
@@ -1505,6 +1780,19 @@ export default function CustomersPage() {
             <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Customer Name
+                </label>
+                <input
+                  type="text"
+                  value={formData.customerName}
+                  onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                  placeholder="Customer name"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
                   Phone Number *
                 </label>
                 <input
@@ -1524,19 +1812,6 @@ export default function CustomersPage() {
                     Phone number cannot be changed
                   </p>
                 )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Name
-                </label>
-                <input
-                  type="text"
-                  value={formData.customerName}
-                  onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                  placeholder="Customer name"
-                />
               </div>
 
               <div>
@@ -1597,15 +1872,41 @@ export default function CustomersPage() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Vehicle Model
+                  Vehicles
                 </label>
+                {formData.vehicles.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mb-2">
+                    {formData.vehicles.map((v, i) => (
+                      <span key={i} className="inline-flex items-center gap-1 text-sm px-2.5 py-1 rounded-lg bg-gray-100 text-gray-800">
+                        {v}
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, vehicles: formData.vehicles.filter((_, idx) => idx !== i) })}
+                          className="w-4 h-4 rounded-full flex items-center justify-center hover:bg-gray-300 transition-colors"
+                        >
+                          <svg className="w-3 h-3 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
                 <input
                   type="text"
-                  value={formData.vehicleModel}
-                  onChange={(e) => setFormData({ ...formData, vehicleModel: e.target.value })}
+                  value={modalVehicleInput}
+                  onChange={(e) => setModalVehicleInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && modalVehicleInput.trim()) {
+                      e.preventDefault();
+                      setFormData({ ...formData, vehicles: [...formData.vehicles, modalVehicleInput.trim()] });
+                      setModalVehicleInput('');
+                    }
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                  placeholder="e.g., Camry, Civic, F-150, Model 3"
+                  placeholder={formData.vehicles.length > 0 ? "Add another vehicle..." : "e.g., Camry, Civic, F-150, Model 3"}
                 />
+                <p className="text-xs text-gray-500 mt-1">Press Enter to add each vehicle</p>
               </div>
 
               <div>
@@ -1664,7 +1965,7 @@ export default function CustomersPage() {
 
       {/* Import Modal */}
       {isImportModalOpen && (
-        <div className="fixed inset-0 flex items-center justify-center z-50 p-4 overflow-y-auto" style={{ backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', backgroundColor: 'rgba(0, 0, 0, 0.3)' }}>
+        <div className="fixed inset-0 flex items-center justify-center z-[10001] p-4 overflow-y-auto" style={{ backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', backgroundColor: 'rgba(0, 0, 0, 0.3)' }}>
           <div className="rounded-xl shadow-xl max-w-2xl w-full p-6 my-8" style={{ backgroundColor: '#F8F8F7' }}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold text-gray-900">
@@ -1778,397 +2079,781 @@ export default function CustomersPage() {
         </div>
       )}
 
-      {isJobModalOpen && selectedJob && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div
-            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-            onClick={() => setIsJobModalOpen(false)}
-          />
-          <div
-            className="relative w-full max-w-lg mx-4 bg-white rounded-2xl shadow-2xl border"
-            style={{ borderColor: '#E2E2DD' }}
-          >
-            <div className="flex items-center justify-between px-6 pt-5 pb-3 border-b" style={{ borderColor: '#E2E2DD' }}>
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">Service Details</h3>
-                <p className="text-sm text-gray-600">{formatJobDateTime(selectedJob.date, selectedJob.time)}</p>
+      {/* Job Detail Modal - z-[200] to appear above drawer (z-[101]) */}
+      <AnimatePresence>
+        {isJobModalOpen && selectedJob && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[200]"
+              onClick={(e) => { e.stopPropagation(); setIsJobModalOpen(false); }}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.15 }}
+              className="fixed inset-0 z-[201] flex items-center justify-center pointer-events-none"
+            >
+              <div className="relative w-full max-w-lg mx-4 bg-white rounded-2xl shadow-2xl border pointer-events-auto" style={{ borderColor: '#E2E2DD' }}>
+                <div className="flex items-center justify-between px-6 pt-5 pb-3 border-b" style={{ borderColor: '#F0F0EE' }}>
+                  <div>
+                    <h3 className="text-lg font-semibold" style={{ color: '#2B2B26' }}>Service Details</h3>
+                    <p className="text-sm" style={{ color: '#6b6a5e' }}>{formatJobDateTime(selectedJob.date, selectedJob.time)}</p>
+                  </div>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setIsJobModalOpen(false); }}
+                    className="p-1 rounded-lg hover:bg-[#f8f8f7] transition-colors"
+                  >
+                    <XMarkIcon className="w-5 h-5" style={{ color: '#9e9d92' }} />
+                  </button>
+                </div>
+
+                <div className="px-6 py-4 space-y-4 max-h-[60vh] overflow-y-auto">
+                  {selectedJob.isUpcoming && (
+                    <span className="inline-flex text-[10px] font-semibold uppercase tracking-wider px-2.5 py-1 rounded" style={{ backgroundColor: '#FFF7ED', color: '#C2410C' }}>
+                      Upcoming
+                    </span>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: '#9e9d92' }}>Service</p>
+                      <p className="text-sm font-medium" style={{ color: '#2B2B26' }}>
+                        {selectedJob.services && selectedJob.services.length > 0
+                          ? selectedJob.services.join(', ')
+                          : '—'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: '#9e9d92' }}>Technician</p>
+                      {selectedJob.employeeName ? (
+                        <div className="flex items-center gap-2">
+                          <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white" style={{ backgroundColor: '#EAB308' }}>
+                            {selectedJob.employeeName.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 1)}
+                          </div>
+                          <span className="text-sm" style={{ color: '#2B2B26' }}>{selectedJob.employeeName}</span>
+                        </div>
+                      ) : (
+                        <p className="text-sm" style={{ color: '#2B2B26' }}>—</p>
+                      )}
+                    </div>
+                    {selectedJob.totalPrice != null && selectedJob.totalPrice > 0 && (
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: '#9e9d92' }}>Price</p>
+                        <p className="text-sm font-bold" style={{ color: '#2B2B26' }}>${selectedJob.totalPrice}</p>
+                      </div>
+                    )}
+                    {selectedJob.duration != null && selectedJob.duration > 0 && (
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: '#9e9d92' }}>Duration</p>
+                        <p className="text-sm font-medium" style={{ color: '#2B2B26' }}>{formatDuration(selectedJob.duration)}</p>
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: '#9e9d92' }}>Vehicle</p>
+                      <p className="text-sm" style={{ color: '#2B2B26' }}>{selectedJob.vehicleModel || '—'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: '#9e9d92' }}>Pickup/Drop-off</p>
+                      <p className="text-sm" style={{ color: '#2B2B26' }}>
+                        {selectedJob.resourceType === 'bay' && selectedJob.locationType
+                          ? (selectedJob.locationType === 'pick up' || selectedJob.locationType.toLowerCase() === 'pickup'
+                            ? 'Pick Up'
+                            : selectedJob.locationType === 'drop off' || selectedJob.locationType.toLowerCase() === 'dropoff'
+                            ? 'Drop Off'
+                            : selectedJob.locationType)
+                          : '—'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {selectedJob.notes && (
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: '#9e9d92' }}>Job Notes</p>
+                      <p className="text-sm whitespace-pre-wrap" style={{ color: '#2B2B26' }}>
+                        {selectedJob.notes}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="px-6 pb-5 pt-2">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setIsJobModalOpen(false); }}
+                    className="w-full px-4 py-2.5 text-white text-sm font-medium rounded-xl transition-colors"
+                    style={{ backgroundColor: '#2B2B26' }}
+                    onMouseEnter={(e) => { (e.target as HTMLElement).style.backgroundColor = '#1a1a17'; }}
+                    onMouseLeave={(e) => { (e.target as HTMLElement).style.backgroundColor = '#2B2B26'; }}
+                  >
+                    Close
+                  </button>
+                </div>
               </div>
-              <button
-                onClick={() => setIsJobModalOpen(false)}
-                className="p-1 rounded-lg hover:bg-gray-100 transition-colors"
-              >
-                <XMarkIcon className="w-5 h-5 text-gray-500" />
-              </button>
-            </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
-            <div className="px-6 py-4 space-y-4">
-              {selectedJob.isUpcoming && (
-                <span className="inline-flex text-xs font-semibold px-2.5 py-1 rounded-full bg-orange-100 text-orange-700">
-                  Upcoming
-                </span>
-              )}
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-xs text-gray-600 mb-1">Technician</p>
-                  <p className="text-sm text-gray-900">{selectedJob.employeeName || '—'}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-600 mb-1">Service</p>
-                  <p className="text-sm text-gray-900">
-                    {selectedJob.services && selectedJob.services.length > 0
-                      ? selectedJob.services.join(', ')
-                      : '—'}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-600 mb-1">Pickup/Drop-off</p>
-                  <p className="text-sm text-gray-900">
-                    {selectedJob.resourceType === 'bay' && selectedJob.locationType
-                      ? (selectedJob.locationType === 'pick up' || selectedJob.locationType.toLowerCase() === 'pickup'
-                        ? 'Pick Up'
-                        : selectedJob.locationType === 'drop off' || selectedJob.locationType.toLowerCase() === 'dropoff'
-                        ? 'Drop Off'
-                        : selectedJob.locationType)
-                      : '—'}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-600 mb-1">Vehicle</p>
-                  <p className="text-sm text-gray-900">{selectedJob.vehicleModel || '—'}</p>
-                </div>
-              </div>
-
-              <div>
-                <p className="text-xs text-gray-600 mb-1">Notes</p>
-                <p className="text-sm text-gray-900 whitespace-pre-wrap">
-                  {selectedJob.notes ? selectedJob.notes : 'No notes'}
-                </p>
-              </div>
-            </div>
-
-            <div className="px-6 pb-5">
-              <button
-                onClick={() => setIsJobModalOpen(false)}
-                className="w-full px-4 py-2 bg-gray-900 text-white rounded-xl hover:bg-gray-800 transition-colors"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Mobile backdrop */}
-      {isActionSidebarOpen && (
-        <div 
-          className="md:hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-30"
-          onClick={() => {
-            setIsActionSidebarOpen(false);
-            setSelectedCustomerData(null);
-          }}
-        />
-      )}
-
-      {/* Action Sidebar */}
-      <div 
-        ref={actionSidebarRef}
-        className={`fixed top-0 right-0 h-full w-full md:w-[400px] lg:w-[420px] shadow-2xl z-40 transform transition-transform duration-300 ease-in-out ${
-          isActionSidebarOpen ? 'translate-x-0' : 'translate-x-full'
-        }`} style={{ backgroundColor: '#F8F8F7', borderLeft: '1px solid #E2E2DD', boxShadow: 'none' }}>
-        <div className="h-full flex flex-col overflow-hidden" style={{ backgroundColor: '#F8F8F7' }}>
-          {/* Header - simplified Replit style */}
-          <div className="flex-shrink-0 flex items-center h-[60px] px-4" style={{ borderBottom: '1px solid #F0F0EE' }}>
-            <button
+      {/* Animated Profile Drawer */}
+      <AnimatePresence>
+        {isActionSidebarOpen && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
               onClick={() => {
                 setIsActionSidebarOpen(false);
                 setSelectedCustomerData(null);
-                setExpandedJobs(new Set());
+                setEditingField(null);
+                setIsAddingVehicle(false);
+                setIsAddingNote(false);
+                setEditingNoteId(null);
+                setEditingNoteText('');
+                setShowVehicleSearch(false);
+                setHoveredBrand(null);
               }}
-              className="p-1.5 rounded-lg transition-colors hover:bg-black/5"
+              className="fixed inset-0 bg-black/5 z-[100]"
+            />
+
+            {/* Drawer */}
+            <motion.div
+              ref={actionSidebarRef}
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 35, stiffness: 400 }}
+              className="fixed top-0 right-0 h-full w-full md:w-[440px] bg-white shadow-xl z-[101] flex flex-col"
+              onTouchStart={(e) => {
+                const touch = e.touches[0];
+                touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+              }}
+              onTouchEnd={(e) => {
+                if (!touchStartRef.current) return;
+                const touch = e.changedTouches[0];
+                const deltaX = touch.clientX - touchStartRef.current.x;
+                const deltaY = Math.abs(touch.clientY - touchStartRef.current.y);
+                if (deltaX > 80 && deltaY < 60) {
+                  setIsActionSidebarOpen(false);
+                  setSelectedCustomerData(null);
+                  setEditingField(null);
+                  setIsAddingVehicle(false);
+                  setIsAddingNote(false);
+                  setEditingNoteId(null);
+                  setEditingNoteText('');
+                  setShowVehicleSearch(false);
+                  setHoveredBrand(null);
+                }
+                touchStartRef.current = null;
+              }}
             >
-              <XMarkIcon className="w-5 h-5" style={{ color: '#6b6a5e' }} />
-            </button>
-          </div>
+              {/* Header */}
+              <div className="h-[60px] px-4 flex items-center justify-between border-b border-[#F0F0EE] flex-shrink-0">
+                <button
+                  onClick={() => {
+                    setIsActionSidebarOpen(false);
+                    setSelectedCustomerData(null);
+                    setExpandedJobs(new Set());
+                    setEditingField(null);
+                    setIsAddingVehicle(false);
+                    setIsAddingNote(false);
+                    setEditingNoteId(null);
+                    setEditingNoteText('');
+                    setShowVehicleSearch(false);
+                    setHoveredBrand(null);
+                  }}
+                  className="p-1.5 hover:bg-[#f8f8f7] rounded transition-colors"
+                >
+                  <XMarkIcon className="w-4 h-4" style={{ color: '#9e9d92' }} />
+                </button>
+                <div />
+              </div>
 
-          {/* Scrollable Content */}
-          {selectedCustomerData && (
-            <div className="flex-1 overflow-y-auto">
-              <div className="px-6 pt-6 pb-24">
-
-                {/* Profile Header: Avatar + Name + Tags */}
-                <div className="flex flex-col items-center text-center mb-6">
-                  <div className="w-16 h-16 rounded-full flex items-center justify-center mb-3" style={{ backgroundColor: '#deded9' }}>
-                    <span className="text-xl font-semibold" style={{ color: '#6b6a5e' }}>
-                      {(selectedCustomerData.customerName || 'U')
-                        .split(' ')
-                        .map((w: string) => w[0])
-                        .join('')
-                        .toUpperCase()
-                        .slice(0, 2)}
-                    </span>
-                  </div>
-                  <h2 className="text-xl font-semibold mb-2" style={{ color: '#2B2B26' }}>
-                    {selectedCustomerData.customerName || 'Unnamed Customer'}
-                  </h2>
-                  <div className="flex flex-wrap items-center justify-center gap-1.5">
-                    {/* Customer Type Badge */}
-                    {(() => {
-                      const effectiveCustomerType = getEffectiveCustomerType(selectedCustomerData);
-                      const typeConfig: Record<string, { bg: string; text: string; label: string }> = {
-                        new: { bg: '#F0F0EE', text: '#6b6a5e', label: 'New Customer' },
-                        returning: { bg: '#f3e8ff', text: '#7c3aed', label: 'Returning Customer' },
-                        maintenance: { bg: '#dbeafe', text: '#2563eb', label: 'Maintenance Customer' },
-                      };
-                      const cfg = typeConfig[effectiveCustomerType] || typeConfig.new;
-                      return (
-                        <span
-                          className="text-[11px] font-medium px-2.5 py-1 rounded-full"
-                          style={{ backgroundColor: cfg.bg, color: cfg.text }}
-                        >
-                          {cfg.label}
+              {/* Scrollable Content */}
+              {selectedCustomerData && (
+                <div className="flex-1 overflow-y-auto pb-20">
+                  {/* Profile Header - horizontal layout */}
+                  <div className="px-6 pt-6 pb-4">
+                    <div className="flex items-center gap-4">
+                      <div className="h-16 w-16 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#deded9' }}>
+                        <span className="text-xl font-bold" style={{ color: '#4a4a42' }}>
+                          {(selectedCustomerData.customerName || 'U')
+                            .split(' ')
+                            .map((w: string) => w[0])
+                            .join('')
+                            .toUpperCase()
+                            .slice(0, 2)}
                         </span>
-                      );
-                    })()}
-                    {/* Past Jobs Count Badge */}
-                    {customerPastJobs && customerPastJobs.length > 0 && (
-                      <span
-                        className="text-[11px] font-medium px-2.5 py-1 rounded-full"
-                        style={{ backgroundColor: '#f3e8ff', color: '#7c3aed' }}
-                      >
-                        {customerPastJobs.length} past job{customerPastJobs.length !== 1 ? 's' : ''}
-                      </span>
-                    )}
-                    {/* Location Type Badge */}
-                    {selectedCustomerData.locationType && (
-                      <span
-                        className="text-[11px] font-medium px-2.5 py-1 rounded-full"
-                        style={{ backgroundColor: '#dbeafe', color: '#2563eb' }}
-                      >
-                        {selectedCustomerData.locationType?.toLowerCase() === 'pickup' || selectedCustomerData.locationType?.toLowerCase() === 'pick up'
-                          ? 'Pick Up'
-                          : selectedCustomerData.locationType?.toLowerCase() === 'dropoff' || selectedCustomerData.locationType?.toLowerCase() === 'drop off'
-                          ? 'Drop Off'
-                          : selectedCustomerData.locationType}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Contact Info - Notion-style property rows */}
-                <div className="mb-6" style={{ borderTop: '1px solid #F0F0EE' }}>
-                  {/* Email Row */}
-                  <div className="flex items-center py-2.5" style={{ borderBottom: '1px solid #F0F0EE' }}>
-                    <div className="flex items-center gap-2 w-24 flex-shrink-0">
-                      <svg className="w-3.5 h-3.5" style={{ color: '#9e9d92' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
-                      </svg>
-                      <span className="text-xs" style={{ color: '#9e9d92' }}>Email</span>
-                    </div>
-                    <span className="text-sm flex-1 truncate" style={{ color: selectedCustomerData.customerEmail ? '#2B2B26' : '#9e9d92' }}>
-                      {selectedCustomerData.customerEmail || 'No email'}
-                    </span>
-                  </div>
-                  {/* Phone Row */}
-                  <div className="flex items-center py-2.5" style={{ borderBottom: '1px solid #F0F0EE' }}>
-                    <div className="flex items-center gap-2 w-24 flex-shrink-0">
-                      <svg className="w-3.5 h-3.5" style={{ color: '#9e9d92' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
-                      </svg>
-                      <span className="text-xs" style={{ color: '#9e9d92' }}>Phone</span>
-                    </div>
-                    <span className="text-sm flex-1 truncate" style={{ color: selectedCustomerData.customerPhone ? '#2B2B26' : '#9e9d92' }}>
-                      {selectedCustomerData.customerPhone ? formatPhoneDisplay(selectedCustomerData.customerPhone) : 'No phone'}
-                    </span>
-                  </div>
-                  {/* Address Row */}
-                  <div className="flex items-center py-2.5" style={{ borderBottom: '1px solid #F0F0EE' }}>
-                    <div className="flex items-center gap-2 w-24 flex-shrink-0">
-                      <svg className="w-3.5 h-3.5" style={{ color: '#9e9d92' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 0115 0z" />
-                      </svg>
-                      <span className="text-xs" style={{ color: '#9e9d92' }}>Address</span>
-                    </div>
-                    <span className="text-sm flex-1" style={{ color: selectedCustomerData.address ? '#2B2B26' : '#9e9d92' }}>
-                      {selectedCustomerData.address || 'No address'}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Vehicles Section */}
-                <div className="mb-6">
-                  <div className="flex items-center justify-between mb-3" style={{ borderBottom: '1px solid #F0F0EE', paddingBottom: '8px' }}>
-                    <h3 className="text-sm font-semibold" style={{ color: '#2B2B26' }}>Vehicles</h3>
-                  </div>
-                  {(selectedCustomerData.vehicle || selectedCustomerData.vehicleModel) ? (
-                    <div className="flex flex-wrap gap-2">
-                      <span className="text-sm px-2.5 py-1.5 rounded" style={{ backgroundColor: '#f8f8f7', color: '#2B2B26' }}>
-                        {selectedCustomerData.vehicleModel || selectedCustomerData.vehicle}
-                      </span>
-                    </div>
-                  ) : (
-                    <p className="text-sm italic" style={{ color: '#9e9d92' }}>No vehicles added</p>
-                  )}
-                </div>
-
-                {/* Notes Section */}
-                <div className="mb-6">
-                  <div className="flex items-center justify-between mb-3" style={{ borderBottom: '1px solid #F0F0EE', paddingBottom: '8px' }}>
-                    <h3 className="text-sm font-semibold" style={{ color: '#2B2B26' }}>Notes</h3>
-                  </div>
-                  {selectedCustomerData && (selectedCustomerData as any).data && typeof (selectedCustomerData as any).data === 'object' && (selectedCustomerData as any).data.notes ? (
-                    <div className="p-3 rounded-lg" style={{ backgroundColor: '#f8f8f7' }}>
-                      <p className="text-sm whitespace-pre-wrap" style={{ color: '#2B2B26' }}>
-                        {(selectedCustomerData as any).data.notes}
-                      </p>
-                    </div>
-                  ) : (
-                    <p className="text-sm italic" style={{ color: '#9e9d92' }}>No notes</p>
-                  )}
-                </div>
-
-                {/* Past Jobs Section - Collapsible */}
-                <div className="mb-6">
-                  <div className="flex items-center justify-between mb-3" style={{ borderBottom: '1px solid #F0F0EE', paddingBottom: '8px' }}>
-                    <h3 className="text-sm font-semibold" style={{ color: '#2B2B26' }}>
-                      Past Jobs {customerPastJobs && customerPastJobs.length > 0 ? `(${customerPastJobs.length})` : ''}
-                    </h3>
-                  </div>
-                  {customerPastJobs && customerPastJobs.length > 0 ? (
-                    <div className="space-y-0.5">
-                      {customerPastJobs.map((job, index) => {
-                        const isExpanded = expandedJobs.has(index);
-                        return (
-                          <div key={job.id || index}>
-                            {/* Collapsible Header Row */}
-                            <button
-                              onClick={() => {
-                                setExpandedJobs(prev => {
-                                  const next = new Set(prev);
-                                  if (next.has(index)) {
-                                    next.delete(index);
-                                  } else {
-                                    next.add(index);
-                                  }
-                                  return next;
-                                });
-                              }}
-                              className="w-full flex items-center justify-between py-2.5 px-2 rounded-lg transition-colors hover:bg-black/[0.03]"
+                      </div>
+                      <div className="flex-1 min-w-0 flex items-center gap-3 flex-wrap">
+                        <span className="text-xl font-semibold" style={{ color: '#2B2B26' }}>
+                          {selectedCustomerData.customerName || 'Unnamed Customer'}
+                        </span>
+                        {(() => {
+                          const effectiveCustomerType = getEffectiveCustomerType(selectedCustomerData);
+                          const typeConfig: Record<string, { bg: string; text: string; label: string }> = {
+                            new: { bg: '#F0F0EE', text: '#6b6a5e', label: 'New Customer' },
+                            returning: { bg: '#f3e8ff', text: '#7c3aed', label: 'Returning Customer' },
+                            maintenance: { bg: '#dbeafe', text: '#2563eb', label: 'Maintenance Customer' },
+                          };
+                          const cfg = typeConfig[effectiveCustomerType] || typeConfig.new;
+                          return (
+                            <span
+                              className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium"
+                              style={{ backgroundColor: cfg.bg, color: cfg.text }}
                             >
-                              <div className="flex items-center gap-2 min-w-0">
-                                {/* Chevron */}
-                                <svg
-                                  className={`w-3.5 h-3.5 flex-shrink-0 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`}
+                              {cfg.label}
+                            </span>
+                          );
+                        })()}
+                        {customerPastJobs && customerPastJobs.length > 0 && (
+                          <span
+                            className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium"
+                            style={{ backgroundColor: '#f3e8ff', color: '#7c3aed' }}
+                          >
+                            {customerPastJobs.length} job{customerPastJobs.length !== 1 ? 's' : ''}
+                          </span>
+                        )}
+                        {selectedCustomerData.locationType && (
+                          <span
+                            className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium"
+                            style={{ backgroundColor: '#dbeafe', color: '#2563eb' }}
+                          >
+                            {selectedCustomerData.locationType?.toLowerCase() === 'pickup' || selectedCustomerData.locationType?.toLowerCase() === 'pick up'
+                              ? 'Pick Up'
+                              : selectedCustomerData.locationType?.toLowerCase() === 'dropoff' || selectedCustomerData.locationType?.toLowerCase() === 'drop off'
+                              ? 'Drop Off'
+                              : selectedCustomerData.locationType}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Contact Info - Notion-style property rows */}
+                  <div className="px-6 space-y-0.5">
+                    {/* Email Row */}
+                    <div
+                      className="flex items-center py-2 -mx-2 px-2 rounded cursor-pointer hover:bg-[#f8f8f7] transition-colors"
+                      onClick={() => {
+                        if (editingField !== 'email') {
+                          setEditingField('email');
+                          updateEditingValue(selectedCustomerData.customerEmail || '');
+                        }
+                      }}
+                    >
+                      <div className="w-24 flex items-center gap-2" style={{ color: '#9e9d92' }}>
+                        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
+                        </svg>
+                        <span className="text-xs">Email</span>
+                      </div>
+                      {editingField === 'email' ? (
+                        <input
+                          type="email"
+                          autoFocus
+                          value={editingValue}
+                          onChange={(e) => updateEditingValue(e.target.value)}
+                          onBlur={() => handleInlineFieldSave('email', editingValueRef.current)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') { (e.target as HTMLInputElement).blur(); } if (e.key === 'Escape') { setEditingField(null); } }}
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-sm flex-1 bg-transparent outline-none border-none p-0 m-0"
+                          style={{ color: '#2B2B26', caretColor: '#FF3700' }}
+                          placeholder="Add email..."
+                        />
+                      ) : (
+                        <span className="text-sm" style={{ color: selectedCustomerData.customerEmail ? '#2B2B26' : '#9e9d92' }}>
+                          {selectedCustomerData.customerEmail || 'Add email...'}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Phone Row */}
+                    <div
+                      className="flex items-center py-2 -mx-2 px-2 rounded cursor-pointer hover:bg-[#f8f8f7] transition-colors"
+                      onClick={() => {
+                        if (editingField !== 'phone') {
+                          setEditingField('phone');
+                          const raw = selectedCustomerData.customerPhone || '';
+                          const digits = raw.replace(/\D/g, '').slice(-10);
+                          updateEditingValue(digits ? formatPhoneNumber(digits) : '');
+                        }
+                      }}
+                    >
+                      <div className="w-24 flex items-center gap-2" style={{ color: '#9e9d92' }}>
+                        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
+                        </svg>
+                        <span className="text-xs">Phone</span>
+                      </div>
+                      {editingField === 'phone' ? (
+                        <input
+                          type="tel"
+                          autoFocus
+                          value={editingValue}
+                          onChange={(e) => updateEditingValue(formatPhoneNumber(e.target.value))}
+                          onBlur={() => handleInlineFieldSave('phone', editingValueRef.current)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') { (e.target as HTMLInputElement).blur(); } if (e.key === 'Escape') { setEditingField(null); } }}
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-sm flex-1 bg-transparent outline-none border-none p-0 m-0"
+                          style={{ color: '#2B2B26', caretColor: '#FF3700' }}
+                          placeholder="(---) --- ----"
+                          maxLength={16}
+                        />
+                      ) : (
+                        <span className="text-sm" style={{ color: selectedCustomerData.customerPhone ? '#2B2B26' : '#9e9d92' }}>
+                          {selectedCustomerData.customerPhone ? formatPhoneDisplay(selectedCustomerData.customerPhone) : 'Add phone...'}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Address Row */}
+                    <div
+                      className="flex items-center py-2 -mx-2 px-2 rounded cursor-pointer hover:bg-[#f8f8f7] transition-colors"
+                      onClick={() => {
+                        if (editingField !== 'address') {
+                          setEditingField('address');
+                          updateEditingValue(selectedCustomerData.address || '');
+                        }
+                      }}
+                    >
+                      <div className="w-24 flex items-center gap-2" style={{ color: '#9e9d92' }}>
+                        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 0115 0z" />
+                        </svg>
+                        <span className="text-xs">Address</span>
+                      </div>
+                      {editingField === 'address' ? (
+                        <AddressAutocompleteInput
+                          autoFocus
+                          value={editingValue}
+                          onChange={(val) => updateEditingValue(val)}
+                          onPlaceSelected={(address) => {
+                            addressPlaceSelectedRef.current = true;
+                            addressSaveInProgressRef.current = true;
+                            updateEditingValue(address);
+                            handleInlineFieldSave('address', address).finally(() => {
+                              addressSaveInProgressRef.current = false;
+                            });
+                          }}
+                          onBlur={() => {
+                            setTimeout(() => {
+                              if (addressPlaceSelectedRef.current) {
+                                addressPlaceSelectedRef.current = false;
+                                return;
+                              }
+                              if (addressSaveInProgressRef.current) return;
+                              handleInlineFieldSave('address', editingValueRef.current);
+                            }, 250);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              addressPlaceSelectedRef.current = true;
+                              handleInlineFieldSave('address', editingValueRef.current);
+                            }
+                            if (e.key === 'Escape') { setEditingField(null); }
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-sm flex-1 bg-transparent outline-none border-none p-0 m-0"
+                          style={{ color: '#2B2B26', caretColor: '#FF3700' }}
+                          placeholder="Add address..."
+                        />
+                      ) : (
+                        <span className="text-sm" style={{ color: selectedCustomerData.address ? '#2B2B26' : '#9e9d92' }}>
+                          {selectedCustomerData.address || 'Add address...'}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Divider */}
+                  <div className="h-px bg-[#F0F0EE] mx-6 my-4" />
+
+                  {/* Vehicles */}
+                  <div className="px-6 mb-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-medium" style={{ color: '#9e9d92' }}>Vehicles</span>
+                      <div className="relative" ref={vehiclePopupRef}>
+                        <button
+                          onClick={() => { setShowVehicleSearch(!showVehicleSearch); setHoveredBrand(null); }}
+                          className="text-xs hover:text-[#FF3700] transition-colors flex items-center gap-0.5"
+                          style={{ color: '#9e9d92' }}
+                        >
+                          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                          </svg>
+                        </button>
+                        {showVehicleSearch && (
+                          <div
+                            className="absolute top-full right-0 mt-1 bg-white border border-[#deded9] rounded-lg shadow-lg z-50 transition-all duration-200"
+                            style={{ width: hoveredBrand ? '320px' : '180px' }}
+                          >
+                            <div className="p-2 border-b border-[#F0F0EE]">
+                              <p className="text-xs" style={{ color: '#9e9d92' }}>Select brand</p>
+                            </div>
+                            <div className="flex">
+                              <div className="w-44 max-h-56 overflow-y-auto border-r border-[#F0F0EE]">
+                                {Object.entries(VEHICLE_BY_BRAND).map(([brand]) => (
+                                  <button
+                                    key={brand}
+                                    onMouseEnter={() => setHoveredBrand(brand)}
+                                    className={`w-full px-3 py-2 text-left text-sm transition-colors flex items-center justify-between ${
+                                      hoveredBrand === brand ? 'bg-[#f8f8f7]' : 'hover:bg-[#f8f8f7]'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <div className="h-5 w-5 bg-white rounded flex items-center justify-center overflow-hidden">
+                                        <svg className="h-3 w-3" style={{ color: '#9e9d92' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                          <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 00-10.026 0 1.106 1.106 0 00-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12" />
+                                        </svg>
+                                      </div>
+                                      <span>{brand}</span>
+                                    </div>
+                                    <svg className="h-3 w-3" style={{ color: '#9e9d92' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                                    </svg>
+                                  </button>
+                                ))}
+                              </div>
+                              {hoveredBrand && (
+                                <div className="w-[140px] max-h-56 overflow-y-auto">
+                                  {VEHICLE_BY_BRAND[hoveredBrand].map((model: string) => (
+                                    <button
+                                      key={model}
+                                      onClick={() => {
+                                        handleAddVehicle(model);
+                                        setShowVehicleSearch(false);
+                                        setHoveredBrand(null);
+                                      }}
+                                      className="w-full px-3 py-2 text-left text-sm hover:bg-[#f8f8f7] transition-colors"
+                                    >
+                                      {model}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {(() => {
+                        const vehicles = getCustomerVehicles(selectedCustomerData);
+                        if (vehicles.length === 0) {
+                          return <p className="text-xs italic" style={{ color: '#9e9d92' }}>No vehicles added</p>;
+                        }
+                        return vehicles.map((v, i) => {
+                          const brand = getBrandForModel(v);
+                          return (
+                            <div key={i} className="bg-[#f8f8f7] px-2.5 py-1.5 rounded flex items-center gap-2 relative group">
+                              {vehicles.length > 1 && (
+                                <button
+                                  onClick={() => handleRemoveVehicle(i)}
+                                  className="absolute -top-1 -right-1 p-0.5 bg-white rounded-full border border-[#deded9] opacity-0 group-hover:opacity-100 transition-opacity hover:text-red-500"
                                   style={{ color: '#9e9d92' }}
-                                  fill="none"
-                                  viewBox="0 0 24 24"
-                                  stroke="currentColor"
-                                  strokeWidth={2}
                                 >
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                                  <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                </button>
+                              )}
+                              <div className="h-5 w-5 bg-white rounded flex items-center justify-center overflow-hidden">
+                                <svg className="h-3 w-3" style={{ color: '#9e9d92' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 00-10.026 0 1.106 1.106 0 00-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12" />
                                 </svg>
-                                <span className="text-sm truncate" style={{ color: '#2B2B26' }}>
+                              </div>
+                              <span className="text-sm" style={{ color: '#2B2B26' }}>{v}</span>
+                            </div>
+                          );
+                        });
+                      })()}
+                    </div>
+                  </div>
+
+                  {/* Divider */}
+                  <div className="h-px bg-[#F0F0EE] mx-6 my-4" />
+
+                  {/* Notes */}
+                  <div className="px-6 mb-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-medium" style={{ color: '#9e9d92' }}>Customer Notes</span>
+                      <button
+                        onClick={() => { setIsAddingNote(true); setNewNoteText(''); }}
+                        className="text-xs hover:text-[#FF3700] transition-colors"
+                        style={{ color: '#9e9d92' }}
+                      >
+                        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                        </svg>
+                      </button>
+                    </div>
+                    <div className="space-y-2">
+                      {isAddingNote && (
+                        <div className="bg-white rounded-lg border border-[#166BFF] p-3">
+                          <textarea
+                            value={newNoteText}
+                            onChange={(e) => setNewNoteText(e.target.value)}
+                            placeholder="Write a note..."
+                            className="w-full text-sm leading-relaxed outline-none resize-none min-h-[60px] bg-transparent"
+                            style={{ color: '#2B2B26' }}
+                            autoFocus
+                            rows={3}
+                          />
+                          <div className="flex justify-end gap-2 mt-2">
+                            <button
+                              onClick={() => { setIsAddingNote(false); setNewNoteText(''); }}
+                              className="px-2.5 py-1 text-xs rounded transition-colors hover:bg-[#f8f8f7]"
+                              style={{ color: '#6b6a5e' }}
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={() => handleAddNote(newNoteText)}
+                              className="px-2.5 py-1 text-xs text-white rounded transition-colors"
+                              style={{ backgroundColor: '#2B2B26' }}
+                            >
+                              Save
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                      {(() => {
+                        const notes = getCustomerNotes(selectedCustomerData);
+                        if (notes.length === 0 && !isAddingNote) {
+                          return <p className="text-xs italic" style={{ color: '#9e9d92' }}>No notes added</p>;
+                        }
+                        return notes.map((note) => (
+                          <div
+                            key={note.id}
+                            className={`p-3 rounded-lg relative group ${
+                              editingNoteId === note.id
+                                ? 'bg-white border border-[#166BFF]'
+                                : 'bg-[#f8f8f7] hover:bg-[#f8f8f7]'
+                            }`}
+                          >
+                            {editingNoteId === note.id ? (
+                              <>
+                                <textarea
+                                  value={editingNoteText}
+                                  onChange={(e) => setEditingNoteText(e.target.value)}
+                                  className="w-full text-sm leading-relaxed outline-none resize-none min-h-[60px] bg-transparent"
+                                  style={{ color: '#2B2B26' }}
+                                  autoFocus
+                                  rows={3}
+                                />
+                                <div className="flex justify-end gap-2 mt-2">
+                                  <button
+                                    onClick={() => { setEditingNoteId(null); setEditingNoteText(''); }}
+                                    className="px-2.5 py-1 text-xs rounded transition-colors hover:bg-[#f8f8f7]"
+                                    style={{ color: '#6b6a5e' }}
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    onClick={() => handleEditNote(note.id, editingNoteText)}
+                                    className="px-2.5 py-1 text-xs text-white rounded transition-colors"
+                                    style={{ backgroundColor: '#2B2B26' }}
+                                  >
+                                    Save
+                                  </button>
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <button
+                                    onClick={() => { setEditingNoteId(note.id); setEditingNoteText(note.text); }}
+                                    className="p-1 transition-colors hover:text-[#2B2B26]"
+                                    style={{ color: '#9e9d92' }}
+                                  >
+                                    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                                    </svg>
+                                  </button>
+                                  <button
+                                    onClick={() => handleRemoveNote(note.id)}
+                                    className="p-1 transition-colors hover:text-red-500"
+                                    style={{ color: '#9e9d92' }}
+                                  >
+                                    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                                    </svg>
+                                  </button>
+                                </div>
+                                <p className="text-sm leading-relaxed pr-12" style={{ color: '#2B2B26' }}>{note.text}</p>
+                                <p className="text-xs mt-1.5" style={{ color: '#9e9d92' }}>
+                                  {(() => { try { return format(new Date(note.createdAt), 'MMM d, yyyy'); } catch { return ''; } })()}
+                                </p>
+                              </>
+                            )}
+                          </div>
+                        ));
+                      })()}
+                    </div>
+                  </div>
+
+                  {/* Divider */}
+                  <div className="h-px bg-[#F0F0EE] mx-6 my-4" />
+
+                  {/* Job History - Card style */}
+                  <div className="px-6 mb-4">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider block mb-3" style={{ color: '#9e9d92' }}>
+                      Job History
+                    </span>
+                    <div className="space-y-3">
+                      {customerPastJobs && customerPastJobs.length > 0 ? (
+                        customerPastJobs.map((job, index) => {
+                          const serviceName = job.services && job.services.length > 0
+                            ? (Array.isArray(job.services) ? job.services.join(', ') : job.services)
+                            : 'Service';
+                          const initials = job.employeeName
+                            ? job.employeeName.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 1)
+                            : '?';
+                          return (
+                            <div
+                              key={job.id || index}
+                              className="bg-white border border-[#E8E8E6] rounded-xl p-4 cursor-pointer hover:shadow-sm transition-shadow"
+                              onClick={() => {
+                                setSelectedJob(job);
+                                setIsJobModalOpen(true);
+                              }}
+                            >
+                              {/* Header: service name + upcoming badge or date */}
+                              <div className="flex items-start justify-between mb-1">
+                                <h4 className="text-[15px] font-semibold" style={{ color: '#2B2B26' }}>{serviceName}</h4>
+                                {job.isUpcoming ? (
+                                  <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded" style={{ backgroundColor: '#FFF7ED', color: '#C2410C' }}>
+                                    Upcoming
+                                  </span>
+                                ) : (
+                                  <span className="text-xs flex-shrink-0 ml-3" style={{ color: '#9e9d92' }}>
+                                    {(() => {
+                                      try {
+                                        return format(new Date(job.date), 'MMM d, yyyy');
+                                      } catch { return ''; }
+                                    })()}
+                                  </span>
+                                )}
+                              </div>
+                              {/* Date line */}
+                              <p className="text-xs mb-3" style={{ color: '#6b6a5e' }}>
+                                {formatJobDateTime(job.date, job.time)}
+                              </p>
+
+                              {/* Price */}
+                              {job.totalPrice != null && job.totalPrice > 0 && (
+                                <div className="mb-2.5">
+                                  <p className="text-[10px] font-semibold uppercase tracking-wider mb-0.5" style={{ color: '#9e9d92' }}>Price</p>
+                                  <p className="text-base font-bold" style={{ color: '#2B2B26' }}>${job.totalPrice}</p>
+                                </div>
+                              )}
+
+                              {/* Duration */}
+                              {job.duration != null && job.duration > 0 && (
+                                <div className="mb-2.5">
+                                  <p className="text-[10px] font-semibold uppercase tracking-wider mb-0.5" style={{ color: '#9e9d92' }}>Duration</p>
+                                  <p className="text-sm font-medium" style={{ color: '#2B2B26' }}>{formatDuration(job.duration)}</p>
+                                </div>
+                              )}
+
+                              {/* Technician */}
+                              {job.employeeName && (
+                                <div className="mb-2.5">
+                                  <p className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: '#9e9d92' }}>Technician</p>
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ backgroundColor: '#EAB308' }}>
+                                      {initials}
+                                    </div>
+                                    <span className="text-sm" style={{ color: '#2B2B26' }}>{job.employeeName}</span>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Notes */}
+                              {job.notes && (
+                                <div>
+                                  <p className="text-[10px] font-semibold uppercase tracking-wider mb-0.5" style={{ color: '#9e9d92' }}>Notes</p>
+                                  <p className="text-sm italic" style={{ color: '#6b6a5e' }}>{job.notes}</p>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <p className="text-xs italic" style={{ color: '#9e9d92' }}>No past jobs yet</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Divider */}
+                  <div className="h-px bg-[#F0F0EE] mx-6 my-4" />
+
+                  {/* Activity */}
+                  <div className="px-6 pb-6">
+                    <span className="text-xs font-medium block mb-3" style={{ color: '#9e9d92' }}>Activity</span>
+                    <div className="space-y-3">
+                      {(() => {
+                        // Generate activity from past jobs
+                        if (!customerPastJobs || customerPastJobs.length === 0) {
+                          return <p className="text-xs italic" style={{ color: '#9e9d92' }}>No activity yet</p>;
+                        }
+                        return customerPastJobs.map((job, i) => (
+                          <div key={i} className="flex gap-3">
+                            <div className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0" style={{ backgroundColor: '#FF3700' }} />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm" style={{ color: '#2B2B26' }}>
+                                <span className="font-medium">
+                                  {job.isUpcoming ? 'Booked' : 'Completed'}
+                                </span>
+                                <span style={{ color: '#6b6a5e' }}>
+                                  {' — '}
                                   {job.services && job.services.length > 0
                                     ? (Array.isArray(job.services) ? job.services.join(', ') : job.services)
                                     : 'Service'}
                                 </span>
-                                {job.isUpcoming && (
-                                  <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ backgroundColor: '#FFF7ED', color: '#C2410C' }}>
-                                    Upcoming
-                                  </span>
-                                )}
-                              </div>
-                              <span className="text-xs flex-shrink-0 ml-2" style={{ color: '#9e9d92' }}>
+                              </p>
+                              <p className="text-xs mt-0.5" style={{ color: '#9e9d92' }}>
                                 {formatJobDateTime(job.date, job.time)}
-                              </span>
-                            </button>
-
-                            {/* Expanded Details */}
-                            {isExpanded && (
-                              <div className="ml-6 mr-2 mb-2 p-3 rounded-lg" style={{ backgroundColor: '#f8f8f7' }}>
-                                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                                  <div>
-                                    <p className="text-xs mb-0.5" style={{ color: '#9e9d92' }}>Date & Time</p>
-                                    <p style={{ color: '#2B2B26' }}>{formatJobDateTime(job.date, job.time)}</p>
-                                  </div>
-                                  <div>
-                                    <p className="text-xs mb-0.5" style={{ color: '#9e9d92' }}>Technician</p>
-                                    <p style={{ color: '#2B2B26' }}>{job.employeeName || '\u2014'}</p>
-                                  </div>
-                                  <div>
-                                    <p className="text-xs mb-0.5" style={{ color: '#9e9d92' }}>Vehicle</p>
-                                    <p style={{ color: '#2B2B26' }}>{job.vehicleModel || '\u2014'}</p>
-                                  </div>
-                                  <div>
-                                    <p className="text-xs mb-0.5" style={{ color: '#9e9d92' }}>Pickup/Drop-off</p>
-                                    <p style={{ color: '#2B2B26' }}>
-                                      {job.resourceType === 'bay' && job.locationType
-                                        ? (job.locationType === 'pick up' || job.locationType.toLowerCase() === 'pickup'
-                                          ? 'Pick Up'
-                                          : job.locationType === 'drop off' || job.locationType.toLowerCase() === 'dropoff'
-                                          ? 'Drop Off'
-                                          : job.locationType)
-                                        : '\u2014'}
-                                    </p>
-                                  </div>
-                                </div>
-                                {job.notes && (
-                                  <div className="mt-2 text-sm">
-                                    <p className="text-xs mb-0.5" style={{ color: '#9e9d92' }}>Notes</p>
-                                    <p className="whitespace-pre-wrap" style={{ color: '#2B2B26' }}>{job.notes}</p>
-                                  </div>
-                                )}
-                                <button
-                                  onClick={() => {
-                                    setSelectedJob(job);
-                                    setIsJobModalOpen(true);
-                                  }}
-                                  className="mt-2 text-xs font-medium"
-                                  style={{ color: '#F97316' }}
-                                >
-                                  View Details
-                                </button>
-                              </div>
-                            )}
+                              </p>
+                            </div>
                           </div>
-                        );
-                      })}
+                        ));
+                      })()}
                     </div>
-                  ) : (
-                    <p className="text-sm italic" style={{ color: '#9e9d92' }}>No past jobs</p>
-                  )}
-                </div>
-
-                {/* Activity Section */}
-                <div className="mb-6">
-                  <div className="flex items-center justify-between mb-3" style={{ borderBottom: '1px solid #F0F0EE', paddingBottom: '8px' }}>
-                    <h3 className="text-sm font-semibold" style={{ color: '#2B2B26' }}>Activity</h3>
                   </div>
-                  <p className="text-sm italic" style={{ color: '#9e9d92' }}>No activity yet</p>
                 </div>
+              )}
 
+              {/* Fixed Book Service Button at bottom */}
+              <div className="absolute bottom-0 left-0 right-0 p-4 bg-white border-t border-[#F0F0EE]">
+                <button
+                  onClick={() => {
+                    setIsActionSidebarOpen(false);
+                    setSelectedCustomerData(null);
+                    router.push('/detailer-dashboard/calendar');
+                  }}
+                  className="w-full py-2.5 text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+                  style={{ backgroundColor: '#FF3700' }}
+                  onMouseEnter={(e) => { (e.target as HTMLElement).style.backgroundColor = '#E63200'; }}
+                  onMouseLeave={(e) => { (e.target as HTMLElement).style.backgroundColor = '#FF3700'; }}
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+                  </svg>
+                  Book Service
+                </button>
               </div>
-            </div>
-          )}
-
-          {/* Fixed Bottom Bar - Edit Button */}
-          {selectedCustomerData && (
-            <div className="flex-shrink-0 px-4 py-3" style={{ borderTop: '1px solid #F0F0EE', backgroundColor: '#F8F8F7' }}>
-              <button
-                onClick={() => {
-                  handleOpenModal(selectedCustomerData);
-                  setIsActionSidebarOpen(false);
-                }}
-                className="w-full py-2.5 rounded-xl text-sm font-semibold text-white transition-colors hover:opacity-90"
-                style={{ backgroundColor: '#F97316' }}
-              >
-                Edit
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       
     </div>

@@ -21,20 +21,20 @@ html {
 }
 
 /* Remove body padding/margin for detailer dashboard */
-body:has(.detailer-dashboard-border) {
+body:has(.detailer-dashboard-border-overlay) {
   margin: 0 !important;
   padding: 0 !important;
-  overflow-x: hidden;
-  overflow-y: hidden;
+  overflow: hidden !important;
   height: 100vh;
+  height: 100dvh; /* modern override — adjusts for mobile browser chrome */
 }
 
-html:has(.detailer-dashboard-border) {
+html:has(.detailer-dashboard-border-overlay) {
   margin: 0 !important;
   padding: 0 !important;
-  overflow-x: hidden;
-  overflow-y: hidden;
-  height: 100%;
+  overflow: hidden !important;
+  height: 100vh;
+  height: 100dvh;
 }
 
 /* Remove spacing from root layout wrappers for detailer dashboard */
@@ -123,6 +123,11 @@ body.action-panel-open .action-panel-hide {
 
 /* Hide hamburger menu button when Create Event modal is open */
 body.event-modal-open .event-modal-hide {
+  display: none !important;
+}
+
+/* Hide hamburger menu button when customer profile sidebar is open */
+body.customer-profile-open .customer-profile-hide {
   display: none !important;
 }
 

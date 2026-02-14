@@ -16,6 +16,7 @@ import {
   Cog8ToothIcon,
   QuestionMarkCircleIcon,
   UserGroupIcon,
+  HomeIcon,
 } from "@heroicons/react/24/outline";
 
 export default function MobileMenu() {
@@ -57,6 +58,7 @@ export default function MobileMenu() {
   // Top items: Calendar, Customers, Messages - 20px font, white
   // Bottom items: Profile, Settings - 16px font, gray (#ababab)
   const topNavigationItems = [
+    { name: "Dashboard", href: "/detailer-dashboard", icon: HomeIcon, exact: true },
     { name: "Calendar", href: "/detailer-dashboard/calendar", icon: CalendarDaysIcon },
     { name: "Customers", href: "/detailer-dashboard/customers", icon: UserGroupIcon },
     { name: "Messages", href: "/detailer-dashboard/messages", icon: ChatBubbleLeftRightIcon },
@@ -87,7 +89,7 @@ export default function MobileMenu() {
       {/* Hamburger Menu Button - Mobile Only */}
       <button
         onClick={() => setIsMenuOpen(!isMenuOpen)}
-        className="md:hidden fixed top-4 left-4 z-[10000] w-8 h-8 flex items-center justify-center rounded-lg transition action-panel-hide event-modal-hide"
+        className="md:hidden fixed top-4 left-4 z-[10000] w-8 h-8 flex items-center justify-center rounded-lg transition action-panel-hide event-modal-hide customer-profile-hide"
         aria-label="Menu"
       >
         <Bars3Icon className="w-6 h-6 text-gray-700" />
@@ -120,10 +122,10 @@ export default function MobileMenu() {
               <div className="flex-1 flex flex-col">
                 {/* Top items - 20px font, white text, centered vertically */}
                 <div className="flex-1 flex flex-col justify-center px-6">
-                  <div style={{ gap: '71px' }} className="flex flex-col">
+                  <div style={{ gap: '52px' }} className="flex flex-col">
                     {topNavigationItems.map((item) => {
                       const Icon = item.icon;
-                      const isActive = pathname === item.href;
+                      const isActive = (item as any).exact ? pathname === item.href : pathname.startsWith(item.href);
                       return (
                         <Link
                           key={item.name}

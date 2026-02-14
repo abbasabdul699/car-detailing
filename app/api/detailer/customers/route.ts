@@ -157,6 +157,8 @@ export async function POST(request: NextRequest) {
       vehicleYear, 
       vehicleMake, 
       vehicleModel,
+      vehicles,       // string[] - multiple vehicles support
+      customerNotes,  // Array<{id, text, createdAt}> - multiple notes support
       services,
       vcardSent,
       data
@@ -179,10 +181,23 @@ export async function POST(request: NextRequest) {
     });
     
     // Merge data field with existing data
-    let mergedData = existing?.data ? (typeof existing.data === 'object' ? existing.data : {}) : {};
+    let mergedData: Record<string, any> = existing?.data ? (typeof existing.data === 'object' ? existing.data as Record<string, any> : {}) : {};
     if (data && typeof data === 'object') {
       mergedData = { ...mergedData, ...data };
     }
+    // Store vehicles array in data.vehicles if provided
+    if (vehicles !== undefined) {
+      mergedData.vehicles = Array.isArray(vehicles) ? vehicles : [];
+    }
+    // Store customerNotes array in data.customerNotes if provided
+    if (customerNotes !== undefined) {
+      mergedData.customerNotes = Array.isArray(customerNotes) ? customerNotes : [];
+    }
+
+    // Sync vehicleModel with first vehicle in vehicles array for backward compat
+    const finalVehicleModel = (vehicles !== undefined && Array.isArray(vehicles) && vehicles.length > 0)
+      ? vehicles[0]
+      : (vehicleModel || vehicle);
 
     const customer = await prisma.customerSnapshot.upsert({
       where: { 
@@ -197,10 +212,10 @@ export async function POST(request: NextRequest) {
         address,
         locationType,
         customerType,
-        vehicle,
+        vehicle: finalVehicleModel,
         vehicleYear,
         vehicleMake,
-        vehicleModel,
+        vehicleModel: finalVehicleModel,
         services: services || [],
         vcardSent,
         data: Object.keys(mergedData).length > 0 ? mergedData : null
@@ -213,10 +228,10 @@ export async function POST(request: NextRequest) {
         address,
         locationType,
         customerType,
-        vehicle,
+        vehicle: finalVehicleModel,
         vehicleYear,
         vehicleMake,
-        vehicleModel,
+        vehicleModel: finalVehicleModel,
         services: services || [],
         vcardSent: vcardSent || false,
         data: Object.keys(mergedData).length > 0 ? mergedData : null

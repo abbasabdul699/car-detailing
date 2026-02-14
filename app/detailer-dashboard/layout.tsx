@@ -96,10 +96,10 @@ function DetailerDashboardLayoutInner({
   return (
     <ThemeProvider>
       <div className="detailer-dashboard-border-overlay"></div>
-      <div className="h-screen bg-white flex overflow-hidden w-full max-w-full">
+      <div className="h-dvh bg-white flex overflow-hidden w-full max-w-full">
           {/* Sidebar */}
           <div
-            className={`hidden md:flex flex-col h-screen md:fixed md:top-0 md:left-0 transition-[width] duration-200 ease-out ${isSidebarHovered ? 'w-56' : 'w-16'}`}
+            className={`hidden md:flex flex-col h-dvh md:fixed md:top-0 md:left-0 transition-[width] duration-200 ease-out ${isSidebarHovered ? 'w-56' : 'w-16'}`}
             style={{ backgroundColor: '#F8F8F7', zIndex: 10, borderRight: '1px solid #E2E2DD', boxShadow: 'none' }}
             onMouseEnter={() => setIsSidebarHovered(true)}
             onMouseLeave={() => setIsSidebarHovered(false)}
@@ -313,19 +313,12 @@ function DetailerDashboardLayoutInner({
         </div>
         {/* Main content area, with left padding for sidebar */}
         <div
-          className={`flex-1 flex flex-col min-w-0 overflow-hidden transition-[margin] duration-200 ease-out ${isSidebarHovered ? 'md:ml-56' : 'md:ml-16'}`}
+          className={`flex-1 min-h-0 flex flex-col min-w-0 overflow-hidden transition-[margin] duration-200 ease-out ${isSidebarHovered ? 'md:ml-56' : 'md:ml-16'}`}
         >
           {/* Mobile Hamburger Menu */}
           <MobileMenu />
-          <main className="flex-1 min-w-0 overflow-hidden" style={{ backgroundColor: '#ffffff' }}>
-            <div className="h-full min-w-0 overflow-hidden">
-              <div className="h-full min-w-0 overflow-hidden">
-                {/* content wrapper */}
-                <div className="bg-white h-full flex flex-col min-w-0 overflow-hidden">
-                  {children}
-                </div>
-              </div>
-            </div>
+          <main className="flex-1 min-h-0 min-w-0 overflow-hidden relative" style={{ backgroundColor: '#ffffff' }}>
+            {children}
           </main>
         </div>
         
