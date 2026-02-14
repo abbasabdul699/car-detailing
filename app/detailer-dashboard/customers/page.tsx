@@ -1074,20 +1074,23 @@ export default function CustomersPage() {
 
   const handleDownloadTemplate = () => {
     // Create template CSV with headers and example row
-    const headers = ['Phone', 'Name', 'Email', 'Address', 'Location Type', 'Customer Type', 'Vehicle', 'Vehicle Year', 'Vehicle Make', 'Vehicle Model', 'Services', 'Notes'];
+    const headers = [
+      'Name', 'Phone', 'Email',
+      'Address 1', 'Address 2', 'City', 'State', 'Zip Code',
+      'Vehicles', 'Services', 'Customer Type',
+      'First Visit', 'Last Visit', 'Visits', 'Lifetime Value',
+      'Location', 'Technician', 'Notes', 'Pets', 'Kids', 'State Valid'
+    ];
     const exampleRow = [
-      '+1234567890',
       'John Doe',
+      '+1234567890',
       'john@example.com',
-      '123 Main St, Boston, MA 02101',
-      'home',
-      'returning',
-      'Toyota Camry 2020',
-      '2020',
-      'Toyota',
-      'Camry',
+      '123 Main St', 'Apt 4', 'Boston', 'MA', '02101',
+      'Toyota Camry 2020; Honda Civic 2018',
       'Express Detail; Full Detail',
-      'Prefers morning appointments'
+      'returning',
+      '2023-07-01', '2026-01-05', '5', '$1,272.00',
+      'home', 'Mike', 'Prefers morning appointments', '', '', 'TRUE'
     ];
     
     const csvContent = [
@@ -1613,7 +1616,8 @@ export default function CustomersPage() {
                     const reengage = getReengageStatus(customer);
                     const daysSince = getDaysSinceVisit(customer);
                     const visits = customer.completedServiceCount || 0;
-                    const estimatedValue = visits * 150; // rough estimate per visit
+                    const importedLtv = customer.data?.importedLifetimeValue;
+                    const estimatedValue = typeof importedLtv === 'number' ? importedLtv : visits * 150;
                     const services = customer.services || [];
 
                     return (
@@ -1984,10 +1988,14 @@ export default function CustomersPage() {
               <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
                 <h3 className="text-sm font-semibold text-gray-900 mb-2">Import Instructions</h3>
                 <ol className="text-sm text-gray-800 space-y-1 list-decimal list-inside">
-                  <li>Download the template CSV file using the "Download Template" button below</li>
+                  <li>Download the template CSV file using the &quot;Download Template&quot; button below</li>
                   <li>Fill in your customer information following the template format</li>
                   <li>Phone number is required for each customer</li>
-                  <li>Upload your completed CSV or Excel file (.csv, .xls, .xlsx)</li>
+                  <li>Multiple vehicles can be separated by semicolons (e.g. &quot;Toyota Camry 2020; Honda Civic 2018&quot;)</li>
+                  <li>Multiple services can be separated by semicolons (e.g. &quot;Express Detail; Full Detail&quot;)</li>
+                  <li>Lifetime Value should be in dollar format (e.g. &quot;$1,272.00&quot;)</li>
+                  <li>Days Since Visit and Re-engage Status are auto-calculated from Last Visit</li>
+                  <li>Upload your completed CSV file (.csv)</li>
                   <li>Review the import results and fix any errors if needed</li>
                 </ol>
               </div>

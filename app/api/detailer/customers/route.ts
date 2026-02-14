@@ -123,10 +123,32 @@ export async function GET(request: NextRequest) {
     const customersWithHistory = customers.map((customer) => {
       const normalizedPhone = normalizeToE164(customer.customerPhone) || customer.customerPhone;
       const stats = completedServiceStats.get(normalizedPhone);
+      const realCount = stats?.count ?? 0;
+      const realLastAt = stats?.lastAt ? stats.lastAt.toISOString() : null;
+
+      // Merge with imported historical data if present
+      const customerData = (customer.data && typeof customer.data === 'object') ? customer.data as Record<string, unknown> : {};
+      const importedVisitCount = typeof customerData.importedVisitCount === 'number' ? customerData.importedVisitCount : 0;
+      const importedLastVisit = typeof customerData.importedLastVisit === 'string' ? customerData.importedLastVisit : null;
+
+      // Total visits = real bookings + imported historical count
+      const completedServiceCount = realCount + importedVisitCount;
+
+      // Last service = latest of real booking or imported last visit
+      let lastCompletedServiceAt = realLastAt;
+      if (importedLastVisit) {
+        const importedDate = new Date(importedLastVisit);
+        if (!isNaN(importedDate.getTime())) {
+          if (!lastCompletedServiceAt || importedDate.getTime() > new Date(lastCompletedServiceAt).getTime()) {
+            lastCompletedServiceAt = importedDate.toISOString();
+          }
+        }
+      }
+
       return {
         ...customer,
-        completedServiceCount: stats?.count ?? 0,
-        lastCompletedServiceAt: stats?.lastAt ? stats.lastAt.toISOString() : null
+        completedServiceCount,
+        lastCompletedServiceAt
       };
     });
 

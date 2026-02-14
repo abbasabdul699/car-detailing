@@ -91,19 +91,40 @@ export async function POST(request: NextRequest) {
     // Parse header row
     const headers = rows[0].map(h => h.trim().toLowerCase());
     
-    // Find column indices
+    // Find column indices — new template format
     const phoneIndex = headers.findIndex(h => h.includes('phone'));
     const nameIndex = headers.findIndex(h => h.includes('name') && !h.includes('phone'));
     const emailIndex = headers.findIndex(h => h.includes('email'));
-    const addressIndex = headers.findIndex(h => h.includes('address'));
-    const locationTypeIndex = headers.findIndex(h => h.includes('location') && h.includes('type'));
-    const customerTypeIndex = headers.findIndex(h => h.includes('customer') && h.includes('type'));
-    const vehicleIndex = headers.findIndex(h => h === 'vehicle' || h.includes('vehicle'));
-    const vehicleYearIndex = headers.findIndex(h => h.includes('vehicle') && h.includes('year'));
-    const vehicleMakeIndex = headers.findIndex(h => h.includes('vehicle') && h.includes('make'));
-    const vehicleModelIndex = headers.findIndex(h => h.includes('vehicle') && h.includes('model'));
+
+    // Split address columns (new format)
+    const address1Index = headers.findIndex(h => h === 'address 1' || h === 'address1');
+    const address2Index = headers.findIndex(h => h === 'address 2' || h === 'address2');
+    const cityIndex = headers.findIndex(h => h === 'city');
+    const stateIndex = headers.findIndex(h => h === 'state' && !h.includes('valid'));
+    const zipIndex = headers.findIndex(h => h.includes('zip'));
+    // Legacy single address column (backward compat)
+    const legacyAddressIndex = address1Index === -1 ? headers.findIndex(h => h === 'address') : -1;
+
+    // Vehicles (new combined column) + legacy separate columns
+    const vehiclesIndex = headers.findIndex(h => h === 'vehicles');
+    const legacyVehicleIndex = vehiclesIndex === -1 ? headers.findIndex(h => h === 'vehicle' || h.includes('vehicle')) : -1;
+    const legacyVehicleYearIndex = vehiclesIndex === -1 ? headers.findIndex(h => h.includes('vehicle') && h.includes('year')) : -1;
+    const legacyVehicleMakeIndex = vehiclesIndex === -1 ? headers.findIndex(h => h.includes('vehicle') && h.includes('make')) : -1;
+    const legacyVehicleModelIndex = vehiclesIndex === -1 ? headers.findIndex(h => h.includes('vehicle') && h.includes('model')) : -1;
+
     const servicesIndex = headers.findIndex(h => h.includes('service'));
+    const customerTypeIndex = headers.findIndex(h => h.includes('customer') && h.includes('type'));
+    const firstVisitIndex = headers.findIndex(h => h.includes('first') && h.includes('visit'));
+    const lastVisitIndex = headers.findIndex(h => h.includes('last') && h.includes('visit'));
+    const visitsIndex = headers.findIndex(h => h === 'visits');
+    const lifetimeValueIndex = headers.findIndex(h => h.includes('lifetime') && h.includes('value'));
+    const locationIndex = headers.findIndex(h => h === 'location');
+    const locationTypeIndex = headers.findIndex(h => h.includes('location') && h.includes('type'));
+    const technicianIndex = headers.findIndex(h => h.includes('technician'));
     const notesIndex = headers.findIndex(h => h.includes('note'));
+    const petsIndex = headers.findIndex(h => h === 'pets');
+    const kidsIndex = headers.findIndex(h => h === 'kids');
+    const stateValidIndex = headers.findIndex(h => h.includes('state') && h.includes('valid'));
 
     if (phoneIndex === -1) {
       return NextResponse.json({ error: 'Phone column not found. Please ensure your file has a "Phone" column.' }, { status: 400 });
@@ -113,6 +134,72 @@ export async function POST(request: NextRequest) {
       success: 0,
       errors: [] as Array<{ row: number; error: string }>
     };
+
+    // Helper: parse a vehicle string like "2020 Toyota Camry" or "Toyota Camry 2020"
+    function parseVehicleString(v: string): { vehicle: string; year?: number; make?: string; model?: string } {
+      const trimmed = v.trim();
+      if (!trimmed) return { vehicle: '' };
+
+      // Try "Year Make Model" pattern
+      const ymm = trimmed.match(/^((?:19|20)\d{2})\s+([A-Za-z][A-Za-z\-]+)\s+(.+)$/);
+      if (ymm) {
+        return { vehicle: trimmed, year: parseInt(ymm[1], 10), make: ymm[2], model: ymm[3] };
+      }
+
+      // Try "Make Model Year" pattern
+      const mmy = trimmed.match(/^([A-Za-z][A-Za-z\-]+)\s+(.+?)\s+((?:19|20)\d{2})$/);
+      if (mmy) {
+        return { vehicle: trimmed, year: parseInt(mmy[3], 10), make: mmy[1], model: mmy[2] };
+      }
+
+      // Try "Make Model" pattern (no year)
+      const mm = trimmed.match(/^([A-Za-z][A-Za-z\-]+)\s+(.+)$/);
+      if (mm) {
+        return { vehicle: trimmed, make: mm[1], model: mm[2] };
+      }
+
+      return { vehicle: trimmed };
+    }
+
+    // Helper: parse lifetime value from "$1,272.00" format
+    function parseLifetimeValue(val: string): number | undefined {
+      if (!val) return undefined;
+      const cleaned = val.replace(/[$,\s]/g, '');
+      const num = parseFloat(cleaned);
+      return Number.isFinite(num) ? num : undefined;
+    }
+
+    // Helper: build concatenated address from split columns
+    function buildAddress(row: string[]): string | undefined {
+      if (address1Index >= 0) {
+        const addr1 = row[address1Index]?.trim() || '';
+        const addr2 = address2Index >= 0 ? row[address2Index]?.trim() || '' : '';
+        const city = cityIndex >= 0 ? row[cityIndex]?.trim() || '' : '';
+        const state = stateIndex >= 0 ? row[stateIndex]?.trim() || '' : '';
+        const rawZip = zipIndex >= 0 ? row[zipIndex]?.trim() || '' : '';
+        const zip = rawZip && /^\d{1,4}$/.test(rawZip) ? rawZip.padStart(5, '0') : rawZip;
+
+        if (!addr1 && !city && !state && !zip) return undefined;
+
+        // Build street line: "123 Main St, Apt 4" or just "123 Main St"
+        const streetParts = [addr1, addr2].filter(Boolean);
+        const street = streetParts.join(', ');
+
+        // Build city/state/zip: "Boston, MA 02101"
+        const stateZip = [state, zip].filter(Boolean).join(' ');
+        const cityStateParts = [city, stateZip].filter(Boolean);
+        const cityState = cityStateParts.join(', ');
+
+        return [street, cityState].filter(Boolean).join(', ') || undefined;
+      }
+
+      // Legacy single address column
+      if (legacyAddressIndex >= 0) {
+        return row[legacyAddressIndex]?.trim() || undefined;
+      }
+
+      return undefined;
+    }
 
     // Process each row (skip header)
     for (let i = 1; i < rows.length; i++) {
@@ -130,29 +217,81 @@ export async function POST(request: NextRequest) {
         // Normalize phone number
         const normalizedPhone = normalizeToE164(phone) || phone;
 
-        // Get other fields
+        // Get basic fields
         const name = nameIndex >= 0 ? row[nameIndex]?.trim() : undefined;
         const email = emailIndex >= 0 ? row[emailIndex]?.trim() : undefined;
-        const address = addressIndex >= 0 ? row[addressIndex]?.trim() : undefined;
-        const locationType = locationTypeIndex >= 0 ? row[locationTypeIndex]?.trim() : undefined;
+        const address = buildAddress(row);
+        const locationType = (locationIndex >= 0 ? row[locationIndex]?.trim() : undefined)
+          || (locationTypeIndex >= 0 ? row[locationTypeIndex]?.trim() : undefined);
         const customerType = customerTypeIndex >= 0 ? row[customerTypeIndex]?.trim() : undefined;
-        const vehicle = vehicleIndex >= 0 ? row[vehicleIndex]?.trim() : undefined;
-        const vehicleYear = vehicleYearIndex >= 0 ? (row[vehicleYearIndex]?.trim() ? parseInt(row[vehicleYearIndex].trim()) : undefined) : undefined;
-        const vehicleMake = vehicleMakeIndex >= 0 ? row[vehicleMakeIndex]?.trim() : undefined;
-        const vehicleModel = vehicleModelIndex >= 0 ? row[vehicleModelIndex]?.trim() : undefined;
-        const servicesStr = servicesIndex >= 0 ? row[servicesIndex]?.trim() : undefined;
-        const notes = notesIndex >= 0 ? row[notesIndex]?.trim() : undefined;
+
+        // Parse vehicles
+        let vehicle: string | undefined;
+        let vehicleYear: number | undefined;
+        let vehicleMake: string | undefined;
+        let vehicleModel: string | undefined;
+        let vehiclesArray: string[] = [];
+
+        if (vehiclesIndex >= 0) {
+          // New format: semicolon-separated vehicles in single column
+          const vehiclesStr = row[vehiclesIndex]?.trim() || '';
+          if (vehiclesStr) {
+            vehiclesArray = vehiclesStr.split(/[;]/).map(s => s.trim()).filter(Boolean);
+            // Parse first vehicle for legacy fields
+            if (vehiclesArray.length > 0) {
+              const parsed = parseVehicleString(vehiclesArray[0]);
+              vehicle = parsed.vehicle || undefined;
+              vehicleYear = parsed.year;
+              vehicleMake = parsed.make;
+              vehicleModel = parsed.model;
+            }
+          }
+        } else if (legacyVehicleIndex >= 0) {
+          // Legacy format: separate columns
+          vehicle = row[legacyVehicleIndex]?.trim() || undefined;
+          vehicleYear = legacyVehicleYearIndex >= 0 ? (row[legacyVehicleYearIndex]?.trim() ? parseInt(row[legacyVehicleYearIndex].trim()) : undefined) : undefined;
+          vehicleMake = legacyVehicleMakeIndex >= 0 ? row[legacyVehicleMakeIndex]?.trim() || undefined : undefined;
+          vehicleModel = legacyVehicleModelIndex >= 0 ? row[legacyVehicleModelIndex]?.trim() || undefined : undefined;
+          if (vehicle) vehiclesArray = [vehicle];
+        }
 
         // Parse services (can be semicolon or comma separated)
+        const servicesStr = servicesIndex >= 0 ? row[servicesIndex]?.trim() : undefined;
         let services: string[] | null = null;
         if (servicesStr) {
           services = servicesStr.split(/[;,]/).map(s => s.trim()).filter(Boolean);
         }
 
-        // Prepare data object for notes
-        let snapshotData: any = {};
-        if (notes) {
-          snapshotData.notes = notes;
+        // Parse new fields
+        const notes = notesIndex >= 0 ? row[notesIndex]?.trim() : undefined;
+        const firstVisitStr = firstVisitIndex >= 0 ? row[firstVisitIndex]?.trim() : undefined;
+        const lastVisitStr = lastVisitIndex >= 0 ? row[lastVisitIndex]?.trim() : undefined;
+        const visitsStr = visitsIndex >= 0 ? row[visitsIndex]?.trim() : undefined;
+        const lifetimeValueStr = lifetimeValueIndex >= 0 ? row[lifetimeValueIndex]?.trim() : undefined;
+        const technician = technicianIndex >= 0 ? row[technicianIndex]?.trim() : undefined;
+        const pets = petsIndex >= 0 ? row[petsIndex]?.trim() : undefined;
+        const kids = kidsIndex >= 0 ? row[kidsIndex]?.trim() : undefined;
+        const stateValidStr = stateValidIndex >= 0 ? row[stateValidIndex]?.trim() : undefined;
+
+        // Prepare data object
+        const snapshotData: Record<string, unknown> = {};
+        if (notes) snapshotData.notes = notes;
+        if (vehiclesArray.length > 0) snapshotData.vehicles = vehiclesArray;
+        if (firstVisitStr) snapshotData.importedFirstVisit = firstVisitStr;
+        if (lastVisitStr) snapshotData.importedLastVisit = lastVisitStr;
+        if (visitsStr) {
+          const visitsNum = parseInt(visitsStr, 10);
+          if (Number.isFinite(visitsNum)) snapshotData.importedVisitCount = visitsNum;
+        }
+        if (lifetimeValueStr) {
+          const ltv = parseLifetimeValue(lifetimeValueStr);
+          if (ltv !== undefined) snapshotData.importedLifetimeValue = ltv;
+        }
+        if (technician) snapshotData.technician = technician;
+        if (pets) snapshotData.pets = pets;
+        if (kids) snapshotData.kids = kids;
+        if (stateValidStr) {
+          snapshotData.stateValid = stateValidStr.toUpperCase() === 'TRUE';
         }
 
         // Upsert customer snapshot
