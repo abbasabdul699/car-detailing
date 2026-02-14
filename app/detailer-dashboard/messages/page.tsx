@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSession } from 'next-auth/react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { formatPhoneDisplay } from '@/lib/phone';
 
 interface Message {
@@ -46,6 +46,7 @@ export default function MessagesPage() {
 function MessagesPageContent() {
   const { data: session } = useSession();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [loading, setLoading] = useState(true);
@@ -71,6 +72,18 @@ function MessagesPageContent() {
   const [isAiEnabled, setIsAiEnabled] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
+
+  // Toggle body class to hide MobileMenu hamburger when chat view is active on mobile
+  useEffect(() => {
+    if (!showConversationList) {
+      document.body.classList.add('messages-chat-open');
+    } else {
+      document.body.classList.remove('messages-chat-open');
+    }
+    return () => {
+      document.body.classList.remove('messages-chat-open');
+    };
+  }, [showConversationList]);
 
   useEffect(() => {
     if (session?.user?.id) {
@@ -248,8 +261,8 @@ function MessagesPageContent() {
       // Refresh the conversation messages to show the new message
       await fetchConversationMessages(selectedConversation.id);
       
-      // Also refresh the conversations list to update the last message preview
-      await fetchConversations();
+      // Also refresh the conversations list to update the last message preview (silent refresh)
+      await fetchConversations(true);
       
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to send message');
@@ -262,6 +275,26 @@ function MessagesPageContent() {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
+    }
+  };
+
+  // Navigate to customer profile by looking up CustomerSnapshot by phone
+  const navigateToCustomerProfile = async (phone: string) => {
+    try {
+      const res = await fetch('/api/detailer/customers');
+      if (!res.ok) return;
+      const data = await res.json();
+      const customers = data.customers || [];
+      const normalizedPhone = phone.replace(/\D/g, '');
+      const match = customers.find((c: any) => {
+        const cPhone = (c.customerPhone || '').replace(/\D/g, '');
+        return cPhone === normalizedPhone || cPhone.endsWith(normalizedPhone) || normalizedPhone.endsWith(cPhone);
+      });
+      if (match) {
+        router.push(`/detailer-dashboard/customers/${match.id}`);
+      }
+    } catch (err) {
+      console.error('Failed to look up customer:', err);
     }
   };
 
@@ -493,7 +526,7 @@ function MessagesPageContent() {
   }
 
   return (
-    <div className="h-screen flex relative bg-[#f8f7f4]">
+    <div className="absolute inset-0 flex bg-[#f8f7f4]">
       {/* New Messages Notification */}
       {hasNewMessages && (
         <div className="absolute top-4 right-4 z-50 bg-orange-500 text-white px-4 py-2 rounded-xl shadow-lg animate-bounce">
@@ -634,19 +667,21 @@ function MessagesPageContent() {
         </div>
       </div>
 
-      {/* Floating Action Button - Mobile Only */}
-      <button
-        onClick={() => setShowNewConversationModal(true)}
-        className="md:hidden fixed bottom-6 right-6 w-14 h-14 bg-black text-white rounded-full shadow-lg hover:bg-gray-800 transition flex items-center justify-center z-30"
-        aria-label="Start new conversation"
-      >
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-        </svg>
-      </button>
+      {/* Floating Action Button - Mobile Only, hidden when viewing a conversation */}
+      {showConversationList && (
+        <button
+          onClick={() => setShowNewConversationModal(true)}
+          className="md:hidden fixed bottom-6 right-6 w-14 h-14 bg-black text-white rounded-full shadow-lg hover:bg-gray-800 transition flex items-center justify-center z-30"
+          aria-label="Start new conversation"
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+        </button>
+      )}
 
       {/* Messages View */}
-      <div className={`${!showConversationList ? 'flex' : 'hidden'} md:flex flex-1 flex h-screen bg-white`}>
+      <div className={`${!showConversationList ? 'flex' : 'hidden'} md:flex flex-1 flex min-h-0 bg-white`}>
         {selectedConversation ? (
           <>
             <div className="flex-1 flex flex-col h-full">
@@ -664,7 +699,10 @@ function MessagesPageContent() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                       </svg>
                     </button>
-                    <div>
+                    <div
+                      className="cursor-pointer"
+                      onClick={() => navigateToCustomerProfile(selectedConversation.customerPhone)}
+                    >
                       {selectedConversation.customerName ? (
                         <>
                           <h2 className="text-base font-semibold text-gray-900">
@@ -703,7 +741,22 @@ function MessagesPageContent() {
               </div>
 
               {/* Messages */}
-              <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-6 py-6 space-y-4">
+              <div
+                ref={messagesContainerRef}
+                className="flex-1 overflow-y-auto px-6 py-6 space-y-4"
+                onTouchStart={(e) => {
+                  (messagesContainerRef.current as any).__touchStartY = e.touches[0].clientY;
+                }}
+                onTouchMove={(e) => {
+                  const startY = (messagesContainerRef.current as any).__touchStartY;
+                  if (startY !== undefined && e.touches[0].clientY - startY > 20) {
+                    // Swiping down — dismiss keyboard
+                    if (document.activeElement instanceof HTMLElement) {
+                      document.activeElement.blur();
+                    }
+                  }
+                }}
+              >
                 {selectedConversation.messages?.length > 0 ? (
                   selectedConversation.messages.map((message) => (
                     <div
@@ -742,14 +795,14 @@ function MessagesPageContent() {
               </div>
 
               {/* Message Input */}
-              <div className="px-6 py-4 border-t border-gray-200 bg-white">
+              <div className="px-3 py-2 md:px-6 md:py-4 border-t border-gray-200 bg-white">
                 <div className="flex items-center gap-2">
                   <textarea
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
                     onKeyDown={handleKeyDown}
                     placeholder="Type a message..."
-                    className="flex-1 resize-none border border-gray-200 rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300 focus:border-transparent bg-[#f9f9f8]"
+                    className="flex-1 resize-none border border-gray-200 rounded-full px-4 py-2 text-base focus:outline-none focus:ring-2 focus:ring-gray-300 focus:border-transparent bg-[#f9f9f8]"
                     rows={1}
                     disabled={sendingMessage}
                   />
@@ -757,10 +810,10 @@ function MessagesPageContent() {
                     type="button"
                     onClick={sendMessage}
                     disabled={!newMessage.trim() || sendingMessage}
-                    className="w-10 h-10 flex items-center justify-center bg-gray-200 text-gray-600 rounded-full hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className="w-10 h-10 flex items-center justify-center bg-orange-500 text-white rounded-full hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     {sendingMessage ? (
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600"></div>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                     ) : (
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
@@ -771,7 +824,7 @@ function MessagesPageContent() {
               </div>
             </div>
 
-            {/* Customer Info Panel */}
+            {/* Customer Info Panel - Desktop sidebar */}
             {isInfoPanelOpen && (
               <aside className="hidden lg:flex w-80 border-l border-gray-200 bg-white flex-col">
                 <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
@@ -854,6 +907,107 @@ function MessagesPageContent() {
                   </div>
                 </div>
               </aside>
+            )}
+
+            {/* Customer Info Panel - Mobile full-screen overlay */}
+            {isInfoPanelOpen && (
+              <div className="lg:hidden fixed inset-0 z-50 bg-white flex flex-col">
+                {/* Mobile panel header */}
+                <div className="px-4 py-4 border-b border-gray-200 flex items-center gap-3">
+                  <button
+                    onClick={() => setIsInfoPanelOpen(false)}
+                    className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors"
+                    title="Back to chat"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                  </button>
+                  <h3 className="text-base font-semibold text-gray-900">Customer Info</h3>
+                </div>
+
+                {/* Mobile panel content */}
+                <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+                  {/* Avatar and name */}
+                  <div className="flex flex-col items-center text-center">
+                    <div className="w-20 h-20 rounded-full bg-gray-200 flex items-center justify-center text-xl font-semibold text-gray-600 mb-3">
+                      {(selectedConversation.customerName || formatPhoneNumber(selectedConversation.customerPhone)).slice(0, 2).toUpperCase()}
+                    </div>
+                    <div className="text-lg font-semibold text-gray-900">
+                      {selectedConversation.customerName || formatPhoneNumber(selectedConversation.customerPhone)}
+                    </div>
+                    <div className="text-sm text-gray-500 mt-1">
+                      {formatConversationDate(selectedConversation.lastMessageAt)}
+                    </div>
+                  </div>
+
+                  {/* Contact details */}
+                  <div className="space-y-4 text-sm text-gray-600">
+                    <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
+                      <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                      </svg>
+                      <span>{formatPhoneNumber(selectedConversation.customerPhone)}</span>
+                    </div>
+                    <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
+                      <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                      <span>{selectedConversation.customer?.firstName || selectedConversation.customerName || 'Customer'}</span>
+                    </div>
+                  </div>
+
+                  {/* View full profile link */}
+                  <button
+                    onClick={() => navigateToCustomerProfile(selectedConversation.customerPhone)}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-orange-600 bg-orange-50 border border-orange-200 rounded-xl hover:bg-orange-100 transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                    View Full Profile
+                  </button>
+
+                  {/* AI Assistant toggle */}
+                  <div className="pt-2 border-t border-gray-200">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-gray-700">AI Assistant</span>
+                      <button
+                        onClick={() => updateAiEnabled(!isAiEnabled)}
+                        className={`relative w-11 h-6 rounded-full transition-colors ${
+                          isAiEnabled ? 'bg-orange-500' : 'bg-gray-300'
+                        }`}
+                        aria-pressed={isAiEnabled}
+                      >
+                        <span
+                          className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-transform ${
+                            isAiEnabled ? 'translate-x-5' : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
+                    </div>
+                    <p className="text-xs text-gray-400 mt-2">
+                      {isAiEnabled ? 'AI is enabled for this conversation.' : 'AI is paused for this conversation.'}
+                    </p>
+                  </div>
+
+                  {/* Delete conversation */}
+                  <div className="pt-2 border-t border-gray-200">
+                    <button
+                      onClick={clearConversation}
+                      className="w-full flex items-center justify-center gap-2 px-3 py-3 text-sm font-medium text-red-600 border border-red-200 rounded-xl hover:bg-red-50 transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                      Delete conversation
+                    </button>
+                    <p className="text-xs text-gray-400 mt-2">
+                      This removes all messages in the thread.
+                    </p>
+                  </div>
+                </div>
+              </div>
             )}
           </>
         ) : (

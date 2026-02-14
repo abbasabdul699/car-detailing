@@ -89,7 +89,7 @@ export default function MobileMenu() {
       {/* Hamburger Menu Button - Mobile Only */}
       <button
         onClick={() => setIsMenuOpen(!isMenuOpen)}
-        className="md:hidden fixed top-4 left-4 z-[10000] w-8 h-8 flex items-center justify-center rounded-lg transition action-panel-hide event-modal-hide customer-profile-hide"
+        className="md:hidden fixed top-4 left-4 z-[10000] w-8 h-8 flex items-center justify-center rounded-lg transition action-panel-hide event-modal-hide customer-profile-hide messages-chat-hide"
         aria-label="Menu"
       >
         <Bars3Icon className="w-6 h-6 text-gray-700" />

@@ -27,6 +27,7 @@ body:has(.detailer-dashboard-border-overlay) {
   overflow: hidden !important;
   height: 100vh;
   height: 100dvh; /* modern override — adjusts for mobile browser chrome */
+  min-height: 0 !important; /* override min-h-screen from root layout so dvh wins on mobile */
 }
 
 html:has(.detailer-dashboard-border-overlay) {
@@ -128,6 +129,11 @@ body.event-modal-open .event-modal-hide {
 
 /* Hide hamburger menu button when customer profile sidebar is open */
 body.customer-profile-open .customer-profile-hide {
+  display: none !important;
+}
+
+/* Hide hamburger menu button when messages chat view is active on mobile */
+body.messages-chat-open .messages-chat-hide {
   display: none !important;
 }
 

@@ -211,7 +211,7 @@ export default function CustomerProfilePage() {
   // Derive customer type from history
   const getEffectiveCustomerType = (c: Customer) => {
     if (c.customerType && c.customerType !== 'new') return c.customerType;
-    return getCustomerTypeFromHistory(c.completedServiceCount, c.lastCompletedServiceAt);
+    return getCustomerTypeFromHistory({ completedServiceCount: c.completedServiceCount, lastCompletedServiceAt: c.lastCompletedServiceAt });
   };
 
   // ── Loading / not found states ───────────────────────────────────
