@@ -443,7 +443,7 @@ export default function DetailerProfilePage() {
     <div className="h-full min-h-0 overflow-y-auto bg-gray-50 p-6">
       {/* QA: verify this page scrolls on desktop and mobile */}
       <div className="max-w-3xl mx-auto space-y-8">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">User Profile</h1>
+        <h1 className="text-2xl font-bold text-gray-900 mb-6 pl-10 md:pl-0 flex items-center min-h-[32px]">User Profile</h1>
         {/* My Profile Section */}
         <div className="bg-white rounded-xl shadow p-6 mb-4">
           <div className="flex items-center justify-between mb-4">

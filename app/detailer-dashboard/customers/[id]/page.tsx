@@ -72,6 +72,12 @@ const getInitials = (name?: string | null): string => {
 
 // ── Types ────────────────────────────────────────────────────────────
 
+interface CustomerNote {
+  id: string;
+  text: string;
+  createdAt: string;
+}
+
 interface Customer {
   id: string;
   customerPhone: string;
@@ -92,6 +98,29 @@ interface Customer {
   lastCompletedServiceAt?: string | null;
   data?: any;
 }
+
+// Helpers for structured notes/vehicles
+const getCustomerVehicles = (customer: Customer): string[] => {
+  if (customer.data && typeof customer.data === 'object' && Array.isArray(customer.data.vehicles)) {
+    return customer.data.vehicles.filter((v: any) => typeof v === 'string' && v.trim());
+  }
+  const legacy = customer.vehicleModel || customer.vehicle;
+  return legacy ? [legacy] : [];
+};
+
+const getCustomerNotes = (customer: Customer): CustomerNote[] => {
+  if (customer.data && typeof customer.data === 'object' && Array.isArray(customer.data.customerNotes)) {
+    return customer.data.customerNotes;
+  }
+  if (customer.data && typeof customer.data === 'object' && customer.data.notes) {
+    return [{
+      id: 'legacy',
+      text: customer.data.notes,
+      createdAt: customer.updatedAt || new Date().toISOString(),
+    }];
+  }
+  return [];
+};
 
 interface Job {
   id: string;
@@ -119,6 +148,24 @@ export default function CustomerProfilePage() {
   const [loading, setLoading] = useState(true);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const moreMenuRef = useRef<HTMLDivElement>(null);
+
+  // Notes state
+  const [isAddingNote, setIsAddingNote] = useState(false);
+  const [newNoteText, setNewNoteText] = useState('');
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editingNoteText, setEditingNoteText] = useState('');
+  const newNoteRef = useRef<HTMLTextAreaElement>(null);
+
+  // Vehicles state
+  const [isAddingVehicle, setIsAddingVehicle] = useState(false);
+  const [newVehicleName, setNewVehicleName] = useState('');
+  const newVehicleRef = useRef<HTMLInputElement>(null);
+
+  // Hide hamburger menu on mobile for this page
+  useEffect(() => {
+    document.body.classList.add('customer-profile-open');
+    return () => document.body.classList.remove('customer-profile-open');
+  }, []);
 
   // Close menu on outside click
   useEffect(() => {
@@ -214,6 +261,77 @@ export default function CustomerProfilePage() {
     return getCustomerTypeFromHistory({ completedServiceCount: c.completedServiceCount, lastCompletedServiceAt: c.lastCompletedServiceAt });
   };
 
+  // ── Note & Vehicle handlers ─────────────────────────────────────
+
+  const handleAddNote = async (text: string) => {
+    if (!customer || !text.trim()) { setIsAddingNote(false); setNewNoteText(''); return; }
+    const currentNotes = getCustomerNotes(customer);
+    const newNote: CustomerNote = { id: Date.now().toString(), text: text.trim(), createdAt: new Date().toISOString() };
+    const updated = [...currentNotes, newNote];
+    try {
+      const res = await fetch(`/api/detailer/customers/${customer.id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customerNotes: updated }),
+      });
+      if (res.ok) { const data = await res.json(); setCustomer(data.customer); }
+    } catch (err) { console.error('Add note failed:', err); }
+    finally { setIsAddingNote(false); setNewNoteText(''); }
+  };
+
+  const handleEditNote = async (noteId: string, newText: string) => {
+    if (!customer || !newText.trim()) { setEditingNoteId(null); setEditingNoteText(''); return; }
+    const currentNotes = getCustomerNotes(customer);
+    const updated = currentNotes.map(n => n.id === noteId ? { ...n, text: newText.trim() } : n);
+    try {
+      const res = await fetch(`/api/detailer/customers/${customer.id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customerNotes: updated }),
+      });
+      if (res.ok) { const data = await res.json(); setCustomer(data.customer); }
+    } catch (err) { console.error('Edit note failed:', err); }
+    finally { setEditingNoteId(null); setEditingNoteText(''); }
+  };
+
+  const handleRemoveNote = async (noteId: string) => {
+    if (!customer) return;
+    const currentNotes = getCustomerNotes(customer);
+    const updated = currentNotes.filter(n => n.id !== noteId);
+    try {
+      const res = await fetch(`/api/detailer/customers/${customer.id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customerNotes: updated }),
+      });
+      if (res.ok) { const data = await res.json(); setCustomer(data.customer); }
+    } catch (err) { console.error('Remove note failed:', err); }
+  };
+
+  const handleAddVehicle = async (name: string) => {
+    if (!customer || !name.trim()) { setIsAddingVehicle(false); setNewVehicleName(''); return; }
+    const currentVehicles = getCustomerVehicles(customer);
+    const updated = [...currentVehicles, name.trim()];
+    try {
+      const res = await fetch(`/api/detailer/customers/${customer.id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ vehicles: updated }),
+      });
+      if (res.ok) { const data = await res.json(); setCustomer(data.customer); }
+    } catch (err) { console.error('Add vehicle failed:', err); }
+    finally { setIsAddingVehicle(false); setNewVehicleName(''); }
+  };
+
+  const handleRemoveVehicle = async (index: number) => {
+    if (!customer) return;
+    const currentVehicles = getCustomerVehicles(customer);
+    const updated = currentVehicles.filter((_, i) => i !== index);
+    try {
+      const res = await fetch(`/api/detailer/customers/${customer.id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ vehicles: updated }),
+      });
+      if (res.ok) { const data = await res.json(); setCustomer(data.customer); }
+    } catch (err) { console.error('Remove vehicle failed:', err); }
+  };
+
   // ── Loading / not found states ───────────────────────────────────
 
   if (loading) {
@@ -240,10 +358,8 @@ export default function CustomerProfilePage() {
   }
 
   const effectiveType = getEffectiveCustomerType(customer);
-  const customerNotes = customer.data && typeof customer.data === 'object' && customer.data.notes
-    ? customer.data.notes
-    : null;
-  const vehicleName = customer.vehicleModel || customer.vehicle;
+  const customerNotes = getCustomerNotes(customer);
+  const vehicles = getCustomerVehicles(customer);
   const upcomingJobs = jobs.filter(j => j.isUpcoming);
   const pastJobs = jobs.filter(j => !j.isUpcoming);
 
@@ -265,7 +381,7 @@ export default function CustomerProfilePage() {
 
         <div className="flex items-center gap-2">
           <button
-            className="px-4 py-2 text-sm font-medium rounded-lg text-white transition-colors hover:opacity-90"
+            className="px-4 py-2 text-sm font-medium rounded-full text-white transition-colors hover:opacity-90"
             style={{ backgroundColor: '#F97316' }}
           >
             Book Service
@@ -282,19 +398,6 @@ export default function CustomerProfilePage() {
             </button>
             {showMoreMenu && (
               <div className="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-lg z-20 py-1 min-w-[120px]" style={{ border: '1px solid #F0F0EE' }}>
-                <button
-                  onClick={() => {
-                    setShowMoreMenu(false);
-                    // Future: open edit modal
-                  }}
-                  className="w-full px-3 py-2 text-left text-sm flex items-center gap-2 hover:bg-[#F8F8F7]"
-                  style={{ color: '#2B2B26' }}
-                >
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487z" />
-                  </svg>
-                  Edit
-                </button>
                 <button
                   className="w-full px-3 py-2 text-left text-sm text-red-600 flex items-center gap-2 hover:bg-red-50"
                 >
@@ -375,25 +478,64 @@ export default function CustomerProfilePage() {
         <section className="mb-8 md:mb-10">
           <h3 className="text-[10px] font-black uppercase tracking-[0.2em] mb-2" style={{ color: '#838274' }}>Notes</h3>
           <div className="flex flex-col md:flex-row md:flex-wrap gap-2 items-stretch">
-            {customerNotes ? (
-              <div className="px-3 py-3 rounded-lg w-full md:w-[200px] min-h-[72px] md:min-h-[80px] flex flex-col justify-between" style={{ backgroundColor: '#F8F8F7', border: '1px solid #F0F0EE' }}>
-                <p className="text-xs flex-1" style={{ color: '#2B2B26' }}>{customerNotes}</p>
-                {customer.updatedAt && (
-                  <p className="text-[10px] mt-2" style={{ color: '#838274' }}>
-                    {format(new Date(customer.updatedAt), 'MMM d, yyyy')}
-                  </p>
+            {customerNotes.map((note) => (
+              <div key={note.id} className="px-3 py-3 rounded-lg w-full md:w-[200px] min-h-[72px] md:min-h-[80px] flex flex-col justify-between group relative" style={{ backgroundColor: '#F8F8F7', border: '1px solid #F0F0EE' }}>
+                {editingNoteId === note.id ? (
+                  <div className="flex flex-col gap-2">
+                    <textarea
+                      value={editingNoteText}
+                      onChange={(e) => setEditingNoteText(e.target.value)}
+                      className="text-xs p-2 rounded border border-gray-300 focus:outline-none focus:ring-1 focus:ring-orange-400 resize-none"
+                      rows={3}
+                      autoFocus
+                    />
+                    <div className="flex gap-2">
+                      <button onClick={() => handleEditNote(note.id, editingNoteText)} className="text-[10px] font-medium px-2 py-1 rounded bg-black text-white">Save</button>
+                      <button onClick={() => { setEditingNoteId(null); setEditingNoteText(''); }} className="text-[10px] font-medium px-2 py-1 rounded border" style={{ borderColor: '#deded9', color: '#838274' }}>Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-xs flex-1 cursor-pointer" style={{ color: '#2B2B26' }} onClick={() => { setEditingNoteId(note.id); setEditingNoteText(note.text); }}>{note.text}</p>
+                    <div className="flex items-center justify-between mt-2">
+                      <p className="text-[10px]" style={{ color: '#838274' }}>{format(new Date(note.createdAt), 'MMM d, yyyy')}</p>
+                      <button onClick={() => handleRemoveNote(note.id)} className="opacity-0 group-hover:opacity-100 md:opacity-0 md:group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-opacity p-0.5" style={{ opacity: 'inherit' }}>
+                        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                      </button>
+                    </div>
+                  </>
                 )}
               </div>
-            ) : null}
-            <button
-              className="w-full md:w-[200px] min-h-[48px] md:min-h-[80px] rounded-lg flex items-center justify-center gap-2 transition-colors"
-              style={{ border: '1px dashed #deded9', color: '#838274' }}
-            >
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-              </svg>
-              <span className="text-sm md:hidden">Add Note</span>
-            </button>
+            ))}
+            {isAddingNote ? (
+              <div className="px-3 py-3 rounded-lg w-full md:w-[200px] min-h-[72px] md:min-h-[80px] flex flex-col gap-2" style={{ border: '1px solid #F97316' }}>
+                <textarea
+                  ref={newNoteRef}
+                  value={newNoteText}
+                  onChange={(e) => setNewNoteText(e.target.value)}
+                  placeholder="Write a note..."
+                  className="text-xs p-2 rounded border border-gray-200 focus:outline-none focus:ring-1 focus:ring-orange-400 resize-none flex-1"
+                  rows={3}
+                  autoFocus
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAddNote(newNoteText); } }}
+                />
+                <div className="flex gap-2">
+                  <button onClick={() => handleAddNote(newNoteText)} className="text-[10px] font-medium px-2 py-1 rounded bg-black text-white">Save</button>
+                  <button onClick={() => { setIsAddingNote(false); setNewNoteText(''); }} className="text-[10px] font-medium px-2 py-1 rounded border" style={{ borderColor: '#deded9', color: '#838274' }}>Cancel</button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => { setIsAddingNote(true); setTimeout(() => newNoteRef.current?.focus(), 50); }}
+                className="w-full md:w-[200px] min-h-[48px] md:min-h-[80px] rounded-lg flex items-center justify-center gap-2 transition-colors active:bg-gray-50"
+                style={{ border: '1px dashed #deded9', color: '#838274' }}
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                </svg>
+                <span className="text-sm">Add Note</span>
+              </button>
+            )}
           </div>
         </section>
 
@@ -401,26 +543,46 @@ export default function CustomerProfilePage() {
         <section className="mb-8 md:mb-10">
           <h3 className="text-[10px] font-black uppercase tracking-[0.2em] mb-2" style={{ color: '#838274' }}>Vehicles</h3>
           <div className="flex flex-col md:flex-row md:flex-wrap gap-2 items-stretch md:items-center">
-            {vehicleName ? (
-              <div className="px-3 py-2.5 md:py-2 rounded-lg flex items-center gap-2 w-full md:w-auto" style={{ backgroundColor: '#F8F8F7', border: '1px solid #F0F0EE' }}>
+            {vehicles.map((v, idx) => (
+              <div key={idx} className="px-3 py-2.5 md:py-2 rounded-lg flex items-center gap-2 w-full md:w-auto group" style={{ backgroundColor: '#F8F8F7', border: '1px solid #F0F0EE' }}>
                 <div className="h-6 w-6 bg-white rounded flex items-center justify-center" style={{ border: '1px solid #F0F0EE' }}>
                   <svg className="h-3 w-3" style={{ color: '#838274' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 00-10.026 0 1.106 1.106 0 00-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12" />
                   </svg>
                 </div>
-                <span className="text-xs font-bold" style={{ color: '#2B2B26' }}>{vehicleName}</span>
-                {customer.vehicleYear && <span className="text-[10px]" style={{ color: '#838274' }}>{customer.vehicleYear}</span>}
+                <span className="text-xs font-bold flex-1" style={{ color: '#2B2B26' }}>{v}</span>
+                <button onClick={() => handleRemoveVehicle(idx)} className="text-gray-400 hover:text-red-500 transition-opacity p-0.5">
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
               </div>
-            ) : null}
-            <button
-              className="w-full md:w-auto h-[44px] md:h-[38px] px-3 rounded-lg flex items-center justify-center gap-2 transition-colors"
-              style={{ border: '1px dashed #deded9', color: '#838274' }}
-            >
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-              </svg>
-              <span className="text-sm md:hidden">Add Vehicle</span>
-            </button>
+            ))}
+            {isAddingVehicle ? (
+              <div className="flex items-center gap-2 w-full md:w-auto">
+                <input
+                  ref={newVehicleRef}
+                  type="text"
+                  value={newVehicleName}
+                  onChange={(e) => setNewVehicleName(e.target.value)}
+                  placeholder="e.g. 2024 BMW X5"
+                  className="text-xs px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-1 focus:ring-orange-400 flex-1 md:w-[180px]"
+                  autoFocus
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleAddVehicle(newVehicleName); if (e.key === 'Escape') { setIsAddingVehicle(false); setNewVehicleName(''); } }}
+                />
+                <button onClick={() => handleAddVehicle(newVehicleName)} className="text-[10px] font-medium px-2.5 py-2 rounded-lg bg-black text-white">Add</button>
+                <button onClick={() => { setIsAddingVehicle(false); setNewVehicleName(''); }} className="text-[10px] font-medium px-2.5 py-2 rounded-lg border" style={{ borderColor: '#deded9', color: '#838274' }}>Cancel</button>
+              </div>
+            ) : (
+              <button
+                onClick={() => { setIsAddingVehicle(true); setTimeout(() => newVehicleRef.current?.focus(), 50); }}
+                className="w-full md:w-auto h-[44px] md:h-[38px] px-3 rounded-lg flex items-center justify-center gap-2 transition-colors active:bg-gray-50"
+                style={{ border: '1px dashed #deded9', color: '#838274' }}
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                </svg>
+                <span className="text-sm">Add Vehicle</span>
+              </button>
+            )}
           </div>
         </section>
 

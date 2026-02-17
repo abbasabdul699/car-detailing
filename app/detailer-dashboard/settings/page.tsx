@@ -82,7 +82,7 @@ export default function DetailerSettingsPage() {
   return (
     <div className="p-6">
       <div className="max-w-2xl mx-auto space-y-8">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">Settings</h1>
+        <h1 className="text-2xl font-bold text-gray-900 mb-6 pl-10 md:pl-0 flex items-center min-h-[32px]">Settings</h1>
 
         {/* Change Email Section */}
         <div className="bg-white rounded-xl shadow p-6">

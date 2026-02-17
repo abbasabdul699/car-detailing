@@ -23,7 +23,8 @@ import {
   isBefore,
   startOfDay
 } from 'date-fns';
-import { ChevronDownIcon, Cog8ToothIcon, FunnelIcon, UsersIcon, EllipsisHorizontalIcon } from '@heroicons/react/24/outline';
+import { ChevronDownIcon, Cog8ToothIcon, UsersIcon, EllipsisHorizontalIcon } from '@heroicons/react/24/outline';
+import { ListFilter } from 'lucide-react';
 import { XMarkIcon, PencilIcon, CheckIcon } from '@heroicons/react/24/solid';
 import EventModal from './components/EventModal';
 import AddressAutocompleteInput from './components/AddressAutocompleteInput';
@@ -7248,83 +7249,138 @@ export default function CalendarPage() {
         <div className="flex items-center justify-between px-4 pt-4 pb-2">
           <div className="flex items-center gap-3 relative">
             <button
-              onClick={() => setIsDatePickerOpen(!isDatePickerOpen)}
+              onClick={() => {
+                if (!isDatePickerOpen) {
+                  setSelectedEventData(null);
+                  setIsEditingEvent(false);
+                  setBottomSheetState('hidden');
+                }
+                setIsDatePickerOpen(!isDatePickerOpen);
+              }}
               className="font-bold text-gray-900 pl-12 md:pl-0 text-[20px] md:text-xl cursor-pointer hover:opacity-80 transition-opacity"
               style={{ fontFamily: 'Helvetica Neue' }}
             >
               {renderMobileHeaderDate()}
             </button>
-            {/* Date Picker Popup for Mobile */}
+            {/* Date Picker Drawer for Mobile */}
             {isDatePickerOpen && (
-              <div 
+              <>
+                <div 
                   ref={datePickerRef} 
-                  className="fixed bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl z-[100] p-4 md:hidden"
+                  className="fixed bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl z-[100] md:hidden"
                   style={{ 
-                    maxHeight: '70vh',
-                    paddingBottom: 'max(1rem, env(safe-area-inset-bottom))'
+                    paddingBottom: 'max(1rem, env(safe-area-inset-bottom))',
+                    transition: 'transform 300ms ease-out',
                   }}
                   onClick={(e) => e.stopPropagation()}
+                  onTouchStart={(e) => {
+                    const el = datePickerRef.current;
+                    if (!el) return;
+                    (el as any)._touchStartY = e.touches[0].clientY;
+                    (el as any)._dragOffset = 0;
+                  }}
+                  onTouchMove={(e) => {
+                    const el = datePickerRef.current;
+                    if (!el) return;
+                    const diff = e.touches[0].clientY - (el as any)._touchStartY;
+                    if (diff > 0) {
+                      (el as any)._dragOffset = diff;
+                      el.style.transform = `translateY(${diff}px)`;
+                      el.style.transition = 'none';
+                    }
+                  }}
+                  onTouchEnd={() => {
+                    const el = datePickerRef.current;
+                    if (!el) return;
+                    const offset = (el as any)._dragOffset || 0;
+                    if (offset > 80) {
+                      el.style.transition = 'transform 300ms ease-out';
+                      el.style.transform = 'translateY(100%)';
+                      setTimeout(() => setIsDatePickerOpen(false), 300);
+                    } else {
+                      el.style.transition = 'transform 300ms ease-out';
+                      el.style.transform = 'translateY(0)';
+                    }
+                  }}
                 >
-                  <div className="flex items-center justify-between mb-4">
-                    <button
-                      onClick={() => setCurrentDate(subMonths(currentDate, 1))}
-                      className="p-2 rounded-lg hover:bg-gray-100 active:bg-gray-200"
-                    >
-                      <ChevronLeftIcon className="w-5 h-5 text-gray-600" />
-                    </button>
-                    <h3 className="text-base font-semibold text-gray-900">
-                      {format(currentDate, 'MMMM yyyy')}
-                    </h3>
-                    <button
-                      onClick={() => setCurrentDate(addMonths(currentDate, 1))}
-                      className="p-2 rounded-lg hover:bg-gray-100 active:bg-gray-200"
-                    >
-                      <ChevronRightIcon className="w-5 h-5 text-gray-600" />
-                    </button>
+                  {/* Drag Handle */}
+                  <div className="flex justify-center pt-3 pb-1">
+                    <div className="w-10 h-1 rounded-full bg-gray-300" />
                   </div>
-                  
-                  <div className="grid grid-cols-7 gap-1 mb-2">
-                    {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((day) => (
-                      <div key={day} className="text-xs font-medium text-gray-500 text-center py-2">
-                        {day}
-                      </div>
-                    ))}
-                  </div>
-                  
-                  <div className="grid grid-cols-7 gap-1 overflow-y-auto" style={{ maxHeight: 'calc(70vh - 120px)' }}>
-                    {/* Empty cells for days before month starts */}
-                    {Array(getDay(startOfMonth(currentDate))).fill(null).map((_, index) => (
-                      <div key={`empty-${index}`} className="aspect-square"></div>
-                    ))}
+
+                  <div className="px-4 pb-4">
+                    {/* Close button row */}
+                    <div className="flex items-center justify-end mb-2">
+                      <button
+                        onClick={() => setIsDatePickerOpen(false)}
+                        className="p-1.5 rounded-full bg-gray-100 hover:bg-gray-200 active:bg-gray-300"
+                      >
+                        <svg className="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+
+                    <div className="flex items-center justify-between mb-4">
+                      <button
+                        onClick={() => setCurrentDate(subMonths(currentDate, 1))}
+                        className="p-2 rounded-lg hover:bg-gray-100 active:bg-gray-200"
+                      >
+                        <ChevronLeftIcon className="w-5 h-5 text-gray-600" />
+                      </button>
+                      <h3 className="text-base font-semibold text-gray-900">
+                        {format(currentDate, 'MMMM yyyy')}
+                      </h3>
+                      <button
+                        onClick={() => setCurrentDate(addMonths(currentDate, 1))}
+                        className="p-2 rounded-lg hover:bg-gray-100 active:bg-gray-200"
+                      >
+                        <ChevronRightIcon className="w-5 h-5 text-gray-600" />
+                      </button>
+                    </div>
                     
-                    {/* Days of the month */}
-                    {Array(getDaysInMonth(currentDate.getFullYear(), currentDate.getMonth())).fill(null).map((_, index) => {
-                      const day = index + 1;
-                      const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
-                      const isTodayDate = isToday(date);
-                      const isSelected = isSameDay(date, currentDate);
-                      
-                      return (
-                        <button
-                          key={day}
-                          onClick={() => {
-                            setCurrentDate(date);
-                            setIsDatePickerOpen(false);
-                          }}
-                          className={`aspect-square flex items-center justify-center text-sm font-medium transition-colors ${
-                            isSelected
-                              ? 'bg-[#FF3700] text-white rounded-full'
-                              : isTodayDate
-                              ? 'bg-gray-100 text-gray-900 font-semibold rounded-lg'
-                              : 'text-gray-700 hover:bg-gray-100 active:bg-gray-200 rounded-lg'
-                          }`}
-                        >
+                    <div className="grid grid-cols-7 gap-1 mb-2">
+                      {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((day) => (
+                        <div key={day} className="text-xs font-medium text-gray-500 text-center py-2">
                           {day}
-                        </button>
-                      );
-                    })}
+                        </div>
+                      ))}
+                    </div>
+                    
+                    <div className="grid grid-cols-7 gap-1">
+                      {Array(getDay(startOfMonth(currentDate))).fill(null).map((_, index) => (
+                        <div key={`empty-${index}`} className="aspect-square"></div>
+                      ))}
+                      
+                      {Array(getDaysInMonth(currentDate.getFullYear(), currentDate.getMonth())).fill(null).map((_, index) => {
+                        const day = index + 1;
+                        const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+                        const isTodayDate = isToday(date);
+                        const isSelected = isSameDay(date, currentDate);
+                        
+                        return (
+                          <button
+                            key={day}
+                            onClick={() => {
+                              setCurrentDate(date);
+                              setIsDatePickerOpen(false);
+                            }}
+                            className={`aspect-square flex items-center justify-center text-sm font-medium transition-colors ${
+                              isSelected
+                                ? 'bg-[#FF3700] text-white rounded-full'
+                                : isTodayDate
+                                ? 'bg-gray-100 text-gray-900 font-semibold rounded-lg'
+                                : 'text-gray-700 hover:bg-gray-100 active:bg-gray-200 rounded-lg'
+                            }`}
+                          >
+                            {day}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
+              </>
             )}
             </div>
           <div className="flex items-center gap-3">
@@ -7596,7 +7652,7 @@ export default function CalendarPage() {
                       }
                       eventTapRef.current = null;
                     }}
-                            className={`absolute left-1 right-1 rounded-lg p-2 cursor-pointer z-20 flex flex-col ${eventBgColor} ${eventTextColor} border-l-4`}
+                            className={`absolute left-1 right-1 rounded-lg p-2 cursor-pointer z-20 flex flex-col overflow-hidden ${eventBgColor} ${eventTextColor} border-l-4`}
                     role="button"
                     tabIndex={0}
                     style={{
@@ -7686,7 +7742,7 @@ export default function CalendarPage() {
             className="w-14 h-14 bg-white rounded-full shadow-lg flex items-center justify-center border border-gray-200 hover:bg-gray-50 transition"
             aria-label="Filter employees"
           >
-            <FunnelIcon className="w-6 h-6 text-gray-700" />
+            <ListFilter className="w-6 h-6 text-gray-700" />
             {selectedTechnicians.length > 0 && (
               <span className="absolute -top-1 -right-1 w-5 h-5 bg-blue-500 text-white text-xs rounded-full flex items-center justify-center">
                 {selectedTechnicians.length}
@@ -8571,7 +8627,7 @@ export default function CalendarPage() {
               className="w-14 h-14 bg-white rounded-full shadow-lg flex items-center justify-center border border-gray-200 hover:bg-gray-50 transition"
               aria-label="Filter employees"
             >
-              <FunnelIcon className="w-6 h-6 text-gray-700" />
+              <ListFilter className="w-6 h-6 text-gray-700" />
               {selectedTechnicians.length > 0 && (
                 <span className="absolute -top-1 -right-1 w-5 h-5 bg-blue-500 text-white text-xs rounded-full flex items-center justify-center">
                   {selectedTechnicians.length}

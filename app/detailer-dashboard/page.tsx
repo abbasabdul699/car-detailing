@@ -1141,7 +1141,7 @@ export default function DetailerDashboardPage() {
                                       }}
                                       className={`text-xs p-2 rounded hover:bg-gray-100 transition-colors ${
                                         isSelected
-                                          ? "bg-black text-white"
+                                          ? "bg-[#F97316] text-white"
                                           : isTodayDate
                                           ? "bg-gray-200 text-gray-900 font-semibold"
                                           : "text-gray-700"
