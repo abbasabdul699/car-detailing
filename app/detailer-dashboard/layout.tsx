@@ -13,7 +13,7 @@ import {
   CreditCardIcon,
   BookOpenIcon
 } from "@heroicons/react/24/outline";
-import { Home, Calendar as CalendarIcon, Inbox, Users } from "lucide-react";
+import { Home, Calendar as CalendarIcon, Inbox, Users, Target } from "lucide-react";
 import MobileMenu from "./components/MobileMenu";
 import { useSession, signOut } from "next-auth/react";
 import { ThemeProvider } from "@/app/components/ThemeContext";
@@ -76,6 +76,7 @@ function DetailerDashboardLayoutInner({
     { name: "Home", href: "/detailer-dashboard", icon: Home, exact: true },
     { name: "Calendar", href: "/detailer-dashboard/calendar", icon: CalendarIcon },
     { name: "Conversation", href: "/detailer-dashboard/messages", icon: Inbox },
+    { name: "Follow-ups", href: "/detailer-dashboard/followups", icon: Target },
     { name: "Customer", href: "/detailer-dashboard/customers", icon: Users },
   ];
 
@@ -121,7 +122,7 @@ function DetailerDashboardLayoutInner({
                 isSidebarHovered ? 'ml-3 opacity-100 max-w-[140px]' : 'ml-0 opacity-0 max-w-0'
               }`}
             >
-              Reeva
+              Carbon
             </span>
           </div>
           

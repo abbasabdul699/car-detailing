@@ -88,6 +88,7 @@ model Detailer {
   resources         Resource[]
   employees         Employee[]
   todoItems         TodoItem[]
+  followups         Followup[]
 }
 
 model Image {
@@ -281,6 +282,7 @@ model Customer {
   bookings          Booking[]
   conversations     Conversation[]
   customerSnapshots CustomerSnapshot[]
+  followups         Followup[]
 
   @@unique([detailerId, phone])
 }
@@ -490,4 +492,34 @@ model TodoItem {
   completedAt   DateTime?
 
   @@map("todoItems")
+}
+
+model Followup {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  detailer        Detailer  @relation(fields: [detailerId], references: [id])
+  detailerId      String    @db.ObjectId
+  customer        Customer? @relation(fields: [customerId], references: [id])
+  customerId      String?   @db.ObjectId
+  customerName    String
+  customerPhone   String?
+  customerEmail   String?
+  vehicleInfo     String?
+  vehicles        String[]
+  lastService     String?
+  daysSinceVisit  Int?
+  scheduledDate   DateTime
+  scheduledTime   String?
+  draftMessage    String?
+  priority        String    @default("medium") // "high", "medium", "low"
+  status          String    @default("scheduled") // "scheduled", "sent", "replied"
+  channel         String    @default("sms") // "sms", "email"
+  notes           String?
+  reasonLine      String?
+  confidenceScore Int?
+  tags            String[]
+  locationType    String? // "Van", "Drop-off", "Pick-up"
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("followups")
 }
