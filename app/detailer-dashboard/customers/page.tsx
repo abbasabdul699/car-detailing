@@ -266,6 +266,9 @@ export default function CustomersPage() {
   const [secondarySidebarOpen, setSecondarySidebarOpen] = useState(true);
   const [contactsFilterValue, setContactsFilterValue] = useState('all');
   const [contactsSortValue, setContactsSortValue] = useState('lastVisit');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(50);
+  const PAGE_SIZE_OPTIONS = [25, 50, 75, 100, 125];
   const [showContactsFilter, setShowContactsFilter] = useState(false);
   const [showContactsSort, setShowContactsSort] = useState(false);
   const contactsFilterRef = useRef<HTMLDivElement>(null);
@@ -1010,6 +1013,16 @@ export default function CustomersPage() {
     });
   }, [contactView, actualCustomers, prospectCustomers, contactsFilterValue, contactsSortValue, customerUpcomingJobs]);
 
+  const totalPages = Math.ceil(notionFilteredCustomers.length / itemsPerPage);
+  const paginatedCustomers = React.useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return notionFilteredCustomers.slice(start, start + itemsPerPage);
+  }, [notionFilteredCustomers, currentPage, itemsPerPage]);
+
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, contactView, contactsFilterValue, contactsSortValue]);
+
   const handleBulkDelete = async () => {
     if (selectedCustomers.size === 0) return;
     
@@ -1542,7 +1555,7 @@ export default function CustomersPage() {
             </div>
           ) : (
             <div>
-              {notionFilteredCustomers.map((customer, index) => {
+              {paginatedCustomers.map((customer, index) => {
                 const upcomingJob = customerUpcomingJobs.get(customer.id);
                 return (
                   <div key={customer.id}>
@@ -1575,6 +1588,24 @@ export default function CustomersPage() {
                   </div>
                 );
               })}
+            </div>
+          )}
+          {/* Mobile Pagination */}
+          {!loading && notionFilteredCustomers.length > itemsPerPage && (
+            <div className="flex flex-col gap-2 px-4 py-3 border-t border-[#F0F0EE]">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-[#9e9d92]">{((currentPage - 1) * itemsPerPage) + 1}–{Math.min(currentPage * itemsPerPage, notionFilteredCustomers.length)} of {notionFilteredCustomers.length}</span>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="px-1.5 py-1 rounded-md border border-[#deded9] text-[#40403a] disabled:opacity-30 disabled:cursor-not-allowed hover:bg-[#f0f0ee] transition"><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg></button>
+                  <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="px-1.5 py-1 rounded-md border border-[#deded9] text-[#40403a] disabled:opacity-30 disabled:cursor-not-allowed hover:bg-[#f0f0ee] transition"><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg></button>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] text-[#9e9d92]">Per page:</span>
+                <select value={itemsPerPage} onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }} className="text-[11px] text-[#40403a] border border-[#deded9] rounded-md px-1.5 py-0.5 bg-white">
+                  {PAGE_SIZE_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
+                </select>
+              </div>
             </div>
           )}
         </div>
@@ -1660,7 +1691,7 @@ export default function CustomersPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#e8e8e6]">
-                  {notionFilteredCustomers.map((customer) => {
+                  {paginatedCustomers.map((customer) => {
                     const status = getCustomerStatus(customer);
                     const reengage = getReengageStatus(customer);
                     const daysSince = getDaysSinceVisit(customer);
@@ -1800,6 +1831,29 @@ export default function CustomersPage() {
                   })}
                 </tbody>
               </table>
+            </div>
+          )}
+          {/* Desktop Pagination */}
+          {!loading && notionFilteredCustomers.length > itemsPerPage && (
+            <div className="flex items-center justify-between px-4 py-3 border-t border-[#F0F0EE] bg-white sticky bottom-0">
+              <div className="flex items-center gap-3">
+                <span className="text-[11px] text-[#9e9d92]">
+                  Showing {((currentPage - 1) * itemsPerPage) + 1}–{Math.min(currentPage * itemsPerPage, notionFilteredCustomers.length)} of {notionFilteredCustomers.length}
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-[#9e9d92]">Per page:</span>
+                  <select value={itemsPerPage} onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }} className="text-[11px] text-[#40403a] border border-[#deded9] rounded-md px-1.5 py-0.5 bg-white cursor-pointer hover:border-[#c1c0b8] transition">
+                    {PAGE_SIZE_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="flex items-center gap-1">
+                <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="px-2 py-1 text-[11px] font-medium rounded-md border border-[#deded9] text-[#40403a] disabled:opacity-30 disabled:cursor-not-allowed hover:bg-[#f0f0ee] transition">First</button>
+                <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="px-1.5 py-1 rounded-md border border-[#deded9] text-[#40403a] disabled:opacity-30 disabled:cursor-not-allowed hover:bg-[#f0f0ee] transition"><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg></button>
+                <span className="px-2 text-[11px] text-[#57564d]">Page {currentPage} of {totalPages}</span>
+                <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="px-1.5 py-1 rounded-md border border-[#deded9] text-[#40403a] disabled:opacity-30 disabled:cursor-not-allowed hover:bg-[#f0f0ee] transition"><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg></button>
+                <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="px-2 py-1 text-[11px] font-medium rounded-md border border-[#deded9] text-[#40403a] disabled:opacity-30 disabled:cursor-not-allowed hover:bg-[#f0f0ee] transition">Last</button>
+              </div>
             </div>
           )}
         </div>
