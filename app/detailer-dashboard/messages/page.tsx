@@ -4,6 +4,8 @@ import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSession } from 'next-auth/react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { formatPhoneDisplay } from '@/lib/phone';
+import { Inbox } from 'lucide-react';
+import Image from 'next/image';
 
 interface Message {
   id: string;
@@ -546,7 +548,7 @@ function MessagesPageContent() {
           <div className="space-y-1">
             <div className="text-[11px] uppercase tracking-wide text-gray-400 px-2">Your Inbox</div>
             <button className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-white text-gray-900 shadow-sm border border-gray-200">
-              <span className="text-sm font-medium">Your Inbox</span>
+              <span className="text-sm font-medium flex items-center gap-2"><Inbox className="w-4 h-4 text-gray-500" />Your Inbox</span>
               <span className="text-[11px] font-semibold bg-blue-600 text-white px-2 py-0.5 rounded-full">
                 {filteredConversations.length}
               </span>
@@ -555,6 +557,7 @@ function MessagesPageContent() {
           <div className="space-y-1">
             <div className="text-[11px] uppercase tracking-wide text-gray-400 px-2">AI Agent</div>
             <button className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-gray-700 hover:bg-white/70">
+              <Image src="/REEVA LOGO.png" alt="Reeva" width={20} height={20} className="rounded-full" />
               <span className="text-sm">All Conversations</span>
             </button>
             <button className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-gray-700 hover:bg-white/70">

@@ -13,6 +13,7 @@ import {
   CreditCardIcon,
   BookOpenIcon
 } from "@heroicons/react/24/outline";
+import { Home, Calendar as CalendarIcon, Inbox, Users } from "lucide-react";
 import MobileMenu from "./components/MobileMenu";
 import { useSession, signOut } from "next-auth/react";
 import { ThemeProvider } from "@/app/components/ThemeContext";
@@ -72,10 +73,10 @@ function DetailerDashboardLayoutInner({
   }, [dropdownOpen]);
   
   const navigation = [
-    { name: "Home", href: "/detailer-dashboard", iconPath: null, exact: true },
-    { name: "Calendar", href: "/detailer-dashboard/calendar", iconPath: "/icons/calendar (1).png" },
-    { name: "Customer", href: "/detailer-dashboard/customers", iconPath: "/icons/book-alt (1).png" },
-    { name: "Conversation", href: "/detailer-dashboard/messages", iconPath: "/icons/messages (1).png" },
+    { name: "Home", href: "/detailer-dashboard", icon: Home, exact: true },
+    { name: "Calendar", href: "/detailer-dashboard/calendar", icon: CalendarIcon },
+    { name: "Conversation", href: "/detailer-dashboard/messages", icon: Inbox },
+    { name: "Customer", href: "/detailer-dashboard/customers", icon: Users },
   ];
 
   const handleLogout = async () => {
@@ -146,24 +147,14 @@ function DetailerDashboardLayoutInner({
                     }`}
                     style={isActive ? { backgroundColor: '#E2E2DD' } : {}}
                   >
-                    {item.iconPath ? (
-                    <Image
-                      src={item.iconPath}
-                      alt={item.name}
-                      width={20}
-                      height={20}
-                      className={`object-contain transition-opacity ${
+                    <item.icon
+                      className={`w-5 h-5 transition-opacity ${
                         isActive
                           ? "opacity-100"
                           : "opacity-75 group-hover:opacity-85"
                       }`}
+                      strokeWidth={1.75}
                     />
-                    ) : (
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className={`transition-opacity ${isActive ? "opacity-100" : "opacity-75 group-hover:opacity-85"}`}>
-                        <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-                        <polyline points="9 22 9 12 15 12 15 22" />
-                      </svg>
-                    )}
                   </div>
                   <span
                     className={`ml-3 text-sm font-medium whitespace-nowrap overflow-hidden transition-all duration-200 ${
