@@ -193,6 +193,26 @@ export default function MobileMenu() {
                         </Link>
                       );
                     })}
+                    <button
+                      onClick={handleLogout}
+                      className="flex items-center gap-3 transition hover:opacity-80"
+                    >
+                      <ArrowLeftStartOnRectangleIcon 
+                        className="w-6 h-6 flex-shrink-0" 
+                        style={{ color: '#ababab' }}
+                      />
+                      <span 
+                        className="font-normal"
+                        style={{
+                          fontFamily: "'Helvetica Neue', sans-serif",
+                          fontSize: '16px',
+                          lineHeight: 'normal',
+                          color: '#ababab'
+                        }}
+                      >
+                        Sign Out
+                      </span>
+                    </button>
                   </div>
                 </div>
               </div>

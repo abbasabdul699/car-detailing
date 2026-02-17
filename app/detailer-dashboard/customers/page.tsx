@@ -171,6 +171,7 @@ export default function CustomersPage() {
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importLoading, setImportLoading] = useState(false);
   const [importResults, setImportResults] = useState<{ success: number; errors: Array<{ row: number; error: string }> } | null>(null);
+  const [importProgress, setImportProgress] = useState<{ current: number; total: number; success: number; errorCount: number } | null>(null);
   const [hoveredCell, setHoveredCell] = useState<{ rowId: string; column: string; content: string; x: number; y: number } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [columnWidths, setColumnWidths] = useState<{ [key: string]: number }>({
@@ -1134,6 +1135,7 @@ export default function CustomersPage() {
 
     setImportLoading(true);
     setImportResults(null);
+    setImportProgress(null);
 
     try {
       const formData = new FormData();
@@ -1142,24 +1144,70 @@ export default function CustomersPage() {
       const response = await fetch('/api/detailer/customers/import', {
         method: 'POST',
         body: formData,
+        headers: {
+          'Accept': 'text/event-stream',
+        },
       });
 
-      const result = await response.json();
-
       if (!response.ok) {
-        throw new Error(result.error || 'Failed to import customers');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to import customers');
       }
 
-      setImportResults(result);
-      
-      if (result.success > 0) {
-        await fetchCustomers();
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('Streaming not supported');
+      }
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          const dataMatch = line.match(/^data:\s*(.+)$/m);
+          if (!dataMatch) continue;
+
+          try {
+            const event = JSON.parse(dataMatch[1]);
+
+            if (event.type === 'init') {
+              setImportProgress({ current: 0, total: event.total, success: 0, errorCount: 0 });
+            } else if (event.type === 'progress') {
+              setImportProgress({
+                current: event.current,
+                total: event.total,
+                success: event.success,
+                errorCount: event.errorCount,
+              });
+            } else if (event.type === 'complete') {
+              setImportResults({ success: event.success, errors: event.errors });
+              setImportProgress(null);
+              if (event.success > 0) {
+                await fetchCustomers();
+              }
+            } else if (event.type === 'error') {
+              throw new Error(event.error);
+            }
+          } catch (parseErr: any) {
+            if (parseErr.message && parseErr.message !== 'Unexpected end of JSON input') {
+              throw parseErr;
+            }
+          }
+        }
       }
     } catch (err: any) {
       setError(err.message);
       alert(err.message);
     } finally {
       setImportLoading(false);
+      setImportProgress(null);
     }
   };
 
@@ -1167,6 +1215,7 @@ export default function CustomersPage() {
     setIsImportModalOpen(false);
     setImportFile(null);
     setImportResults(null);
+    setImportProgress(null);
   };
 
   // Get initials for avatar
@@ -1398,7 +1447,7 @@ export default function CustomersPage() {
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
             <span>Import</span>
           </button>
-          <button onClick={() => handleOpenModal()} className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium text-white bg-[#F97316] hover:bg-[#EA580C] rounded-md transition-colors">
+          <button onClick={() => handleOpenModal()} className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium text-white bg-[#F97316] hover:bg-[#EA580C] rounded-full transition-colors">
             <FaPlus className="w-3 h-3" />
             <span>Add Customer</span>
           </button>
@@ -2029,13 +2078,38 @@ export default function CustomersPage() {
                 )}
               </div>
 
+              {importProgress && (
+                <div className="rounded-lg p-4 bg-blue-50 border border-blue-200">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-sm font-semibold text-blue-900">Importing Customers...</h3>
+                    <span className="text-sm font-bold text-blue-700">
+                      {importProgress.total > 0 ? Math.round((importProgress.current / importProgress.total) * 100) : 0}%
+                    </span>
+                  </div>
+                  <div className="w-full bg-blue-200 rounded-full h-3 overflow-hidden">
+                    <div
+                      className="bg-blue-600 h-3 rounded-full transition-all duration-300 ease-out"
+                      style={{ width: `${importProgress.total > 0 ? (importProgress.current / importProgress.total) * 100 : 0}%` }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between mt-2">
+                    <p className="text-xs text-blue-700">
+                      {importProgress.current.toLocaleString()} of {importProgress.total.toLocaleString()} customers processed
+                    </p>
+                    <p className="text-xs text-blue-600">
+                      {importProgress.success.toLocaleString()} saved{importProgress.errorCount > 0 ? ` · ${importProgress.errorCount} errors` : ''}
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {importResults && (
                 <div className={`rounded-lg p-4 ${importResults.errors.length > 0 ? 'bg-yellow-50 border border-yellow-200' : 'bg-green-50 border border-green-200'}`}>
                   <h3 className="text-sm font-semibold mb-2">
                     {importResults.errors.length > 0 ? 'Import Completed with Errors' : 'Import Successful'}
                   </h3>
                   <p className="text-sm mb-2">
-                    Successfully imported: <span className="font-semibold">{importResults.success}</span> customer(s)
+                    Successfully imported: <span className="font-semibold">{importResults.success.toLocaleString()}</span> customer(s)
                   </p>
                   {importResults.errors.length > 0 && (
                     <div className="mt-2">
@@ -2055,7 +2129,8 @@ export default function CustomersPage() {
               <div className="flex gap-3 mt-6">
                 <button
                   onClick={handleCloseImportModal}
-                  className="flex-1 px-6 py-2 border border-gray-300 rounded-xl text-gray-700 hover:bg-gray-50 transition"
+                  disabled={importLoading}
+                  className="flex-1 px-6 py-2 border border-gray-300 rounded-xl text-gray-700 hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {importResults ? 'Close' : 'Cancel'}
                 </button>
@@ -2070,7 +2145,11 @@ export default function CustomersPage() {
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>
-                      <span>Importing...</span>
+                      <span>
+                        {importProgress
+                          ? `${Math.round((importProgress.current / importProgress.total) * 100)}%`
+                          : 'Starting...'}
+                      </span>
                     </>
                   ) : (
                     <>

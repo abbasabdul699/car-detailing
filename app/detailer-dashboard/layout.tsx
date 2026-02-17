@@ -106,13 +106,13 @@ function DetailerDashboardLayoutInner({
           >
           {/* Logo at top */}
           <div className={`flex items-center h-16 pt-2 ${isSidebarHovered ? 'justify-start px-4' : 'justify-center px-2'}`}>
-            <Link href="/detailer-dashboard" className="flex items-center justify-center w-12 h-12 bg-black rounded-full overflow-hidden shrink-0">
+            <Link href="/detailer-dashboard" className="flex items-center justify-center w-10 h-10 rounded-full overflow-hidden shrink-0">
               <Image 
                 src="/REEVA LOGO.png" 
                 alt="Reeva Logo" 
-                width={32} 
-                height={32}
-                className="object-contain"
+                width={80} 
+                height={80}
+                className="object-cover w-full h-full"
               />
             </Link>
             <span
