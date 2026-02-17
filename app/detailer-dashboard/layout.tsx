@@ -221,50 +221,50 @@ function DetailerDashboardLayoutInner({
             {dropdownOpen && mounted && createPortal(
               <div 
                 ref={dropdownMenuRef}
-                className="fixed w-56 origin-bottom-left rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-[9999]"
+                className="fixed w-60 origin-bottom-left rounded-2xl bg-white shadow-[0_8px_30px_rgba(0,0,0,0.08)] border border-gray-100 focus:outline-none z-[9999] overflow-hidden"
                 style={{
                   left: `${dropdownPosition.left}px`,
                   bottom: `${dropdownPosition.bottom}px`
                 }}
               >
-                <div className="py-1">
-                  <div className="px-4 py-3 border-b border-gray-200 flex items-center space-x-3">
-                    <div className="h-10 w-10 rounded-full overflow-hidden flex-shrink-0">
-                      <img className="w-full h-full object-cover" src={session?.user?.image || '/images/default-avatar.png'} alt="User avatar" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-gray-900">{session?.user?.businessName || session?.user?.name}</p>
-                      <p className="text-sm text-gray-500 truncate">{session?.user?.name}</p>
-                    </div>
+                <div className="px-4 py-4 border-b border-gray-100 flex items-center space-x-3">
+                  <div className="h-10 w-10 rounded-full overflow-hidden flex-shrink-0 ring-2 ring-gray-100">
+                    <img className="w-full h-full object-cover" src={session?.user?.image || '/images/default-avatar.png'} alt="User avatar" />
                   </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-gray-900 truncate">{session?.user?.businessName || session?.user?.name}</p>
+                    <p className="text-xs text-gray-400 truncate">{session?.user?.name}</p>
+                  </div>
+                </div>
+                <div className="py-2 px-2">
                   <Link 
                     href="/detailer-dashboard/profile" 
-                    className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                    className="flex items-center px-3 py-2.5 text-[13px] text-gray-600 hover:bg-[#f6f5f2] rounded-xl transition-colors"
                     onClick={() => setDropdownOpen(false)}
                   >
-                    <UserCircleIcon className="mr-3 h-5 w-5 text-gray-400" />
+                    <UserCircleIcon className="mr-3 h-[18px] w-[18px] text-gray-400" />
                     Edit profile
                   </Link>
                   <Link 
                     href="/detailer-dashboard/settings" 
-                    className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                    className="flex items-center px-3 py-2.5 text-[13px] text-gray-600 hover:bg-[#f6f5f2] rounded-xl transition-colors"
                     onClick={() => setDropdownOpen(false)}
                   >
-                    <Cog8ToothIcon className="mr-3 h-5 w-5 text-gray-400" />
+                    <Cog8ToothIcon className="mr-3 h-[18px] w-[18px] text-gray-400" />
                     Settings
                   </Link>
                   <Link 
                     href="/detailer-dashboard/services" 
-                    className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                    className="flex items-center px-3 py-2.5 text-[13px] text-gray-600 hover:bg-[#f6f5f2] rounded-xl transition-colors"
                     onClick={() => setDropdownOpen(false)}
                   >
                     <div className="mr-3 flex items-center justify-center">
                       <Image 
                         src="/icons/Customer.svg" 
                         alt="Services" 
-                        width={20} 
-                        height={20}
-                        className="opacity-60"
+                        width={18} 
+                        height={18}
+                        className="opacity-50"
                         style={{ filter: 'grayscale(100%) brightness(0.6)' }}
                       />
                     </div>
@@ -272,28 +272,30 @@ function DetailerDashboardLayoutInner({
                   </Link>
                   <Link 
                     href="/detailer-dashboard/images" 
-                    className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                    className="flex items-center px-3 py-2.5 text-[13px] text-gray-600 hover:bg-[#f6f5f2] rounded-xl transition-colors"
                     onClick={() => setDropdownOpen(false)}
                   >
-                    <PhotoIcon className="mr-3 h-5 w-5 text-gray-400" />
+                    <PhotoIcon className="mr-3 h-[18px] w-[18px] text-gray-400" />
                     Manage images
                   </Link>
                   <Link 
                     href="/detailer-dashboard/subscription" 
-                    className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                    className="flex items-center px-3 py-2.5 text-[13px] text-gray-600 hover:bg-[#f6f5f2] rounded-xl transition-colors"
                     onClick={() => setDropdownOpen(false)}
                   >
-                    <CreditCardIcon className="mr-3 h-5 w-5 text-gray-400" />
+                    <CreditCardIcon className="mr-3 h-[18px] w-[18px] text-gray-400" />
                     Subscription
                   </Link>
+                </div>
+                <div className="border-t border-gray-100 py-2 px-2">
                   <button
                     onClick={() => {
                       setDropdownOpen(false);
                       handleLogout();
                     }}
-                    className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                    className="w-full text-left flex items-center px-3 py-2.5 text-[13px] text-gray-600 hover:bg-[#f6f5f2] rounded-xl transition-colors"
                   >
-                    <ArrowLeftStartOnRectangleIcon className="mr-3 h-5 w-5 text-gray-400" />
+                    <ArrowLeftStartOnRectangleIcon className="mr-3 h-[18px] w-[18px] text-gray-400" />
                     Sign out
                   </button>
                 </div>
