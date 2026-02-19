@@ -15,6 +15,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { Home, Calendar as CalendarIcon, Inbox, Users, Target } from "lucide-react";
 import MobileMenu from "./components/MobileMenu";
+import OnboardingOverlay from "./components/OnboardingOverlay";
 import { useSession, signOut } from "next-auth/react";
 import { ThemeProvider } from "@/app/components/ThemeContext";
 import DetailerSessionProvider from "@/app/components/DetailerSessionProvider";
@@ -33,12 +34,54 @@ function DetailerDashboardLayoutInner({
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [dropdownPosition, setDropdownPosition] = useState({ left: 0, bottom: 0 });
 
-  const { data: session } = useSession();
+  const { data: session, status: sessionStatus } = useSession();
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [onboardingChecked, setOnboardingChecked] = useState(false);
 
   // Ensure component is mounted before using portal
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Listen for custom event to open onboarding survey from any child page
+  useEffect(() => {
+    const handler = () => setShowOnboarding(true);
+    window.addEventListener("open-onboarding-survey", handler);
+    return () => window.removeEventListener("open-onboarding-survey", handler);
+  }, []);
+
+  // Check onboarding status when session is ready
+  useEffect(() => {
+    if (sessionStatus !== "authenticated" || onboardingChecked) return;
+    setOnboardingChecked(true);
+
+    // Try the dedicated onboarding endpoint first, fall back to customer count check
+    fetch("/api/detailer/onboarding")
+      .then((res) => {
+        if (!res.ok) throw new Error(`Onboarding API returned ${res.status}`);
+        return res.json();
+      })
+      .then((data) => {
+        if (data.needsOnboarding) {
+          setShowOnboarding(true);
+        }
+      })
+      .catch((err) => {
+        console.warn("[onboarding] Primary check failed, trying fallback:", err.message);
+        // Fallback: check customer count directly
+        fetch("/api/detailer/customers")
+          .then((res) => {
+            if (!res.ok) return null;
+            return res.json();
+          })
+          .then((data) => {
+            if (data && Array.isArray(data.customers) && data.customers.length === 0) {
+              setShowOnboarding(true);
+            }
+          })
+          .catch(() => {});
+      });
+  }, [sessionStatus, onboardingChecked]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -102,7 +145,7 @@ function DetailerDashboardLayoutInner({
           {/* Sidebar */}
           <div
             className={`hidden md:flex flex-col h-dvh md:fixed md:top-0 md:left-0 transition-[width] duration-200 ease-out ${isSidebarHovered ? 'w-56' : 'w-16'}`}
-            style={{ backgroundColor: '#F8F8F7', zIndex: 10, borderRight: '1px solid #E2E2DD', boxShadow: 'none' }}
+            style={{ backgroundColor: '#F8F8F7', zIndex: 200, borderRight: '1px solid #E2E2DD', boxShadow: 'none' }}
             onMouseEnter={() => setIsSidebarHovered(true)}
             onMouseLeave={() => setIsSidebarHovered(false)}
           >
@@ -158,11 +201,14 @@ function DetailerDashboardLayoutInner({
                     />
                   </div>
                   <span
-                    className={`ml-3 text-sm font-medium whitespace-nowrap overflow-hidden transition-all duration-200 ${
-                      isSidebarHovered ? 'opacity-100 max-w-[140px]' : 'opacity-0 max-w-0'
+                    className={`ml-3 text-sm font-medium whitespace-nowrap overflow-hidden transition-all duration-200 flex items-center gap-1.5 ${
+                      isSidebarHovered ? 'opacity-100 max-w-[180px]' : 'opacity-0 max-w-0'
                     }`}
                   >
                     {item.name}
+                    {item.name === "Follow-ups" && (
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600 leading-none">BETA</span>
+                    )}
                   </span>
                 </Link>
               );
@@ -317,6 +363,10 @@ function DetailerDashboardLayoutInner({
         </div>
         
       </div>
+      {showOnboarding && mounted && createPortal(
+        <OnboardingOverlay onComplete={() => setShowOnboarding(false)} />,
+        document.body
+      )}
     </ThemeProvider>
   );
 }

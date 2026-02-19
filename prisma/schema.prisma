@@ -77,6 +77,13 @@ model Detailer {
   trialEndsAt      DateTime? // 14-day trial end date
   isFirstCohort    Boolean       @default(false) // For discounted rate
 
+  // Onboarding
+  onboardingCompleted   Boolean   @default(false)
+  onboardingCompletedAt DateTime?
+
+  // Carbon AI Preferences (from onboarding survey)
+  carbonAiPreferences Json?
+
   // Relations
   conversations     Conversation[]
   bookings          Booking[]
@@ -518,6 +525,7 @@ model Followup {
   confidenceScore Int?
   tags            String[]
   locationType    String? // "Van", "Drop-off", "Pick-up"
+  aiReasoning     String?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 

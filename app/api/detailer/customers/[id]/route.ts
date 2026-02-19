@@ -254,9 +254,17 @@ export async function DELETE(
       return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
     }
 
-    await prisma.customerSnapshot.delete({
-      where: { id }
-    });
+    const normalizedPhone = customer.customerPhone;
+
+    await Promise.all([
+      prisma.customerSnapshot.delete({ where: { id } }),
+      prisma.followup.deleteMany({
+        where: {
+          detailerId: session.user.id,
+          customerPhone: normalizedPhone,
+        },
+      }),
+    ]);
 
     return NextResponse.json({ success: true });
   } catch (error) {

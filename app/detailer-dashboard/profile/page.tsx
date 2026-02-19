@@ -41,6 +41,19 @@ interface Profile {
   timezone?: string;
   googleReviewLink?: string;
   serviceRadius?: number;
+  carbonAiPreferences?: {
+    tone?: string;
+    customTone?: string;
+    upsellEnabled?: boolean;
+    mobileService?: string;
+    sendWindow?: { start: string; end: string; includeWeekends: boolean };
+    offers?: {
+      mode?: string;
+      maxDiscount?: string;
+      customOffers?: { description: string }[];
+    };
+    reviewedMessages?: { name: string; message: string; status: string }[];
+  };
 }
 
 async function getProfile() {
@@ -1103,6 +1116,69 @@ export default function DetailerProfilePage() {
             </div>
           </div>
         </div>
+
+        {/* Carbon AI Settings Section */}
+        {profile?.carbonAiPreferences && (
+          <div className="bg-white rounded-xl shadow p-6 mb-4">
+            <h2 className="text-lg font-semibold text-gray-900 mb-6">Carbon AI Settings</h2>
+            <p className="text-xs text-gray-500 mb-4">These preferences were configured during onboarding. Run the setup survey again from the homepage to change them.</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Tone</label>
+                <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 capitalize">
+                  {profile.carbonAiPreferences.tone === 'custom'
+                    ? `Custom: ${profile.carbonAiPreferences.customTone || '—'}`
+                    : profile.carbonAiPreferences.tone === 'casual'
+                    ? 'Friendly and casual'
+                    : 'Professional and warm'}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Upselling</label>
+                <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900">
+                  {profile.carbonAiPreferences.upsellEnabled ? 'Yes, suggest upgrades' : 'No, same service only'}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Mobile Service</label>
+                <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 capitalize">
+                  {profile.carbonAiPreferences.mobileService === 'yes'
+                    ? 'Offer mobile as an option'
+                    : profile.carbonAiPreferences.mobileService === 'no'
+                    ? 'Keep same location'
+                    : "We don't offer mobile"}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Send Window</label>
+                <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900">
+                  {profile.carbonAiPreferences.sendWindow
+                    ? `${profile.carbonAiPreferences.sendWindow.start} – ${profile.carbonAiPreferences.sendWindow.end}${profile.carbonAiPreferences.sendWindow.includeWeekends ? ', includes weekends' : ', weekdays only'}`
+                    : '—'}
+                </div>
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-xs text-gray-500 mb-1">Offers</label>
+                <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900">
+                  {profile.carbonAiPreferences.offers?.mode === 'ai'
+                    ? `AI-generated (max ${profile.carbonAiPreferences.offers.maxDiscount || '10'}% discount)`
+                    : profile.carbonAiPreferences.offers?.mode === 'custom'
+                    ? (
+                      <div>
+                        <span>Custom offers:</span>
+                        <ul className="list-disc list-inside mt-1 text-gray-700">
+                          {profile.carbonAiPreferences.offers.customOffers
+                            ?.filter((o) => o.description.trim())
+                            .map((o, i) => <li key={i}>{o.description}</li>)}
+                        </ul>
+                      </div>
+                    )
+                    : 'No discounts/offers'}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Edit Modal */}
         {editingSection && (

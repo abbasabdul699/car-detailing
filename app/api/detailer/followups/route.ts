@@ -57,6 +57,7 @@ export async function POST(request: NextRequest) {
       confidenceScore,
       tags,
       locationType,
+      aiReasoning,
     } = body;
 
     if (!customerName || !customerName.trim()) {
@@ -89,6 +90,7 @@ export async function POST(request: NextRequest) {
         confidenceScore: confidenceScore ?? null,
         tags: tags || [],
         locationType: locationType || null,
+        aiReasoning: aiReasoning || null,
       },
     });
 

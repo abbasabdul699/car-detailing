@@ -238,6 +238,23 @@ export async function POST(request: NextRequest) {
       return undefined;
     }
 
+    // Track phones already processed in this import to skip CSV-level duplicates
+    const processedPhones = new Set<string>();
+
+    // Normalize phone more aggressively: strip all non-digits, ensure consistent E.164
+    function robustNormalizePhone(raw: string): string {
+      const digits = raw.replace(/\D/g, '');
+      // Standard E.164 normalization
+      const e164 = normalizeToE164(raw);
+      if (e164) return e164;
+      // Fallback: if we have 10+ digits, try to force US format
+      if (digits.length >= 10) {
+        const last10 = digits.slice(-10);
+        return `+1${last10}`;
+      }
+      return raw.trim();
+    }
+
     // Core row-processing logic (used by both streaming and non-streaming paths)
     async function processRows() {
       for (let i = 1; i < rows.length; i++) {
@@ -253,7 +270,14 @@ export async function POST(request: NextRequest) {
             continue;
           }
 
-          const normalizedPhone = normalizeToE164(phone) || phone;
+          const normalizedPhone = robustNormalizePhone(phone);
+
+          // Skip duplicate rows within the same CSV import
+          if (processedPhones.has(normalizedPhone)) {
+            if (currentIndex % 10 === 0 || currentIndex === totalRows) sendProgress(currentIndex);
+            continue;
+          }
+          processedPhones.add(normalizedPhone);
 
           const name = nameIndex >= 0 ? row[nameIndex]?.trim() : undefined;
           const email = emailIndex >= 0 ? row[emailIndex]?.trim() : undefined;
@@ -328,7 +352,26 @@ export async function POST(request: NextRequest) {
           let mergedData: Record<string, unknown> | null = Object.keys(snapshotData).length > 0 ? snapshotData : null;
 
           if (mergedData) {
-            const existing = await getCustomerSnapshot(detailerId, normalizedPhone);
+            let existing = await getCustomerSnapshot(detailerId, normalizedPhone);
+
+            // Fallback: if no exact match, check for variant phone formats (e.g. +1234567890 vs +11234567890)
+            if (!existing) {
+              const digits = normalizedPhone.replace(/\D/g, '');
+              const last10 = digits.slice(-10);
+              if (last10.length === 10) {
+                const variants = [`+1${last10}`, `+${last10}`];
+                for (const variant of variants) {
+                  if (variant === normalizedPhone) continue;
+                  const found = await getCustomerSnapshot(detailerId, variant);
+                  if (found) {
+                    // Found under a different phone format — delete old record, we'll upsert with the normalized one
+                    await prisma.customerSnapshot.delete({ where: { id: found.id } });
+                    existing = found;
+                    break;
+                  }
+                }
+              }
+            }
             if (existing?.data && typeof existing.data === 'object') {
               const existingData = existing.data as Record<string, unknown>;
 

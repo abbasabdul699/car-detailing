@@ -58,6 +58,7 @@ export async function GET() {
         },
         images: true,
         detailerImages: true,
+        carbonAiPreferences: true,
       },
     });
 

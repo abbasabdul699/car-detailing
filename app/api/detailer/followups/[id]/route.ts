@@ -35,7 +35,7 @@ export async function PATCH(
       'customerName', 'customerPhone', 'customerEmail', 'vehicleInfo',
       'vehicles', 'lastService', 'daysSinceVisit', 'scheduledTime',
       'draftMessage', 'priority', 'status', 'channel', 'notes',
-      'reasonLine', 'confidenceScore', 'tags', 'locationType', 'customerId',
+      'reasonLine', 'confidenceScore', 'tags', 'locationType', 'customerId', 'aiReasoning',
     ];
 
     for (const field of allowedFields) {

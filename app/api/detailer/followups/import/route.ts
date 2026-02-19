@@ -49,6 +49,7 @@ export async function POST(request: NextRequest) {
           confidenceScore: item.confidenceScore ?? null,
           tags: item.tags || [],
           locationType: item.locationType || null,
+          aiReasoning: item.aiReasoning || null,
         },
       });
       created.push(followup);

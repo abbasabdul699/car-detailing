@@ -399,6 +399,18 @@ export default function CustomerProfilePage() {
             {showMoreMenu && (
               <div className="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-lg z-20 py-1 min-w-[120px]" style={{ border: '1px solid #F0F0EE' }}>
                 <button
+                  onClick={async () => {
+                    if (!confirm('Are you sure you want to delete this customer? This action cannot be undone.')) return;
+                    setShowMoreMenu(false);
+                    try {
+                      const res = await fetch(`/api/detailer/customers/${customerId}`, { method: 'DELETE' });
+                      if (!res.ok) throw new Error('Failed to delete');
+                      router.push('/detailer-dashboard/customers');
+                    } catch (err) {
+                      console.error('Delete failed:', err);
+                      alert('Failed to delete customer. Please try again.');
+                    }
+                  }}
                   className="w-full px-3 py-2 text-left text-sm text-red-600 flex items-center gap-2 hover:bg-red-50"
                 >
                   <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

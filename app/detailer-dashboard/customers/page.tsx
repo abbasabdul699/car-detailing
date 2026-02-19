@@ -2972,15 +2972,15 @@ export default function CustomersPage() {
                 </div>
               )}
 
-              {/* Fixed Book Service Button at bottom */}
-              <div className="absolute bottom-0 left-0 right-0 p-4 bg-white border-t border-[#F0F0EE]">
+              {/* Fixed buttons at bottom */}
+              <div className="absolute bottom-0 left-0 right-0 p-4 bg-white border-t border-[#F0F0EE] flex gap-2">
                 <button
                   onClick={() => {
                     setIsActionSidebarOpen(false);
                     setSelectedCustomerData(null);
                     router.push('/detailer-dashboard/calendar');
                   }}
-                  className="w-full py-2.5 text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+                  className="flex-1 py-2.5 text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
                   style={{ backgroundColor: '#FF3700' }}
                   onMouseEnter={(e) => { (e.target as HTMLElement).style.backgroundColor = '#E63200'; }}
                   onMouseLeave={(e) => { (e.target as HTMLElement).style.backgroundColor = '#FF3700'; }}
@@ -2989,6 +2989,28 @@ export default function CustomersPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
                   </svg>
                   Book Service
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!selectedCustomerData?.id) return;
+                    if (!confirm('Are you sure you want to delete this customer? This action cannot be undone.')) return;
+                    try {
+                      const res = await fetch(`/api/detailer/customers/${selectedCustomerData.id}`, { method: 'DELETE' });
+                      if (!res.ok) throw new Error('Failed to delete');
+                      setIsActionSidebarOpen(false);
+                      setSelectedCustomerData(null);
+                      setCustomers(prev => prev.filter(c => c.id !== selectedCustomerData.id));
+                    } catch (err) {
+                      console.error('Delete failed:', err);
+                      alert('Failed to delete customer. Please try again.');
+                    }
+                  }}
+                  className="py-2.5 px-3 text-sm font-medium rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors flex items-center justify-center"
+                  title="Delete customer"
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                  </svg>
                 </button>
               </div>
             </motion.div>
