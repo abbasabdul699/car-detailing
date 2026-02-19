@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { 
   Cog8ToothIcon,
   ArrowLeftStartOnRectangleIcon,
@@ -26,6 +26,7 @@ function DetailerDashboardLayoutInner({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [isSidebarHovered, setIsSidebarHovered] = useState(false);
@@ -217,30 +218,6 @@ function DetailerDashboardLayoutInner({
           
           {/* Profile dropdown at bottom */}
           <div className={`flex flex-shrink-0 p-4 flex-col space-y-3 relative ${isSidebarHovered ? 'items-stretch' : 'items-center'}`} ref={dropdownRef}>
-            {/* Resources button */}
-            <Link
-              href="/detailer-dashboard/resources"
-              className={`flex items-center text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-all focus:outline-none ${isSidebarHovered ? 'w-full px-3 py-2 rounded-xl justify-start' : ''}`}
-              title="Resources"
-            >
-              <div className="flex items-center justify-center w-10 h-10 rounded-full">
-                <Image 
-                  src="/icons/users-alt-3.png" 
-                  alt="Resources" 
-                  width={24} 
-                  height={24}
-                  className="opacity-75"
-                />
-              </div>
-              <span
-                className={`ml-3 text-sm font-medium whitespace-nowrap overflow-hidden transition-all duration-200 ${
-                  isSidebarHovered ? 'opacity-100 max-w-[140px]' : 'opacity-0 max-w-0'
-                }`}
-              >
-                Resources
-              </span>
-            </Link>
-            
             {/* Profile image button */}
             <div className={`flex items-center ${isSidebarHovered ? 'w-full px-3 py-2 rounded-xl hover:bg-gray-100' : ''}`}>
               <button
@@ -333,6 +310,14 @@ function DetailerDashboardLayoutInner({
                     <CreditCardIcon className="mr-3 h-[18px] w-[18px] text-gray-400" />
                     Subscription
                   </Link>
+                  <Link 
+                    href="/detailer-dashboard/resources" 
+                    className="flex items-center px-3 py-2.5 text-[13px] text-gray-600 hover:bg-[#f6f5f2] rounded-xl transition-colors"
+                    onClick={() => setDropdownOpen(false)}
+                  >
+                    <BookOpenIcon className="mr-3 h-[18px] w-[18px] text-gray-400" />
+                    Resources
+                  </Link>
                 </div>
                 <div className="border-t border-gray-100 py-2 px-2">
                   <button
@@ -364,7 +349,7 @@ function DetailerDashboardLayoutInner({
         
       </div>
       {showOnboarding && mounted && createPortal(
-        <OnboardingOverlay onComplete={() => setShowOnboarding(false)} />,
+        <OnboardingOverlay onComplete={() => { setShowOnboarding(false); router.push('/detailer-dashboard/followups'); }} />,
         document.body
       )}
     </ThemeProvider>

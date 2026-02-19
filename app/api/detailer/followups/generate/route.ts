@@ -39,21 +39,27 @@ function getReengageStatus(daysSinceVisit: number | null): string {
   return 'Active';
 }
 
-function generateScheduleTimes(start: string, end: string, count: number): string[] {
-  const [startH, startM] = start.split(':').map(Number);
-  const [endH, endM] = end.split(':').map(Number);
-  const startMin = startH * 60 + (startM || 0);
-  const endMin = endH * 60 + (endM || 0);
-  const range = endMin - startMin;
-  if (range <= 0 || count <= 0) return ['10:00'];
+function generateScheduleTimes(count: number): string[] {
+  const windows = [
+    { startH: 10, startM: 30, endH: 12, endM: 0 },
+    { startH: 17, startM: 30, endH: 19, endM: 0 },
+  ];
 
-  const step = Math.floor(range / (count + 1));
+  const allSlots: string[] = [];
+  for (const w of windows) {
+    const startMin = w.startH * 60 + w.startM;
+    const endMin = w.endH * 60 + w.endM;
+    for (let m = startMin; m < endMin; m += 15) {
+      const h = Math.floor(m / 60);
+      const min = m % 60;
+      allSlots.push(`${h.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`);
+    }
+  }
+
+  if (count <= 0 || allSlots.length === 0) return ['10:30'];
   const times: string[] = [];
-  for (let i = 1; i <= count; i++) {
-    const totalMin = startMin + step * i;
-    const h = Math.floor(totalMin / 60);
-    const m = totalMin % 60;
-    times.push(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`);
+  for (let i = 0; i < count; i++) {
+    times.push(allSlots[i % allSlots.length]);
   }
   return times;
 }
@@ -351,8 +357,8 @@ export async function POST(request: NextRequest) {
 
     // ── 8. Build schedule slots (business-hours-aware, capacity-capped) ───────
 
-    const MAX_OUTREACH_PER_DAY = 3;
-    const scheduleTimes = generateScheduleTimes(sendWindowStart, sendWindowEnd, 7);
+    const MAX_OUTREACH_PER_DAY = 25;
+    const scheduleTimes = generateScheduleTimes(MAX_OUTREACH_PER_DAY);
     const outreachPerDay = new Map<string, number>();
 
     function getNextAvailableDate(startDate: Date): { date: Date; time: string } {
@@ -434,7 +440,13 @@ export async function POST(request: NextRequest) {
         vehicles: c.vehicles,
         allServices: c.services,
         lastService: c.lastService,
-        dormantDays: c.daysSinceVisit,
+        timeSinceVisit: c.daysSinceVisit != null
+          ? c.daysSinceVisit < 30
+            ? `${c.daysSinceVisit} days`
+            : c.daysSinceVisit < 60
+              ? 'about a month'
+              : `about ${Math.round(c.daysSinceVisit / 30)} months`
+          : 'unknown',
         totalVisits: c.completedServiceCount,
         locationType: c.locationType,
         reengageStatus: c.reengageStatus,
@@ -483,31 +495,51 @@ export async function POST(request: NextRequest) {
       examplesLine = `\n\nHere are example messages the business owner approved -- match this style:\n${approvedMessages.map(m => `- "${m.message}"`).join('\n')}`;
     }
 
-    const systemPrompt = `You are an expert car detailing business outreach strategist for "${detailer.businessName}".
+    const systemPrompt = `You write text messages for "${detailer.businessName}", a car detailing business. You're texting customers as if you're the actual detailer who just thought of them.
 
 ${toneLine}${mobileLine}${upsellLine}${offersLine}${examplesLine}${weatherLine}
 
 For each customer, return:
-- "draftMessage": A short, personal SMS message (1-2 sentences, mention their vehicle, include a specific hook). No emojis unless it's a pet-related message where one 🐾 is ok.
+- "draftMessage": A super short, casual text message (1-2 sentences MAX). This should read like a real human sent it, not a business.
 - "aiReasoning": 2-3 sentences explaining WHY this customer was selected and the outreach strategy. Include data-driven insights.
 - "reasonLine": A one-line summary (e.g., "Regular customer, 8 months overdue")
 - "outreachTags": Array of 2-4 tags from: "Re-engage", "Mobile", "Spring", "Kids", "Dogs", "Upsell", "VIP", "EV Specialist", "Win-back", "Ceramic Maintenance", "Multi-vehicle", "Fleet", "Seasonal", "Loyalty", "Weather"
 - "confidenceScore": 0-100 likelihood of positive response
 - "priority": "high", "medium", or "low"
 
+VOICE & TONE — this is the most important part:
+- Write like you JUST thought of this person. Like "oh hey I was thinking about you" energy. Not "Dear valued customer."
+- Examples of the vibe:
+  - "Hey! Just drove past your neighborhood Sarah and remembered your Accord is probably due. Want me to swing by this week?"
+  - "Hi! Spring's around the corner Lucas, bet that F-150 could use a good wash after all this winter grime. Lmk if you want to get on the schedule"
+  - "Hey! How's the Model 3 treating you Olivia? Been a minute — want me to get you on the books?"
+  - "Hi! Noah I know with the kids back in school the BMW's probably seen better days, want me to come by?"
+  - "Hey! Pollen season is about to hit Sophia — want to get ahead of it with a detail on the Mazda?"
+- Keep it SHORT. Like a text you'd actually send, not a paragraph.
+- Use their first name naturally (start of message or mid-sentence, vary it)
+- Mention their car casually, don't force it
+- No emojis
+- NEVER use exclamation marks on every sentence. Mix periods, questions, and the occasional !
+- Use lowercase energy. "lmk", "want me to", "bet that" — conversational shortcuts are fine but make sure the first letter is uppercase always.
+- ALWAYS open with "Hey!" or "Hi!" — then weave the customer's name in naturally after (not immediately after the greeting). Vary between "Hey!" and "Hi!" across messages.
+
+HOOKS — use personal insights when available, they're gold:
+- Pets: "I know [pet name/type] probably has the backseat looking rough" 
+- Kids: reference the chaos kids bring to cars naturally
+- Seasons: pollen, salt, rain, summer road trips — tie it to their actual car
+- Time since last visit: "been a minute", "feels like it's been a while", "a couple months" — NEVER say exact day counts. If you reference time, use vague/approximate terms like "a couple months", "a few months", "a while". No one texts "it's been 150 days"
+- Multi-vehicle households: "want to knock out both cars while I'm there?"
+
 Rules:
-- Use the customer's FIRST NAME only
-- Reference their specific vehicle make/model
-- Keep messages under 160 characters when possible
-- Make it feel like a text from someone they know, not a marketing blast
-- CRITICAL: Every customer should have a DIFFERENT hook. Vary across: maintenance timing, loyalty/VIP, upsell, convenience, "been a while", seasonal, multi-vehicle deal, pet-related, kids-related. Weather is just one option among many -- most messages should NOT use weather.
-- Multi-vehicle households: mention the package deal angle
-- Overdue (>45 days): softer "been a while" approach
-- Due Soon (25-45 days): proactive "coming up on time for your next" approach
-- Active (<25 days): gentle "due for your next" approach
-- If customer has pets or kids info, you may use a personalized hook
-- If customer has high lifetime value (>$1000), treat as VIP
-- If customer has notes from the detailer, factor them into the message strategy
+- First name only, always
+- Reference their vehicle make/model but weave it in naturally
+- Keep messages under 140 characters when possible — shorter is better
+- CRITICAL: Every customer gets a UNIQUE message. No two should feel like the same template.
+- Overdue (>45 days): "been a while" / "just remembered" / casual check-in energy
+- Due Soon (25-45 days): "coming up on time" / proactive but chill
+- Active (<25 days): light touch, "your next one's coming up"
+- If customer has high lifetime value (>$1000), treat them like a friend/VIP — warmer tone
+- If customer has detailer notes, USE them — that's the most personal hook you have
 
 Return a JSON object with key "customers" containing an array in the same order as input.`;
 
@@ -517,7 +549,7 @@ Return a JSON object with key "customers" containing an array in the same order 
 
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
-      temperature: 0.7,
+      temperature: 0.85,
       max_tokens: 4000,
       messages: [
         { role: 'system', content: systemPrompt },

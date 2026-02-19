@@ -1596,7 +1596,7 @@ function Step9Welcome({ onFinish }: { onFinish: () => void }) {
           }}
           transition={{ duration: 0.5 }}
         >
-          Let&apos;s grow your business.
+          Let&apos;s get your business back on track.
         </motion.p>
       </motion.div>
     </div>

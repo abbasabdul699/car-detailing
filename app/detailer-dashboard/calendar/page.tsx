@@ -5304,7 +5304,7 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
 // #endregion
 
 export default function CalendarPage() {
-  const [viewMode, setViewMode] = useState<'month' | 'week' | 'day' | number>('day');
+  const [viewMode, setViewMode] = useState<'month' | 'week' | 'day' | number>('week');
   const [numberOfDays, setNumberOfDays] = useState<number | null>(7); // For custom day views (2-7), preset to 7 for week view
   const [isViewDropdownOpen, setIsViewDropdownOpen] = useState(false);
   const [isDaysSubmenuOpen, setIsDaysSubmenuOpen] = useState(false);
