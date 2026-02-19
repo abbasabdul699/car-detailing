@@ -191,6 +191,8 @@ export async function GET(_request: NextRequest) {
     // --- Revenue analysis ---
     let totalLifetimeValue = 0;
     let lifetimeValueCount = 0;
+    let atRiskRevenue = 0;
+    let atRiskWithLTV = 0;
     let totalVisits = 0;
     let visitCount = 0;
 
@@ -255,6 +257,10 @@ export async function GET(_request: NextRequest) {
       if (data?.importedLifetimeValue && data.importedLifetimeValue > 0) {
         totalLifetimeValue += data.importedLifetimeValue;
         lifetimeValueCount++;
+        if (riskScore === "churned" || riskScore === "at_risk") {
+          atRiskRevenue += data.importedLifetimeValue;
+          atRiskWithLTV++;
+        }
       }
       if (visitNum > 0) {
         totalVisits += visitNum;
@@ -275,11 +281,12 @@ export async function GET(_request: NextRequest) {
       ? Math.round((atRiskCount / totalCustomers) * 100)
       : 0;
 
-    // Calculate revenue at risk
+    // Calculate total revenue at risk (actual sum for those with LTV + estimated for the rest)
     const avgLTV = lifetimeValueCount > 0
       ? totalLifetimeValue / lifetimeValueCount
       : 145 * 2.4;
-    const estimatedRevenueLost = Math.round(lostCustomers * avgLTV);
+    const atRiskWithoutLTV = lostCustomers - atRiskWithLTV;
+    const estimatedRevenueLost = Math.round(atRiskRevenue + (atRiskWithoutLTV > 0 ? atRiskWithoutLTV * avgLTV : 0));
 
     // Multi-vehicle return rates
     const multiVehicleReturning = multiVehicleCustomers.filter(c => {

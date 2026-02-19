@@ -650,7 +650,7 @@ function Step3Summary({ analytics, onViewInsights }: { analytics: OnboardingAnal
   const customerCount = analytics.totalCustomers;
   const churnRate = analytics.churnRate;
   const lostCount = analytics.lostCustomers;
-  const revenueLeft = Math.round(analytics.estimatedRevenueLost / 1000);
+  const revenueTotal = analytics.estimatedRevenueLost;
   const isLowChurn = churnRate <= 10;
 
   // For low churn, show active retention rate instead
@@ -746,7 +746,7 @@ function Step3Summary({ analytics, onViewInsights }: { analytics: OnboardingAnal
                 {lostCount.toLocaleString()} / {customerCount.toLocaleString()} customers at risk
               </p>
               <p className="text-xs" style={{ color: TEXT_SECONDARY }}>
-                ~${revenueLeft > 0 ? `${revenueLeft.toLocaleString()}K` : `${analytics.estimatedRevenueLost.toLocaleString()}`} revenue at risk
+                ~${revenueTotal.toLocaleString()} total revenue at risk
               </p>
             </>
           )}
