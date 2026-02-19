@@ -3,7 +3,8 @@ import { getServerSession } from 'next-auth';
 import { detailerAuthOptions } from '@/app/api/auth-detailer/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { normalizeToE164 } from '@/lib/phone';
-import { upsertCustomerSnapshot, getCustomerSnapshot } from '@/lib/customerSnapshot';
+
+export const maxDuration = 60;
 
 // Simple CSV parser
 function parseCSV(csvText: string): string[][] {
@@ -244,10 +245,8 @@ export async function POST(request: NextRequest) {
     // Normalize phone more aggressively: strip all non-digits, ensure consistent E.164
     function robustNormalizePhone(raw: string): string {
       const digits = raw.replace(/\D/g, '');
-      // Standard E.164 normalization
       const e164 = normalizeToE164(raw);
       if (e164) return e164;
-      // Fallback: if we have 10+ digits, try to force US format
       if (digits.length >= 10) {
         const last10 = digits.slice(-10);
         return `+1${last10}`;
@@ -255,187 +254,225 @@ export async function POST(request: NextRequest) {
       return raw.trim();
     }
 
+    // Pre-fetch ALL existing snapshots for this detailer in one query
+    const existingSnapshots = await prisma.customerSnapshot.findMany({
+      where: { detailerId },
+      select: { id: true, customerPhone: true, data: true },
+    });
+    const existingByPhone = new Map<string, { id: string; data: unknown }>();
+    for (const snap of existingSnapshots) {
+      existingByPhone.set(snap.customerPhone, { id: snap.id, data: snap.data });
+      // Also index by last-10-digits variant for fuzzy matching
+      const digits = snap.customerPhone.replace(/\D/g, '');
+      if (digits.length >= 10) {
+        const last10 = digits.slice(-10);
+        existingByPhone.set(`__l10__${last10}`, { id: snap.id, data: snap.data });
+      }
+    }
+
+    function findExisting(normalizedPhone: string): { id: string; data: unknown } | undefined {
+      const direct = existingByPhone.get(normalizedPhone);
+      if (direct) return direct;
+      const digits = normalizedPhone.replace(/\D/g, '');
+      const last10 = digits.slice(-10);
+      if (last10.length === 10) {
+        return existingByPhone.get(`__l10__${last10}`);
+      }
+      return undefined;
+    }
+
+    // Parse a single row into an upsert-ready record (pure CPU, no DB calls)
+    function parseRow(row: string[], rowNumber: number): {
+      normalizedPhone: string;
+      upsertData: Record<string, unknown>;
+    } | null {
+      const phone = row[phoneIndex]?.trim();
+      if (!phone) {
+        results.errors.push({ row: rowNumber, error: 'Phone number is required' });
+        return null;
+      }
+
+      const normalizedPhone = robustNormalizePhone(phone);
+      if (processedPhones.has(normalizedPhone)) return null;
+      processedPhones.add(normalizedPhone);
+
+      const name = nameIndex >= 0 ? row[nameIndex]?.trim() : undefined;
+      const email = emailIndex >= 0 ? row[emailIndex]?.trim() : undefined;
+      const address = buildAddress(row);
+      const locationType = (locationIndex >= 0 ? row[locationIndex]?.trim() : undefined)
+        || (locationTypeIndex >= 0 ? row[locationTypeIndex]?.trim() : undefined);
+      const customerType = customerTypeIndex >= 0 ? row[customerTypeIndex]?.trim() : undefined;
+
+      let vehicle: string | undefined;
+      let vehicleYear: number | undefined;
+      let vehicleMake: string | undefined;
+      let vehicleModel: string | undefined;
+      let vehiclesArray: string[] = [];
+
+      if (vehiclesIndex >= 0) {
+        const vehiclesStr = row[vehiclesIndex]?.trim() || '';
+        if (vehiclesStr) {
+          vehiclesArray = vehiclesStr.split(/[;]/).map(s => s.trim()).filter(Boolean);
+          if (vehiclesArray.length > 0) {
+            const parsed = parseVehicleString(vehiclesArray[0]);
+            vehicle = parsed.vehicle || undefined;
+            vehicleYear = parsed.year;
+            vehicleMake = parsed.make;
+            vehicleModel = parsed.model;
+          }
+        }
+      } else if (legacyVehicleIndex >= 0) {
+        vehicle = row[legacyVehicleIndex]?.trim() || undefined;
+        vehicleYear = legacyVehicleYearIndex >= 0 ? (row[legacyVehicleYearIndex]?.trim() ? parseInt(row[legacyVehicleYearIndex].trim()) : undefined) : undefined;
+        vehicleMake = legacyVehicleMakeIndex >= 0 ? row[legacyVehicleMakeIndex]?.trim() || undefined : undefined;
+        vehicleModel = legacyVehicleModelIndex >= 0 ? row[legacyVehicleModelIndex]?.trim() || undefined : undefined;
+        if (vehicle) vehiclesArray = [vehicle];
+      }
+
+      const servicesStr = servicesIndex >= 0 ? row[servicesIndex]?.trim() : undefined;
+      let services: string[] | null = null;
+      if (servicesStr) {
+        services = servicesStr.split(/[;,]/).map(s => s.trim()).filter(Boolean);
+      }
+
+      const notes = notesIndex >= 0 ? row[notesIndex]?.trim() : undefined;
+      const firstVisitStr = firstVisitIndex >= 0 ? row[firstVisitIndex]?.trim() : undefined;
+      const lastVisitStr = lastVisitIndex >= 0 ? row[lastVisitIndex]?.trim() : undefined;
+      const visitsStr = visitsIndex >= 0 ? row[visitsIndex]?.trim() : undefined;
+      const lifetimeValueStr = lifetimeValueIndex >= 0 ? row[lifetimeValueIndex]?.trim() : undefined;
+      const technician = technicianIndex >= 0 ? row[technicianIndex]?.trim() : undefined;
+      const pets = petsIndex >= 0 ? row[petsIndex]?.trim() : undefined;
+      const kids = kidsIndex >= 0 ? row[kidsIndex]?.trim() : undefined;
+      const stateValidStr = stateValidIndex >= 0 ? row[stateValidIndex]?.trim() : undefined;
+
+      const snapshotData: Record<string, unknown> = {};
+      if (notes) snapshotData.notes = notes;
+      if (vehiclesArray.length > 0) snapshotData.vehicles = vehiclesArray;
+      if (firstVisitStr) snapshotData.importedFirstVisit = firstVisitStr;
+      if (lastVisitStr) snapshotData.importedLastVisit = lastVisitStr;
+      if (visitsStr) {
+        const visitsNum = parseInt(visitsStr, 10);
+        if (Number.isFinite(visitsNum)) snapshotData.importedVisitCount = visitsNum;
+      }
+      if (lifetimeValueStr) {
+        const ltv = parseLifetimeValue(lifetimeValueStr);
+        if (ltv !== undefined) snapshotData.importedLifetimeValue = ltv;
+      }
+      if (technician) snapshotData.technician = technician;
+      if (pets) snapshotData.pets = pets;
+      if (kids) snapshotData.kids = kids;
+      if (stateValidStr) {
+        snapshotData.stateValid = stateValidStr.toUpperCase() === 'TRUE';
+      }
+
+      // Merge with existing data from pre-fetched map (no DB call)
+      let mergedData: Record<string, unknown> | null = Object.keys(snapshotData).length > 0 ? snapshotData : null;
+
+      if (mergedData) {
+        const existing = findExisting(normalizedPhone);
+        if (existing?.data && typeof existing.data === 'object') {
+          const existingData = existing.data as Record<string, unknown>;
+
+          if (existingData.importedFirstVisit && mergedData.importedFirstVisit) {
+            const existDate = new Date(existingData.importedFirstVisit as string);
+            const newDate = new Date(mergedData.importedFirstVisit as string);
+            if (!isNaN(existDate.getTime()) && !isNaN(newDate.getTime())) {
+              mergedData.importedFirstVisit = existDate < newDate
+                ? existingData.importedFirstVisit : mergedData.importedFirstVisit;
+            }
+          }
+          if (existingData.importedLastVisit && mergedData.importedLastVisit) {
+            const existDate = new Date(existingData.importedLastVisit as string);
+            const newDate = new Date(mergedData.importedLastVisit as string);
+            if (!isNaN(existDate.getTime()) && !isNaN(newDate.getTime())) {
+              mergedData.importedLastVisit = existDate > newDate
+                ? existingData.importedLastVisit : mergedData.importedLastVisit;
+            }
+          }
+          if (existingData.importedVisitCount && mergedData.importedVisitCount) {
+            const existCount = Number(existingData.importedVisitCount);
+            const newCount = Number(mergedData.importedVisitCount);
+            if (Number.isFinite(existCount) && Number.isFinite(newCount)) {
+              mergedData.importedVisitCount = Math.max(existCount, newCount);
+            }
+          }
+
+          if (existingData.vehicles && mergedData.vehicles) {
+            const existVehicles = Array.isArray(existingData.vehicles) ? existingData.vehicles : [];
+            const newVehicles = Array.isArray(mergedData.vehicles) ? mergedData.vehicles : [];
+            const combined = [...new Set([...existVehicles, ...newVehicles])];
+            mergedData.vehicles = combined;
+          }
+
+          mergedData = { ...existingData, ...mergedData };
+        }
+      }
+
+      const cleaned: Record<string, unknown> = {};
+      if (name !== undefined) cleaned.customerName = name || null;
+      if (email !== undefined) cleaned.customerEmail = email || null;
+      if (address !== undefined) cleaned.address = address || null;
+      if (locationType !== undefined) cleaned.locationType = locationType || null;
+      if (customerType !== undefined) cleaned.customerType = customerType || null;
+      if (vehicle !== undefined) cleaned.vehicle = vehicle || null;
+      if (vehicleYear !== undefined) cleaned.vehicleYear = vehicleYear || null;
+      if (vehicleMake !== undefined) cleaned.vehicleMake = vehicleMake || null;
+      if (vehicleModel !== undefined) cleaned.vehicleModel = vehicleModel || null;
+      if (services !== undefined) cleaned.services = services || [];
+      if (mergedData !== undefined) cleaned.data = mergedData;
+
+      return { normalizedPhone, upsertData: cleaned };
+    }
+
+    const BATCH_SIZE = 50;
+
     // Core row-processing logic (used by both streaming and non-streaming paths)
     async function processRows() {
+      // Phase 1: parse all rows (CPU only, no DB)
+      const parsed: Array<{ index: number; normalizedPhone: string; upsertData: Record<string, unknown> }> = [];
       for (let i = 1; i < rows.length; i++) {
         const row = rows[i];
-        const rowNumber = i + 1;
-        const currentIndex = i; // 1-based progress (row 1 of N)
+        try {
+          const result = parseRow(row, i + 1);
+          if (result) parsed.push({ index: i, ...result });
+        } catch (error: any) {
+          results.errors.push({ row: i + 1, error: error.message || 'Unknown error processing row' });
+        }
+      }
+
+      // Phase 2: batch upsert in transaction chunks
+      for (let batchStart = 0; batchStart < parsed.length; batchStart += BATCH_SIZE) {
+        const batch = parsed.slice(batchStart, batchStart + BATCH_SIZE);
 
         try {
-          const phone = row[phoneIndex]?.trim();
-          if (!phone) {
-            results.errors.push({ row: rowNumber, error: 'Phone number is required' });
-            if (currentIndex % 10 === 0 || currentIndex === totalRows) sendProgress(currentIndex);
-            continue;
-          }
-
-          const normalizedPhone = robustNormalizePhone(phone);
-
-          // Skip duplicate rows within the same CSV import
-          if (processedPhones.has(normalizedPhone)) {
-            if (currentIndex % 10 === 0 || currentIndex === totalRows) sendProgress(currentIndex);
-            continue;
-          }
-          processedPhones.add(normalizedPhone);
-
-          const name = nameIndex >= 0 ? row[nameIndex]?.trim() : undefined;
-          const email = emailIndex >= 0 ? row[emailIndex]?.trim() : undefined;
-          const address = buildAddress(row);
-          const locationType = (locationIndex >= 0 ? row[locationIndex]?.trim() : undefined)
-            || (locationTypeIndex >= 0 ? row[locationTypeIndex]?.trim() : undefined);
-          const customerType = customerTypeIndex >= 0 ? row[customerTypeIndex]?.trim() : undefined;
-
-          let vehicle: string | undefined;
-          let vehicleYear: number | undefined;
-          let vehicleMake: string | undefined;
-          let vehicleModel: string | undefined;
-          let vehiclesArray: string[] = [];
-
-          if (vehiclesIndex >= 0) {
-            const vehiclesStr = row[vehiclesIndex]?.trim() || '';
-            if (vehiclesStr) {
-              vehiclesArray = vehiclesStr.split(/[;]/).map(s => s.trim()).filter(Boolean);
-              if (vehiclesArray.length > 0) {
-                const parsed = parseVehicleString(vehiclesArray[0]);
-                vehicle = parsed.vehicle || undefined;
-                vehicleYear = parsed.year;
-                vehicleMake = parsed.make;
-                vehicleModel = parsed.model;
-              }
-            }
-          } else if (legacyVehicleIndex >= 0) {
-            vehicle = row[legacyVehicleIndex]?.trim() || undefined;
-            vehicleYear = legacyVehicleYearIndex >= 0 ? (row[legacyVehicleYearIndex]?.trim() ? parseInt(row[legacyVehicleYearIndex].trim()) : undefined) : undefined;
-            vehicleMake = legacyVehicleMakeIndex >= 0 ? row[legacyVehicleMakeIndex]?.trim() || undefined : undefined;
-            vehicleModel = legacyVehicleModelIndex >= 0 ? row[legacyVehicleModelIndex]?.trim() || undefined : undefined;
-            if (vehicle) vehiclesArray = [vehicle];
-          }
-
-          const servicesStr = servicesIndex >= 0 ? row[servicesIndex]?.trim() : undefined;
-          let services: string[] | null = null;
-          if (servicesStr) {
-            services = servicesStr.split(/[;,]/).map(s => s.trim()).filter(Boolean);
-          }
-
-          const notes = notesIndex >= 0 ? row[notesIndex]?.trim() : undefined;
-          const firstVisitStr = firstVisitIndex >= 0 ? row[firstVisitIndex]?.trim() : undefined;
-          const lastVisitStr = lastVisitIndex >= 0 ? row[lastVisitIndex]?.trim() : undefined;
-          const visitsStr = visitsIndex >= 0 ? row[visitsIndex]?.trim() : undefined;
-          const lifetimeValueStr = lifetimeValueIndex >= 0 ? row[lifetimeValueIndex]?.trim() : undefined;
-          const technician = technicianIndex >= 0 ? row[technicianIndex]?.trim() : undefined;
-          const pets = petsIndex >= 0 ? row[petsIndex]?.trim() : undefined;
-          const kids = kidsIndex >= 0 ? row[kidsIndex]?.trim() : undefined;
-          const stateValidStr = stateValidIndex >= 0 ? row[stateValidIndex]?.trim() : undefined;
-
-          const snapshotData: Record<string, unknown> = {};
-          if (notes) snapshotData.notes = notes;
-          if (vehiclesArray.length > 0) snapshotData.vehicles = vehiclesArray;
-          if (firstVisitStr) snapshotData.importedFirstVisit = firstVisitStr;
-          if (lastVisitStr) snapshotData.importedLastVisit = lastVisitStr;
-          if (visitsStr) {
-            const visitsNum = parseInt(visitsStr, 10);
-            if (Number.isFinite(visitsNum)) snapshotData.importedVisitCount = visitsNum;
-          }
-          if (lifetimeValueStr) {
-            const ltv = parseLifetimeValue(lifetimeValueStr);
-            if (ltv !== undefined) snapshotData.importedLifetimeValue = ltv;
-          }
-          if (technician) snapshotData.technician = technician;
-          if (pets) snapshotData.pets = pets;
-          if (kids) snapshotData.kids = kids;
-          if (stateValidStr) {
-            snapshotData.stateValid = stateValidStr.toUpperCase() === 'TRUE';
-          }
-
-          // Merge data with existing snapshot to avoid overwriting previously imported fields
-          let mergedData: Record<string, unknown> | null = Object.keys(snapshotData).length > 0 ? snapshotData : null;
-
-          if (mergedData) {
-            let existing = await getCustomerSnapshot(detailerId, normalizedPhone);
-
-            // Fallback: if no exact match, check for variant phone formats (e.g. +1234567890 vs +11234567890)
-            if (!existing) {
-              const digits = normalizedPhone.replace(/\D/g, '');
-              const last10 = digits.slice(-10);
-              if (last10.length === 10) {
-                const variants = [`+1${last10}`, `+${last10}`];
-                for (const variant of variants) {
-                  if (variant === normalizedPhone) continue;
-                  const found = await getCustomerSnapshot(detailerId, variant);
-                  if (found) {
-                    // Found under a different phone format — delete old record, we'll upsert with the normalized one
-                    await prisma.customerSnapshot.delete({ where: { id: found.id } });
-                    existing = found;
-                    break;
-                  }
-                }
-              }
-            }
-            if (existing?.data && typeof existing.data === 'object') {
-              const existingData = existing.data as Record<string, unknown>;
-
-              if (existingData.importedFirstVisit && mergedData.importedFirstVisit) {
-                const existDate = new Date(existingData.importedFirstVisit as string);
-                const newDate = new Date(mergedData.importedFirstVisit as string);
-                if (!isNaN(existDate.getTime()) && !isNaN(newDate.getTime())) {
-                  mergedData.importedFirstVisit = existDate < newDate
-                    ? existingData.importedFirstVisit : mergedData.importedFirstVisit;
-                }
-              }
-              if (existingData.importedLastVisit && mergedData.importedLastVisit) {
-                const existDate = new Date(existingData.importedLastVisit as string);
-                const newDate = new Date(mergedData.importedLastVisit as string);
-                if (!isNaN(existDate.getTime()) && !isNaN(newDate.getTime())) {
-                  mergedData.importedLastVisit = existDate > newDate
-                    ? existingData.importedLastVisit : mergedData.importedLastVisit;
-                }
-              }
-              if (existingData.importedVisitCount && mergedData.importedVisitCount) {
-                const existCount = Number(existingData.importedVisitCount);
-                const newCount = Number(mergedData.importedVisitCount);
-                if (Number.isFinite(existCount) && Number.isFinite(newCount)) {
-                  mergedData.importedVisitCount = Math.max(existCount, newCount);
-                }
-              }
-
-              if (existingData.vehicles && mergedData.vehicles) {
-                const existVehicles = Array.isArray(existingData.vehicles) ? existingData.vehicles : [];
-                const newVehicles = Array.isArray(mergedData.vehicles) ? mergedData.vehicles : [];
-                const combined = [...new Set([...existVehicles, ...newVehicles])];
-                mergedData.vehicles = combined;
-              }
-
-              mergedData = { ...existingData, ...mergedData };
+          await prisma.$transaction(
+            batch.map(({ normalizedPhone, upsertData }) =>
+              prisma.customerSnapshot.upsert({
+                where: { detailerId_customerPhone: { detailerId, customerPhone: normalizedPhone } },
+                update: upsertData,
+                create: { detailerId, customerPhone: normalizedPhone, ...upsertData },
+              })
+            )
+          );
+          results.success += batch.length;
+        } catch {
+          // If batch fails, fall back to individual upserts to identify which rows fail
+          for (const item of batch) {
+            try {
+              await prisma.customerSnapshot.upsert({
+                where: { detailerId_customerPhone: { detailerId, customerPhone: item.normalizedPhone } },
+                update: item.upsertData,
+                create: { detailerId, customerPhone: item.normalizedPhone, ...item.upsertData },
+              });
+              results.success++;
+            } catch (error: any) {
+              results.errors.push({ row: item.index + 1, error: error.message || 'Unknown error' });
             }
           }
-
-          await upsertCustomerSnapshot(detailerId, normalizedPhone, {
-            customerName: name || null,
-            customerEmail: email || null,
-            address: address || null,
-            locationType: locationType || null,
-            customerType: customerType || null,
-            vehicle: vehicle || null,
-            vehicleYear: vehicleYear || null,
-            vehicleMake: vehicleMake || null,
-            vehicleModel: vehicleModel || null,
-            services: services || null,
-            data: mergedData
-          });
-
-          results.success++;
-        } catch (error: any) {
-          results.errors.push({
-            row: rowNumber,
-            error: error.message || 'Unknown error processing row'
-          });
         }
 
-        // Send progress every 10 rows or on the last row
-        if (currentIndex % 10 === 0 || currentIndex === totalRows) {
-          sendProgress(currentIndex);
-        }
+        const progressIndex = Math.min(batchStart + BATCH_SIZE, parsed.length);
+        sendProgress(progressIndex);
       }
     }
 
