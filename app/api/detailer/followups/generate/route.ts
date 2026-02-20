@@ -5,7 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { normalizeToE164 } from '@/lib/phone';
 import OpenAI from 'openai';
 
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -545,90 +545,106 @@ Rules:
 
 Return a JSON object with key "customers" containing an array in the same order as input.`;
 
-    // ── 12. Call OpenAI ───────────────────────────────────────────────────────
+    // ── 12. Call OpenAI in parallel batches ──────────────────────────────────
 
-    console.log('[generate-followups] Calling OpenAI with', customerSummaries.length, 'customers');
-
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      temperature: 0.85,
-      max_tokens: 4000,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: JSON.stringify(customerSummaries) }
-      ],
-      response_format: { type: 'json_object' },
-    });
-
-    const content = completion.choices[0]?.message?.content;
-    if (!content) {
-      return NextResponse.json({ error: 'AI generation failed' }, { status: 500 });
+    const BATCH_SIZE = 8;
+    const batches: typeof customerSummaries[] = [];
+    for (let i = 0; i < customerSummaries.length; i += BATCH_SIZE) {
+      batches.push(customerSummaries.slice(i, i + BATCH_SIZE));
     }
 
-    let aiResults: { customers: Array<{
+    console.log('[generate-followups] Calling OpenAI with', customerSummaries.length,
+      'customers in', batches.length, 'parallel batches');
+
+    type AiCustomerResult = {
       draftMessage: string;
       aiReasoning: string;
       reasonLine: string;
       outreachTags: string[];
       confidenceScore: number;
       priority: string;
-    }> };
+    };
 
-    try {
-      aiResults = JSON.parse(content);
-    } catch {
-      return NextResponse.json({ error: 'Failed to parse AI response' }, { status: 500 });
-    }
+    const batchResults = await Promise.all(
+      batches.map(async (batch, batchIdx) => {
+        const completion = await openai.chat.completions.create({
+          model: 'gpt-4o-mini',
+          temperature: 0.85,
+          max_tokens: 2000,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: JSON.stringify(batch) }
+          ],
+          response_format: { type: 'json_object' },
+        });
+
+        const content = completion.choices[0]?.message?.content;
+        if (!content) {
+          console.error(`[generate-followups] Batch ${batchIdx} returned empty content`);
+          return [] as AiCustomerResult[];
+        }
+
+        try {
+          const parsed = JSON.parse(content) as { customers: AiCustomerResult[] };
+          return parsed.customers || [];
+        } catch {
+          console.error(`[generate-followups] Batch ${batchIdx} JSON parse failed`);
+          return [] as AiCustomerResult[];
+        }
+      })
+    );
+
+    const aiCustomers = batchResults.flat();
+    console.log('[generate-followups] AI returned results for', aiCustomers.length, 'customers');
 
     // ── 13. Create followup records ───────────────────────────────────────────
 
-    const aiCustomers = aiResults.customers || [];
-    const created = [];
+    const followupData = scheduleAssignments
+      .map(({ customer, date: scheduledDate, time: scheduledTime }, i) => {
+        const ai = aiCustomers[i];
+        if (!ai) return null;
 
-    for (let i = 0; i < scheduleAssignments.length; i++) {
-      const { customer, date: scheduledDate, time: scheduledTime } = scheduleAssignments[i];
-      const ai = aiCustomers[i];
-      if (!ai) continue;
+        return {
+          detailerId,
+          customerId: customer.customerId || null,
+          customerName: customer.customerName,
+          customerPhone: customer.customerPhone,
+          customerEmail: customer.customerEmail,
+          vehicleInfo: customer.vehicleInfo || null,
+          vehicles: customer.vehicles,
+          lastService: customer.lastService,
+          daysSinceVisit: customer.daysSinceVisit,
+          scheduledDate,
+          scheduledTime,
+          draftMessage: ai.draftMessage || null,
+          priority: ai.priority || 'medium',
+          status: 'scheduled',
+          channel: 'sms',
+          reasonLine: ai.reasonLine || null,
+          confidenceScore: ai.confidenceScore ?? null,
+          tags: [
+            ...(ai.outreachTags || []),
+            ...(customer.lastService ? [customer.lastService] : []),
+            ...(customer.locationType ? [customer.locationType] : []),
+          ],
+          locationType: customer.locationType,
+          aiReasoning: ai.aiReasoning || null,
+        };
+      })
+      .filter((d): d is NonNullable<typeof d> => d !== null);
 
-      const tags = [
-        ...(ai.outreachTags || []),
-        ...(customer.lastService ? [customer.lastService] : []),
-        ...(customer.locationType ? [customer.locationType] : []),
-      ];
+    const created = await Promise.all(
+      followupData.map(data =>
+        prisma.followup.create({ data }).catch(err => {
+          console.error(`Failed to create followup for ${data.customerName}:`, err);
+          return null;
+        })
+      )
+    );
 
-      try {
-        const followup = await prisma.followup.create({
-          data: {
-            detailerId,
-            customerId: customer.customerId || null,
-            customerName: customer.customerName,
-            customerPhone: customer.customerPhone,
-            customerEmail: customer.customerEmail,
-            vehicleInfo: customer.vehicleInfo || null,
-            vehicles: customer.vehicles,
-            lastService: customer.lastService,
-            daysSinceVisit: customer.daysSinceVisit,
-            scheduledDate,
-            scheduledTime,
-            draftMessage: ai.draftMessage || null,
-            priority: ai.priority || 'medium',
-            status: 'scheduled',
-            channel: 'sms',
-            reasonLine: ai.reasonLine || null,
-            confidenceScore: ai.confidenceScore ?? null,
-            tags,
-            locationType: customer.locationType,
-            aiReasoning: ai.aiReasoning || null,
-          },
-        });
-        created.push(followup);
-      } catch (err) {
-        console.error(`Failed to create followup for ${customer.customerName}:`, err);
-      }
-    }
-
-    console.log('[generate-followups] Created', created.length, 'followups');
-    return NextResponse.json({ followups: created, count: created.length }, { status: 201 });
+    const successfulFollowups = created.filter((f): f is NonNullable<typeof f> => f !== null);
+    console.log('[generate-followups] Created', successfulFollowups.length, 'followups');
+    return NextResponse.json({ followups: successfulFollowups, count: successfulFollowups.length }, { status: 201 });
   } catch (error) {
     console.error('[generate-followups] Error:', error);
     return NextResponse.json({ error: 'Failed to generate followups' }, { status: 500 });
