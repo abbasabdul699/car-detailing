@@ -170,13 +170,23 @@ export default function FollowupsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ regenerate }),
       });
-      const body = await res.json();
 
       if (!res.ok) {
         clearInterval(stepInterval);
-        setErrorMessage(body.error || `Generation failed (${res.status})`);
+        let errorMsg = `Generation failed (${res.status})`;
+        try {
+          const body = await res.json();
+          if (body.error) errorMsg = body.error;
+        } catch {
+          if (res.status === 504) {
+            errorMsg = "The request timed out. Please try again — this can happen with many customers.";
+          }
+        }
+        setErrorMessage(errorMsg);
         return;
       }
+
+      const body = await res.json();
 
       if (body.count === 0) {
         clearInterval(stepInterval);

@@ -5,6 +5,8 @@ import { prisma } from '@/lib/prisma';
 import { normalizeToE164 } from '@/lib/phone';
 import OpenAI from 'openai';
 
+export const maxDuration = 60;
+
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // ─── Types ────────────────────────────────────────────────────────────────────
