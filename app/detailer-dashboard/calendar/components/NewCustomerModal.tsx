@@ -31,19 +31,62 @@ const US_STATES = [
     'Virginia', 'Washington', 'West Virginia', 'Wisconsin', 'Wyoming'
 ];
 
-// Format phone number as (XXX) XXX XXXX
+// Format phone number as (XXX) XXX-XXXX
 const formatPhoneNumber = (value: string): string => {
-    // Remove all non-digit characters
-    const digits = value.replace(/\D/g, '');
+    let digits = value.replace(/\D/g, '');
     
-    // Limit to 10 digits
+    // Strip leading country code "1" if 11 digits
+    if (digits.length === 11 && digits.startsWith('1')) {
+        digits = digits.slice(1);
+    }
+    
     const limitedDigits = digits.slice(0, 10);
     
-    // Format based on length
     if (limitedDigits.length === 0) return '';
     if (limitedDigits.length <= 3) return `(${limitedDigits}`;
     if (limitedDigits.length <= 6) return `(${limitedDigits.slice(0, 3)}) ${limitedDigits.slice(3)}`;
-    return `(${limitedDigits.slice(0, 3)}) ${limitedDigits.slice(3, 6)} ${limitedDigits.slice(6)}`;
+    return `(${limitedDigits.slice(0, 3)}) ${limitedDigits.slice(3, 6)}-${limitedDigits.slice(6)}`;
+};
+
+// Parse a full address string into street, city, state, zip components
+const parseAddressComponents = (fullAddress: string): { street: string; city: string; state: string; zip: string } => {
+    const result = { street: '', city: '', state: '', zip: '' };
+    if (!fullAddress) return result;
+
+    const parts = fullAddress.split(',').map(p => p.trim());
+    // Typical format: "65 Dyer St, Brockton, MA 02302, USA"
+    if (parts.length >= 3) {
+        result.street = parts[0];
+        result.city = parts[1];
+        // The state+zip part might be "MA 02302"
+        const stateZip = parts[2].trim();
+        const stateZipMatch = stateZip.match(/^([A-Za-z\s]+?)\s+(\d{5}(?:-\d{4})?)$/);
+        if (stateZipMatch) {
+            const abbr = stateZipMatch[1].trim();
+            result.zip = stateZipMatch[2];
+            const stateAbbrMap: { [key: string]: string } = {
+                'AL': 'Alabama', 'AK': 'Alaska', 'AZ': 'Arizona', 'AR': 'Arkansas',
+                'CA': 'California', 'CO': 'Colorado', 'CT': 'Connecticut', 'DE': 'Delaware',
+                'FL': 'Florida', 'GA': 'Georgia', 'HI': 'Hawaii', 'ID': 'Idaho',
+                'IL': 'Illinois', 'IN': 'Indiana', 'IA': 'Iowa', 'KS': 'Kansas',
+                'KY': 'Kentucky', 'LA': 'Louisiana', 'ME': 'Maine', 'MD': 'Maryland',
+                'MA': 'Massachusetts', 'MI': 'Michigan', 'MN': 'Minnesota', 'MS': 'Mississippi',
+                'MO': 'Missouri', 'MT': 'Montana', 'NE': 'Nebraska', 'NV': 'Nevada',
+                'NH': 'New Hampshire', 'NJ': 'New Jersey', 'NM': 'New Mexico', 'NY': 'New York',
+                'NC': 'North Carolina', 'ND': 'North Dakota', 'OH': 'Ohio', 'OK': 'Oklahoma',
+                'OR': 'Oregon', 'PA': 'Pennsylvania', 'RI': 'Rhode Island', 'SC': 'South Carolina',
+                'SD': 'South Dakota', 'TN': 'Tennessee', 'TX': 'Texas', 'UT': 'Utah',
+                'VT': 'Vermont', 'VA': 'Virginia', 'WA': 'Washington', 'WV': 'West Virginia',
+                'WI': 'Wisconsin', 'WY': 'Wyoming'
+            };
+            result.state = stateAbbrMap[abbr.toUpperCase()] || US_STATES.find(s => s.toLowerCase() === abbr.toLowerCase()) || '';
+        } else {
+            result.state = US_STATES.find(s => s.toLowerCase() === stateZip.toLowerCase()) || '';
+        }
+    } else if (parts.length === 1) {
+        result.street = parts[0];
+    }
+    return result;
 };
 
 export default function NewCustomerModal({ isOpen, onClose, onSuccess, initialName = '', existingCustomer, isEditMode = false }: NewCustomerModalProps) {
@@ -88,63 +131,35 @@ export default function NewCustomerModal({ isOpen, onClose, onSuccess, initialNa
         autocomplete.addListener("place_changed", () => {
             const place = autocomplete.getPlace();
             
-            if (place.formatted_address) {
-                setAddress(place.formatted_address);
-            }
-            
-            // Parse address components to auto-fill city, state, and zip
             if (place.address_components) {
-                const getComponent = (type: string) => {
+                const getComponent = (type: string, useShort = false) => {
                     const component = place.address_components.find(
                         (c: any) => c.types.includes(type)
                     );
-                    return component ? component.long_name : '';
+                    return component ? (useShort ? component.short_name : component.long_name) : '';
                 };
                 
-                const cityName = getComponent('locality') || getComponent('sublocality');
-                // Google Places returns state as abbreviation in short_name, full name in long_name
-                const stateComponent = place.address_components.find(
-                    (c: any) => c.types.includes('administrative_area_level_1')
-                );
-                const stateAbbr = stateComponent?.short_name || ''; // e.g., "CA"
-                const stateFullName = stateComponent?.long_name || ''; // e.g., "California"
-                const zip = getComponent('postal_code');
+                // Build street address from components (number + route)
+                const streetNumber = getComponent('street_number');
+                const route = getComponent('route');
+                const streetAddress = [streetNumber, route].filter(Boolean).join(' ');
+                setAddress(streetAddress || place.formatted_address || '');
                 
+                const cityName = getComponent('locality') || getComponent('sublocality');
                 if (cityName) setCity(cityName);
                 
-                // Try to match the full name first, then try abbreviation mapping
+                const stateFullName = getComponent('administrative_area_level_1');
                 if (stateFullName) {
-                    // Check if the full name matches any state in our list
                     const matchedState = US_STATES.find(
                         s => s.toLowerCase() === stateFullName.toLowerCase()
                     );
-                    if (matchedState) {
-                        setState(matchedState);
-                    }
-                } else if (stateAbbr) {
-                    // Map state abbreviation to full name
-                    const stateAbbrMap: { [key: string]: string } = {
-                        'AL': 'Alabama', 'AK': 'Alaska', 'AZ': 'Arizona', 'AR': 'Arkansas',
-                        'CA': 'California', 'CO': 'Colorado', 'CT': 'Connecticut', 'DE': 'Delaware',
-                        'FL': 'Florida', 'GA': 'Georgia', 'HI': 'Hawaii', 'ID': 'Idaho',
-                        'IL': 'Illinois', 'IN': 'Indiana', 'IA': 'Iowa', 'KS': 'Kansas',
-                        'KY': 'Kentucky', 'LA': 'Louisiana', 'ME': 'Maine', 'MD': 'Maryland',
-                        'MA': 'Massachusetts', 'MI': 'Michigan', 'MN': 'Minnesota', 'MS': 'Mississippi',
-                        'MO': 'Missouri', 'MT': 'Montana', 'NE': 'Nebraska', 'NV': 'Nevada',
-                        'NH': 'New Hampshire', 'NJ': 'New Jersey', 'NM': 'New Mexico', 'NY': 'New York',
-                        'NC': 'North Carolina', 'ND': 'North Dakota', 'OH': 'Ohio', 'OK': 'Oklahoma',
-                        'OR': 'Oregon', 'PA': 'Pennsylvania', 'RI': 'Rhode Island', 'SC': 'South Carolina',
-                        'SD': 'South Dakota', 'TN': 'Tennessee', 'TX': 'Texas', 'UT': 'Utah',
-                        'VT': 'Vermont', 'VA': 'Virginia', 'WA': 'Washington', 'WV': 'West Virginia',
-                        'WI': 'Wisconsin', 'WY': 'Wyoming'
-                    };
-                    const fullStateName = stateAbbrMap[stateAbbr.toUpperCase()];
-                    if (fullStateName) {
-                        setState(fullStateName);
-                    }
+                    if (matchedState) setState(matchedState);
                 }
                 
+                const zip = getComponent('postal_code');
                 if (zip) setZipCode(zip);
+            } else if (place.formatted_address) {
+                setAddress(place.formatted_address);
             }
         });
 
@@ -162,20 +177,24 @@ export default function NewCustomerModal({ isOpen, onClose, onSuccess, initialNa
         if (isOpen) {
             if (isEditMode && existingCustomer) {
                 setCustomerName(existingCustomer.customerName || '');
-                // Format existing phone number if it exists
                 const existingPhone = existingCustomer.customerPhone || '';
                 setPhoneNumber(existingPhone ? formatPhoneNumber(existingPhone) : '');
-                setAddress(existingCustomer.customerAddress || '');
                 setCustomerType(existingCustomer.customerType || '');
+                // Parse existing address into components
+                const parsed = parseAddressComponents(existingCustomer.customerAddress || '');
+                setAddress(parsed.street || existingCustomer.customerAddress || '');
+                setCity(parsed.city);
+                setState(parsed.state);
+                setZipCode(parsed.zip);
             } else {
                 setCustomerName(initialName);
                 setPhoneNumber('');
                 setAddress('');
                 setCustomerType('');
+                setCity('');
+                setState('');
+                setZipCode('');
             }
-            setCity('');
-            setState('');
-            setZipCode('');
             setError('');
         }
     }, [isOpen, initialName]);
@@ -204,10 +223,31 @@ export default function NewCustomerModal({ isOpen, onClose, onSuccess, initialNa
         setIsSubmitting(true);
 
         try {
-            // Combine address components
-            const fullAddress = [address, city, state, zipCode]
-                .filter(Boolean)
-                .join(', ');
+            // Combine address components, avoiding duplicates
+            const parts = [address];
+            if (city && !address.toLowerCase().includes(city.toLowerCase())) parts.push(city);
+            if (state) {
+                const stateAbbr = Object.entries({
+                    'Alabama': 'AL', 'Alaska': 'AK', 'Arizona': 'AZ', 'Arkansas': 'AR',
+                    'California': 'CA', 'Colorado': 'CO', 'Connecticut': 'CT', 'Delaware': 'DE',
+                    'Florida': 'FL', 'Georgia': 'GA', 'Hawaii': 'HI', 'Idaho': 'ID',
+                    'Illinois': 'IL', 'Indiana': 'IN', 'Iowa': 'IA', 'Kansas': 'KS',
+                    'Kentucky': 'KY', 'Louisiana': 'LA', 'Maine': 'ME', 'Maryland': 'MD',
+                    'Massachusetts': 'MA', 'Michigan': 'MI', 'Minnesota': 'MN', 'Mississippi': 'MS',
+                    'Missouri': 'MO', 'Montana': 'MT', 'Nebraska': 'NE', 'Nevada': 'NV',
+                    'New Hampshire': 'NH', 'New Jersey': 'NJ', 'New Mexico': 'NM', 'New York': 'NY',
+                    'North Carolina': 'NC', 'North Dakota': 'ND', 'Ohio': 'OH', 'Oklahoma': 'OK',
+                    'Oregon': 'OR', 'Pennsylvania': 'PA', 'Rhode Island': 'RI', 'South Carolina': 'SC',
+                    'South Dakota': 'SD', 'Tennessee': 'TN', 'Texas': 'TX', 'Utah': 'UT',
+                    'Vermont': 'VT', 'Virginia': 'VA', 'Washington': 'WA', 'West Virginia': 'WV',
+                    'Wisconsin': 'WI', 'Wyoming': 'WY'
+                }).find(([name]) => name === state)?.[1] || state;
+                if (!address.includes(stateAbbr) && !address.toLowerCase().includes(state.toLowerCase())) {
+                    parts.push(state);
+                }
+            }
+            if (zipCode && !address.includes(zipCode)) parts.push(zipCode);
+            const fullAddress = parts.filter(Boolean).join(', ');
 
             const response = await fetch('/api/detailer/customers', {
                 method: 'POST',
@@ -419,7 +459,7 @@ export default function NewCustomerModal({ isOpen, onClose, onSuccess, initialNa
                         </button>
                         <button
                             type="submit"
-                            className="px-6 py-2 bg-orange-500 text-white rounded-xl hover:bg-orange-600 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="flex-1 px-6 py-2 bg-orange-500 text-white rounded-xl hover:bg-orange-600 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                             disabled={isSubmitting}
                         >
                             <CheckIcon className="w-5 h-5" />

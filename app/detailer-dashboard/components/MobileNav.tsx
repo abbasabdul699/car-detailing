@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  UsersIcon,
   ChatBubbleLeftRightIcon,
   CalendarDaysIcon,
   UserIcon,
@@ -14,13 +13,14 @@ import {
   UserGroupIcon,
   CreditCardIcon,
   HomeIcon,
+  BookOpenIcon,
 } from "@heroicons/react/24/outline";
 import {
-  UsersIcon as UsersIconSolid,
   ChatBubbleLeftRightIcon as ChatBubbleLeftRightIconSolid,
   CalendarDaysIcon as CalendarDaysIconSolid,
   UserIcon as UserIconSolid,
   HomeIcon as HomeIconSolid,
+  BookOpenIcon as BookOpenIconSolid,
 } from "@heroicons/react/24/solid";
 import { useState, useMemo } from "react";
 
@@ -41,8 +41,8 @@ const items: NavItem[] = [
   { 
     name: "Resources", 
     href: "/detailer-dashboard/resources", 
-    icon: UsersIcon,
-    iconSolid: UsersIconSolid
+    icon: BookOpenIcon,
+    iconSolid: BookOpenIconSolid
   },
   { 
     name: "Messages", 

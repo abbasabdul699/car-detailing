@@ -519,19 +519,19 @@ export async function GET(request: NextRequest) {
           }
         }
         
-        // Enrich with CustomerSnapshot data if available (source of truth)
+        // Enrich with CustomerSnapshot data if available (fallback for missing fields)
         let customerNotesFromSnapshot: string | null = null;
         if (customerPhone) {
           const normalizedEventPhone = normalizeToE164(customerPhone) || customerPhone;
           const customerSnapshot = customerMap.get(normalizedEventPhone);
           if (customerSnapshot) {
-            // Use CustomerSnapshot as source of truth - it's always up-to-date
-            customerName = customerSnapshot.customerName || customerName;
-            customerAddress = customerSnapshot.address || customerAddress;
-            locationType = customerSnapshot.locationType || locationType;
-            customerType = customerSnapshot.customerType || customerType;
-            vehicleModel = customerSnapshot.vehicleModel || vehicleModel;
-            services = customerSnapshot.services || services;
+            // Per-event metadata takes priority; snapshot is fallback for older events without metadata
+            customerName = customerName || customerSnapshot.customerName;
+            customerAddress = customerAddress || customerSnapshot.address;
+            locationType = locationType || customerSnapshot.locationType;
+            customerType = customerType || customerSnapshot.customerType;
+            vehicleModel = vehicleModel || customerSnapshot.vehicleModel;
+            services = services || customerSnapshot.services;
             // Extract customer notes from snapshot data
             if (customerSnapshot.data && typeof customerSnapshot.data === 'object' && (customerSnapshot.data as any).notes) {
               customerNotesFromSnapshot = (customerSnapshot.data as any).notes;

@@ -16,6 +16,9 @@ import {
 } from '@heroicons/react/24/outline';
 import { motion, AnimatePresence } from 'framer-motion';
 import { VEHICLE_BY_BRAND, getBrandForModel } from './vehicle-brands';
+import VehicleChip from '@/app/components/vehicle/VehicleChip';
+import VehiclePickerPopover from '@/app/components/vehicle/VehiclePickerPopover';
+import ManufacturerLogo from '@/app/components/vehicle/ManufacturerLogo';
 
 // Format phone number as (XXX) XXX XXXX
 const formatPhoneNumber = (value: string): string => {
@@ -237,6 +240,7 @@ export default function CustomersPage() {
   // Vehicle brand picker state
   const [showVehicleSearch, setShowVehicleSearch] = useState(false);
   const [hoveredBrand, setHoveredBrand] = useState<string | null>(null);
+  const [vehicleSearchQuery, setVehicleSearchQuery] = useState('');
   const vehiclePopupRef = useRef<HTMLDivElement>(null);
   // Swipe-to-close refs
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
@@ -296,7 +300,15 @@ export default function CustomersPage() {
     vcardSent: false,
     customerNotes: ''
   });
-  const [modalVehicleInput, setModalVehicleInput] = useState('');
+
+  const addVehicleToForm = (model: string) => {
+    const trimmed = model.trim();
+    if (!trimmed) return;
+    setFormData((prev) => {
+      if (prev.vehicles.includes(trimmed)) return prev;
+      return { ...prev, vehicles: [...prev.vehicles, trimmed] };
+    });
+  };
 
   useEffect(() => {
     fetchCustomers();
@@ -391,6 +403,7 @@ export default function CustomersPage() {
       if (vehiclePopupRef.current && !vehiclePopupRef.current.contains(event.target as Node)) {
         setShowVehicleSearch(false);
         setHoveredBrand(null);
+        setVehicleSearchQuery('');
       }
     };
     if (showVehicleSearch) {
@@ -400,6 +413,30 @@ export default function CustomersPage() {
       document.removeEventListener('mousedown', handleVehiclePopupClickOutside);
     };
   }, [showVehicleSearch]);
+
+  const normalizedVehicleSearch = vehicleSearchQuery.trim().toLowerCase();
+  const filteredVehicleBrands = Object.entries(VEHICLE_BY_BRAND)
+    .filter(([brand, models]) => {
+      if (!normalizedVehicleSearch) return true;
+      return (
+        brand.toLowerCase().includes(normalizedVehicleSearch) ||
+        models.some((model: string) => model.toLowerCase().includes(normalizedVehicleSearch))
+      );
+    })
+    .map(([brand]) => brand);
+  const activeVehicleBrand =
+    hoveredBrand && filteredVehicleBrands.includes(hoveredBrand)
+      ? hoveredBrand
+      : filteredVehicleBrands[0] || null;
+  const activeBrandMatchesSearch =
+    !!activeVehicleBrand &&
+    !!normalizedVehicleSearch &&
+    activeVehicleBrand.toLowerCase().includes(normalizedVehicleSearch);
+  const filteredVehicleModels = activeVehicleBrand
+    ? VEHICLE_BY_BRAND[activeVehicleBrand].filter((model: string) =>
+        !normalizedVehicleSearch || activeBrandMatchesSearch || model.toLowerCase().includes(normalizedVehicleSearch)
+      )
+    : [];
 
   // Clear long press timer on unmount
   useEffect(() => {
@@ -638,7 +675,6 @@ export default function CustomersPage() {
         customerNotes: ''
       });
     }
-    setModalVehicleInput('');
     setIsModalOpen(true);
   };
 
@@ -762,7 +798,6 @@ export default function CustomersPage() {
       vcardSent: false,
       customerNotes: ''
     });
-    setModalVehicleInput('');
   };
 
   const handleSave = async () => {
@@ -968,6 +1003,17 @@ export default function CustomersPage() {
   };
 
   // Split customers into customers (have visits) and prospects (new/no visits)
+  const getVehicleSortValue = (customer: Customer): string => {
+    const vehicleRaw = (customer.vehicleModel || customer.vehicle || '').trim();
+    if (!vehicleRaw || vehicleRaw === '-' || vehicleRaw === '—') return 'zzzzzz';
+    const make = getBrandForModel(vehicleRaw) || '';
+    return `${make} ${vehicleRaw}`.trim().toLowerCase();
+  };
+
+  const toggleVehicleColumnSort = () => {
+    setContactsSortValue((prev) => (prev === 'vehicleAsc' ? 'vehicleDesc' : 'vehicleAsc'));
+  };
+
   const actualCustomers = React.useMemo(() => {
     return filteredCustomers.filter(c => (c.completedServiceCount || 0) >= 1 || customerUpcomingJobs.has(c.id));
   }, [filteredCustomers, customerUpcomingJobs]);
@@ -987,6 +1033,13 @@ export default function CustomersPage() {
     }
     // Sort
     return [...filtered].sort((a, b) => {
+      if (contactsSortValue === 'vehicleAsc' || contactsSortValue === 'vehicleDesc') {
+        const aVehicle = getVehicleSortValue(a);
+        const bVehicle = getVehicleSortValue(b);
+        return contactsSortValue === 'vehicleAsc'
+          ? aVehicle.localeCompare(bVehicle)
+          : bVehicle.localeCompare(aVehicle);
+      }
       if (contactView === 'customers') {
         if (contactsSortValue === 'lastVisit') {
           const aTime = a.lastCompletedServiceAt ? new Date(a.lastCompletedServiceAt).getTime() : 0;
@@ -1690,7 +1743,19 @@ export default function CustomersPage() {
                     {contactView === 'customers' ? (
                       <>
                         <th className="px-3 py-2 text-[10px] font-medium text-[#9e9d92] min-w-[160px] whitespace-nowrap">Status</th>
-                        <th className="px-3 py-2 text-[10px] font-medium text-[#9e9d92] min-w-[150px] whitespace-nowrap">Vehicle</th>
+                        <th className="px-3 py-2 text-[10px] font-medium text-[#9e9d92] min-w-[150px] whitespace-nowrap">
+                          <button
+                            type="button"
+                            onClick={toggleVehicleColumnSort}
+                            className="inline-flex items-center gap-1 hover:text-[#57564d] transition-colors"
+                            title="Sort by vehicle"
+                          >
+                            <span>Vehicle</span>
+                            <span className="text-[9px]">
+                              {contactsSortValue === 'vehicleAsc' ? 'A-Z' : contactsSortValue === 'vehicleDesc' ? 'Z-A' : '↕'}
+                            </span>
+                          </button>
+                        </th>
                         <th className="px-3 py-2 text-[10px] font-medium text-[#9e9d92] min-w-[160px] whitespace-nowrap">Phone</th>
                         <th className="px-3 py-2 text-[10px] font-medium text-[#9e9d92] min-w-[160px] whitespace-nowrap">Email</th>
                         <th className="px-3 py-2 text-[10px] font-medium text-[#9e9d92] min-w-[150px] whitespace-nowrap">Services</th>
@@ -1703,7 +1768,19 @@ export default function CustomersPage() {
                       <>
                         <th className="px-3 py-2 text-[10px] font-medium text-[#9e9d92] min-w-[160px] whitespace-nowrap">Phone</th>
                         <th className="px-3 py-2 text-[10px] font-medium text-[#9e9d92] min-w-[160px] whitespace-nowrap">Email</th>
-                        <th className="px-3 py-2 text-[10px] font-medium text-[#9e9d92] min-w-[150px] whitespace-nowrap">Vehicle</th>
+                        <th className="px-3 py-2 text-[10px] font-medium text-[#9e9d92] min-w-[150px] whitespace-nowrap">
+                          <button
+                            type="button"
+                            onClick={toggleVehicleColumnSort}
+                            className="inline-flex items-center gap-1 hover:text-[#57564d] transition-colors"
+                            title="Sort by vehicle"
+                          >
+                            <span>Vehicle</span>
+                            <span className="text-[9px]">
+                              {contactsSortValue === 'vehicleAsc' ? 'A-Z' : contactsSortValue === 'vehicleDesc' ? 'Z-A' : '↕'}
+                            </span>
+                          </button>
+                        </th>
                         <th className="px-3 py-2 text-[10px] font-medium text-[#9e9d92] min-w-[150px] whitespace-nowrap">Services</th>
                         <th className="px-3 py-2 text-[10px] font-medium text-[#9e9d92] min-w-[140px] whitespace-nowrap">First Contact</th>
                         <th className="px-3 py-2 text-[10px] font-medium text-[#9e9d92] min-w-[140px] whitespace-nowrap">Last Updated</th>
@@ -1720,6 +1797,10 @@ export default function CustomersPage() {
                     const importedLtv = customer.data?.importedLifetimeValue;
                     const estimatedValue = typeof importedLtv === 'number' ? importedLtv : visits * 150;
                     const services = customer.services || [];
+                    const vehicleDisplayRaw = (customer.vehicleModel || customer.vehicle || '—').trim();
+                    const vehicleDisplay = vehicleDisplayRaw || '—';
+                    const showVehicleIcon = vehicleDisplay !== '—' && vehicleDisplay !== '-';
+                    const vehicleBrand = showVehicleIcon ? getBrandForModel(vehicleDisplay) : null;
 
                     return (
                       <tr
@@ -1759,7 +1840,10 @@ export default function CustomersPage() {
                             </td>
                             {/* Vehicle */}
                             <td className="px-3 py-1.5 border-r border-[#F0F0EE]">
-                              <span className="text-[11px] font-normal text-[#40403a] whitespace-nowrap">{customer.vehicleModel || customer.vehicle || '—'}</span>
+                              <span className="inline-flex items-center gap-1.5 text-[11px] font-normal text-[#40403a] whitespace-nowrap">
+                                {showVehicleIcon ? <ManufacturerLogo manufacturerName={vehicleBrand} className="h-5 w-5" alt={vehicleBrand || 'Vehicle'} /> : null}
+                                <span>{vehicleDisplay}</span>
+                              </span>
                             </td>
                             {/* Phone */}
                             <td className="px-3 py-1.5 border-r border-[#F0F0EE]">
@@ -1818,7 +1902,10 @@ export default function CustomersPage() {
                             </td>
                             {/* Vehicle */}
                             <td className="px-3 py-1.5 border-r border-[#F0F0EE]">
-                              <span className="text-[11px] font-normal text-[#40403a] whitespace-nowrap">{customer.vehicleModel || customer.vehicle || '—'}</span>
+                              <span className="inline-flex items-center gap-1.5 text-[11px] font-normal text-[#40403a] whitespace-nowrap">
+                                {showVehicleIcon ? <ManufacturerLogo manufacturerName={vehicleBrand} className="h-5 w-5" alt={vehicleBrand || 'Vehicle'} /> : null}
+                                <span>{vehicleDisplay}</span>
+                              </span>
                             </td>
                             {/* Services */}
                             <td className="px-3 py-1.5 border-r border-[#F0F0EE]">
@@ -2005,36 +2092,16 @@ export default function CustomersPage() {
                 {formData.vehicles.length > 0 && (
                   <div className="flex flex-wrap gap-1.5 mb-2">
                     {formData.vehicles.map((v, i) => (
-                      <span key={i} className="inline-flex items-center gap-1 text-sm px-2.5 py-1 rounded-lg bg-gray-100 text-gray-800">
-                        {v}
-                        <button
-                          type="button"
-                          onClick={() => setFormData({ ...formData, vehicles: formData.vehicles.filter((_, idx) => idx !== i) })}
-                          className="w-4 h-4 rounded-full flex items-center justify-center hover:bg-gray-300 transition-colors"
-                        >
-                          <svg className="w-3 h-3 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
-                      </span>
+                      <VehicleChip
+                        key={i}
+                        model={v}
+                        logoClassName="h-5 w-5 rounded-sm bg-white p-0.5"
+                        onRemove={() => setFormData({ ...formData, vehicles: formData.vehicles.filter((_, idx) => idx !== i) })}
+                      />
                     ))}
                   </div>
                 )}
-                <input
-                  type="text"
-                  value={modalVehicleInput}
-                  onChange={(e) => setModalVehicleInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && modalVehicleInput.trim()) {
-                      e.preventDefault();
-                      setFormData({ ...formData, vehicles: [...formData.vehicles, modalVehicleInput.trim()] });
-                      setModalVehicleInput('');
-                    }
-                  }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                  placeholder={formData.vehicles.length > 0 ? "Add another vehicle..." : "e.g., Camry, Civic, F-150, Model 3"}
-                />
-                <p className="text-xs text-gray-500 mt-1">Press Enter to add each vehicle</p>
+                <VehiclePickerPopover onSelect={addVehicleToForm} buttonLabel={formData.vehicles.length > 0 ? 'Add another vehicle' : 'Add vehicle'} />
               </div>
 
               <div>
@@ -2643,7 +2710,12 @@ export default function CustomersPage() {
                       <span className="text-xs font-medium" style={{ color: '#9e9d92' }}>Vehicles</span>
                       <div className="relative" ref={vehiclePopupRef}>
                         <button
-                          onClick={() => { setShowVehicleSearch(!showVehicleSearch); setHoveredBrand(null); }}
+                          onClick={() => {
+                            const next = !showVehicleSearch;
+                            setShowVehicleSearch(next);
+                            setHoveredBrand(null);
+                            setVehicleSearchQuery('');
+                          }}
                           className="text-xs hover:text-[#FF3700] transition-colors flex items-center gap-0.5"
                           style={{ color: '#9e9d92' }}
                         >
@@ -2654,26 +2726,30 @@ export default function CustomersPage() {
                         {showVehicleSearch && (
                           <div
                             className="absolute top-full right-0 mt-1 bg-white border border-[#deded9] rounded-lg shadow-lg z-50 transition-all duration-200"
-                            style={{ width: hoveredBrand ? '320px' : '180px' }}
+                            style={{ width: activeVehicleBrand ? '320px' : '220px' }}
                           >
                             <div className="p-2 border-b border-[#F0F0EE]">
-                              <p className="text-xs" style={{ color: '#9e9d92' }}>Select brand</p>
+                              <input
+                                type="text"
+                                value={vehicleSearchQuery}
+                                onChange={(e) => setVehicleSearchQuery(e.target.value)}
+                                placeholder="Search make or model..."
+                                className="w-full px-2 py-1.5 text-xs border border-[#deded9] rounded-md outline-none focus:border-[#9e9d92]"
+                              />
                             </div>
                             <div className="flex">
                               <div className="w-44 max-h-56 overflow-y-auto border-r border-[#F0F0EE]">
-                                {Object.entries(VEHICLE_BY_BRAND).map(([brand]) => (
+                                {filteredVehicleBrands.map((brand) => (
                                   <button
                                     key={brand}
                                     onMouseEnter={() => setHoveredBrand(brand)}
                                     className={`w-full px-3 py-2 text-left text-sm transition-colors flex items-center justify-between ${
-                                      hoveredBrand === brand ? 'bg-[#f8f8f7]' : 'hover:bg-[#f8f8f7]'
+                                      activeVehicleBrand === brand ? 'bg-[#f8f8f7]' : 'hover:bg-[#f8f8f7]'
                                     }`}
                                   >
                                     <div className="flex items-center gap-2">
                                       <div className="h-5 w-5 bg-white rounded flex items-center justify-center overflow-hidden">
-                                        <svg className="h-3 w-3" style={{ color: '#9e9d92' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                          <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 00-10.026 0 1.106 1.106 0 00-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12" />
-                                        </svg>
+                                        <ManufacturerLogo manufacturerName={brand} className="h-4 w-4" alt={brand} />
                                       </div>
                                       <span>{brand}</span>
                                     </div>
@@ -2682,22 +2758,29 @@ export default function CustomersPage() {
                                     </svg>
                                   </button>
                                 ))}
+                                {filteredVehicleBrands.length === 0 && (
+                                  <p className="px-3 py-2 text-xs text-[#9e9d92]">No brands found</p>
+                                )}
                               </div>
-                              {hoveredBrand && (
+                              {activeVehicleBrand && (
                                 <div className="w-[140px] max-h-56 overflow-y-auto">
-                                  {VEHICLE_BY_BRAND[hoveredBrand].map((model: string) => (
+                                  {filteredVehicleModels.map((model: string) => (
                                     <button
                                       key={model}
                                       onClick={() => {
                                         handleAddVehicle(model);
                                         setShowVehicleSearch(false);
                                         setHoveredBrand(null);
+                                        setVehicleSearchQuery('');
                                       }}
                                       className="w-full px-3 py-2 text-left text-sm hover:bg-[#f8f8f7] transition-colors"
                                     >
                                       {model}
                                     </button>
                                   ))}
+                                  {filteredVehicleModels.length === 0 && (
+                                    <p className="px-3 py-2 text-xs text-[#9e9d92]">No models found</p>
+                                  )}
                                 </div>
                               )}
                             </div>
@@ -2727,9 +2810,11 @@ export default function CustomersPage() {
                                 </button>
                               )}
                               <div className="h-5 w-5 bg-white rounded flex items-center justify-center overflow-hidden">
-                                <svg className="h-3 w-3" style={{ color: '#9e9d92' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 00-10.026 0 1.106 1.106 0 00-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12" />
-                                </svg>
+                                {brand ? (
+                                  <ManufacturerLogo manufacturerName={brand} className="h-4 w-4" alt={brand} />
+                                ) : (
+                                  <span className="text-[10px] text-[#9e9d92]">C</span>
+                                )}
                               </div>
                               <span className="text-sm" style={{ color: '#2B2B26' }}>{v}</span>
                             </div>

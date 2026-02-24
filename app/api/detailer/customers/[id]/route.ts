@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { detailerAuthOptions } from '@/app/api/auth-detailer/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { normalizeToE164 } from '@/lib/phone';
+import { normalizeVehicles } from '@/lib/vehicleValidation';
 
 export async function GET(
   request: NextRequest,
@@ -77,9 +78,15 @@ export async function PATCH(
     if (data && typeof data === 'object') {
       mergedData = { ...mergedData, ...data };
     }
+    const normalizedVehicleInput = normalizeVehicles(
+      Array.isArray(vehicles)
+        ? vehicles
+        : [vehicleModel, vehicle, existing.vehicleModel || '', existing.vehicle || ''].filter((v): v is string => typeof v === 'string' && !!v.trim())
+    );
+
     // Store vehicles array in data.vehicles if provided
     if (vehicles !== undefined) {
-      mergedData.vehicles = Array.isArray(vehicles) ? vehicles : [];
+      mergedData.vehicles = normalizedVehicleInput.vehicles;
     }
     // Store customerNotes array in data.customerNotes if provided
     if (customerNotes !== undefined) {
@@ -95,8 +102,10 @@ export async function PATCH(
     // Sync vehicleModel with first vehicle in vehicles array for backward compat
     let finalVehicleModel = vehicleModel !== undefined ? vehicleModel : existing.vehicleModel;
     if (vehicles !== undefined && Array.isArray(vehicles)) {
-      finalVehicleModel = vehicles.length > 0 ? vehicles[0] : null;
+      finalVehicleModel = normalizedVehicleInput.vehicleModel || null;
     }
+    const finalVehicleMake = normalizedVehicleInput.vehicleMake || vehicleMake || existing.vehicleMake;
+    const finalVehicleYear = normalizedVehicleInput.vehicleYear || vehicleYear || existing.vehicleYear;
     const finalServices = services !== undefined ? services : existing.services;
 
     // If phone changed, we need to handle the unique constraint
@@ -119,8 +128,8 @@ export async function PATCH(
           locationType: finalLocationType,
           customerType: finalCustomerType,
           vehicle: finalVehicleModel,
-          vehicleYear,
-          vehicleMake,
+          vehicleYear: finalVehicleYear,
+          vehicleMake: finalVehicleMake,
           vehicleModel: finalVehicleModel,
           services: finalServices || [],
           vcardSent,
@@ -135,8 +144,8 @@ export async function PATCH(
           locationType: finalLocationType,
           customerType: finalCustomerType,
           vehicle: finalVehicleModel,
-          vehicleYear,
-          vehicleMake,
+          vehicleYear: finalVehicleYear,
+          vehicleMake: finalVehicleMake,
           vehicleModel: finalVehicleModel,
           services: finalServices || [],
           vcardSent: vcardSent || false,
@@ -153,8 +162,8 @@ export async function PATCH(
           locationType: finalLocationType,
           customerType: finalCustomerType,
           vehicle: finalVehicleModel,
-          vehicleYear,
-          vehicleMake,
+          vehicleYear: finalVehicleYear,
+          vehicleMake: finalVehicleMake,
           vehicleModel: finalVehicleModel,
           services: finalServices || [],
           vcardSent,

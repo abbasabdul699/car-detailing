@@ -1,12 +1,15 @@
 "use client";
 import React, { useState, useEffect, useRef } from 'react';
 import { XMarkIcon, CheckIcon, PencilIcon, Bars3Icon } from '@heroicons/react/24/solid';
+import { Clock, User, Search, Plus, X, ChevronDown, ChevronLeft, ChevronRight, Check, Calendar as CalendarIconLucide, MapPin, CreditCard, MessageSquare, Info } from 'lucide-react';
 import Image from 'next/image';
 import { useSession } from 'next-auth/react';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, startOfMonth, getDay, getDaysInMonth, addMonths, subMonths, isToday, isSameDay } from 'date-fns';
 import AddressAutocompleteInput from './AddressAutocompleteInput';
 import { getCustomerTypeFromHistory } from '@/lib/customerType';
 import { normalizeToE164 } from '@/lib/phone';
+import VehicleChip from '@/app/components/vehicle/VehicleChip';
+import VehiclePickerPopover from '@/app/components/vehicle/VehiclePickerPopover';
 
 // Discard Changes Modal Component
 const DiscardChangesModal = ({ 
@@ -23,7 +26,7 @@ const DiscardChangesModal = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100]">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[300]">
       <div className="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4">
         <div className="p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-2">
@@ -57,7 +60,9 @@ const DiscardChangesModal = ({
 type EventModalProps = {
     isOpen: boolean;
     onClose: () => void;
-    onAddEvent: (event: any) => void;
+    onAddEvent?: (event: any) => void;
+    onUpdateEvent?: (event: any) => void;
+    editingEvent?: any | null;
     preSelectedResource?: { id: string; name: string; type: 'bay' | 'van' } | null;
     resources?: Array<{ id: string; name: string; type: 'bay' | 'van' }>;
     draftEvent?: { resourceId: string; startTime: string; endTime: string } | null;
@@ -70,7 +75,7 @@ type EventModalProps = {
     showCloseButton?: boolean;
 };
 
-export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedResource, resources = [], draftEvent, onOpenNewCustomerModal, onOpenEditCustomerModal, newCustomerData, onRequestClose, renderMode = 'panel', showHeader = true, showCloseButton = true }: EventModalProps) {
+export default function EventModal({ isOpen, onClose, onAddEvent, onUpdateEvent, editingEvent = null, preSelectedResource, resources = [], draftEvent, onOpenNewCustomerModal, onOpenEditCustomerModal, newCustomerData, onRequestClose, renderMode = 'panel', showHeader = true, showCloseButton = true }: EventModalProps) {
     const { data: session } = useSession();
     const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
     const [employees, setEmployees] = useState<Array<{ id: string; name: string; color: string }>>([]);
@@ -85,7 +90,7 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
     const [selectedResourceId, setSelectedResourceId] = useState<string>(preSelectedResource?.id || '');
     const [businessHours, setBusinessHours] = useState<any>(null);
     const [customers, setCustomers] = useState<Array<{ id: string; customerName?: string; customerPhone: string; customerEmail?: string; address?: string; locationType?: string; customerType?: string; vehicleModel?: string; services?: string[]; data?: any; completedServiceCount?: number; lastCompletedServiceAt?: string | null }>>([]);
-    const [selectedCustomer, setSelectedCustomer] = useState<{ id: string; customerName?: string; customerPhone: string; customerEmail?: string; address?: string; locationType?: string; customerType?: string; vehicleModel?: string; pastJobs?: Array<{ id: string; date: string; services: string[]; vehicleModel?: string; employeeName?: string }>; pastJobsTotal?: number; completedServiceCount?: number; lastCompletedServiceAt?: string | null } | null>(null);
+    const [selectedCustomer, setSelectedCustomer] = useState<{ id: string; customerName?: string; customerPhone: string; customerEmail?: string; address?: string; locationType?: string; customerType?: string; vehicleModel?: string; pastJobs?: Array<{ id: string; date: string; services: string[]; vehicleModel?: string; employeeName?: string; eventNotes?: string }>; pastJobsTotal?: number; completedServiceCount?: number; lastCompletedServiceAt?: string | null } | null>(null);
     const [customerSearch, setCustomerSearch] = useState('');
     const [showCustomerDetailsPopup, setShowCustomerDetailsPopup] = useState(false);
     const [customerName, setCustomerName] = useState('');
@@ -96,8 +101,6 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
     const [customerType, setCustomerType] = useState('');
     const [vehicles, setVehicles] = useState<Array<{ id: string; model: string }>>([]);
     const [showAddVehicleModal, setShowAddVehicleModal] = useState(false);
-    const [newVehicleModel, setNewVehicleModel] = useState('');
-    const newVehicleModelInputRef = useRef<HTMLInputElement | null>(null);
     const [availableServices, setAvailableServices] = useState<Array<{ id: string; name: string; category?: { name: string } }>>([]);
     const [availableBundles, setAvailableBundles] = useState<Array<{ id: string; name: string; description?: string; price?: number; services?: Array<{ service: { id: string; name: string } }> }>>([]);
     const [selectedServices, setSelectedServices] = useState<Array<{ id: string; name: string; type: 'service' | 'bundle' }>>([]);
@@ -112,6 +115,12 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
     const customerDetailsPopupRef = React.useRef<HTMLDivElement>(null);
     const [popupPosition, setPopupPosition] = useState<{ top: number; right: number } | null>(null);
     const customerPopupTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+    const [showStartDatePicker, setShowStartDatePicker] = useState(false);
+    const [showEndDatePicker, setShowEndDatePicker] = useState(false);
+    const [startDatePickerMonth, setStartDatePickerMonth] = useState(new Date());
+    const [endDatePickerMonth, setEndDatePickerMonth] = useState(new Date());
+    const startDatePickerRef = useRef<HTMLDivElement>(null);
+    const endDatePickerRef = useRef<HTMLDivElement>(null);
 
     const parseJobDate = (value: unknown) => {
         if (!value) return null;
@@ -141,12 +150,19 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
     }, []);
 
     useEffect(() => {
-        if (!showAddVehicleModal) return;
-        const rafId = requestAnimationFrame(() => {
-            newVehicleModelInputRef.current?.focus();
-        });
-        return () => cancelAnimationFrame(rafId);
-    }, [showAddVehicleModal]);
+        const handleClickOutside = (e: MouseEvent) => {
+            if (showStartDatePicker && startDatePickerRef.current && !startDatePickerRef.current.contains(e.target as Node)) {
+                setShowStartDatePicker(false);
+            }
+            if (showEndDatePicker && endDatePickerRef.current && !endDatePickerRef.current.contains(e.target as Node)) {
+                setShowEndDatePicker(false);
+            }
+        };
+        if (showStartDatePicker || showEndDatePicker) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [showStartDatePicker, showEndDatePicker]);
     
     // Store initial values to detect changes (empty form initially)
     const initialValuesRef = useRef({
@@ -432,7 +448,8 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                         date: dateValue,
                         services: event.services || (event.title ? [event.title] : []),
                         vehicleModel: event.vehicleModel || event.vehicleType,
-                        employeeName: event.employeeName
+                        employeeName: event.employeeName,
+                        eventNotes: event.description || ''
                     };
                 });
                 return { jobs, totalCount: jobs.length };
@@ -472,7 +489,8 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                 date: job.date,
                 services: Array.isArray(job.services) ? job.services : (job.services ? [job.services] : []),
                 vehicleModel: job.vehicleModel,
-                employeeName: job.employeeName
+                employeeName: job.employeeName,
+                eventNotes: job.eventNotes || ''
             })),
             pastJobsTotal
         });
@@ -491,36 +509,28 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
         } else {
             setCustomerNotes('');
         }
-        // Clear event notes when selecting a new customer (event notes are event-specific)
+        // Clear event-specific fields - each appointment starts fresh
         setDescription('');
-        
-        // Set vehicles - if customer has vehicleModel, add it as a vehicle
-        if (customer.vehicleModel) {
-            setVehicles([{ id: `vehicle-${Date.now()}`, model: customer.vehicleModel }]);
+        setSelectedServices([]);
+
+        // Populate vehicles from customer's past jobs (unique models only)
+        const uniqueVehicles = new Set<string>();
+        pastJobs.forEach((job: any) => {
+            if (job.vehicleModel) {
+                job.vehicleModel.split(',').forEach((v: string) => {
+                    const trimmed = v.trim();
+                    if (trimmed) uniqueVehicles.add(trimmed);
+                });
+            }
+        });
+        if (uniqueVehicles.size > 0) {
+            setVehicles(Array.from(uniqueVehicles).map((model, i) => ({ id: `vehicle-${Date.now()}-${i}`, model })));
+        } else if (customer.vehicleModel) {
+            // Fallback to snapshot if no past jobs have vehicle data
+            const models = customer.vehicleModel.split(',').map((v: string) => v.trim()).filter(Boolean);
+            setVehicles(models.map((model, i) => ({ id: `vehicle-${Date.now()}-${i}`, model })));
         } else {
             setVehicles([]);
-        }
-        // Set selected services from customer's services
-        if (customer.services && Array.isArray(customer.services)) {
-            // Find matching services from available services and bundles
-            const matchedItems = customer.services
-                .map(serviceName => {
-                    // Check services first
-                    const service = availableServices.find(s => s.name === serviceName);
-                    if (service) {
-                        return { id: service.id, name: service.name, type: 'service' as const };
-                    }
-                    // Check bundles
-                    const bundle = availableBundles.find(b => b.name === serviceName);
-                    if (bundle) {
-                        return { id: bundle.id, name: bundle.name, type: 'bundle' as const };
-                    }
-                    return null;
-                })
-                .filter((s): s is { id: string; name: string; type: 'service' | 'bundle' } => s !== null);
-            setSelectedServices(matchedItems);
-        } else {
-            setSelectedServices([]);
         }
         
         // Clear search and hide suggestions
@@ -643,49 +653,67 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                 endTimeToSend = endTime;
             }
 
-            const response = await fetch('/api/detailer/events', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    title: isBlockTime
-                        ? 'Blocked Time'
-                        : (selectedServices.map(s => s.name).join(', ') || 'Untitled Event'),
-                    eventType: isBlockTime ? 'block' : 'appointment',
-                    employeeId: selectedEmployeeId || undefined,
-                    startDate: startDateTime,
-                    endDate: endDateTime,
-                    isAllDay,
-                    time: timeToStore, // Include time for all-day events with business hours, or time range for timed events
-                    startTime: startTimeToSend || undefined, // Send start time separately for timed events
-                    endTime: endTimeToSend || undefined, // Send end time separately for timed events
-                    description: description || '', // Event-specific notes
-                    customerNotes: isBlockTime ? undefined : (customerNotes || ''), // Customer notes (persistent)
-                    paid: isBlockTime ? undefined : isPaid, // Payment status
-                    resourceId: selectedResourceId || undefined,
-                    ...(isBlockTime
-                        ? {}
-                        : {
-                              customerName: customerName || undefined,
-                              customerPhone: customerPhone || undefined,
-                              customerEmail: customerEmail || undefined,
-                              customerAddress: customerAddress || undefined,
-                              locationType: locationType || undefined,
-                              customerType: customerType || undefined,
-                              vehicleModel: vehicles.length > 0 ? vehicles.map(v => v.model).join(', ') : undefined,
-                              vehicles: vehicles.length > 0 ? vehicles.map(v => v.model) : undefined,
-                              services: selectedServices.length > 0 ? selectedServices.map(s => s.name) : undefined
-                          })
-                }),
-            });
+            const payload = {
+                title: isBlockTime
+                    ? 'Blocked Time'
+                    : (selectedServices.map(s => s.name).join(', ') || 'Untitled Event'),
+                eventType: isBlockTime ? 'block' : 'appointment',
+                employeeId: selectedEmployeeId || undefined,
+                startDate: startDateTime,
+                endDate: endDateTime,
+                isAllDay,
+                time: timeToStore, // Include time for all-day events with business hours, or time range for timed events
+                startTime: startTimeToSend || undefined, // Send start time separately for timed events
+                endTime: endTimeToSend || undefined, // Send end time separately for timed events
+                description: description || '', // Event-specific notes
+                customerNotes: isBlockTime ? undefined : (customerNotes || ''), // Customer notes (persistent)
+                paid: isBlockTime ? undefined : isPaid, // Payment status
+                resourceId: selectedResourceId || undefined,
+                ...(isBlockTime
+                    ? {}
+                    : {
+                          customerName: customerName || undefined,
+                          customerPhone: customerPhone || undefined,
+                          customerEmail: customerEmail || undefined,
+                          customerAddress: customerAddress || undefined,
+                          locationType: locationType || undefined,
+                          customerType: customerType || undefined,
+                          vehicleModel: vehicles.length > 0 ? vehicles.map(v => v.model).join(', ') : undefined,
+                          vehicles: vehicles.length > 0 ? vehicles.map(v => v.model) : undefined,
+                          services: selectedServices.length > 0 ? selectedServices.map(s => s.name) : undefined
+                      })
+            };
+
+            const isEditing = !!editingEvent?.id;
+            const response = await fetch(
+                isEditing ? `/api/detailer/events/${editingEvent.id}` : '/api/detailer/events',
+                {
+                    method: isEditing ? 'PATCH' : 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(payload),
+                }
+            );
 
             const result = await response.json();
 
             if (response.ok) {
+                if (isEditing) {
+                    const mergedEvent = {
+                        ...(editingEvent || {}),
+                        ...(result.event || {}),
+                        ...payload,
+                        id: editingEvent.id
+                    };
+                    onUpdateEvent?.(mergedEvent);
+                    onClose();
+                    return;
+                }
+
                 // Add to local state for immediate UI update
                 const selectedEmployee = employees.find(e => e.id === selectedEmployeeId);
-                onAddEvent({
+                onAddEvent?.({
                     id: `local-${Date.now()}`,
                     title: isBlockTime
                         ? 'Blocked Time'
@@ -726,11 +754,11 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                 setShowCustomerSuggestions(false);
                 setSelectedCustomerIndex(-1);
             } else {
-                throw new Error(result.error || 'Failed to create event');
+                throw new Error(result.error || (isEditing ? 'Failed to update event' : 'Failed to create event'));
             }
         } catch (error) {
-            console.error('Error creating event:', error);
-            console.error('Failed to create event. Please try again.');
+            console.error('Error saving event:', error);
+            console.error('Failed to save event. Please try again.');
         }
     };
     
@@ -885,25 +913,120 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
             }, 50);
         }
     }, [isOpen, draftEvent]);
+
+    // Pre-fill form for editing existing events
+    React.useEffect(() => {
+        if (!isOpen || !editingEvent) return;
+
+        const isEditingBlock = editingEvent.eventType === 'block';
+        const eventStart = editingEvent.start || editingEvent.date || '';
+        const eventEnd = editingEvent.end || editingEvent.start || editingEvent.date || '';
+
+        const startDateObj = eventStart ? new Date(eventStart) : null;
+        const endDateObj = eventEnd ? new Date(eventEnd) : null;
+        const safeStartDate = startDateObj && !Number.isNaN(startDateObj.getTime()) ? format(startDateObj, 'yyyy-MM-dd') : '';
+        const safeEndDate = endDateObj && !Number.isNaN(endDateObj.getTime()) ? format(endDateObj, 'yyyy-MM-dd') : '';
+        const safeStartTime = startDateObj && !Number.isNaN(startDateObj.getTime()) ? format(startDateObj, 'HH:mm') : '';
+        const safeEndTime = endDateObj && !Number.isNaN(endDateObj.getTime()) ? format(endDateObj, 'HH:mm') : '';
+
+        setIsBlockTime(isEditingBlock);
+        setSelectedEmployeeId(editingEvent.employeeId || '');
+        setStartDate(safeStartDate);
+        setEndDate(safeEndDate);
+        setStartTime(safeStartTime);
+        setEndTime(safeEndTime);
+        setIsAllDay(!!editingEvent.allDay);
+        setIsMultiDay(!!(safeStartDate && safeEndDate && safeStartDate !== safeEndDate));
+        setSelectedResourceId(editingEvent.resourceId || preSelectedResource?.id || '');
+
+        setCustomerName(editingEvent.customerName || '');
+        setCustomerPhone(editingEvent.customerPhone || '');
+        setCustomerEmail(editingEvent.customerEmail || '');
+        setCustomerAddress(editingEvent.customerAddress || '');
+        setLocationType(editingEvent.locationType || '');
+        setCustomerType(editingEvent.customerType || '');
+        setDescription(editingEvent.description || '');
+        setCustomerNotes(editingEvent.customerNotes || '');
+        setIsPaid(editingEvent.paid === true);
+
+        const eventVehicleModels = Array.isArray(editingEvent.vehicles)
+            ? editingEvent.vehicles
+            : (editingEvent.vehicleModel ? String(editingEvent.vehicleModel).split(',').map((v: string) => v.trim()).filter(Boolean) : []);
+        setVehicles(eventVehicleModels.map((model: string, idx: number) => ({ id: `vehicle-${Date.now()}-${idx}`, model })));
+
+        const eventServicesList = Array.isArray(editingEvent.services)
+            ? editingEvent.services
+            : (editingEvent.services ? [editingEvent.services] : []);
+        const mappedServices = eventServicesList
+            .map((serviceName: string) => {
+                const service = availableServices.find((s: { id: string; name: string }) => s.name === serviceName);
+                if (service) return { id: service.id, name: service.name, type: 'service' as const };
+                const bundle = availableBundles.find((b: { id: string; name: string }) => b.name === serviceName);
+                if (bundle) return { id: bundle.id, name: bundle.name, type: 'bundle' as const };
+                return { id: `temp-${serviceName}`, name: serviceName, type: 'service' as const };
+            });
+        setSelectedServices(mappedServices);
+
+        if (!isEditingBlock && (editingEvent.customerName || editingEvent.customerPhone)) {
+            setSelectedCustomer({
+                id: editingEvent.customerId || `event-customer-${editingEvent.id || Date.now()}`,
+                customerName: editingEvent.customerName || '',
+                customerPhone: editingEvent.customerPhone || '',
+                customerEmail: editingEvent.customerEmail || '',
+                address: editingEvent.customerAddress || '',
+                locationType: editingEvent.locationType || '',
+                customerType: editingEvent.customerType || ''
+            });
+        } else {
+            setSelectedCustomer(null);
+        }
+
+        initialValuesRef.current = {
+            selectedEmployeeId: editingEvent.employeeId || '',
+            isBlockTime: isEditingBlock,
+            startDate: safeStartDate,
+            endDate: safeEndDate,
+            startTime: safeStartTime,
+            endTime: safeEndTime,
+            isAllDay: !!editingEvent.allDay,
+            isMultiDay: !!(safeStartDate && safeEndDate && safeStartDate !== safeEndDate),
+            selectedResourceId: editingEvent.resourceId || preSelectedResource?.id || '',
+            customerName: editingEvent.customerName || '',
+            customerPhone: editingEvent.customerPhone || '',
+            customerEmail: editingEvent.customerEmail || '',
+            customerAddress: editingEvent.customerAddress || '',
+            locationType: editingEvent.locationType || '',
+            customerType: editingEvent.customerType || '',
+            vehicles: eventVehicleModels.map((model: string, idx: number) => ({ id: `vehicle-init-${idx}`, model })),
+            selectedServices: mappedServices,
+            description: editingEvent.description || '',
+            customerNotes: editingEvent.customerNotes || '',
+            isPaid: editingEvent.paid === true
+        };
+    }, [isOpen, editingEvent, preSelectedResource?.id, availableServices, availableBundles]);
     
     // Populate form when new customer is created or existing customer is edited
     React.useEffect(() => {
         if (isOpen && newCustomerData) {
             // Check if we're editing an existing customer (selectedCustomer exists and phone matches)
-            if (selectedCustomer && selectedCustomer.customerPhone === newCustomerData.customerPhone) {
-                // Update the selected customer with edited data
+            const existingNormalized = selectedCustomer?.customerPhone ? (normalizeToE164(selectedCustomer.customerPhone) || selectedCustomer.customerPhone.replace(/\D/g, '')) : '';
+            const newNormalized = newCustomerData.customerPhone ? (normalizeToE164(newCustomerData.customerPhone) || newCustomerData.customerPhone.replace(/\D/g, '')) : '';
+            const isEditingExisting = selectedCustomer && existingNormalized && newNormalized && existingNormalized === newNormalized;
+
+            if (isEditingExisting) {
+                // Update the selected customer with edited data, preserving history
                 setSelectedCustomer({
                     ...selectedCustomer,
                     customerName: newCustomerData.customerName,
                     customerPhone: newCustomerData.customerPhone,
-                    address: newCustomerData.address || '',
+                    address: newCustomerData.address || selectedCustomer.address || '',
                     customerType: newCustomerData.customerType || selectedCustomer.customerType
                 });
                 
                 // Update form fields
                 setCustomerName(newCustomerData.customerName || '');
                 setCustomerPhone(newCustomerData.customerPhone || '');
-                setCustomerAddress(newCustomerData.address || '');
+                setCustomerAddress(newCustomerData.address || selectedCustomer.address || '');
                 if (newCustomerData.customerType !== undefined) {
                     setCustomerType(newCustomerData.customerType || '');
                 }
@@ -957,7 +1080,8 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                                     date: job.date,
                                     services: Array.isArray(job.services) ? job.services : (job.services ? [job.services] : []),
                                     vehicleModel: job.vehicleModel,
-                                    employeeName: job.employeeName
+                                    employeeName: job.employeeName,
+                                    eventNotes: job.eventNotes || ''
                                 })),
                                 pastJobsTotal
                             });
@@ -1063,9 +1187,9 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
         }
     }, [isOpen]);
     
-    // Reset all form fields when modal opens (unless there's a draftEvent)
+    // Reset all form fields when modal opens (unless there's a draftEvent or editingEvent)
     React.useEffect(() => {
-        if (isOpen && !draftEvent) {
+        if (isOpen && !draftEvent && !editingEvent) {
             // Reset all form fields to ensure clean state
             setSelectedEmployeeId('');
             setIsBlockTime(false);
@@ -1093,7 +1217,7 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
             setSelectedCustomer(null);
             setCustomerSearch('');
         }
-    }, [isOpen, draftEvent, preSelectedResource?.id]);
+    }, [isOpen, draftEvent, editingEvent, preSelectedResource?.id]);
 
     useEffect(() => {
         if (!isBlockTime) return;
@@ -1119,131 +1243,87 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
         ? "fixed top-0 right-0 h-full w-full md:w-[400px] lg:w-[420px] z-50 transform transition-transform duration-300 ease-in-out translate-x-0"
         : "h-full w-full";
     const wrapperStyle = renderMode === 'panel'
-        ? { backgroundColor: '#F8F8F7', borderLeft: '1px solid #E2E2DD', boxShadow: 'none', pointerEvents: 'auto' }
-        : { backgroundColor: '#F8F8F7', boxShadow: 'none', pointerEvents: 'auto' };
-    const contentPaddingTop = renderMode === 'drawer' ? '12px' : '24px';
-    const contentPaddingLeft = renderMode === 'drawer' ? '24px' : 'max(24px, env(safe-area-inset-left))';
-    const contentPaddingRight = renderMode === 'drawer' ? '24px' : 'max(24px, env(safe-area-inset-right))';
+        ? { backgroundColor: '#F8F8F7', borderLeft: '1px solid #E2E2DD', boxShadow: 'none', pointerEvents: 'auto' as const }
+        : { backgroundColor: '#F8F8F7', boxShadow: 'none', pointerEvents: 'auto' as const };
+    // Padding is now handled per-section via Tailwind classes (px-5 py-4)
     const contentTouchAction = renderMode === 'drawer' ? 'pan-y' : undefined;
     const contentOverscrollX = renderMode === 'drawer' ? 'none' : undefined;
 
     return (
         <div className={wrapperClassName} style={wrapperStyle}>
-            <div className="h-full flex flex-col overflow-x-visible" style={{ backgroundColor: '#F8F8F7', pointerEvents: 'auto' }}>
+            <div className="h-full flex flex-col overflow-x-visible" style={{ backgroundColor: 'white', pointerEvents: 'auto' }}>
                 {showHeader && (
-                    <div className="flex-shrink-0 px-6 pt-6 pb-2">
-                        <div className="flex justify-between items-center">
-                            <div className="flex items-center gap-3">
-                                <button
-                                    className="p-1 rounded-lg hover:bg-gray-100 transition-colors flex items-center"
-                                    aria-label="Menu"
-                                >
-                                    <Bars3Icon className="w-6 h-6 text-gray-700" />
-                                </button>
-                                <div className="w-10 h-10 rounded-full flex items-center justify-center relative" style={{ backgroundColor: '#E2E2DD' }}>
-                                    <Image 
-                                        src="/icons/layouting.png" 
-                                        alt="Create Event" 
-                                        width={20} 
-                                        height={20}
-                                        className="object-contain"
-                                    />
-                                    <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2" style={{ borderColor: '#F8F8F7' }}></div>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                    <h2 className="text-xl font-bold text-gray-900">Create event</h2>
-                                {selectedResource && (
-                                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium text-gray-700" style={{ backgroundColor: '#E2E2DD' }}>
-                                        {selectedResource.type === 'bay' ? (
-                                                <Image src="/icons/bay.svg" alt="Bay" width={12} height={12} className="object-contain" />
-                                        ) : (
-                                                <Image src="/icons/van.svg" alt="Van" width={12} height={12} className="object-contain" />
-                                        )}
-                                        {selectedResource.name}
-                                    </span>
-                                )}
-                                </div>
-                            </div>
+                    <div className="flex-shrink-0 px-5 py-4 flex items-center justify-between border-b border-[#F0F0EE]">
+                        <div className="flex items-center gap-3">
+                            <button
+                                onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleClose(); }}
+                                className="p-1 hover:bg-[#f0f0ee] rounded transition-colors"
+                            >
+                                <ChevronLeft className="h-4 w-4 text-[#6b6a5e]" />
+                            </button>
+                            <span className="text-sm font-medium text-[#2B2B26]">{editingEvent ? 'Edit Appointment' : 'New Appointment'}</span>
+                            {selectedResource && (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium text-[#6b6a5e]" style={{ backgroundColor: '#E2E2DD' }}>
+                                    {selectedResource.name}
+                                </span>
+                            )}
+                        </div>
+                        <div className="flex items-center gap-1">
                             {showCloseButton && (
-                                <button 
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        e.preventDefault();
-                                        handleClose();
-                                    }} 
-                                    className="p-1 rounded-lg hover:bg-gray-100 transition-colors"
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleClose(); }}
+                                    className="p-2 hover:bg-[#f0f0ee] rounded-lg transition-colors"
                                     aria-label="Close"
                                 >
-                                    <XMarkIcon className="w-5 h-5 text-gray-500" />
+                                    <X className="h-4 w-4 text-[#6b6a5e]" />
                                 </button>
                             )}
                         </div>
-                            {resources.length > 0 && !preSelectedResource && (
-                                <select
-                                    value={selectedResourceId}
-                                    onChange={(e) => setSelectedResourceId(e.target.value)}
-                                className="mt-3 px-3 py-2 text-sm border rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                                style={{ borderColor: '#E2E2DD' }}
-                                >
-                                    <option value="">Select a resource (required)</option>
-                                    {resources.map((resource) => (
-                                        <option key={resource.id} value={resource.id}>
-                                            {resource.name} ({resource.type === 'bay' ? 'Bay' : 'Van'})
-                                        </option>
-                                    ))}
-                                </select>
-                                )}
                     </div>
                 )}
 
                 <div
                     className="flex-1 overflow-y-auto overflow-x-hidden"
                     style={{
-                        paddingTop: contentPaddingTop,
+                        paddingTop: 0,
                         paddingBottom: '24px',
-                        paddingLeft: contentPaddingLeft,
-                        paddingRight: contentPaddingRight,
+                        paddingLeft: 0,
+                        paddingRight: 0,
                         boxSizing: 'border-box',
                         touchAction: contentTouchAction,
                         overscrollBehaviorX: contentOverscrollX
                     }}
                 >
-                <div className="space-y-3">
+                <div className="divide-y divide-[#f0f0ee]">
                     {/* Block Time Toggle */}
-                    <div className={renderMode === 'drawer' ? 'pt-0' : 'pt-2'}>
-                        <div className="flex items-center justify-between rounded-xl px-4 py-3 bg-white border" style={{ borderColor: '#E2E2DD' }}>
-                            <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-100">
-                                    <svg className="w-4 h-4 text-gray-600" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                        <circle cx="12" cy="12" r="9" strokeWidth="2" />
-                                        <path d="M12 7v5l3 3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                                    </svg>
-                                </div>
-                                <span className="text-sm font-semibold text-gray-900">Block Time</span>
+                    <div className="px-5 py-4">
+                        <div className="flex items-center justify-between p-3 bg-[#F8F8F7] rounded-xl border border-[#E2E2DD]">
+                            <div className="flex items-center gap-2">
+                                <Clock className="h-4 w-4 text-[#6b6a5e]" />
+                                <span className="text-sm font-medium text-[#2B2B26]">Block Time</span>
                             </div>
-                            <label className="relative inline-flex items-center cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={isBlockTime}
-                                    onChange={(e) => setIsBlockTime(e.target.checked)}
-                                    className="sr-only"
-                                />
-                                <span className={`w-12 h-7 flex items-center rounded-full p-1 transition-colors ${isBlockTime ? 'bg-orange-500' : 'bg-gray-300'}`}>
-                                    <span className={`bg-white w-5 h-5 rounded-full shadow transform transition-transform ${isBlockTime ? 'translate-x-5' : 'translate-x-0'}`} />
-                                </span>
-                            </label>
+                            <button
+                                onClick={() => setIsBlockTime(!isBlockTime)}
+                                className={`w-10 h-6 rounded-full transition-colors relative ${isBlockTime ? 'bg-[#FF3700]' : 'bg-[#c1c0b8]'}`}
+                            >
+                                <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${isBlockTime ? 'left-5' : 'left-1'}`} />
+                            </button>
                         </div>
                     </div>
 
-                    {/* Customer Information */}
+                    {/* Customer Selection */}
                     {!isBlockTime && (
-                    <div className={renderMode === 'drawer' ? 'pt-0' : 'pt-2'}>
-                        <h3 className="text-sm font-semibold text-gray-900 mb-4">Customer</h3>
+                    <div className="px-5 py-4">
+                        <div className="flex items-center gap-4 mb-3">
+                            <User className="h-4 w-4 text-[#9e9d92] flex-shrink-0" />
+                            <span className="text-sm text-[#6b6a5e]">Customer</span>
+                        </div>
                         
                         {/* Search bar - only show when no customer is selected */}
                         {!selectedCustomer && (
-                            <div className="relative">
+                            <div className="ml-8 relative">
                                 <div className="relative">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#9e9d92]" />
                                     <input 
                                         type="text" 
                                         id="customer-search" 
@@ -1259,67 +1339,47 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                                             }
                                         }}
                                         onBlur={() => {
-                                            // Delay hiding suggestions to allow click on suggestion
                                             setTimeout(() => setShowCustomerSuggestions(false), 200);
                                         }}
                                         onKeyDown={handleCustomerSearchKeyDown}
-                                        className="w-full px-4 py-2.5 border rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent pl-10" 
-                                        placeholder="Search existing customers"
-                                        style={{ borderColor: '#E2E2DD' }}
+                                        className="w-full pl-9 pr-3 py-2 bg-[#F8F8F7] border-0 rounded-xl text-sm placeholder:text-[#9e9d92] focus:outline-none focus:ring-2 focus:ring-[#2B2B26]/10" 
+                                        placeholder="Search customer..."
                                     />
-                                    <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                                    </svg>
                                 </div>
                                 {showCustomerSuggestions && customerSearch.trim().length > 0 && (
-                                    <div className="absolute z-10 w-full mt-1 bg-white border rounded-xl shadow-lg max-h-60 overflow-auto" style={{ borderColor: '#E2E2DD' }}>
+                                    <div className="absolute z-10 w-full mt-1 bg-white border border-[#deded9] rounded-lg shadow-lg max-h-48 overflow-auto">
                                         {filteredCustomers.map((customer, index) => (
-                                            <div
+                                            <button
                                                 key={customer.id}
                                                 onClick={() => handleCustomerSelect(customer)}
-                                                className={`px-4 py-2 cursor-pointer hover:bg-gray-100 ${
-                                                    index === selectedCustomerIndex 
-                                                        ? 'bg-gray-100' 
-                                                        : ''
+                                                className={`w-full px-3 py-2 text-left hover:bg-[#F8F8F7] flex items-center gap-3 ${
+                                                    index === selectedCustomerIndex ? 'bg-[#F8F8F7]' : ''
                                                 }`}
                                             >
-                                                <div className="font-medium text-gray-900">
-                                                    {customer.customerName || 'Unnamed Customer'}
+                                                <div className="h-7 w-7 rounded-full bg-[#F0F0EE] flex items-center justify-center text-[10px] font-semibold text-[#57564d]">
+                                                    {(customer.customerName || 'U').split(' ').map(n => n[0]).join('').slice(0, 2)}
                                                 </div>
-                                                {customer.customerPhone && (
-                                                    <div className="text-sm text-gray-500">
-                                                        {customer.customerPhone}
-                                                    </div>
-                                                )}
-                                            </div>
+                                                <div>
+                                                    <p className="text-sm font-medium text-[#2B2B26]">{customer.customerName || 'Unnamed Customer'}</p>
+                                                    {customer.customerPhone && (
+                                                        <p className="text-xs text-[#6b6a5e]">{customer.customerPhone}</p>
+                                                    )}
+                                                </div>
+                                            </button>
                                         ))}
-                                        {/* Always show "Add new customer" as the last option */}
                                         {showAddNewCustomer && (
-                                            <div
+                                            <button
                                                 onClick={handleAddNewCustomer}
-                                                className={`px-4 py-2 cursor-pointer hover:bg-gray-100 ${
-                                                    filteredCustomers.length > 0 ? 'border-t' : ''
-                                                } ${
-                                                    filteredCustomers.length === selectedCustomerIndex 
-                                                        ? 'bg-gray-100' 
-                                                        : ''
+                                                className={`w-full px-3 py-2 text-left hover:bg-[#F8F8F7] flex items-center gap-2 text-sm ${
+                                                    filteredCustomers.length > 0 ? 'border-t border-[#deded9]' : ''
                                                 }`}
-                                                style={{ borderColor: '#E2E2DD' }}
                                             >
-                                                <div className="font-medium text-blue-600 flex items-center gap-2">
-                                                    <span>+</span>
-                                                    <span>Add new customer: "{customerSearch}"</span>
-                                                </div>
-                                            </div>
+                                                <Plus className="h-3.5 w-3.5 text-blue-600" />
+                                                <span className="font-medium text-blue-600">Add new customer: &quot;{customerSearch}&quot;</span>
+                                            </button>
                                         )}
                                     </div>
                                 )}
-                            </div>
-                        )}
-                            
-                        {/* "New customer" button - only show when no customer is selected */}
-                        {!selectedCustomer && (
-                            <div className="mt-2 flex justify-end">
                                 <button
                                     type="button"
                                     onClick={() => {
@@ -1327,157 +1387,144 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                                             onOpenNewCustomerModal('');
                                         }
                                     }}
-                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 border rounded-full text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-                                    style={{ borderColor: '#E2E2DD' }}
+                                    className="mt-2 text-sm text-[#6b6a5e] hover:text-[#2B2B26] transition-colors flex items-center gap-1"
                                 >
-                                    <span className="text-gray-600">+</span>
-                                    <span>New customer</span>
+                                    <Plus className="h-3.5 w-3.5" />
+                                    Add new customer
                                 </button>
                             </div>
                         )}
                             
-                        {/* Customer card - show when customer is selected (replaces search bar) */}
+                        {/* Customer card - show when customer is selected */}
                         {selectedCustomer && (
                             <div 
                                 ref={customerCardRef}
-                                className="bg-gray-50 rounded-xl p-4 border relative" 
-                                style={{ borderColor: '#E2E2DD' }}
+                                className="ml-8 bg-[#F8F8F7] rounded-xl p-3"
                             >
-                                <div className="flex items-start justify-between">
+                                <div className="flex items-center justify-between mb-2">
                                     <div 
-                                        className="flex-1 pr-8 hover:bg-gray-100 -m-2 p-2 rounded-lg transition-colors"
+                                        className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
                                         onMouseEnter={() => {
-                                            // Clear any pending timeout
                                             if (customerPopupTimeoutRef.current) {
                                                 clearTimeout(customerPopupTimeoutRef.current);
                                                 customerPopupTimeoutRef.current = null;
                                             }
-                                            
                                             if (customerCardRef.current) {
                                                 const rect = customerCardRef.current.getBoundingClientRect();
-                                                // Position popup to the left of the action panel, adjacent to customer box
-                                                // Action panel is fixed right-0 with width 400px (md) or 420px (lg)
                                                 const actionPanelWidth = window.innerWidth >= 1024 ? 420 : window.innerWidth >= 768 ? 400 : window.innerWidth;
-                                                const popupWidth = 320; // w-80 = 320px
-                                                const gap = 4; // 4px gap between popup and action panel
-                                                
+                                                const gap = 4;
                                                 setPopupPosition({
-                                                    top: rect.top, // Align top with customer card
-                                                    right: actionPanelWidth + gap // Position to the left of action panel with gap
+                                                    top: rect.top,
+                                                    right: actionPanelWidth + gap
                                                 });
                                             }
                                             setShowCustomerDetailsPopup(true);
                                         }}
                                         onMouseLeave={() => {
-                                            // Add a small delay before closing to allow moving to popup
                                             customerPopupTimeoutRef.current = setTimeout(() => {
                                                 setShowCustomerDetailsPopup(false);
                                             }, 200);
                                         }}
                                     >
-                                        <div className="flex items-start justify-between mb-2">
-                                            <h4 className="font-semibold text-gray-900 text-base">
-                                                {selectedCustomer.customerName || 'Unnamed Customer'}
-                                            </h4>
-                                            {selectedCustomer.customerPhone && (
-                                                <span className="text-sm text-gray-600 ml-2">
-                                                    {selectedCustomer.customerPhone}
-                                                </span>
-                                            )}
+                                        <div className="h-8 w-8 rounded-full bg-white flex items-center justify-center text-[11px] font-semibold text-[#57564d]">
+                                            {(selectedCustomer.customerName || 'U').split(' ').map(n => n[0]).join('').slice(0, 2)}
                                         </div>
-                                        
-                                        {selectedCustomer.address && (
-                                            <p className="text-sm text-gray-600 mb-3">
-                                                {selectedCustomer.address}
-                                            </p>
-                                        )}
-
-                                        <div className="mt-3">
-                                            {(() => {
-                                                const totalPastJobs = typeof selectedCustomer.pastJobsTotal === 'number'
-                                                    ? selectedCustomer.pastJobsTotal
-                                                    : (typeof selectedCustomer.completedServiceCount === 'number'
-                                                        ? selectedCustomer.completedServiceCount
-                                                        : (selectedCustomer.pastJobs ? selectedCustomer.pastJobs.length : 0));
-                                                const pastJobs = selectedCustomer.pastJobs || [];
-                                                const recentJobs = pastJobs.slice(0, 2);
-
-                                                return (
-                                                    <>
-                                                        <p className="font-semibold text-sm text-gray-900 mb-1">
-                                                            Past jobs: {totalPastJobs}
-                                                        </p>
-                                                        {recentJobs.length > 0 ? (
-                                                            <div className="space-y-1">
-                                                                {recentJobs.map((job, idx) => (
-                                                                    <p key={job.id || idx} className="text-sm text-gray-600">
-                                                                        {(() => {
-                                                                            const parsed = parseJobDate(job.date);
-                                                                            return parsed ? format(parsed, 'MMMM d, yyyy') : 'Date unavailable';
-                                                                        })()}
-                                                                        {job.services && job.services.length > 0 && (
-                                                                            <span>, {Array.isArray(job.services) ? job.services.join(', ') : job.services}</span>
-                                                                        )}
-                                                                        {job.vehicleModel && (
-                                                                            <span> on a {job.vehicleModel}</span>
-                                                                        )}
-                                                                    </p>
-                                                                ))}
-                                                            </div>
-                                                        ) : (
-                                                            <p className="text-sm text-gray-600">No past jobs yet.</p>
-                                                        )}
-                                                    </>
-                                                );
-                                            })()}
+                                        <div>
+                                            <p className="text-sm font-medium text-[#2B2B26]">{selectedCustomer.customerName || 'Unnamed Customer'}</p>
+                                            <p className="text-xs text-[#6b6a5e]">{selectedCustomer.customerPhone || 'No phone'}</p>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-2 flex-shrink-0" style={{ position: 'relative', zIndex: 20 }}>
+                                    <div className="flex items-center gap-1">
                                         <button
                                             type="button"
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 e.preventDefault();
-                                                console.log('Edit button clicked in EventModal');
-                                                // Always call the handler if it exists
                                                 if (onOpenEditCustomerModal) {
-                                                    console.log('Calling onOpenEditCustomerModal with:', {
-                                                        customerName: selectedCustomer.customerName || '',
-                                                        customerPhone: selectedCustomer.customerPhone || '',
-                                                        customerAddress: selectedCustomer.address || '',
-                                                        customerType: selectedCustomer.customerType || ''
-                                                    });
                                                     onOpenEditCustomerModal({
                                                         customerName: selectedCustomer.customerName || '',
                                                         customerPhone: selectedCustomer.customerPhone || '',
                                                         customerAddress: selectedCustomer.address || '',
                                                         customerType: selectedCustomer.customerType || ''
                                                     });
-                                                } else {
-                                                    console.error('onOpenEditCustomerModal is not available');
                                                 }
                                             }}
-                                            onMouseDown={(e) => {
-                                                e.stopPropagation();
-                                            }}
-                                            className="p-2 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
-                                            style={{ position: 'relative', zIndex: 20, pointerEvents: 'auto' }}
+                                            onMouseDown={(e) => { e.stopPropagation(); }}
+                                            className="p-1 hover:bg-white rounded transition-colors"
                                             title="Edit customer"
                                         >
-                                            <PencilIcon className="w-4 h-4 text-gray-700" />
+                                            <PencilIcon className="w-3.5 h-3.5 text-[#6b6a5e]" />
                                         </button>
                                         <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleClearCustomer();
-                                            }}
-                                            className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                                            onClick={(e) => { e.stopPropagation(); handleClearCustomer(); }}
+                                            className="p-1 hover:bg-white rounded transition-colors"
                                             title="Remove customer"
                                         >
-                                            <XMarkIcon className="w-4 h-4 text-gray-500" />
+                                            <X className="h-3.5 w-3.5 text-[#6b6a5e]" />
                                         </button>
                                     </div>
                                 </div>
+                                
+                                {selectedCustomer.address && (
+                                    <div className="flex items-center gap-2 pl-11">
+                                        <MapPin className="h-3 w-3 text-[#9e9d92] flex-shrink-0" />
+                                        <span className="text-[11px] text-[#6b6a5e] truncate">{selectedCustomer.address}</span>
+                                    </div>
+                                )}
+
+                                {(() => {
+                                    const totalPastJobs = typeof selectedCustomer.pastJobsTotal === 'number'
+                                        ? selectedCustomer.pastJobsTotal
+                                        : (typeof selectedCustomer.completedServiceCount === 'number'
+                                            ? selectedCustomer.completedServiceCount
+                                            : (selectedCustomer.pastJobs ? selectedCustomer.pastJobs.length : 0));
+                                    const pastJobs = selectedCustomer.pastJobs || [];
+                                    const recentJobs = pastJobs.slice(0, 3);
+                                    return totalPastJobs > 0 ? (
+                                        <div className="mt-3 pt-3 border-t border-[#deded9]">
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <svg className="h-3 w-3 text-[#9e9d92]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>
+                                                <span className="text-[10px] font-medium text-[#9e9d92] uppercase">{totalPastJobs} Past Jobs</span>
+                                            </div>
+                                            <div className="space-y-1.5 max-h-36 overflow-y-auto">
+                                                {recentJobs.map((job, idx) => (
+                                                    <div key={job.id || idx} className="py-1.5 px-2 bg-white rounded text-[10px]">
+                                                        <div className="flex items-center justify-between">
+                                                            <div className="flex items-center gap-2 min-w-0">
+                                                                <span className="font-medium text-[#2B2B26] truncate">
+                                                                    {job.services && job.services.length > 0 ? (Array.isArray(job.services) ? job.services.join(', ') : job.services) : 'Service'}
+                                                                </span>
+                                                                {job.vehicleModel && (
+                                                                    <>
+                                                                        <span className="text-[#9e9d92]">&bull;</span>
+                                                                        <span className="text-[#6b6a5e] truncate">{job.vehicleModel}</span>
+                                                                    </>
+                                                                )}
+                                                            </div>
+                                                            <div className="flex items-center gap-2 flex-shrink-0 text-[#9e9d92]">
+                                                                {job.employeeName && (
+                                                                    <>
+                                                                        <span>{job.employeeName}</span>
+                                                                        <span>&bull;</span>
+                                                                    </>
+                                                                )}
+                                                                <span>
+                                                                    {(() => {
+                                                                        const parsed = parseJobDate(job.date);
+                                                                        return parsed ? format(parsed, 'MMM d, yyyy') : '';
+                                                                    })()}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                        {job.eventNotes && (
+                                                            <p className="mt-1 text-[9px] text-[#6b6a5e] leading-tight line-clamp-2 italic">{job.eventNotes}</p>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ) : null;
+                                })()}
                             </div>
                         )}
                         
@@ -1610,719 +1657,563 @@ export default function EventModal({ isOpen, onClose, onAddEvent, preSelectedRes
                     </div>
                     )}
 
-                    {!isBlockTime && (
+                    {!isBlockTime && selectedCustomer && (
                     <>
-                    {/* Vehicle Information */}
-                    <div className="pt-2">
-                        <h3 className="text-sm font-semibold text-gray-900 mb-4">Car model</h3>
-                        <div className="flex flex-wrap items-center gap-2">
+                    {/* Vehicle - only shown when customer is selected */}
+                    <div className="px-5 py-4">
+                        <div className="flex items-center gap-4 mb-3">
+                            <svg className="h-4 w-4 text-[#9e9d92] flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg>
+                            <span className="text-sm text-[#6b6a5e]">Vehicle</span>
+                        </div>
+                        <div className="ml-8 flex flex-wrap gap-2">
                             {vehicles.map((vehicle) => (
-                                <div
-                                    key={vehicle.id}
-                                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-800 text-white text-sm font-medium"
-                                >
-                                    <span>{vehicle.model}</span>
-                                    <button
-                                        onClick={() => setVehicles(vehicles.filter(v => v.id !== vehicle.id))}
-                                        className="hover:bg-gray-700 rounded-full p-0.5 transition-colors"
-                                        type="button"
-                                    >
-                                        <XMarkIcon className="w-3 h-3" />
-                                    </button>
-                                </div>
+                                <VehicleChip
+                                  key={vehicle.id}
+                                  model={vehicle.model}
+                                  onRemove={() => setVehicles(vehicles.filter(v => v.id !== vehicle.id))}
+                                />
                             ))}
                             <button
                                 type="button"
                                 onClick={() => setShowAddVehicleModal(true)}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 border rounded-full text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-                                style={{ borderColor: '#E2E2DD' }}
+                                className="px-3 py-1.5 rounded-xl text-sm bg-[#F8F8F7] text-[#6b6a5e] hover:bg-[#F0F0EE] transition-colors flex items-center gap-1"
                             >
-                                <span className="text-gray-600">+</span>
-                                <span>Add car model</span>
+                                <Plus className="h-3.5 w-3.5" />
+                                Add
                             </button>
                         </div>
                         
-                        {/* Add Vehicle Modal */}
                         {showAddVehicleModal && (
                             <div className="fixed inset-0 flex items-center justify-center z-[70] p-4" style={{ backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', backgroundColor: 'rgba(0, 0, 0, 0.05)' }}>
-                                <div className="rounded-xl shadow-xl w-full max-w-md" style={{ backgroundColor: '#F8F8F7', width: '400px' }}>
-                                    <div className="flex items-center justify-between p-6 border-b" style={{ borderColor: '#E2E2DD' }}>
-                                        <h2 className="text-xl font-bold text-gray-900">Add Car Model</h2>
+                                <div className="rounded-xl shadow-xl w-full max-w-md bg-white" style={{ width: '400px' }}>
+                                    <div className="flex items-center justify-between px-5 py-4 border-b border-[#F0F0EE]">
+                                        <span className="text-sm font-medium text-[#2B2B26]">Add Vehicle</span>
                                         <button
-                                            onClick={() => {
-                                                setShowAddVehicleModal(false);
-                                                setNewVehicleModel('');
-                                            }}
-                                            className="p-1 rounded-lg hover:bg-gray-100 transition-colors"
+                                            onClick={() => { setShowAddVehicleModal(false); }}
+                                            className="p-1 hover:bg-[#f0f0ee] rounded transition-colors"
                                         >
-                                            <XMarkIcon className="w-5 h-5 text-gray-500" />
+                                            <X className="h-4 w-4 text-[#6b6a5e]" />
                                         </button>
                                     </div>
-                                    <div className="p-6">
-                    <div>
-                                            <label htmlFor="new-vehicle-model" className="block text-sm font-medium text-gray-700 mb-2">
-                                Vehicle Model
-                            </label>
-                                            <input 
-                                                type="text" 
-                                                id="new-vehicle-model" 
-                                                ref={newVehicleModelInputRef}
-                                                value={newVehicleModel} 
-                                                onChange={e => setNewVehicleModel(e.target.value)} 
-                                                className="w-full px-4 py-2.5 border rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent" 
-                                placeholder="e.g., Camry, Civic, F-150, Model 3"
-                                                style={{ borderColor: '#E2E2DD' }}
-                                                onKeyDown={(e) => {
-                                                    if (e.key === 'Enter' && newVehicleModel.trim()) {
-                                                        e.preventDefault();
-                                                        setVehicles([...vehicles, { id: `vehicle-${Date.now()}`, model: newVehicleModel.trim() }]);
-                                                        setNewVehicleModel('');
-                                                        setShowAddVehicleModal(false);
-                                                    }
-                                                }}
-                            />
-                        </div>
-                                        <div className="flex gap-3 mt-6">
-                                            <button
-                                                onClick={() => {
-                                                    setShowAddVehicleModal(false);
-                                                    setNewVehicleModel('');
-                                                }}
-                                                className="flex-1 px-6 py-2 border rounded-xl text-gray-700 hover:bg-gray-50 transition-colors"
-                                                style={{ borderColor: '#E2E2DD' }}
-                                            >
-                                                Cancel
-                                            </button>
-                                            <button
-                                                onClick={() => {
-                                                    if (newVehicleModel.trim()) {
-                                                        setVehicles([...vehicles, { id: `vehicle-${Date.now()}`, model: newVehicleModel.trim() }]);
-                                                        setNewVehicleModel('');
-                                                        setShowAddVehicleModal(false);
-                                                    }
-                                                }}
-                                                disabled={!newVehicleModel.trim()}
-                                                className="px-6 py-2 bg-orange-500 text-white rounded-xl hover:bg-orange-600 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                                            >
-                                                <CheckIcon className="w-5 h-5" />
-                                                <span>Add</span>
-                                            </button>
-                                        </div>
+                                    <div className="p-5 flex flex-col gap-3">
+                                        <VehiclePickerPopover
+                                          onSelect={(model) => {
+                                            if (!vehicles.some((v) => v.model === model)) {
+                                              setVehicles([...vehicles, { id: `vehicle-${Date.now()}`, model }]);
+                                            }
+                                            setShowAddVehicleModal(false);
+                                          }}
+                                          buttonLabel="Select manufacturer and model"
+                                        />
+                                        <button
+                                          onClick={() => { setShowAddVehicleModal(false); }}
+                                          className="w-full px-4 py-2 border border-[#deded9] rounded-xl text-sm text-[#6b6a5e] hover:bg-[#F8F8F7] transition-colors"
+                                        >
+                                          Cancel
+                                        </button>
                                     </div>
                                 </div>
                             </div>
                         )}
-                    </div>
-
-                    {/* Services */}
-                    <div className="pt-4">
-                        <h3 className="text-sm font-semibold text-gray-900 mb-4">Job Details</h3>
-                        <div className="relative">
-                            <div className="relative">
-                            <input 
-                                type="text" 
-                                    id="service-search" 
-                                    value={serviceSearch} 
-                                    onChange={e => {
-                                        setServiceSearch(e.target.value);
-                                        setShowServiceDropdown(true);
-                                    }}
-                                    onFocus={() => {
-                                        if (serviceSearch.trim().length > 0 || availableServices.length > 0) {
-                                            setShowServiceDropdown(true);
-                                        }
-                                    }}
-                                    onBlur={() => {
-                                        // Delay hiding dropdown to allow click on checkbox
-                                        setTimeout(() => setShowServiceDropdown(false), 200);
-                                    }}
-                                    className="w-full px-4 py-2.5 border rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent pr-10" 
-                                    placeholder="Select service"
-                                    style={{ borderColor: '#E2E2DD' }}
-                                />
-                                <svg className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                </svg>
-                                
-                            {/* Service & Bundle Dropdown with Checkboxes */}
-                            {showServiceDropdown && (
-                                <div className="absolute z-20 w-full mt-1 bg-white border rounded-xl shadow-lg max-h-60 overflow-auto top-full" style={{ borderColor: '#E2E2DD' }}>
-                                    {/* Bundles Section - Show First */}
-                                    {availableBundles
-                                        .filter(bundle => {
-                                            if (!serviceSearch.trim()) return true;
-                                            return bundle.name.toLowerCase().includes(serviceSearch.toLowerCase());
-                                        })
-                                        .map((bundle) => {
-                                            const isSelected = selectedServices.some(s => s.id === bundle.id && s.type === 'bundle');
-                                            return (
-                                                <label
-                                                    key={`bundle-${bundle.id}`}
-                                                    className="flex items-center px-4 py-2 cursor-pointer hover:bg-gray-50"
-                                                >
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={isSelected}
-                                                        onChange={(e) => {
-                                                            if (e.target.checked) {
-                                                                setSelectedServices([...selectedServices, { id: bundle.id, name: bundle.name, type: 'bundle' }]);
-                                                            } else {
-                                                                setSelectedServices(selectedServices.filter(s => !(s.id === bundle.id && s.type === 'bundle')));
-                                                            }
-                                                            setServiceSearch('');
-                                                        }}
-                                                        className="w-4 h-4 text-orange-500 border-gray-300 rounded focus:ring-orange-500"
-                                                        onClick={(e) => e.stopPropagation()}
-                                                    />
-                                                    <div className="ml-3 flex-1">
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="text-sm font-medium text-gray-900">{bundle.name}</span>
-                                                            <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">Bundle</span>
-                        </div>
-                                                        {bundle.price && (
-                                                            <span className="text-xs text-gray-500">${bundle.price}</span>
-                                                        )}
-                                                    </div>
-                                                </label>
-                                            );
-                                        })}
-                                    
-                                    {/* Services Section - Show After Bundles */}
-                                    {availableBundles.filter(bundle => {
-                                        if (!serviceSearch.trim()) return true;
-                                        return bundle.name.toLowerCase().includes(serviceSearch.toLowerCase());
-                                    }).length > 0 && availableServices.filter(service => {
-                                        if (!serviceSearch.trim()) return true;
-                                        return service.name.toLowerCase().includes(serviceSearch.toLowerCase());
-                                    }).length > 0 && (
-                                        <div className="border-t" style={{ borderColor: '#E2E2DD' }}></div>
-                                    )}
-                                    {availableServices
-                                        .filter(service => {
-                                            if (!serviceSearch.trim()) return true;
-                                            return service.name.toLowerCase().includes(serviceSearch.toLowerCase());
-                                        })
-                                        .map((service) => {
-                                            const isSelected = selectedServices.some(s => s.id === service.id && s.type === 'service');
-                                            return (
-                                                <label
-                                                    key={`service-${service.id}`}
-                                                    className="flex items-center px-4 py-2 cursor-pointer hover:bg-gray-50"
-                                                >
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={isSelected}
-                                                        onChange={(e) => {
-                                                            if (e.target.checked) {
-                                                                setSelectedServices([...selectedServices, { id: service.id, name: service.name, type: 'service' }]);
-                                                            } else {
-                                                                setSelectedServices(selectedServices.filter(s => !(s.id === service.id && s.type === 'service')));
-                                                            }
-                                                            setServiceSearch('');
-                                                        }}
-                                                        className="w-4 h-4 text-orange-500 border-gray-300 rounded focus:ring-orange-500"
-                                                        onClick={(e) => e.stopPropagation()}
-                                                    />
-                                                    <span className="ml-3 text-sm text-gray-900">{service.name}</span>
-                                                    {service.category && (
-                                                        <span className="ml-auto text-xs text-gray-500">{service.category.name}</span>
-                                                    )}
-                                                </label>
-                                            );
-                                        })}
-                                    
-                                    {availableServices.filter(service => {
-                                        if (!serviceSearch.trim()) return true;
-                                        return service.name.toLowerCase().includes(serviceSearch.toLowerCase());
-                                    }).length === 0 && 
-                                    availableBundles.filter(bundle => {
-                                        if (!serviceSearch.trim()) return true;
-                                        return bundle.name.toLowerCase().includes(serviceSearch.toLowerCase());
-                                    }).length === 0 && (
-                                        <div className="px-4 py-2 text-sm text-gray-500">No services or bundles found</div>
-                                    )}
-                                    </div>
-                                )}
-                            </div>
-                            
-                            {/* Selected Services & Bundles Tags */}
-                            {selectedServices.length > 0 && (
-                                <div className="flex flex-wrap items-center gap-2 mt-3">
-                                    {selectedServices.map((item) => (
-                                        <div
-                                            key={`${item.type}-${item.id}`}
-                                            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-800 text-white text-sm font-medium"
-                                        >
-                                            <span>{item.name}</span>
-                                            {item.type === 'bundle' && (
-                                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-500 text-white">Bundle</span>
-                                            )}
-                                            <button
-                                                onClick={() => {
-                                                    setSelectedServices(selectedServices.filter(s => !(s.id === item.id && s.type === item.type)));
-                                                }}
-                                                className="hover:bg-gray-700 rounded-full p-0.5 transition-colors"
-                                                type="button"
-                                            >
-                                                <XMarkIcon className="w-3 h-3" />
-                                            </button>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                            
-                        </div>
                     </div>
                     </>
                     )}
 
-                    {/* Date and Time Section */}
-                    <div className="pt-4">
-                        <h3 className="text-sm font-semibold text-gray-900 mb-4">Scheduling</h3>
-                        
-                        {/* All-Day and Multi-Day Toggles */}
-                        <div className="mb-4 flex items-center gap-6">
-                            <label className="flex items-center space-x-2 cursor-pointer">
-                                <input 
-                                    type="checkbox" 
-                                    checked={isAllDay}
-                                    onChange={(e) => setIsAllDay(e.target.checked)}
-                                    className="w-4 h-4 text-gray-900 border-gray-300 rounded focus:ring-gray-900"
-                                />
-                                <span className="text-sm font-medium text-gray-700">All-day event</span>
-                            </label>
-                            <label className="flex items-center space-x-2 cursor-pointer">
-                                <input 
-                                    type="checkbox" 
-                                    checked={isMultiDay}
-                                    onChange={(e) => setIsMultiDay(e.target.checked)}
-                                    className="w-4 h-4 text-gray-900 border-gray-300 rounded focus:ring-gray-900"
-                                />
-                                <span className="text-sm font-medium text-gray-700">Multi-day event</span>
-                            </label>
-                        </div>
-
-                        {/* Date and Time Inputs */}
-                        <div className="space-y-4">
-                            {/* First Row: Dates */}
-                            {isMultiDay ? (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label htmlFor="start-date" className="block text-sm font-medium text-gray-700 mb-2">
-                                            Start Date *
-                                        </label>
-                                        <input 
-                                            type="date" 
-                                            id="start-date" 
-                                            value={startDate} 
-                                            onChange={e => setStartDate(e.target.value)} 
-                                            className="w-full px-4 py-2.5 border rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent" 
-                                            style={{ borderColor: '#E2E2DD', width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}
-                                        />
-                                    </div>
-                                    <div>
-                                        <label htmlFor="end-date" className="block text-sm font-medium text-gray-700 mb-2">
-                                            End Date *
-                                        </label>
-                                        <input 
-                                            type="date" 
-                                            id="end-date" 
-                                            value={endDate} 
-                                            onChange={e => setEndDate(e.target.value)} 
-                                        className="w-full px-4 py-2.5 border rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent" 
-                                        style={{ borderColor: '#E2E2DD', width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}
-                                        />
-                                    </div>
+                    {/* Services - Multi-select */}
+                    {!isBlockTime && (
+                    <div className="px-5 py-4">
+                        <div className="flex items-start gap-4">
+                            <Info className="h-4 w-4 text-[#9e9d92] flex-shrink-0 mt-2" />
+                            <span className="text-sm text-[#6b6a5e] w-20 flex-shrink-0 mt-1.5">Services</span>
+                            <div className="flex-1 relative">
+                                <div 
+                                    onClick={() => setShowServiceDropdown(!showServiceDropdown)}
+                                    className="flex-1 flex items-center gap-2 px-3 py-1.5 bg-[#F8F8F7] rounded-xl text-sm hover:bg-[#F0F0EE] cursor-pointer min-h-[36px] flex-wrap"
+                                >
+                                    {selectedServices.length > 0 ? (
+                                        selectedServices.map((item) => (
+                                            <span key={`${item.type}-${item.id}`} className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#deded9] rounded text-xs">
+                                                {item.name}
+                                                {item.type === 'bundle' && (
+                                                    <span className="text-[9px] px-1 py-0 rounded bg-blue-100 text-blue-700">Bundle</span>
+                                                )}
+                                                <X 
+                                                    className="h-3 w-3 cursor-pointer hover:text-red-500" 
+                                                    onClick={(e) => { e.stopPropagation(); setSelectedServices(selectedServices.filter(s => !(s.id === item.id && s.type === item.type))); }} 
+                                                />
+                                            </span>
+                                        ))
+                                    ) : (
+                                        <span className="text-[#9e9d92]">Add services...</span>
+                                    )}
+                                    <ChevronDown className="h-4 w-4 text-[#9e9d92] ml-auto flex-shrink-0" />
                                 </div>
-                            ) : (
-                                <div>
-                                    <label htmlFor="start-date" className="block text-sm font-medium text-gray-700 mb-2">
-                                        Start Date *
-                                    </label>
-                                    <input 
-                                        type="date" 
-                                        id="start-date" 
-                                        value={startDate} 
-                                        onChange={e => setStartDate(e.target.value)} 
-                                        className="w-full px-4 py-2.5 border rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent" 
-                                        style={{ borderColor: '#E2E2DD', width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}
-                                    />
-                                </div>
-                            )}
-
-                            {/* Second Row: Times (only for multi-day or when not all-day) */}
-                            {isMultiDay && !isAllDay && (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label htmlFor="start-time" className="block text-sm font-medium text-gray-700 mb-2">
-                                            Start Time *
-                                        </label>
-                                        <select
-                                            id="start-time"
-                                            value={startTime}
-                                            onChange={e => setStartTime(e.target.value)}
-                                            className="w-full px-4 py-2.5 border rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                                            style={{ borderColor: '#E2E2DD' }}
-                                        >
-                                            <option value="">Select start time</option>
-                                            {timeOptions.map(option => (
-                                                <option key={option.value} value={option.value}>
-                                                    {option.label}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label htmlFor="end-time" className="block text-sm font-medium text-gray-700 mb-2">
-                                            End Time *
-                                        </label>
-                                        <select
-                                            id="end-time"
-                                            value={endTime}
-                                            onChange={e => setEndTime(e.target.value)}
-                                            className="w-full px-4 py-2.5 border rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                                            style={{ borderColor: '#E2E2DD' }}
-                                        >
-                                            <option value="">Select end time</option>
-                                            {timeOptions.map(option => (
-                                                <option key={option.value} value={option.value}>
-                                                    {option.label}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Single day, not all-day: Show times in one row */}
-                            {!isMultiDay && !isAllDay && (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                        <label htmlFor="start-time" className="block text-sm font-medium text-gray-700 mb-2">
-                                            Start Time *
-                                        </label>
-                                        <select
-                                            id="start-time"
-                                            value={startTime}
-                                            onChange={e => setStartTime(e.target.value)}
-                                            className="w-full px-4 py-2.5 border rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                                            style={{ borderColor: '#E2E2DD' }}
-                                        >
-                                            <option value="">Select start time</option>
-                                            {timeOptions.map(option => (
-                                                <option key={option.value} value={option.value}>
-                                                    {option.label}
-                                                </option>
-                                            ))}
-                                        </select>
+                                {showServiceDropdown && (
+                                    <>
+                                        <div className="fixed inset-0 z-40" onClick={() => setShowServiceDropdown(false)} />
+                                        <div className="absolute top-full left-0 mt-1 w-full bg-white border border-[#deded9] rounded-lg shadow-lg py-1 z-50 max-h-[200px] overflow-y-auto">
+                                            {/* Search within dropdown */}
+                                            <div className="px-3 py-2 border-b border-[#F0F0EE]">
+                                                <input 
+                                                    type="text" 
+                                                    value={serviceSearch} 
+                                                    onChange={e => setServiceSearch(e.target.value)}
+                                                    className="w-full px-2 py-1 bg-[#F8F8F7] border-0 rounded text-sm placeholder:text-[#9e9d92] focus:outline-none"
+                                                    placeholder="Search..."
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    autoFocus
+                                                />
+                                            </div>
+                                            {selectedServices.length > 0 && (
+                                                <button
+                                                    onClick={() => setSelectedServices([])}
+                                                    className="w-full px-3 py-2 text-left hover:bg-[#F8F8F7] flex items-center gap-2 text-sm text-[#9e9d92] border-b border-[#F0F0EE] transition-colors"
+                                                >
+                                                    <X className="h-3.5 w-3.5" />
+                                                    <span>Clear all</span>
+                                                </button>
+                                            )}
+                                            {availableBundles
+                                                .filter(bundle => !serviceSearch.trim() || bundle.name.toLowerCase().includes(serviceSearch.toLowerCase()))
+                                                .map((bundle) => {
+                                                    const isSelected = selectedServices.some(s => s.id === bundle.id && s.type === 'bundle');
+                                                    return (
+                                                        <button
+                                                            key={`bundle-${bundle.id}`}
+                                                            onClick={() => {
+                                                                if (isSelected) {
+                                                                    setSelectedServices(selectedServices.filter(s => !(s.id === bundle.id && s.type === 'bundle')));
+                                                                } else {
+                                                                    setSelectedServices([...selectedServices, { id: bundle.id, name: bundle.name, type: 'bundle' }]);
+                                                                }
+                                                                setServiceSearch('');
+                                                            }}
+                                                            className="w-full px-3 py-2 text-left hover:bg-[#F8F8F7] flex items-center gap-2 text-sm transition-colors"
+                                                        >
+                                                            <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${isSelected ? 'bg-[#2B2B26] border-[#2B2B26]' : 'border-[#c1c0b8]'}`}>
+                                                                {isSelected && <Check className="h-3 w-3 text-white" />}
+                                                            </div>
+                                                            <span>{bundle.name}</span>
+                                                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">Bundle</span>
+                                                        </button>
+                                                    );
+                                                })}
+                                            {availableServices
+                                                .filter(service => !serviceSearch.trim() || service.name.toLowerCase().includes(serviceSearch.toLowerCase()))
+                                                .map((service) => {
+                                                    const isSelected = selectedServices.some(s => s.id === service.id && s.type === 'service');
+                                                    return (
+                                                        <button
+                                                            key={`service-${service.id}`}
+                                                            onClick={() => {
+                                                                if (isSelected) {
+                                                                    setSelectedServices(selectedServices.filter(s => !(s.id === service.id && s.type === 'service')));
+                                                                } else {
+                                                                    setSelectedServices([...selectedServices, { id: service.id, name: service.name, type: 'service' }]);
+                                                                }
+                                                                setServiceSearch('');
+                                                            }}
+                                                            className="w-full px-3 py-2 text-left hover:bg-[#F8F8F7] flex items-center gap-2 text-sm transition-colors"
+                                                        >
+                                                            <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${isSelected ? 'bg-[#2B2B26] border-[#2B2B26]' : 'border-[#c1c0b8]'}`}>
+                                                                {isSelected && <Check className="h-3 w-3 text-white" />}
+                                                            </div>
+                                                            <span>{service.name}</span>
+                                                            {service.category && <span className="ml-auto text-xs text-[#9e9d92]">{service.category.name}</span>}
+                                                        </button>
+                                                    );
+                                                })}
+                                            {availableServices.filter(s => !serviceSearch.trim() || s.name.toLowerCase().includes(serviceSearch.toLowerCase())).length === 0 &&
+                                             availableBundles.filter(b => !serviceSearch.trim() || b.name.toLowerCase().includes(serviceSearch.toLowerCase())).length === 0 && (
+                                                <div className="px-3 py-2 text-sm text-[#9e9d92]">No services or bundles found</div>
+                                            )}
+                                        </div>
+                                    </>
+                                )}
                             </div>
-                            <div>
-                                        <label htmlFor="end-time" className="block text-sm font-medium text-gray-700 mb-2">
-                                            End Time *
-                                        </label>
-                                        <select
-                                            id="end-time"
-                                            value={endTime}
-                                            onChange={e => setEndTime(e.target.value)}
-                                            className="w-full px-4 py-2.5 border rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                                            style={{ borderColor: '#E2E2DD' }}
-                                        >
-                                            <option value="">Select end time</option>
-                                            {timeOptions.map(option => (
-                                                <option key={option.value} value={option.value}>
-                                                    {option.label}
-                                                </option>
-                                            ))}
-                                        </select>
-                            </div>
-                        </div>
-                    )}
-
-                            {/* All-day: Show business hours (disabled) */}
-                            {isAllDay && (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                                            Start Time (Business Hours)
-                                        </label>
-                                        <input 
-                                            type="time" 
-                                            value={startTime} 
-                                            disabled
-                                            className="w-full px-4 py-2.5 border rounded-xl bg-gray-50 text-gray-600 cursor-not-allowed" 
-                                            style={{ borderColor: '#E2E2DD' }}
-                                        />
-                                    </div>
-                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                                            End Time (Business Hours)
-                                        </label>
-                                        <input 
-                                            type="time" 
-                                            value={endTime} 
-                                            disabled
-                                            className="w-full px-4 py-2.5 border rounded-xl bg-gray-50 text-gray-600 cursor-not-allowed" 
-                                            style={{ borderColor: '#E2E2DD' }}
-                                        />
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Warning message only if no business hours */}
-                            {isAllDay && startDate && (!startTime || !endTime) && (
-                                <div className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-lg p-3">
-                                    No business hours set for this day. Please set business hours in your profile settings.
-                                </div>
-                            )}
                         </div>
                     </div>
+                    )}
 
-                    {/* Employee Selection */}
-                    <div className="pt-4">
-                        <label htmlFor="employee-select" className="block text-sm font-semibold text-gray-900 mb-2">
-                            {isBlockTime ? 'Technician (optional)' : 'Assign Employee *'}
-                        </label>
-                        {employees.length === 0 ? (
-                            <p className="text-sm text-gray-500 mb-2">
-                                No active employees found. Please add employees in the Resources page.
-                            </p>
-                        ) : (
-                            <div className="relative">
+                    {/* Day Select */}
+                    <div className="px-5 py-4">
+                        <div className="flex items-center gap-4">
+                            <CalendarIconLucide className="h-4 w-4 text-[#9e9d92] flex-shrink-0" />
+                            <span className="text-sm text-[#6b6a5e] w-20 flex-shrink-0">Day</span>
+                            <div className="flex-1 relative" ref={startDatePickerRef}>
                                 <button
                                     type="button"
-                                    id="employee-select"
-                                    onClick={() => setShowEmployeeDropdown(!showEmployeeDropdown)}
-                                    onBlur={() => {
-                                        // Delay hiding dropdown to allow click on option
-                                        setTimeout(() => setShowEmployeeDropdown(false), 200);
+                                    onClick={() => {
+                                        if (startDate) {
+                                            setStartDatePickerMonth(new Date(startDate + 'T00:00:00'));
+                                        }
+                                        setShowStartDatePicker(!showStartDatePicker);
+                                        setShowEndDatePicker(false);
                                     }}
-                                    className="w-full px-4 py-2.5 border rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent pr-10 text-left flex items-center gap-3"
-                                    style={{ borderColor: '#E2E2DD' }}
+                                    className="w-full px-3 py-1.5 bg-[#F8F8F7] border-0 rounded-xl text-sm text-left text-[#2B2B26] focus:outline-none focus:ring-2 focus:ring-[#2B2B26]/10"
                                 >
-                                    {selectedEmployeeId ? (
-                                        <>
-                                            {(() => {
-                                                const selectedEmployee = employees.find(e => e.id === selectedEmployeeId);
-                                                return selectedEmployee ? (
-                                                    <>
-                                                        <span 
-                                                            className="w-4 h-4 rounded-full flex-shrink-0"
-                                                            style={{ backgroundColor: selectedEmployee.color }}
-                                                        />
-                                                        <span className="text-sm">{selectedEmployee.name}</span>
-                                                    </>
-                                                ) : (
-                                                    <span className="text-sm text-gray-500">Select an employee</span>
-                                                );
-                                            })()}
-                                        </>
-                                    ) : (
-                                        <span className="text-sm text-gray-500">Select an employee</span>
-                                    )}
+                                    {startDate ? format(new Date(startDate + 'T00:00:00'), 'MMM d, yyyy') : 'Select date'}
                                 </button>
-                                <svg className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                </svg>
-                                
-                                {/* Employee Dropdown */}
-                                {showEmployeeDropdown && (
-                                    <div className="absolute z-20 w-full mt-1 bg-white border rounded-xl shadow-lg max-h-60 overflow-auto top-full" style={{ borderColor: '#E2E2DD' }}>
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setSelectedEmployeeId('');
-                                                setShowEmployeeDropdown(false);
-                                            }}
-                                            className={`w-full flex items-center gap-3 px-4 py-2 text-left hover:bg-gray-50 ${
-                                                !selectedEmployeeId ? 'bg-gray-50' : ''
-                                            }`}
-                                        >
-                                            <span className="text-sm text-gray-500">Select an employee</span>
-                                        </button>
-                                        {employees.map((employee) => {
-                                            const isSelected = selectedEmployeeId === employee.id;
-                                            return (
-                                                <button
-                                                    key={employee.id}
-                                                    type="button"
-                                                    onClick={() => {
-                                                        setSelectedEmployeeId(employee.id);
-                                                        setShowEmployeeDropdown(false);
-                                                    }}
-                                                    className={`w-full flex items-center gap-3 px-4 py-2 text-left hover:bg-gray-50 ${
-                                                        isSelected ? 'bg-gray-50' : ''
-                                                    }`}
-                                                >
-                                                    <span 
-                                                        className="w-4 h-4 rounded-full flex-shrink-0"
-                                                        style={{ backgroundColor: employee.color }}
-                                                    />
-                                                    <span className="text-sm text-gray-900">{employee.name}</span>
-                                                    {isSelected && (
-                                                        <svg className="ml-auto w-4 h-4 text-gray-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                                        </svg>
-                                                    )}
-                                                </button>
-                                            );
-                                        })}
+                                {showStartDatePicker && (
+                                    <div className="absolute top-full left-0 mt-2 bg-white rounded-lg shadow-xl border border-gray-200 z-[100] p-4" style={{ minWidth: '280px' }}>
+                                        <div className="flex items-center justify-between mb-4">
+                                            <button type="button" onClick={() => setStartDatePickerMonth(subMonths(startDatePickerMonth, 1))} className="p-1 rounded hover:bg-gray-100">
+                                                <ChevronLeft className="w-4 h-4 text-gray-600" />
+                                            </button>
+                                            <h3 className="text-sm font-semibold text-gray-900">{format(startDatePickerMonth, 'MMMM yyyy')}</h3>
+                                            <button type="button" onClick={() => setStartDatePickerMonth(addMonths(startDatePickerMonth, 1))} className="p-1 rounded hover:bg-gray-100">
+                                                <ChevronRight className="w-4 h-4 text-gray-600" />
+                                            </button>
+                                        </div>
+                                        <div className="grid grid-cols-7 gap-1 mb-2">
+                                            {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
+                                                <div key={d} className="text-xs font-medium text-gray-500 text-center py-1">{d}</div>
+                                            ))}
+                                        </div>
+                                        <div className="grid grid-cols-7 gap-1">
+                                            {Array(getDay(startOfMonth(startDatePickerMonth))).fill(null).map((_, i) => (
+                                                <div key={`e-${i}`} className="p-2" />
+                                            ))}
+                                            {Array(getDaysInMonth(startDatePickerMonth)).fill(null).map((_, i) => {
+                                                const day = i + 1;
+                                                const date = new Date(startDatePickerMonth.getFullYear(), startDatePickerMonth.getMonth(), day);
+                                                const dateStr = format(date, 'yyyy-MM-dd');
+                                                const isTodayDate = isToday(date);
+                                                const isSelected = startDate === dateStr;
+                                                return (
+                                                    <button
+                                                        key={day}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setStartDate(dateStr);
+                                                            setShowStartDatePicker(false);
+                                                        }}
+                                                        className={`text-xs p-2 rounded hover:bg-gray-100 transition-colors ${
+                                                            isSelected ? 'bg-black text-white' : isTodayDate ? 'bg-gray-200 text-gray-900 font-semibold' : 'text-gray-700'
+                                                        }`}
+                                                    >
+                                                        {day}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
                                     </div>
                                 )}
                             </div>
-                        )}
-                    </div>
+                        </div>
 
-                    {/* Station, Arrival, Customer Status */}
-                    <div className="pt-4">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            {/* Station Dropdown */}
-                            <div>
-                                <label htmlFor="station-select" className="block text-sm font-semibold text-gray-900 mb-2 whitespace-nowrap">
-                                    Station
-                                </label>
-                                <select
-                                    id="station-select"
-                                    value={selectedResourceId}
-                                    onChange={e => setSelectedResourceId(e.target.value)}
-                                    className="w-full px-4 py-2.5 border rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                                    style={{ borderColor: '#E2E2DD' }}
-                                >
-                                    <option value="">Select station</option>
-                                    {resources.map((resource) => (
-                                        <option key={resource.id} value={resource.id}>
-                                            {resource.name}
-                                        </option>
-                                    ))}
-                                </select>
+                        {isMultiDay && (
+                            <div className="flex items-center gap-4 mt-3">
+                                <div className="h-4 w-4 flex-shrink-0" />
+                                <span className="text-sm text-[#6b6a5e] w-20 flex-shrink-0">End Day</span>
+                                <div className="flex-1 relative" ref={endDatePickerRef}>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            if (endDate) {
+                                                setEndDatePickerMonth(new Date(endDate + 'T00:00:00'));
+                                            } else if (startDate) {
+                                                setEndDatePickerMonth(new Date(startDate + 'T00:00:00'));
+                                            }
+                                            setShowEndDatePicker(!showEndDatePicker);
+                                            setShowStartDatePicker(false);
+                                        }}
+                                        className="w-full px-3 py-1.5 bg-[#F8F8F7] border-0 rounded-xl text-sm text-left text-[#2B2B26] focus:outline-none focus:ring-2 focus:ring-[#2B2B26]/10"
+                                    >
+                                        {endDate ? format(new Date(endDate + 'T00:00:00'), 'MMM d, yyyy') : 'Select end date'}
+                                    </button>
+                                    {showEndDatePicker && (
+                                        <div className="absolute top-full left-0 mt-2 bg-white rounded-lg shadow-xl border border-gray-200 z-[100] p-4" style={{ minWidth: '280px' }}>
+                                            <div className="flex items-center justify-between mb-4">
+                                                <button type="button" onClick={() => setEndDatePickerMonth(subMonths(endDatePickerMonth, 1))} className="p-1 rounded hover:bg-gray-100">
+                                                    <ChevronLeft className="w-4 h-4 text-gray-600" />
+                                                </button>
+                                                <h3 className="text-sm font-semibold text-gray-900">{format(endDatePickerMonth, 'MMMM yyyy')}</h3>
+                                                <button type="button" onClick={() => setEndDatePickerMonth(addMonths(endDatePickerMonth, 1))} className="p-1 rounded hover:bg-gray-100">
+                                                    <ChevronRight className="w-4 h-4 text-gray-600" />
+                                                </button>
+                                            </div>
+                                            <div className="grid grid-cols-7 gap-1 mb-2">
+                                                {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
+                                                    <div key={d} className="text-xs font-medium text-gray-500 text-center py-1">{d}</div>
+                                                ))}
+                                            </div>
+                                            <div className="grid grid-cols-7 gap-1">
+                                                {Array(getDay(startOfMonth(endDatePickerMonth))).fill(null).map((_, i) => (
+                                                    <div key={`e-${i}`} className="p-2" />
+                                                ))}
+                                                {Array(getDaysInMonth(endDatePickerMonth)).fill(null).map((_, i) => {
+                                                    const day = i + 1;
+                                                    const date = new Date(endDatePickerMonth.getFullYear(), endDatePickerMonth.getMonth(), day);
+                                                    const dateStr = format(date, 'yyyy-MM-dd');
+                                                    const isTodayDate = isToday(date);
+                                                    const isSelected = endDate === dateStr;
+                                                    return (
+                                                        <button
+                                                            key={day}
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setEndDate(dateStr);
+                                                                setShowEndDatePicker(false);
+                                                            }}
+                                                            className={`text-xs p-2 rounded hover:bg-gray-100 transition-colors ${
+                                                                isSelected ? 'bg-black text-white' : isTodayDate ? 'bg-gray-200 text-gray-900 font-semibold' : 'text-gray-700'
+                                                            }`}
+                                                        >
+                                                            {day}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
-                            
-                            {/* Arrival Dropdown */}
-                            {!isBlockTime ? (
-                                <div>
-                                    <label htmlFor="location-type" className="block text-sm font-semibold text-gray-900 mb-2 whitespace-nowrap">
-                                        Arrival
-                                    </label>
-                                    <select
-                                        id="location-type"
-                                        value={locationType}
-                                        onChange={e => setLocationType(e.target.value)}
-                                        disabled={selectedResourceId ? resources.find(r => r.id === selectedResourceId)?.type === 'van' : false}
-                                        className="w-full px-4 py-2.5 border rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-500"
-                                        style={{ borderColor: '#E2E2DD' }}
-                                    >
-                                        <option value="">Select location type</option>
-                                        <option value="pick up">Pick Up</option>
-                                        <option value="drop off">Drop Off</option>
-                                    </select>
-                                </div>
-                            ) : (
-                                <div />
-                            )}
+                        )}
 
-                            {!isBlockTime ? (
-                                <div>
-                                    <label htmlFor="customer-status" className="block text-sm font-semibold text-gray-900 mb-2 whitespace-nowrap">
-                                        Customer Status
-                                    </label>
-                                    <select
-                                        id="customer-status"
-                                        value={customerType}
-                                        onChange={e => setCustomerType(e.target.value)}
-                                        className="w-full px-4 py-2.5 border rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                                        style={{ borderColor: '#E2E2DD' }}
-                                    >
-                                        <option value="new">New</option>
-                                        <option value="returning">Repeat</option>
-                                        <option value="maintenance">Maintenance</option>
-                                    </select>
-                                </div>
-                            ) : (
-                                <div />
-                            )}
+                        {/* Options: All day / Multi-day checkboxes */}
+                        <div className="flex items-center gap-4 mt-3">
+                            <div className="h-4 w-4 flex-shrink-0" />
+                            <div className="w-20 flex-shrink-0" />
+                            <div className="flex items-center gap-4">
+                                <label className="flex items-center gap-2 cursor-pointer" onClick={() => setIsAllDay(!isAllDay)}>
+                                    <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${isAllDay ? 'bg-[#2B2B26] border-[#2B2B26]' : 'border-[#c1c0b8]'}`}>
+                                        {isAllDay && <Check className="h-3 w-3 text-white" />}
+                                    </div>
+                                    <span className="text-sm text-[#6b6a5e]">All day</span>
+                                </label>
+                                <label className="flex items-center gap-2 cursor-pointer" onClick={() => setIsMultiDay(!isMultiDay)}>
+                                    <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${isMultiDay ? 'bg-[#2B2B26] border-[#2B2B26]' : 'border-[#c1c0b8]'}`}>
+                                        {isMultiDay && <Check className="h-3 w-3 text-white" />}
+                                    </div>
+                                    <span className="text-sm text-[#6b6a5e]">Multi-day</span>
+                                </label>
+                            </div>
                         </div>
                     </div>
 
-                    {/* Payment Status Toggle */}
-                    {!isBlockTime && (
-                    <div className="pt-4">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <h3 className="text-sm font-semibold text-gray-900">Payment Status</h3>
-                                <p className="text-xs text-gray-500 mt-0.5">{isPaid ? 'Marked as paid' : 'Marked as unpaid'}</p>
+                    {/* Time */}
+                    {!isAllDay && (
+                    <div className="px-5 py-4">
+                        <div className="flex items-center gap-4">
+                            <Clock className="h-4 w-4 text-[#9e9d92] flex-shrink-0" />
+                            <span className="text-sm text-[#6b6a5e] w-20 flex-shrink-0">Time</span>
+                            <div className="flex items-center gap-2 flex-1">
+                                <select
+                                    id="start-time"
+                                    value={startTime}
+                                    onChange={e => setStartTime(e.target.value)}
+                                    className="px-3 py-1.5 bg-[#F8F8F7] border-0 rounded-xl text-sm text-[#2B2B26] focus:outline-none focus:ring-2 focus:ring-[#2B2B26]/10 min-w-[100px]"
+                                >
+                                    <option value="">Start</option>
+                                    {timeOptions.map(option => (
+                                        <option key={option.value} value={option.value}>{option.label}</option>
+                                    ))}
+                                </select>
+                                <span className="text-[#9e9d92]">&rarr;</span>
+                                <select
+                                    id="end-time"
+                                    value={endTime}
+                                    onChange={e => setEndTime(e.target.value)}
+                                    className="px-3 py-1.5 bg-[#F8F8F7] border-0 rounded-xl text-sm text-[#2B2B26] focus:outline-none focus:ring-2 focus:ring-[#2B2B26]/10 min-w-[100px]"
+                                >
+                                    <option value="">End</option>
+                                    {timeOptions.map(option => (
+                                        <option key={option.value} value={option.value}>{option.label}</option>
+                                    ))}
+                                </select>
                             </div>
-                            <button
-                                type="button"
-                                onClick={() => setIsPaid(!isPaid)}
-                                className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 ${isPaid ? 'bg-orange-500' : 'bg-gray-300'}`}
-                            >
-                                <span
-                                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${isPaid ? 'translate-x-5' : 'translate-x-0'}`}
-                                />
-                            </button>
                         </div>
                     </div>
                     )}
 
-                    {/* Customer Notes - persistent across jobs */}
+                    {isAllDay && startDate && (!startTime || !endTime) && (
+                        <div className="px-5 py-3">
+                            <div className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                                No business hours set for this day. Please set business hours in your profile settings.
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Location */}
+                    <div className="px-5 py-4">
+                        <div className="flex items-center gap-4 mb-3">
+                            <MapPin className="h-4 w-4 text-[#9e9d92] flex-shrink-0" />
+                            <span className="text-sm text-[#6b6a5e]">Location</span>
+                        </div>
+                        <div className="ml-8 space-y-3">
+                            <select
+                                id="station-select"
+                                value={selectedResourceId}
+                                onChange={e => setSelectedResourceId(e.target.value)}
+                                className="w-full px-3 py-1.5 bg-[#F8F8F7] border-0 rounded-xl text-sm text-[#2B2B26] focus:outline-none focus:ring-2 focus:ring-[#2B2B26]/10"
+                            >
+                                <option value="">Select station</option>
+                                {resources.map((resource) => (
+                                    <option key={resource.id} value={resource.id}>
+                                        {resource.name}
+                                    </option>
+                                ))}
+                            </select>
+
+                            {!isBlockTime && !(selectedResourceId && resources.find(r => r.id === selectedResourceId)?.type === 'van') && (
+                                <select
+                                    id="location-type"
+                                    value={locationType}
+                                    onChange={e => setLocationType(e.target.value)}
+                                    className="w-full px-3 py-1.5 bg-[#F8F8F7] border-0 rounded-xl text-sm text-[#2B2B26] focus:outline-none focus:ring-2 focus:ring-[#2B2B26]/10"
+                                >
+                                    <option value="">Select location type</option>
+                                    <option value="pick up">Pick-up at Bay</option>
+                                    <option value="drop off">Drop-off at Bay</option>
+                                </select>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Technician */}
+                    <div className="px-5 py-4">
+                        <div className="flex items-center gap-4">
+                            <User className="h-4 w-4 text-[#9e9d92] flex-shrink-0" />
+                            <span className="text-sm text-[#6b6a5e] w-20 flex-shrink-0">Technician</span>
+                            <div className="flex-1 relative">
+                                {employees.length === 0 ? (
+                                    <p className="text-xs text-[#9e9d92]">No employees found</p>
+                                ) : (
+                                    <>
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowEmployeeDropdown(!showEmployeeDropdown)}
+                                            className="w-full flex items-center gap-2 px-3 py-1.5 bg-[#F8F8F7] rounded-xl text-sm hover:bg-[#F0F0EE] transition-colors"
+                                        >
+                                            {selectedEmployeeId ? (
+                                                <>
+                                                    {(() => {
+                                                        const selectedEmployee = employees.find(e => e.id === selectedEmployeeId);
+                                                        return selectedEmployee ? (
+                                                            <>
+                                                                <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: selectedEmployee.color }} />
+                                                                <span className="text-[#2B2B26]">{selectedEmployee.name}</span>
+                                                            </>
+                                                        ) : (
+                                                            <span className="text-[#9e9d92]">Select employee</span>
+                                                        );
+                                                    })()}
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <span className="w-3 h-3 rounded-full flex-shrink-0 bg-[#c1c0b8]" />
+                                                    <span className="text-[#9e9d92]">No Technician</span>
+                                                </>
+                                            )}
+                                            <ChevronDown className="h-4 w-4 text-[#9e9d92] ml-auto" />
+                                        </button>
+                                        {showEmployeeDropdown && (
+                                            <>
+                                                <div className="fixed inset-0 z-40" onClick={() => setShowEmployeeDropdown(false)} />
+                                                <div className="absolute top-full left-0 mt-1 w-full bg-white border border-[#deded9] rounded-lg shadow-lg py-1 z-50">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => { setSelectedEmployeeId(''); setShowEmployeeDropdown(false); }}
+                                                        className="w-full px-3 py-2 text-left hover:bg-[#F8F8F7] flex items-center gap-2 text-sm transition-colors"
+                                                    >
+                                                        <span className="w-3 h-3 rounded-full bg-[#c1c0b8]" />
+                                                        <span className="text-[#2B2B26]">No Technician</span>
+                                                        {!selectedEmployeeId && <Check className="h-4 w-4 ml-auto text-[#2B2B26]" />}
+                                                    </button>
+                                                    {employees.map((employee) => {
+                                                        const isSelected = selectedEmployeeId === employee.id;
+                                                        return (
+                                                            <button
+                                                                key={employee.id}
+                                                                type="button"
+                                                                onClick={() => { setSelectedEmployeeId(employee.id); setShowEmployeeDropdown(false); }}
+                                                                className="w-full px-3 py-2 text-left hover:bg-[#F8F8F7] flex items-center gap-2 text-sm transition-colors"
+                                                            >
+                                                                <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: employee.color }} />
+                                                                <span className="text-[#2B2B26]">{employee.name}</span>
+                                                                {isSelected && <Check className="h-4 w-4 ml-auto text-[#2B2B26]" />}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </>
+                                        )}
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Payment */}
                     {!isBlockTime && (
-                    <div className="pt-4">
-                        <h3 className="text-sm font-semibold text-gray-900 mb-4">Customer Notes</h3>
-                        <div>
+                    <div className="px-5 py-4">
+                        <div className="flex items-center gap-4">
+                            <CreditCard className="h-4 w-4 text-[#9e9d92] flex-shrink-0" />
+                            <span className="text-sm text-[#6b6a5e] w-20 flex-shrink-0">Payment</span>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={isPaid}
+                                    onChange={(e) => setIsPaid(e.target.checked)}
+                                    className="w-4 h-4 rounded border-[#deded9] text-[#2B2B26] focus:ring-[#2B2B26]"
+                                />
+                                <span className="text-sm text-[#2B2B26]">Paid</span>
+                            </label>
+                        </div>
+                    </div>
+                    )}
+
+                    {/* Customer Notes */}
+                    {!isBlockTime && (
+                    <div className="px-5 py-4">
+                        <div className="flex items-center gap-4 mb-3">
+                            <MessageSquare className="h-4 w-4 text-[#9e9d92] flex-shrink-0" />
+                            <span className="text-sm text-[#6b6a5e]">Customer Notes</span>
+                        </div>
+                        <div className="ml-8">
                             <textarea 
                                 id="customer-notes"
                                 value={customerNotes} 
                                 onChange={e => setCustomerNotes(e.target.value)} 
-                                rows={3}
-                                className="w-full px-4 py-2.5 border rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent resize-none" 
-                                placeholder="e.g., Customer prefers hand-wash only, always 5 minutes late, prefers early morning appointments..."
-                                style={{ borderColor: '#E2E2DD' }}
+                                className="w-full p-3 border border-[#deded9] rounded-xl text-sm resize-none h-20 focus:outline-none focus:border-[#316bfe] bg-white text-[#2B2B26] placeholder:text-[#9e9d92]" 
+                                placeholder="Customer prefers hand-wash only, always 5 minutes late..."
                             />
-                            <p className="mt-1 text-xs text-gray-500">These notes stay with the customer and will appear on all their future jobs</p>
                         </div>
                     </div>
                     )}
 
-                    {/* Event Notes - specific to this event/job */}
-                    <div className="pt-4">
-                        <h3 className="text-sm font-semibold text-gray-900 mb-4">
-                            {isBlockTime ? 'Notes' : 'Event Notes'}
-                        </h3>
-                        <div>
+                    {/* Event Notes */}
+                    <div className="px-5 py-4">
+                        <div className="flex items-center gap-4 mb-3">
+                            <MessageSquare className="h-4 w-4 text-[#9e9d92] flex-shrink-0" />
+                            <span className="text-sm text-[#6b6a5e]">{isBlockTime ? 'Notes' : 'Event Notes'}</span>
+                        </div>
+                        <div className="ml-8">
                             <textarea 
                                 id="event-notes"
                                 value={description} 
                                 onChange={e => setDescription(e.target.value)} 
-                                rows={3}
-                                className="w-full px-4 py-2.5 border rounded-xl bg-white text-gray-900 focus:ring-2 focus:ring-gray-900 focus:border-transparent resize-none" 
-                                placeholder={isBlockTime ? 'Add any notes...' : 'e.g., Customer wants extra attention on door panel scratches, bring ceramic spray...'}
-                                style={{ borderColor: '#E2E2DD' }}
+                                className="w-full p-3 border border-[#deded9] rounded-xl text-sm resize-none h-20 focus:outline-none focus:border-[#316bfe] bg-white text-[#2B2B26] placeholder:text-[#9e9d92]" 
+                                placeholder={isBlockTime ? 'Add any notes...' : 'Add event notes...'}
                             />
-                            {!isBlockTime && (
-                                <p className="mt-1 text-xs text-gray-500">These notes are specific to this event only</p>
-                            )}
                         </div>
-                        </div>
+                    </div>
+
+                    {/* Hidden customer status selector */}
+                    {!isBlockTime && (
+                        <input type="hidden" value={customerType} />
+                    )}
                     </div>
                 </div>
 
-                <div className="flex-shrink-0 p-6" style={{ backgroundColor: '#F8F8F7' }}>
-                    <div className="flex gap-3">
-                        <button 
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                e.preventDefault();
-                                handleClose();
-                            }} 
-                            className="flex-1 px-6 py-2 border rounded-xl text-gray-700 hover:bg-gray-50 transition-colors" 
-                            style={{ borderColor: '#E2E2DD' }}
-                        >
-                            Cancel
+                <div className="flex-shrink-0 px-5 py-4 border-t border-[#F0F0EE]">
+                    <button 
+                        onClick={handleSubmit} 
+                        className="w-full py-2.5 bg-[#2B2B26] text-white text-sm font-medium rounded-xl hover:bg-[#1a1a18] transition-colors"
+                    >
+                        {editingEvent ? 'Save changes' : (isBlockTime ? 'Create Block Time' : 'Create Appointment')}
                     </button>
-                        <button onClick={handleSubmit} className="flex-1 px-6 py-2 bg-[#2b2b26] text-white rounded-xl hover:bg-[#4a4844] transition-colors flex items-center justify-center gap-2">
-                            <CheckIcon className="w-5 h-5" />
-                            <span>{isBlockTime ? 'Create Block Time' : 'Accept'}</span>
-                    </button>
-                    </div>
                 </div>
             </div>
 

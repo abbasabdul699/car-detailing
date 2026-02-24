@@ -1,3 +1,12 @@
+import {
+  DEFAULT_VEHICLE_CATALOG,
+  getManufacturerForModel,
+  normalizeModelName,
+  parseVehicleInput as parseCatalogVehicleInput,
+  normalizeVehiclePayload,
+  type ParsedVehicleInput,
+} from '@/lib/vehicleCatalog';
+
 // Enhanced vehicle validation and normalization
 export interface VehicleInfo {
   year?: number
@@ -62,10 +71,8 @@ export function normalizeModel(make: string, model: string): string {
     }
   }
 
-  // Default: capitalize first letter of each word
-  return model.split(' ').map(word => 
-    word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
-  ).join(' ')
+  // Default: use canonical model casing from catalog.
+  return normalizeModelName(model, DEFAULT_VEHICLE_CATALOG)
 }
 
 // Generate clarification questions
@@ -99,4 +106,16 @@ function getCommonModels(make: string): string[] {
   if (makeLower.includes('ford')) return ['F-150', 'Mustang', 'Explorer', 'Escape']
   
   return []
+}
+
+export function resolveMakeFromModel(model: string): string | null {
+  return getManufacturerForModel(model, DEFAULT_VEHICLE_CATALOG)
+}
+
+export function parseVehicleInput(input: string): ParsedVehicleInput {
+  return parseCatalogVehicleInput(input, DEFAULT_VEHICLE_CATALOG)
+}
+
+export function normalizeVehicles(inputVehicles: string[]) {
+  return normalizeVehiclePayload(inputVehicles, DEFAULT_VEHICLE_CATALOG)
 }

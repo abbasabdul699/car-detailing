@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { detailerAuthOptions } from '@/app/api/auth-detailer/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { normalizeToE164 } from '@/lib/phone';
+import { normalizeVehicles, parseVehicleInput } from '@/lib/vehicleValidation';
 
 export const maxDuration = 60;
 
@@ -112,6 +113,8 @@ export async function POST(request: NextRequest) {
     const legacyVehicleYearIndex = vehiclesIndex === -1 ? headers.findIndex(h => h.includes('vehicle') && h.includes('year')) : -1;
     const legacyVehicleMakeIndex = vehiclesIndex === -1 ? headers.findIndex(h => h.includes('vehicle') && h.includes('make')) : -1;
     const legacyVehicleModelIndex = vehiclesIndex === -1 ? headers.findIndex(h => h.includes('vehicle') && h.includes('model')) : -1;
+    const makeIndex = headers.findIndex(h => h === 'make' || h === 'manufacturer' || h === 'brand');
+    const modelIndex = headers.findIndex(h => h === 'model' || h === 'vehicle model');
 
     const servicesIndex = headers.findIndex(h => h.includes('service'));
     const customerTypeIndex = headers.findIndex(h => h.includes('customer') && h.includes('type'));
@@ -134,7 +137,8 @@ export async function POST(request: NextRequest) {
     const totalRows = rows.length - 1; // exclude header
     const results = {
       success: 0,
-      errors: [] as Array<{ row: number; error: string }>
+      errors: [] as Array<{ row: number; error: string }>,
+      warnings: [] as Array<{ row: number; warning: string }>
     };
 
     // Check if client wants streaming progress
@@ -166,37 +170,12 @@ export async function POST(request: NextRequest) {
             type: 'complete',
             success: results.success,
             errors: results.errors,
+            warnings: results.warnings,
           });
           streamController.enqueue(encoder.encode(`data: ${data}\n\n`));
           streamController.close();
         } catch { /* stream may have been closed */ }
       }
-    }
-
-    // Helper: parse a vehicle string like "2020 Toyota Camry" or "Toyota Camry 2020"
-    function parseVehicleString(v: string): { vehicle: string; year?: number; make?: string; model?: string } {
-      const trimmed = v.trim();
-      if (!trimmed) return { vehicle: '' };
-
-      // Try "Year Make Model" pattern
-      const ymm = trimmed.match(/^((?:19|20)\d{2})\s+([A-Za-z][A-Za-z\-]+)\s+(.+)$/);
-      if (ymm) {
-        return { vehicle: trimmed, year: parseInt(ymm[1], 10), make: ymm[2], model: ymm[3] };
-      }
-
-      // Try "Make Model Year" pattern
-      const mmy = trimmed.match(/^([A-Za-z][A-Za-z\-]+)\s+(.+?)\s+((?:19|20)\d{2})$/);
-      if (mmy) {
-        return { vehicle: trimmed, year: parseInt(mmy[3], 10), make: mmy[1], model: mmy[2] };
-      }
-
-      // Try "Make Model" pattern (no year)
-      const mm = trimmed.match(/^([A-Za-z][A-Za-z\-]+)\s+(.+)$/);
-      if (mm) {
-        return { vehicle: trimmed, make: mm[1], model: mm[2] };
-      }
-
-      return { vehicle: trimmed };
     }
 
     // Helper: parse lifetime value from "$1,272.00" format
@@ -313,13 +292,6 @@ export async function POST(request: NextRequest) {
         const vehiclesStr = row[vehiclesIndex]?.trim() || '';
         if (vehiclesStr) {
           vehiclesArray = vehiclesStr.split(/[;]/).map(s => s.trim()).filter(Boolean);
-          if (vehiclesArray.length > 0) {
-            const parsed = parseVehicleString(vehiclesArray[0]);
-            vehicle = parsed.vehicle || undefined;
-            vehicleYear = parsed.year;
-            vehicleMake = parsed.make;
-            vehicleModel = parsed.model;
-          }
         }
       } else if (legacyVehicleIndex >= 0) {
         vehicle = row[legacyVehicleIndex]?.trim() || undefined;
@@ -327,6 +299,35 @@ export async function POST(request: NextRequest) {
         vehicleMake = legacyVehicleMakeIndex >= 0 ? row[legacyVehicleMakeIndex]?.trim() || undefined : undefined;
         vehicleModel = legacyVehicleModelIndex >= 0 ? row[legacyVehicleModelIndex]?.trim() || undefined : undefined;
         if (vehicle) vehiclesArray = [vehicle];
+      }
+
+      if (vehiclesArray.length === 0 && modelIndex >= 0 && row[modelIndex]?.trim()) {
+        const makeFromColumn = makeIndex >= 0 ? row[makeIndex]?.trim() : '';
+        const modelFromColumn = row[modelIndex]?.trim();
+        const yearFromColumn = legacyVehicleYearIndex >= 0 ? row[legacyVehicleYearIndex]?.trim() : '';
+        vehiclesArray = [[yearFromColumn, makeFromColumn, modelFromColumn].filter(Boolean).join(' ').trim()];
+      }
+
+      const normalizedVehicles = normalizeVehicles(vehiclesArray);
+      if (normalizedVehicles.vehicles.length > 0) {
+        vehiclesArray = normalizedVehicles.vehicles;
+        vehicle = normalizedVehicles.vehicle;
+        vehicleYear = normalizedVehicles.vehicleYear;
+        vehicleMake = normalizedVehicles.vehicleMake;
+        vehicleModel = normalizedVehicles.vehicleModel;
+      } else if (vehicle || vehicleModel) {
+        const fallbackParsed = parseVehicleInput(vehicle || vehicleModel || '');
+        vehicle = fallbackParsed.vehicle || vehicle;
+        vehicleYear = fallbackParsed.year || vehicleYear;
+        vehicleMake = fallbackParsed.make || vehicleMake;
+        vehicleModel = fallbackParsed.model || vehicleModel;
+      }
+
+      if (normalizedVehicles.unresolvedVehicles.length > 0) {
+        results.warnings.push({
+          row: rowNumber,
+          warning: `Unresolved vehicle entries: ${normalizedVehicles.unresolvedVehicles.join(', ')}`,
+        });
       }
 
       const servicesStr = servicesIndex >= 0 ? row[servicesIndex]?.trim() : undefined;

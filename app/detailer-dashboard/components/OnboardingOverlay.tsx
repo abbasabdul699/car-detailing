@@ -951,7 +951,7 @@ function Step5Services({ onContinue, onBack }: { onContinue: (services: { name: 
 
   if (phase === "choose") {
     return (
-      <ScrollStepContainer className="text-center">
+      <ScrollStepContainer className="text-center min-h-[calc(100dvh-5rem)]">
         <div className="flex-1 flex flex-col items-center justify-center">
           <h2 className="text-lg font-medium mb-1.5" style={{ color: TEXT_PRIMARY }}>Your services</h2>
           <p className="text-sm font-light mb-8" style={{ color: TEXT_SECONDARY }}>

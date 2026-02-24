@@ -4,6 +4,7 @@ import { detailerAuthOptions } from '@/app/api/auth-detailer/[...nextauth]/route
 import { prisma } from '@/lib/prisma';
 import { normalizeToE164 } from '@/lib/phone';
 import { DateTime } from 'luxon';
+import { normalizeVehicles } from '@/lib/vehicleValidation';
 
 export async function GET(request: NextRequest) {
   try {
@@ -131,8 +132,9 @@ export async function GET(request: NextRequest) {
       const importedVisitCount = typeof customerData.importedVisitCount === 'number' ? customerData.importedVisitCount : 0;
       const importedLastVisit = typeof customerData.importedLastVisit === 'string' ? customerData.importedLastVisit : null;
 
-      // Total visits = real bookings + imported historical count
-      const completedServiceCount = realCount + importedVisitCount;
+      // Imported visit count represents total historical visits (which may overlap
+      // with real bookings tracked in the system), so take the greater of the two.
+      const completedServiceCount = Math.max(realCount, importedVisitCount);
 
       // Last service = latest of real booking or imported last visit
       let lastCompletedServiceAt = realLastAt;
@@ -207,9 +209,15 @@ export async function POST(request: NextRequest) {
     if (data && typeof data === 'object') {
       mergedData = { ...mergedData, ...data };
     }
+    const normalizedVehicleInput = normalizeVehicles(
+      Array.isArray(vehicles)
+        ? vehicles
+        : [vehicleModel, vehicle].filter((v): v is string => typeof v === 'string' && !!v.trim())
+    );
+
     // Store vehicles array in data.vehicles if provided
     if (vehicles !== undefined) {
-      mergedData.vehicles = Array.isArray(vehicles) ? vehicles : [];
+      mergedData.vehicles = normalizedVehicleInput.vehicles;
     }
     // Store customerNotes array in data.customerNotes if provided
     if (customerNotes !== undefined) {
@@ -217,9 +225,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Sync vehicleModel with first vehicle in vehicles array for backward compat
-    const finalVehicleModel = (vehicles !== undefined && Array.isArray(vehicles) && vehicles.length > 0)
-      ? vehicles[0]
-      : (vehicleModel || vehicle);
+    const finalVehicleModel = normalizedVehicleInput.vehicleModel || vehicleModel || vehicle;
+    const finalVehicleMake = normalizedVehicleInput.vehicleMake || vehicleMake;
+    const finalVehicleYear = normalizedVehicleInput.vehicleYear || vehicleYear;
 
     const customer = await prisma.customerSnapshot.upsert({
       where: { 
@@ -235,8 +243,8 @@ export async function POST(request: NextRequest) {
         locationType,
         customerType,
         vehicle: finalVehicleModel,
-        vehicleYear,
-        vehicleMake,
+        vehicleYear: finalVehicleYear,
+        vehicleMake: finalVehicleMake,
         vehicleModel: finalVehicleModel,
         services: services || [],
         vcardSent,
@@ -251,8 +259,8 @@ export async function POST(request: NextRequest) {
         locationType,
         customerType,
         vehicle: finalVehicleModel,
-        vehicleYear,
-        vehicleMake,
+        vehicleYear: finalVehicleYear,
+        vehicleMake: finalVehicleMake,
         vehicleModel: finalVehicleModel,
         services: services || [],
         vcardSent: vcardSent || false,
@@ -292,7 +300,7 @@ export async function POST(request: NextRequest) {
                 customerAddress: address !== undefined ? address : metadata.customerAddress,
                 locationType: locationType !== undefined ? locationType : metadata.locationType,
                 customerType: customerType !== undefined ? customerType : metadata.customerType,
-                vehicleModel: vehicleModel !== undefined ? vehicleModel : metadata.vehicleModel,
+                vehicleModel: finalVehicleModel !== undefined ? finalVehicleModel : metadata.vehicleModel,
                 services: services !== undefined ? services : metadata.services
               };
 

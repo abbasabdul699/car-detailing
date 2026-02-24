@@ -5,6 +5,8 @@ import { useRouter, useParams } from 'next/navigation';
 import { format } from 'date-fns';
 import { formatPhoneDisplay, normalizeToE164 } from '@/lib/phone';
 import { getCustomerTypeFromHistory } from '@/lib/customerType';
+import VehicleChip from '@/app/components/vehicle/VehicleChip';
+import VehiclePickerPopover from '@/app/components/vehicle/VehiclePickerPopover';
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -158,8 +160,6 @@ export default function CustomerProfilePage() {
 
   // Vehicles state
   const [isAddingVehicle, setIsAddingVehicle] = useState(false);
-  const [newVehicleName, setNewVehicleName] = useState('');
-  const newVehicleRef = useRef<HTMLInputElement>(null);
 
   // Hide hamburger menu on mobile for this page
   useEffect(() => {
@@ -556,36 +556,22 @@ export default function CustomerProfilePage() {
           <h3 className="text-[10px] font-black uppercase tracking-[0.2em] mb-2" style={{ color: '#838274' }}>Vehicles</h3>
           <div className="flex flex-col md:flex-row md:flex-wrap gap-2 items-stretch md:items-center">
             {vehicles.map((v, idx) => (
-              <div key={idx} className="px-3 py-2.5 md:py-2 rounded-lg flex items-center gap-2 w-full md:w-auto group" style={{ backgroundColor: '#F8F8F7', border: '1px solid #F0F0EE' }}>
-                <div className="h-6 w-6 bg-white rounded flex items-center justify-center" style={{ border: '1px solid #F0F0EE' }}>
-                  <svg className="h-3 w-3" style={{ color: '#838274' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 00-10.026 0 1.106 1.106 0 00-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12" />
-                  </svg>
-                </div>
-                <span className="text-xs font-bold flex-1" style={{ color: '#2B2B26' }}>{v}</span>
-                <button onClick={() => handleRemoveVehicle(idx)} className="text-gray-400 hover:text-red-500 transition-opacity p-0.5">
-                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                </button>
-              </div>
+              <VehicleChip key={idx} model={v} onRemove={() => handleRemoveVehicle(idx)} className="w-full md:w-auto" />
             ))}
             {isAddingVehicle ? (
               <div className="flex items-center gap-2 w-full md:w-auto">
-                <input
-                  ref={newVehicleRef}
-                  type="text"
-                  value={newVehicleName}
-                  onChange={(e) => setNewVehicleName(e.target.value)}
-                  placeholder="e.g. 2024 BMW X5"
-                  className="text-xs px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-1 focus:ring-orange-400 flex-1 md:w-[180px]"
-                  autoFocus
-                  onKeyDown={(e) => { if (e.key === 'Enter') handleAddVehicle(newVehicleName); if (e.key === 'Escape') { setIsAddingVehicle(false); setNewVehicleName(''); } }}
+                <VehiclePickerPopover
+                  onSelect={(model) => {
+                    handleAddVehicle(model);
+                    setIsAddingVehicle(false);
+                  }}
+                  buttonLabel="Choose vehicle"
                 />
-                <button onClick={() => handleAddVehicle(newVehicleName)} className="text-[10px] font-medium px-2.5 py-2 rounded-lg bg-black text-white">Add</button>
-                <button onClick={() => { setIsAddingVehicle(false); setNewVehicleName(''); }} className="text-[10px] font-medium px-2.5 py-2 rounded-lg border" style={{ borderColor: '#deded9', color: '#838274' }}>Cancel</button>
+                <button onClick={() => setIsAddingVehicle(false)} className="text-[10px] font-medium px-2.5 py-2 rounded-lg border" style={{ borderColor: '#deded9', color: '#838274' }}>Cancel</button>
               </div>
             ) : (
               <button
-                onClick={() => { setIsAddingVehicle(true); setTimeout(() => newVehicleRef.current?.focus(), 50); }}
+                onClick={() => { setIsAddingVehicle(true); }}
                 className="w-full md:w-auto h-[44px] md:h-[38px] px-3 rounded-lg flex items-center justify-center gap-2 transition-colors active:bg-gray-50"
                 style={{ border: '1px dashed #deded9', color: '#838274' }}
               >

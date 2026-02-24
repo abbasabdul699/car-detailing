@@ -222,7 +222,7 @@ const InlinePropertyRow = ({ icon, label, value, displayValue, placeholder, onSa
 
     return (
       <div
-        className="relative flex items-center gap-3 px-4 py-3 border-t cursor-pointer hover:bg-gray-50 transition-colors group"
+        className="relative flex items-center gap-3 px-4 py-3 border-t cursor-pointer hover:bg-[#fafaf9] transition-colors group"
         style={{ borderColor: '#E2E2DD' }}
         onClick={() => { if (!calendarOpen) setCalendarOpen(true); }}
         onMouseEnter={onInfoHover}
@@ -260,13 +260,13 @@ const InlinePropertyRow = ({ icon, label, value, displayValue, placeholder, onSa
                   onClick={(e) => { e.stopPropagation(); setCalendarMonth(subMonths(calendarMonth, 1)); }}
                   className="p-1 rounded hover:bg-gray-100"
                 >
-                  <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" /></svg>
+                  <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
                 </button>
                 <button
                   onClick={(e) => { e.stopPropagation(); setCalendarMonth(addMonths(calendarMonth, 1)); }}
                   className="p-1 rounded hover:bg-gray-100"
                 >
-                  <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                  <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
                 </button>
               </div>
             </div>
@@ -305,7 +305,7 @@ const InlinePropertyRow = ({ icon, label, value, displayValue, placeholder, onSa
                     }}
                     className={`text-xs p-1.5 rounded hover:bg-gray-100 transition-colors ${
                       isSelected
-                        ? 'bg-[#F97316] text-white font-semibold'
+                        ? 'bg-[#2B2B26] text-white font-semibold'
                         : isTodayDate
                         ? 'bg-gray-200 text-gray-900 font-semibold'
                         : 'text-gray-700'
@@ -325,7 +325,7 @@ const InlinePropertyRow = ({ icon, label, value, displayValue, placeholder, onSa
                   onSave('');
                   setCalendarOpen(false);
                 }}
-                className="text-xs text-[#F97316] hover:text-orange-600 font-medium"
+                className="text-xs text-[#2B2B26] hover:text-[#1a1a18] font-medium"
               >
                 Clear
               </button>
@@ -337,7 +337,7 @@ const InlinePropertyRow = ({ icon, label, value, displayValue, placeholder, onSa
                   onSave(dateStr);
                   setCalendarOpen(false);
                 }}
-                className="text-xs text-[#F97316] hover:text-orange-600 font-medium"
+                className="text-xs text-[#2B2B26] hover:text-[#1a1a18] font-medium"
               >
                 Today
               </button>
@@ -374,7 +374,7 @@ const InlinePropertyRow = ({ icon, label, value, displayValue, placeholder, onSa
     return (
       <div
         ref={addressRowRef}
-        className="relative flex items-center gap-3 px-4 py-3 border-t cursor-pointer hover:bg-gray-50 transition-colors group"
+        className="relative flex items-center gap-3 px-4 py-3 border-t cursor-pointer hover:bg-[#fafaf9] transition-colors group"
         style={{ borderColor: '#E2E2DD' }}
         onClick={() => { if (!editing) { addressSelectedRef.current = false; setEditing(true); } }}
         onMouseEnter={onInfoHover}
@@ -418,7 +418,7 @@ const InlinePropertyRow = ({ icon, label, value, displayValue, placeholder, onSa
   // Text / Time types: keep existing behavior
   return (
     <div
-      className="flex items-center gap-3 px-4 py-3 border-t cursor-pointer hover:bg-gray-50 transition-colors group"
+      className="flex items-center gap-3 px-4 py-3 border-t cursor-pointer hover:bg-[#fafaf9] transition-colors group"
       style={{ borderColor: '#E2E2DD' }}
       onClick={() => { if (!editing) setEditing(true); }}
       onMouseEnter={onInfoHover}
@@ -481,7 +481,7 @@ const InlineDropdownRow = ({ icon, label, value, displayValue, placeholder, opti
   return (
     <div ref={dropdownRef} className="relative">
       <div
-        className="flex items-center gap-3 px-4 py-3 border-t cursor-pointer hover:bg-gray-50 transition-colors group"
+        className="flex items-center gap-3 px-4 py-3 border-t cursor-pointer hover:bg-[#fafaf9] transition-colors group"
         style={{ borderColor: '#E2E2DD' }}
         onClick={() => setOpen(!open)}
       >
@@ -508,12 +508,12 @@ const InlineDropdownRow = ({ icon, label, value, displayValue, placeholder, opti
           {options.map(opt => (
             <button
               key={opt.value}
-              className={`w-full text-left px-3 py-2 text-sm hover:bg-orange-50 transition-colors flex items-center gap-2 ${opt.value === value ? 'bg-orange-50 text-orange-600 font-medium' : 'text-gray-700'}`}
+              className={`w-full text-left px-3 py-2 text-sm hover:bg-[#f8f8f7] transition-colors flex items-center gap-2 ${opt.value === value ? 'bg-[#f0f0ee] text-[#2B2B26] font-medium' : 'text-gray-700'}`}
               onClick={() => { onSave(opt.value); setOpen(false); }}
             >
               {opt.icon && <span>{opt.icon}</span>}
               {renderOption ? renderOption(opt) : <span>{opt.label}</span>}
-              {opt.value === value && <CheckIcon className="w-4 h-4 text-orange-500 ml-auto" />}
+              {opt.value === value && <CheckIcon className="w-4 h-4 text-[#2B2B26] ml-auto" />}
             </button>
           ))}
         </div>
@@ -572,7 +572,7 @@ const InlineServicesRow = ({ selectedServices, availableServices, availableBundl
             <div />
             <button
               onClick={() => setOpen(!open)}
-              className="text-xs text-orange-500 hover:text-orange-600 font-medium"
+              className="text-xs text-[#2B2B26] hover:text-[#1a1a18] font-medium"
             >
               {open ? 'Done' : '+ Edit'}
             </button>
@@ -603,7 +603,7 @@ const InlineServicesRow = ({ selectedServices, availableServices, availableBundl
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Search services..."
-              className="w-full text-sm px-2 py-1.5 border rounded-md bg-gray-50 outline-none focus:ring-1 focus:ring-orange-300"
+              className="w-full text-sm px-2 py-1.5 border rounded-md bg-gray-50 outline-none focus:ring-1 focus:ring-[#2B2B26]/20"
               style={{ borderColor: '#E2E2DD' }}
             />
           </div>
@@ -613,10 +613,10 @@ const InlineServicesRow = ({ selectedServices, availableServices, availableBundl
               {filteredBundles.map(b => (
                 <button
                   key={b.id}
-                  className={`w-full text-left px-2 py-1.5 text-sm rounded hover:bg-orange-50 flex items-center gap-2 ${selectedNames.has(b.name) ? 'text-orange-600 font-medium' : 'text-gray-700'}`}
+                  className={`w-full text-left px-2 py-1.5 text-sm rounded hover:bg-[#f8f8f7] flex items-center gap-2 ${selectedNames.has(b.name) ? 'text-[#2B2B26] font-medium' : 'text-gray-700'}`}
                   onClick={() => toggleService(b.name, 'bundle')}
                 >
-                  <div className={`w-4 h-4 rounded border flex items-center justify-center ${selectedNames.has(b.name) ? 'bg-orange-500 border-orange-500' : 'border-gray-300'}`}>
+                  <div className={`w-4 h-4 rounded border flex items-center justify-center ${selectedNames.has(b.name) ? 'bg-[#2B2B26] border-[#2B2B26]' : 'border-gray-300'}`}>
                     {selectedNames.has(b.name) && <CheckIcon className="w-3 h-3 text-white" />}
                   </div>
                   {b.name}
@@ -631,10 +631,10 @@ const InlineServicesRow = ({ selectedServices, availableServices, availableBundl
               {filteredServices.map(s => (
                 <button
                   key={s.id}
-                  className={`w-full text-left px-2 py-1.5 text-sm rounded hover:bg-orange-50 flex items-center gap-2 ${selectedNames.has(s.name) ? 'text-orange-600 font-medium' : 'text-gray-700'}`}
+                  className={`w-full text-left px-2 py-1.5 text-sm rounded hover:bg-[#f8f8f7] flex items-center gap-2 ${selectedNames.has(s.name) ? 'text-[#2B2B26] font-medium' : 'text-gray-700'}`}
                   onClick={() => toggleService(s.name, 'service')}
                 >
-                  <div className={`w-4 h-4 rounded border flex items-center justify-center ${selectedNames.has(s.name) ? 'bg-orange-500 border-orange-500' : 'border-gray-300'}`}>
+                  <div className={`w-4 h-4 rounded border flex items-center justify-center ${selectedNames.has(s.name) ? 'bg-[#2B2B26] border-[#2B2B26]' : 'border-gray-300'}`}>
                     {selectedNames.has(s.name) && <CheckIcon className="w-3 h-3 text-white" />}
                   </div>
                   {s.name}
@@ -699,7 +699,7 @@ const InlineTextareaRow = ({ icon, label, value, placeholder, onSave }: {
               onBlur={commit}
               onKeyDown={e => { if (e.key === 'Escape') { setDraft(value); setEditing(false); } }}
               placeholder={placeholder}
-              className="w-full text-sm text-gray-700 bg-white border rounded-lg p-2 outline-none focus:ring-1 focus:ring-orange-300 resize-none min-h-[48px]"
+              className="w-full text-sm text-gray-700 bg-white border rounded-lg p-2 outline-none focus:ring-1 focus:ring-[#2B2B26]/20 resize-none min-h-[48px]"
               style={{ borderColor: '#E2E2DD' }}
             />
           ) : (
@@ -1802,7 +1802,7 @@ const EventEditForm = forwardRef<{ handleCancel: () => void; handleSubmit: () =>
                       selectedEmployeeId === employee.id ? 'bg-gray-50' : ''
                     }`}
                   >
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold ${getEmployeeBadgeClass(employee.color)}`}>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold ${getEmployeeBadgeClass((employee as any).color)}`}>
                       {getEmployeeInitials(employee.name)}
                     </div>
                     <span className="text-sm text-gray-900">{employee.name}</span>
@@ -3829,61 +3829,31 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                         const isPastEvent = isPastDay || (isSameDay(day, now) && endTime < now);
                                         const isUnpaid = isEventUnpaid(event);
                                         
-                                        // Adaptive content visibility based on card height (in pixels) - matching Figma designs
-                                        // If card is less than or equal to one hour tall, hide time, employee image, and comments
-                                        // Use actual duration in hours, not calculated height, to avoid Math.max precision issues
-                                        const oneHourHeight = scaledTimeSlotHeight; // Height of one hour in pixels (e.g., 96px)
-                                        // Hide time, notes, and employee image when duration is <= 1 hour
-                                        // Only show these elements when duration is strictly greater than 1 hour
-                                        const isAtLeastOneHour = durationHours > 1.0;
-                                        
-                                        // Smallest (< 25px): Title + pink indicator bar
-                                        // 2nd (>= 25px): Title + Time + Drop-off button
-                                        // 3rd (>= 55px): Title + Time + Vehicle + Notes + Both buttons
-                                        // 4th (>= 85px): Title + Time + Vehicle + Notes + Customer name + Both buttons + Profile picture
-                                        // Largest (>= 100px): Title + Time + Vehicle + Notes + Customer name + Customer phone + Both buttons + Profile picture
-                                        const isSmallest = height < 25; // Show only title + indicator bar
-                                        
-                                        // Hide time, notes, and employee image if card is less than one hour tall
-                                        // These elements require the card to be at least one hour tall to display
-                                        const showTime = height >= 25 && isAtLeastOneHour;
-                                        const showLocationButton = !isBlockEvent && height >= 25; // Show location button starting from 2nd design
-                                        const showVehicle = !isBlockEvent && height >= 55; // Show vehicle starting from 3rd design
-                                        const showNotes = height >= 55 && isAtLeastOneHour; // Hide notes if less than one hour
-                                        const showRepeatButton = !isBlockEvent && height >= 55; // Show repeat button starting from 3rd design
-                                        const showCustomerName = !isBlockEvent && height >= 85; // Show customer name starting from 4th design
-                                        const showTechPicture = height >= 85 && isAtLeastOneHour; // Hide employee image if less than one hour
-                                        const showCustomerPhone = !isBlockEvent && height >= 100; // Show customer phone starting from largest design
-                                        const showCustomerAddress = !isBlockEvent && showCustomerPhone;
-                                        const addressLine = (() => {
+                                        // Replit-style adaptive card thresholds for week/day cards.
+                                        const serviceTitle =
+                                            event.title ||
+                                            event.eventName ||
+                                            (Array.isArray(event.services) ? event.services.join(' + ') : event.services) ||
+                                            'Service';
+                                        const vehicleLabel = event.vehicleType || event.vehicleModel || '';
+                                        const technicianName = event.employeeName || event.technicianName || '';
+                                        const cityLabel = (() => {
                                             const city = (event as any).customerCity || (event as any).city;
-                                            const rawAddress = event.customerAddress || (event as any).address;
-                                            if (rawAddress && city) return `${rawAddress}, ${city}`;
-                                            if (rawAddress) {
-                                                const parts = String(rawAddress)
-                                                    .split(',')
-                                                    .map((part) => part.trim())
-                                                    .filter(Boolean);
-                                                if (parts.length >= 2) return `${parts[0]}, ${parts[1]}`;
-                                                if (parts.length === 1) return parts[0];
-                                            }
                                             if (city) return String(city);
-                                            return '';
+                                            const rawAddress = event.customerAddress || (event as any).address;
+                                            if (!rawAddress) return '';
+                                            const parts = String(rawAddress)
+                                                .split(',')
+                                                .map((part) => part.trim())
+                                                .filter(Boolean);
+                                            if (parts.length >= 2) return parts[parts.length - 2];
+                                            return parts[0] || '';
                                         })();
-                                        
-                                        // Calculate max lines for notes (max 2 lines)
-                                        const notesMaxLines = height >= 45 ? 2 : 0;
-                                        
-                                        // Format time for display (ensure format: 9:00 - 10:00 AM)
-                                        const formatTimeDisplay = (timeRange: string) => {
-                                            if (!timeRange) return '';
-                                            // Format should be: "9:00 AM - 10:00 AM"
-                                            // If already in correct format, return as is
-                                            if (timeRange.includes('AM') || timeRange.includes('PM')) {
-                                                return timeRange;
-                                            }
-                                            return timeRange;
-                                        };
+                                        const showVeryShort = height < 50;
+                                        const showShort = height >= 50 && height < 65;
+                                        const showMedium = height >= 65 && height < 80;
+                                        const showTall = height >= 80;
+                                        const showTechnicianFooter = height >= 95;
                                         
                                         return renderEventHoverCard(
                                             `event-${i}-${event.id || i}-${resource.id}`,
@@ -3911,317 +3881,101 @@ const WeekView = ({ date, events, onEventClick, resources = [], scale = 1.0, bus
                                         justifyContent: 'space-between'
                                     }}
                                     >
-                                        {/* Top Section: Title, Time, Vehicle, Notes */}
-                                        <div className="flex flex-col items-start w-full" style={{ gap: '4px' }}>
-                                            {/* UNPAID badge */}
-                                            {isUnpaid && !isBlockEvent && (
-                                                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold text-red-600 bg-red-50 border border-red-200 leading-none uppercase">Unpaid</span>
-                                            )}
-                                            {/* 1. Service/Title - Always visible */}
-                                            <div className="flex items-center gap-1.5 w-full">
-                                        {event.source === 'google' && (
-                                            <svg className="w-3 h-3 text-gray-600 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
-                                                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                                                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                                                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                                                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                                            </svg>
-                                        )}
-                                            <span 
-                                                className="truncate flex-1"
-                                                style={{
-                                                    fontSize: '12px',
-                                                        fontFamily: "'Helvetica Neue', sans-serif",
-                                                    fontWeight: 500,
-                                                    color: '#062F4B',
-                                                        lineHeight: 'normal',
-                                                        whiteSpace: 'nowrap'
-                                                }}
-                                            >
-                                                {isBlockEvent ? 'Blocked Time' : (event.title || event.eventName || (Array.isArray(event.services) ? event.services.join(' + ') : event.services) || 'Service')}
-                                            </span>
-                                        </div>
-                                        
-                                            {/* Time - Show if height >= 25px */}
-                                            {showTime && formatTimeRange(event) && (
-                                                <div 
-                                                    style={{
-                                                        fontSize: '10px',
-                                                        fontFamily: "'Inter', sans-serif",
-                                                        fontWeight: 500,
-                                                        color: '#062F4B',
-                                                        lineHeight: 'normal'
-                                                    }}
-                                                >
-                                                    {formatTimeDisplay(formatTimeRange(event))}
-                                                </div>
-                                            )}
-                                        
-                                            {/* Vehicle - Show if height >= 55px */}
-                                        {showVehicle && (event.vehicleType || event.vehicleModel) && (
-                                                <div 
-                                                    className="w-full"
-                                                style={{
-                                                    fontSize: '10px',
-                                                        fontFamily: "'Inter', sans-serif",
-                                                        fontWeight: 500,
-                                                    color: '#062F4B',
-                                                        lineHeight: 'normal'
-                                                }}
-                                            >
-                                                {event.vehicleType || event.vehicleModel}
-                                                </div>
-                                        )}
-                                        
-                                            {/* Notes - Show if height >= 55px */}
-                                            {showNotes && event.description && (
-                                            <div 
-                                                    className="w-full"
-                                                style={{
-                                                    fontSize: '10px',
-                                                        fontFamily: "'Inter', sans-serif",
-                                                        fontWeight: 500,
-                                                    color: 'rgba(6, 47, 75, 0.70)',
-                                                        lineHeight: 'normal'
-                                                }}
-                                            >
-                                                    {event.description}
-                                            </div>
-                                        )}
-                                        </div>
-                                        
-                                        {/* Bottom Section: Customer Info, Action Buttons, Profile Picture */}
-                                        <div className="flex flex-col items-start w-full" style={{ gap: '8px' }}>
-                                            {/* Customer Name + Phone - Show name if height >= 85px, phone if height >= 100px */}
-                                            {(showCustomerName || showCustomerPhone) && (event.customerName || event.customerPhone) && (
-                                                <div className="flex flex-col items-start w-full" style={{ gap: '2px' }}>
-                                                    {showCustomerName && event.customerName && (
-                                                    <div 
-                                                            className="w-full"
-                                                        style={{
-                                                            fontSize: '10px',
-                                                                fontFamily: "'Inter', sans-serif",
-                                                                fontWeight: 500,
-                                                            color: '#062F4B',
-                                                                lineHeight: 'normal'
-                                                        }}
-                                                    >
-                                                        {event.customerName}
-                                                    </div>
-                                                )}
-                                                    {showCustomerPhone && event.customerPhone && (
-                                                    <div 
-                                                            className="w-full"
-                                                        style={{
-                                                            fontSize: '10px',
-                                                                fontFamily: "'Inter', sans-serif",
-                                                                fontWeight: 500,
-                                                                color: 'rgba(6, 47, 75, 0.70)',
-                                                                lineHeight: 'normal'
-                                                        }}
-                                                    >
-                                                        {formatPhoneDisplay(event.customerPhone)}
-                                                    </div>
-                                                )}
-                                                    {showCustomerAddress && addressLine && (
-                                                    <div 
-                                                            className="w-full"
-                                                        style={{
-                                                            fontSize: '10px',
-                                                                fontFamily: "'Inter', sans-serif",
-                                                                fontWeight: 500,
-                                                                color: 'rgba(6, 47, 75, 0.60)',
-                                                                lineHeight: 'normal'
-                                                        }}
-                                                    >
-                                                        {addressLine}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
-                                        
-                                            {/* Action Buttons */}
-                                            {(() => {
-                                                // Smallest design: show pink indicator bar
-                                                if (isSmallest) {
-                                                    return (
-                                                        <div className="w-full" style={{ height: '8px', display: 'flex', alignItems: 'flex-end' }}>
-                                                            <div 
-                                                    style={{
-                                                                    height: '3px',
-                                                                    width: '100%',
-                                                                    backgroundColor: '#d43b88',
-                                                                    borderRadius: '2px'
-                                                                }}
-                                                            />
+                                        <div className="h-full w-full flex flex-col overflow-hidden">
+                                            {isBlockEvent ? (
+                                                <>
+                                                    <div className="text-[10px] font-medium text-[#57564d] truncate">Blocked</div>
+                                                    {height >= 50 && technicianName && (
+                                                        <div className="flex items-center gap-1 text-[9px] text-[#57564d] mt-0.5">
+                                                            <div className={`w-3 h-3 rounded-full flex items-center justify-center flex-shrink-0 ${getEmployeeBadgeClass((event as any).color)}`}>
+                                                                <span className="text-[6px] font-bold text-white">{getEmployeeInitials(technicianName)}</span>
+                                                            </div>
+                                                            <span className="truncate">{technicianName}</span>
                                                         </div>
-                                                    );
-                                                }
-                                                
-                                                // 2nd design and up: show location button(s)
-                                                if (showLocationButton || showRepeatButton) {
-                                                    return (
-                                                        <div className="flex flex-col items-start w-full" style={{ gap: '4px' }}>
-                                                            {/* Location Button - Show if height >= 25px */}
-                                                            {showLocationButton && (() => {
-                                                                if (resource.type === 'bay' && event.locationType) {
-                                                                    const locationLower = event.locationType.toLowerCase();
-                                                                    const isPickup = locationLower === 'pick up' || locationLower === 'pickup';
-                                                                    const isDropoff = locationLower === 'drop off' || locationLower === 'dropoff';
-                                                                    return (
-                                                                        <div 
-                                                                            className="flex items-center justify-center w-full"
-                                                    style={{
-                                                                                height: '15px',
-                                                                                backgroundColor: isPickup ? '#3B82F6' : isDropoff ? '#d43b88' : '#E5E7EB',
-                                                                                borderRadius: '2px',
-                                                                                paddingLeft: '3px',
-                                                                                paddingRight: '3px',
-                                                                                paddingTop: '2px',
-                                                                                paddingBottom: '2px'
-                                                                            }}
-                                                                        >
-                                                                            <span 
-                                                                                style={{
-                                                                                    fontSize: '10px',
-                                                                                    fontFamily: "'Inter', sans-serif",
-                                                                                    fontWeight: 600,
-                                                                                    color: 'white',
-                                                                                    lineHeight: 'normal',
-                                                                                    textAlign: 'center',
-                                                                                    whiteSpace: 'nowrap',
-                                                                                    overflow: 'hidden',
-                                                                                    textOverflow: 'ellipsis',
-                                                                                    width: '100%'
-                                                                                }}
-                                                                            >
-                                                                                {isPickup ? 'Pick Up' : isDropoff ? 'Drop Off' : event.locationType}
-                                            </span>
-                                                                        </div>
-                                                                    );
-                                                                } else if (resource.type === 'van') {
-                                                                    return (
-                                                                        <div 
-                                                                            className="flex items-center justify-center w-full"
-                                                                            style={{
-                                                                                height: '15px',
-                                                                                backgroundColor: '#E5E7EB',
-                                                                                borderRadius: '2px',
-                                                                                paddingLeft: '3px',
-                                                                                paddingRight: '3px',
-                                                                                paddingTop: '2px',
-                                                                                paddingBottom: '2px'
-                                                                            }}
-                                                                        >
-                                                                            <span 
-                                                                                style={{
-                                                                                    fontSize: '10px',
-                                                                                    fontFamily: "'Inter', sans-serif",
-                                                                                    fontWeight: 600,
-                                                                                    color: '#374151',
-                                                                                    lineHeight: 'normal',
-                                                                                    textAlign: 'center',
-                                                                                    whiteSpace: 'nowrap'
-                                                                                }}
-                                                                            >
-                                                    Van
-                                            </span>
-                                                                        </div>
-                                                                    );
+                                                    )}
+                                                    {height >= 65 && event.description && (
+                                                        <div className="text-[8px] text-[#6b6a5e] mt-0.5 truncate italic">{event.description}</div>
+                                                    )}
+                                                </>
+                                            ) : (
+                                                <>
+                                                    {isUnpaid && (
+                                                        <span className="text-[7px] font-bold text-red-600 bg-red-100 px-1 py-0.5 rounded self-start mb-0.5">UNPAID</span>
+                                                    )}
+
+                                                    {showVeryShort && cityLabel && (
+                                                        <div className="text-[8px] truncate flex items-center gap-0.5 text-[#062F4B]">
+                                                            <svg className="h-2.5 w-2.5 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5z"/></svg>
+                                                            {cityLabel}
+                                                        </div>
+                                                    )}
+
+                                                    {showShort && (
+                                                        <>
+                                                            <div className="text-[9px] font-medium truncate text-[#062F4B]">{serviceTitle}</div>
+                                                            {cityLabel && (
+                                                                <div className="text-[8px] truncate flex items-center gap-0.5 text-[#062F4B]">
+                                                                    <svg className="h-2.5 w-2.5 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5z"/></svg>
+                                                                    {cityLabel}
+                                                                </div>
+                                                            )}
+                                                        </>
+                                                    )}
+
+                                                    {showMedium && (
+                                                        <>
+                                                            <div className="text-[9px] font-medium truncate text-[#062F4B]">{serviceTitle}</div>
+                                                            {vehicleLabel && <div className="text-[8px] truncate text-[#062F4B]">{vehicleLabel}</div>}
+                                                            {cityLabel && (
+                                                                <div className="text-[8px] truncate flex items-center gap-0.5 text-[#062F4B]">
+                                                                    <svg className="h-2.5 w-2.5 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5z"/></svg>
+                                                                    {cityLabel}
+                                                                </div>
+                                                            )}
+                                                        </>
+                                                    )}
+
+                                                    {showTall && (
+                                                        <>
+                                                            <div className="text-[9px] font-medium truncate text-[#062F4B]">{serviceTitle}</div>
+                                                            {vehicleLabel && <div className="text-[8px] truncate text-[#062F4B]">{vehicleLabel}</div>}
+                                                            {event.customerName && <div className="text-[8px] truncate text-[#062F4B]">{event.customerName}</div>}
+                                                            {cityLabel && (
+                                                                <div className="text-[8px] truncate opacity-80 flex items-center gap-0.5 text-[#062F4B]">
+                                                                    <svg className="h-2.5 w-2.5 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5z"/></svg>
+                                                                    {cityLabel}
+                                                                </div>
+                                                            )}
+                                                        </>
+                                                    )}
+
+                                                    <div className="mt-auto">
+                                                        <div className="flex flex-wrap gap-0.5">
+                                                            {(() => {
+                                                                const location = String(event.locationType || '').toLowerCase();
+                                                                if (location === 'bay_dropoff' || location === 'dropoff' || location === 'drop off') {
+                                                                    return <span className="text-[7px] font-medium bg-emerald-500 text-white px-1 py-0.5 rounded">Drop off</span>;
+                                                                }
+                                                                if (location === 'bay_pickup' || location === 'pickup' || location === 'pick up') {
+                                                                    return <span className="text-[7px] font-medium bg-blue-500 text-white px-1 py-0.5 rounded">Pick up</span>;
+                                                                }
+                                                                if (location === 'van') {
+                                                                    return <span className="text-[7px] font-medium bg-[#838274] text-white px-1 py-0.5 rounded">Van</span>;
                                                                 }
                                                                 return null;
                                                             })()}
-                                            
-                                                            {/* Repeat/New Customer Button - Show if height >= 55px */}
-                                                            {showRepeatButton && (() => {
-                                                const customerType = event.customerType
-                                                  ? String(event.customerType).toLowerCase()
-                                                  : getCustomerType(event);
-                                                if (customerType === 'returning') {
-                                                    return (
-                                                                        <div 
-                                                                            className="flex items-center justify-center w-full"
-                                                                            style={{
-                                                                                height: '15px',
-                                                                                backgroundColor: '#ae5aef',
-                                                                                borderRadius: '2px',
-                                                                                paddingLeft: '3px',
-                                                                                paddingRight: '3px',
-                                                                                paddingTop: '2px',
-                                                                                paddingBottom: '2px'
-                                                                            }}
-                                                                        >
-                                                                            <span 
-                                                                                style={{
-                                                                                    fontSize: '10px',
-                                                                                    fontFamily: "'Inter', sans-serif",
-                                                                                    fontWeight: 600,
-                                                                                    color: 'white',
-                                                                                    lineHeight: 'normal',
-                                                                                    textAlign: 'center',
-                                                                                    whiteSpace: 'nowrap',
-                                                                                    overflow: 'hidden',
-                                                                                    textOverflow: 'ellipsis',
-                                                                                    width: '100%'
-                                                                                }}
-                                                                            >
-                                                                                Repeat...
-                                            </span>
-                                                                        </div>
-                                                    );
-                                                } else if (customerType === 'new') {
-                                                    return (
-                                                                        <div 
-                                                                            className="flex items-center justify-center w-full"
-                                                                            style={{
-                                                                                height: '15px',
-                                                                                backgroundColor: '#ae5aef',
-                                                                                borderRadius: '2px',
-                                                                                paddingLeft: '3px',
-                                                                                paddingRight: '3px',
-                                                                                paddingTop: '2px',
-                                                                                paddingBottom: '2px'
-                                                                            }}
-                                                                        >
-                                                                            <span 
-                                                                                style={{
-                                                                                    fontSize: '10px',
-                                                                                    fontFamily: "'Inter', sans-serif",
-                                                                                    fontWeight: 600,
-                                                                                    color: 'white',
-                                                                                    lineHeight: 'normal',
-                                                                                    textAlign: 'center',
-                                                                                    whiteSpace: 'nowrap',
-                                                                                    overflow: 'hidden',
-                                                                                    textOverflow: 'ellipsis',
-                                                                                    width: '100%'
-                                                                                }}
-                                                                            >
-                                                            New Customer
-                                                        </span>
-                                                                        </div>
-                                                    );
-                                                }
-                                                return null;
-                                            })()}
-                                        </div>
-                                                    );
-                                                }
-                                                return null;
-                                            })()}
-                                        
-                                            {/* Profile Picture - Show if height >= 85px */}
-                                        {showTechPicture && (
-                                                <div className="relative shrink-0" style={{ width: '24px', height: '24px' }}>
-                                            {event.employeeName ? (
-                                                        <div className={`w-full h-full rounded-full flex items-center justify-center ${getEmployeeBadgeClass(event.color)}`}>
-                                                            <span style={{ fontSize: '9px', fontWeight: 600 }}>
-                                                        {getEmployeeInitials(event.employeeName)}
-                                                    </span>
-                                                </div>
-                                            ) : null}
-                                        </div>
-                                        )}
+                                                        </div>
+                                                        {showTechnicianFooter && technicianName && (
+                                                            <div className="flex items-center gap-1 mt-[3px]">
+                                                                <div className={`w-3 h-3 rounded-full flex items-center justify-center flex-shrink-0 ${getEmployeeBadgeClass((event as any).color)}`}>
+                                                                    <span className="text-[7px] font-bold text-white">{getEmployeeInitials(technicianName)}</span>
+                                                                </div>
+                                                                <span className="text-[8px] text-[#6b6a5e] truncate">{technicianName}</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </>
+                                            )}
                                         </div>
                                     </div>
                                         );
@@ -4940,7 +4694,7 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
                 }}
                 onMouseLeave={() => {
                   setHoveredResourceId(null);
-                  setHoveredTimeSlot(null);
+                  setHoveredSlot(null);
                 }}
                 onDragOver={(e) => {
                   e.preventDefault();
@@ -4986,31 +4740,12 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
                     onOpenModal();
                   }}
                 >
-                <div className="flex items-center gap-2">
-                  {resource.type === 'bay' ? (
-                      <Image 
-                        src="/icons/bay.svg" 
-                        alt="Bay" 
-                        width={20} 
-                        height={20}
-                        className="object-contain"
-                      />
-                    ) : (
-                      <Image 
-                        src="/icons/van.svg" 
-                        alt="Van" 
-                        width={20} 
-                        height={20}
-                        className="object-contain"
-                      />
-                    )}
-                    <div className="relative" style={{ zIndex: 9999, position: 'relative' }}>
-                      <div className="text-sm font-semibold text-black">
-                      {resource.name.toUpperCase()}
-                    </div>
-                      <div className="text-xs text-gray-600 mt-1">
-                      <PlusIcon className="w-4 h-4 inline" /> Add
-                      </div>
+                <div className="relative" style={{ zIndex: 9999, position: 'relative' }}>
+                  <div className="text-sm font-semibold text-black">
+                    {resource.name.toUpperCase()}
+                  </div>
+                  <div className="text-xs text-gray-600 mt-1">
+                    <PlusIcon className="w-4 h-4 inline" /> Add
                   </div>
                 </div>
               </div>
@@ -5128,29 +4863,35 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
                     if (width <= 0) return null;
                     
                     const isBlockEvent = event.eventType === 'block';
-                    const customerType = isBlockEvent
-                      ? null
-                      : (event.customerType
-                        ? String(event.customerType).toLowerCase()
-                        : getCustomerType(event));
                     const isPending = event.status === 'pending';
                     const isUnpaid = isEventUnpaid(event);
                     const eventColor = isBlockEvent ? 'gray' : (event.color || 'blue');
-                    const addressLine = (() => {
+                    const serviceTitle = isBlockEvent
+                      ? 'Blocked'
+                      : (event.title || event.eventName || (Array.isArray(event.services) ? event.services.join(' + ') : event.services) || 'Service');
+                    const vehicleLabel = event.vehicleType || event.vehicleModel || '';
+                    const technicianName = event.employeeName || event.technicianName || '';
+                    const cityLabel = (() => {
                       const city = (event as any).customerCity || (event as any).city;
-                      const rawAddress = event.customerAddress || (event as any).address;
-                      if (rawAddress && city) return `${rawAddress}, ${city}`;
-                      if (rawAddress) {
-                        const parts = String(rawAddress)
-                          .split(',')
-                          .map((part) => part.trim())
-                          .filter(Boolean);
-                        if (parts.length >= 2) return `${parts[0]}, ${parts[1]}`;
-                        if (parts.length === 1) return parts[0];
-                      }
                       if (city) return String(city);
-                      return '';
+                      const rawAddress = event.customerAddress || (event as any).address;
+                      if (!rawAddress) return '';
+                      const parts = String(rawAddress).split(',').map((part) => part.trim()).filter(Boolean);
+                      if (parts.length >= 2) return parts[parts.length - 2];
+                      return parts[0] || '';
                     })();
+                    const cardHeightEstimate = (() => {
+                      if (event.start && event.end) {
+                        const minutes = Math.max(15, (new Date(event.end).getTime() - new Date(event.start).getTime()) / (1000 * 60));
+                        return Math.max(30, (minutes / 60) * 96);
+                      }
+                      return 80;
+                    })();
+                    const showVeryShort = cardHeightEstimate < 50;
+                    const showShort = cardHeightEstimate >= 50 && cardHeightEstimate < 65;
+                    const showMedium = cardHeightEstimate >= 65 && cardHeightEstimate < 80;
+                    const showTall = cardHeightEstimate >= 80;
+                    const showTechnicianFooter = cardHeightEstimate >= 95;
                     
                     // Check if event is in the past (end time is before current time, or on a past day)
                     const now = new Date();
@@ -5199,85 +4940,96 @@ const DayView = ({ date, events, resources, onEventClick, onResourceSelect, onOp
                           opacity: isPastEvent || draggedEventId === event.id ? 0.5 : 1
                         }}
                       >
-                        {isUnpaid && !isBlockEvent && (
-                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold text-red-600 bg-red-50 border border-red-200 leading-none uppercase mb-1 inline-block">Unpaid</span>
-                        )}
-                        <div className="flex items-center gap-2 mb-1">
-                          {event.employeeName ? (
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center border border-gray-300 flex-shrink-0 ${getEmployeeBadgeClass(event.color)}`}>
-                              <span className="text-xs font-semibold">
-                                {getEmployeeInitials(event.employeeName)}
-                              </span>
-                            </div>
-                          ) : null}
-                          <div className="text-base font-semibold text-gray-900 flex-1 truncate">
-                            {isBlockEvent ? 'Blocked Time' : (Array.isArray(event.services) ? event.services.join(' + ') : event.services || 'Service')}
-                          </div>
-                        </div>
-                        {formatTimeRange(event) && (
-                          <div className="text-xs font-semibold text-gray-700 mb-1">
-                            {formatTimeRange(event)}
-                          </div>
-                        )}
-                        {!isBlockEvent && (
-                          <div className="text-xs font-semibold text-gray-600 mb-1">
-                            {event.vehicleType || 'Vehicle'}
-                          </div>
-                        )}
-                        {!isBlockEvent && event.description && (
-                          <div className="text-xs text-gray-600 mb-1">
-                            {event.description}
-                          </div>
-                        )}
-                        <div className="mt-auto pt-2">
-                          {/* Location Type Tag - Only for Bay resources */}
-                          {!isBlockEvent && resource.type === 'bay' && event.locationType && (
-                            <div className="mb-1">
-                              <span className={`text-xs font-semibold px-1.5 py-0.5 rounded inline-block ${
-                                (event.locationType?.toLowerCase() === 'pick up' || event.locationType?.toLowerCase() === 'pickup')
-                                  ? 'bg-blue-500 text-white'
-                                  : (event.locationType?.toLowerCase() === 'drop off' || event.locationType?.toLowerCase() === 'dropoff')
-                                  ? 'bg-pink-500 text-white'
-                                  : 'bg-gray-200 text-gray-700'
-                              }`}>
-                                {event.locationType?.toLowerCase() === 'pickup' ? 'Pick Up' : 
-                                 event.locationType?.toLowerCase() === 'dropoff' ? 'Drop Off' :
-                                 event.locationType?.toLowerCase() === 'pick up' ? 'Pick Up' :
-                                 event.locationType?.toLowerCase() === 'drop off' ? 'Drop Off' :
-                                 event.locationType}
-                              </span>
-                            </div>
-                          )}
-                          {!isBlockEvent && !isPending && customerType === 'new' && (
-                            <div className="mb-1">
-                              <span className="text-xs font-semibold bg-gray-200 text-gray-700 px-1.5 py-0.5 rounded">
-                                New customer
-                              </span>
-                            </div>
-                          )}
-                          {!isBlockEvent && !isPending && customerType === 'returning' && (
-                            <div className="mb-1">
-                              <span className="text-xs font-semibold bg-purple-200 text-purple-800 px-1.5 py-0.5 rounded">
-                                Repeat customer
-                              </span>
-                            </div>
-                          )}
-                          {!isBlockEvent && (event.customerName || event.customerPhone) && (
-                            <div className="flex flex-col">
-                              <div className="text-xs font-semibold text-gray-600">
-                                {event.customerName || 'Customer'}
-                              </div>
-                              {event.customerPhone && (
-                                <div className="text-xs text-gray-600">
-                                  {formatPhoneDisplay(event.customerPhone)}
+                        <div className="h-full w-full flex flex-col overflow-hidden">
+                          {isBlockEvent ? (
+                            <>
+                              <div className="text-[10px] font-medium text-[#57564d] truncate">Blocked</div>
+                              {cardHeightEstimate >= 50 && technicianName && (
+                                <div className="flex items-center gap-1 text-[9px] text-[#57564d] mt-0.5">
+                                  <div className={`w-3 h-3 rounded-full flex items-center justify-center flex-shrink-0 ${getEmployeeBadgeClass((event as any).color)}`}>
+                                    <span className="text-[6px] font-bold text-white">{getEmployeeInitials(technicianName)}</span>
+                                  </div>
+                                  <span className="truncate">{technicianName}</span>
                                 </div>
                               )}
-                            </div>
-                          )}
-                          {!isBlockEvent && addressLine && (
-                            <div className="text-xs font-semibold text-gray-500">
-                              {addressLine}
-                            </div>
+                              {cardHeightEstimate >= 65 && event.description && (
+                                <div className="text-[8px] text-[#6b6a5e] mt-0.5 truncate italic">{event.description}</div>
+                              )}
+                            </>
+                          ) : (
+                            <>
+                              {isUnpaid && (
+                                <span className="text-[7px] font-bold text-red-600 bg-red-100 px-1 py-0.5 rounded self-start mb-0.5">UNPAID</span>
+                              )}
+                              {showVeryShort && cityLabel && (
+                                <div className="text-[8px] truncate flex items-center gap-0.5 text-[#062F4B]">
+                                  <svg className="h-2.5 w-2.5 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5z"/></svg>
+                                  {cityLabel}
+                                </div>
+                              )}
+                              {showShort && (
+                                <>
+                                  <div className="text-[9px] font-medium truncate text-[#062F4B]">{serviceTitle}</div>
+                                  {cityLabel && (
+                                    <div className="text-[8px] truncate flex items-center gap-0.5 text-[#062F4B]">
+                                      <svg className="h-2.5 w-2.5 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5z"/></svg>
+                                      {cityLabel}
+                                    </div>
+                                  )}
+                                </>
+                              )}
+                              {showMedium && (
+                                <>
+                                  <div className="text-[9px] font-medium truncate text-[#062F4B]">{serviceTitle}</div>
+                                  {vehicleLabel && <div className="text-[8px] truncate text-[#062F4B]">{vehicleLabel}</div>}
+                                  {cityLabel && (
+                                    <div className="text-[8px] truncate flex items-center gap-0.5 text-[#062F4B]">
+                                      <svg className="h-2.5 w-2.5 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5z"/></svg>
+                                      {cityLabel}
+                                    </div>
+                                  )}
+                                </>
+                              )}
+                              {showTall && (
+                                <>
+                                  <div className="text-[9px] font-medium truncate text-[#062F4B]">{serviceTitle}</div>
+                                  {vehicleLabel && <div className="text-[8px] truncate text-[#062F4B]">{vehicleLabel}</div>}
+                                  {event.customerName && <div className="text-[8px] truncate text-[#062F4B]">{event.customerName}</div>}
+                                  {cityLabel && (
+                                    <div className="text-[8px] truncate opacity-80 flex items-center gap-0.5 text-[#062F4B]">
+                                      <svg className="h-2.5 w-2.5 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5z"/></svg>
+                                      {cityLabel}
+                                    </div>
+                                  )}
+                                </>
+                              )}
+
+                              <div className="mt-auto">
+                                <div className="flex flex-wrap gap-0.5">
+                                  {(() => {
+                                    const location = String(event.locationType || '').toLowerCase();
+                                    if (location === 'bay_dropoff' || location === 'dropoff' || location === 'drop off') {
+                                      return <span className="text-[7px] font-medium bg-emerald-500 text-white px-1 py-0.5 rounded">Drop off</span>;
+                                    }
+                                    if (location === 'bay_pickup' || location === 'pickup' || location === 'pick up') {
+                                      return <span className="text-[7px] font-medium bg-blue-500 text-white px-1 py-0.5 rounded">Pick up</span>;
+                                    }
+                                    if (location === 'van') {
+                                      return <span className="text-[7px] font-medium bg-[#838274] text-white px-1 py-0.5 rounded">Van</span>;
+                                    }
+                                    return null;
+                                  })()}
+                                </div>
+                                {showTechnicianFooter && technicianName && (
+                                  <div className="flex items-center gap-1 mt-[3px]">
+                                    <div className={`w-3 h-3 rounded-full flex items-center justify-center flex-shrink-0 ${getEmployeeBadgeClass((event as any).color)}`}>
+                                      <span className="text-[7px] font-bold text-white">{getEmployeeInitials(technicianName)}</span>
+                                    </div>
+                                    <span className="text-[8px] text-[#6b6a5e] truncate">{technicianName}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </>
                           )}
                         </div>
                         {isPending && (
@@ -5694,6 +5446,14 @@ export default function CalendarPage() {
   }, []);
 
   useEffect(() => {
+    // Mobile should default to compact day-range views instead of desktop week.
+    if (isMobile && viewMode === 'week' && numberOfDays === 7) {
+      setViewMode(3);
+      setNumberOfDays(3);
+    }
+  }, [isMobile, viewMode, numberOfDays]);
+
+  useEffect(() => {
     setIsMounted(true);
     return () => {
       setIsMounted(false);
@@ -5951,10 +5711,6 @@ export default function CalendarPage() {
         
         // Track optimistic customer update to prevent fetchCalendarEvents from overwriting
         optimisticCustomerUpdateRef.current = eventId;
-        
-        // Clear search
-        setEventDetailsCustomerSearch('');
-        setShowEventDetailsCustomerSuggestions(false);
         
         // Use the server response to update state - this ensures we have the exact data the server saved
         if (responseData.event) {
@@ -6639,8 +6395,6 @@ export default function CalendarPage() {
     const newVehicle = { id: `vehicle-${Date.now()}`, model: vehicleModel };
     const updatedVehicles = [...eventVehicles, newVehicle];
     setEventVehicles(updatedVehicles);
-    setNewVehicleModel('');
-    setShowAddVehicleModal(false);
     
     // Update event
     if (selectedEventData?.id) {
@@ -7798,7 +7552,7 @@ export default function CalendarPage() {
                       }}
                     className="w-full px-4 py-2 text-sm font-medium transition-colors text-left flex items-center gap-3 bg-transparent hover:bg-gray-50"
                     >
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${getEmployeeBadgeClass(employee.color)}`}>
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${getEmployeeBadgeClass((employee as any).color)}`}>
                         <span className="text-[11px] font-semibold">
                           {getEmployeeInitials(employee.name)}
                         </span>
@@ -8310,7 +8064,7 @@ export default function CalendarPage() {
                                   }
                                   return { id: `temp-${serviceName}`, name: serviceName, type: 'service' as const };
                                 })
-                                .filter((s) => s !== null);
+                                .filter((s: { id: string; name: string; type: 'service' | 'bundle' } | null): s is { id: string; name: string; type: 'service' | 'bundle' } => s !== null);
                               setSelectedServices(matchedItems);
                             } else {
                               setSelectedServices([]);
@@ -9100,7 +8854,7 @@ export default function CalendarPage() {
                                     }
                                     return { id: `temp-${serviceName}`, name: serviceName, type: 'service' as const };
                                   })
-                                  .filter((s) => s !== null);
+                                  .filter((s: { id: string; name: string; type: 'service' | 'bundle' } | null): s is { id: string; name: string; type: 'service' | 'bundle' } => s !== null);
                                 setSelectedServices(matchedItems);
                               } else {
                                 setSelectedServices([]);
@@ -9215,7 +8969,7 @@ export default function CalendarPage() {
                         }}
                         className="w-full px-4 py-2 text-sm font-medium transition-colors text-left flex items-center gap-3 bg-transparent hover:bg-gray-50"
                       >
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${getEmployeeBadgeClass(employee.color)}`}>
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${getEmployeeBadgeClass((employee as any).color)}`}>
                           <span className="font-semibold text-xs">
                             {getEmployeeInitials(employee.name)}
                           </span>
@@ -9356,7 +9110,7 @@ export default function CalendarPage() {
                               return (
                                 <div key={employee.id} className="border-b border-gray-200 pb-3 last:border-b-0 last:pb-0">
                                   <div className="flex items-center gap-3 mb-2">
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${getEmployeeBadgeClass(employee.color)}`}>
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${getEmployeeBadgeClass((employee as any).color)}`}>
                                       <span className="font-semibold text-sm">
                                         {getEmployeeInitials(employee.name)}
                                       </span>
@@ -9999,502 +9753,332 @@ export default function CalendarPage() {
             borderLeft: (viewMode === 'week' || typeof viewMode === 'number') ? 'none' : '1px solid #E2E2DD', 
             boxShadow: 'none' 
           }}>
-          <div className="h-full flex flex-col overflow-hidden" style={{ backgroundColor: '#F8F8F7' }}>
+          <div className="h-full flex flex-col overflow-hidden bg-white">
             {/* Header */}
-            <div className="flex-shrink-0 px-6 pt-6 pb-2">
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full flex items-center justify-center relative" style={{ backgroundColor: '#E2E2DD' }}>
-                    <Image 
-                      src="/icons/layouting.png" 
-                      alt="Event Details" 
-                      width={20} 
-                      height={20}
-                      className="object-contain"
-                    />
-                    <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2" style={{ borderColor: '#F8F8F7' }}></div>
-                  </div>
+            {!isEditingEvent && (
+              <div className="flex-shrink-0 px-6 pt-6 pb-3 border-b border-[#f0f0ee]">
+                <div className="flex justify-between items-center">
                   <div className="flex items-center gap-3">
-                    <h2 className="text-xl font-bold text-gray-900">
-                      {viewMode === 'month' && selectedDay && !selectedEventData 
+                    <h2 className="text-xl font-bold text-[#2B2B26]">
+                      {viewMode === 'month' && selectedDay && !selectedEventData
                         ? format(selectedDay, 'MMMM d, yyyy')
                         : 'Event Details'}
                     </h2>
                     {selectedEventData?.resourceId && (() => {
                       const resource = resources.find(r => r.id === selectedEventData.resourceId);
                       return (
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium text-gray-700" style={{ backgroundColor: '#E2E2DD' }}>
-                          {resource?.type === 'bay' ? (
-                            <Image src="/icons/bay.svg" alt="Bay" width={12} height={12} className="object-contain" />
-                          ) : (
-                            <Image src="/icons/van.svg" alt="Van" width={12} height={12} className="object-contain" />
-                          )}
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium text-[#6b6a5e] bg-[#E2E2DD]">
                           {resource?.name || 'Unknown'}
                         </span>
                       );
                     })()}
                   </div>
+                  <div className="flex items-center gap-2">
+                    {selectedEventData && (
+                      <button
+                        onClick={() => {
+                          setIsEditingEvent(true);
+                          setIsEditFormDirty(false);
+                        }}
+                        className="p-1.5 rounded-md hover:bg-[#f0f0ee] transition-colors"
+                        title="Edit"
+                      >
+                        <PencilIcon className="w-4 h-4 text-[#6b6a5e]" />
+                      </button>
+                    )}
+                    {selectedEventData && (
+                      <button
+                        onClick={() => handleDeleteEvent(selectedEventData)}
+                        className="p-1.5 rounded-md hover:bg-[#f0f0ee] transition-colors"
+                        title="Delete"
+                      >
+                        <svg className="w-4 h-4 text-[#6b6a5e]" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    )}
+                    <button
+                      onClick={() => {
+                        setIsActionSidebarOpen(false);
+                        setSelectedEventData(null);
+                        setSelectedEvent(null);
+                        setIsEditingEvent(false);
+                        setShowCustomerDetailsPopup(false);
+                        setSelectedDay(null);
+                        setSelectedDayEvents([]);
+                      }}
+                      className="p-1 rounded-lg hover:bg-[#f0f0ee] transition-colors"
+                    >
+                      <XMarkIcon className="w-5 h-5 text-gray-500" />
+                    </button>
+                  </div>
                 </div>
-                <button
-                  onClick={() => {
-                    setIsActionSidebarOpen(false);
-                    setSelectedEventData(null);
-                    setSelectedEvent(null);
-                    setIsEditingEvent(false);
-                    setShowCustomerDetailsPopup(false);
-                    setSelectedDay(null);
-                    setSelectedDayEvents([]);
-                  }}
-                  className="p-1 rounded-lg hover:bg-gray-100 transition-colors"
-                >
-                  <XMarkIcon className="w-5 h-5 text-gray-500" />
-                </button>
               </div>
-            </div>
+            )}
 
             {/* Content - Show event details if event is selected, otherwise show selected day's events (month view) or today's events */}
             <div className="flex-1 overflow-y-auto min-h-0">
               {selectedEventData ? (
-                // Inline-editable panel (Notion-style)
-                <div className="px-5 pt-4 pb-8">
-                  {/* Hero: Service Title + Time Range */}
-                  <div className="mb-5">
-                    <h3 className="text-lg font-bold text-gray-900">
-                      {selectedEventData.eventType === 'block' 
-                        ? 'Blocked Time' 
-                        : (Array.isArray(selectedEventData.services) 
-                            ? selectedEventData.services.join(' + ') 
-                            : selectedEventData.services || selectedEventData.title || 'Event')}
-                    </h3>
-                    {selectedEventData.start && selectedEventData.end && !selectedEventData.allDay && (
-                      <p className="text-sm text-gray-500 mt-1">
-                        {format(typeof selectedEventData.start === 'string' ? parseISO(selectedEventData.start) : new Date(selectedEventData.start), 'h:mm a')}
-                        {' - '}
-                        {format(typeof selectedEventData.end === 'string' ? parseISO(selectedEventData.end) : new Date(selectedEventData.end), 'h:mm a')}
-                      </p>
-                    )}
-                    {selectedEventData.allDay && (
-                      <p className="text-sm text-gray-500 mt-1">All Day</p>
-                    )}
-
-                    {/* Message Button */}
-                    {selectedEventData.customerPhone && selectedEventData.eventType !== 'block' && (
-                      <Link
-                        href={`/detailer-dashboard/messages?phone=${encodeURIComponent(selectedEventData.customerPhone)}`}
-                        className="inline-flex items-center gap-2 mt-3 px-4 py-2 rounded-xl text-sm font-medium transition-colors hover:bg-gray-100"
-                        style={{ color: '#2B2B26', backgroundColor: '#F0F0EE' }}
-                      >
-                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
-                        </svg>
-                        Message
-                      </Link>
-                    )}
-                  </div>
-
-                  {/* Property Rows */}
-                  <div className="space-y-0 border rounded-xl overflow-visible" style={{ borderColor: '#E2E2DD' }}>
-                    
-                    {/* Customer Name */}
-                    {selectedEventData.eventType !== 'block' && (
-                      <InlinePropertyRow
-                        icon={<svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>}
-                        label="Customer"
-                        value={selectedEventData.customerName || ''}
-                        placeholder="Add customer name"
-                        onSave={(val) => saveField({ customerName: val })}
-                        type="text"
-                        suffix={customerPastJobs.length > 0 ? (
-                          <span className="ml-2 text-[10px] px-2 py-0.5 rounded-full bg-gray-200 text-gray-600 whitespace-nowrap">
-                            {customerPastJobs.length} past {customerPastJobs.length === 1 ? 'job' : 'jobs'}
-                          </span>
-                        ) : undefined}
-                        onInfoHover={(e) => {
-                          if (customerPopupTimeoutRef.current) {
-                            clearTimeout(customerPopupTimeoutRef.current);
-                            customerPopupTimeoutRef.current = null;
-                          }
-                          const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                          setCustomerPopupPosition({ top: rect.top, right: 424 });
-                          setShowCustomerDetailsPopup(true);
-                        }}
-                        onInfoLeave={() => {
-                          customerPopupTimeoutRef.current = setTimeout(() => setShowCustomerDetailsPopup(false), 200);
-                        }}
-                      />
-                    )}
-
-                    {/* Phone */}
-                    {selectedEventData.eventType !== 'block' && (
-                      <InlinePropertyRow
-                        icon={<svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>}
-                        label="Phone"
-                        value={selectedEventData.customerPhone || ''}
-                        displayValue={selectedEventData.customerPhone ? formatPhoneDisplay(selectedEventData.customerPhone) : ''}
-                        placeholder="Add phone number"
-                        onSave={(val) => saveField({ customerPhone: val })}
-                        type="text"
-                      />
-                    )}
-
-                    {/* Address */}
-                    {selectedEventData.eventType !== 'block' && (
-                      <InlinePropertyRow
-                        icon={<svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}
-                        label="Address"
-                        value={selectedEventData.customerAddress || ''}
-                        placeholder="Add address"
-                        onSave={(val) => saveField({ customerAddress: val })}
-                        type="address"
-                      />
-                    )}
-
-                    {/* Vehicle */}
-                    {selectedEventData.eventType !== 'block' && (
-                      <InlinePropertyRow
-                        icon={<svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M1 16h22" /></svg>}
-                        label="Vehicle"
-                        value={eventVehicles.map(v => v.model).join(', ')}
-                        placeholder="Add vehicle"
-                        onSave={(val) => saveField({ vehicleModel: val.trim() })}
-                        type="text"
-                      />
-                    )}
-
-                    {/* Date */}
-                    <InlinePropertyRow
-                      icon={<svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>}
-                      label="Date"
-                      value={(() => {
-                        const eventDate = selectedEventData.start || selectedEventData.date;
-                        if (!eventDate) return '';
-                        if (typeof eventDate === 'string') return eventDate.includes('T') ? eventDate.split('T')[0] : eventDate;
-                        const d = new Date(eventDate);
-                        return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
-                      })()}
-                      displayValue={(() => {
-                        const eventDate = selectedEventData.start || selectedEventData.date;
-                        if (!eventDate) return '';
-                        try { return format(typeof eventDate === 'string' ? parseISO(eventDate) : new Date(eventDate), 'EEE, MMM d, yyyy'); } catch { return ''; }
-                      })()}
-                      placeholder="Set date"
-                      onSave={(val) => {
-                        // Include existing times so they're preserved during date change
-                        const updates: Record<string, any> = { startDate: val };
-                        if (!selectedEventData.allDay && selectedEventData.start && selectedEventData.end) {
-                          updates.startTime = format(typeof selectedEventData.start === 'string' ? parseISO(selectedEventData.start) : new Date(selectedEventData.start), 'HH:mm');
-                          updates.endTime = format(typeof selectedEventData.end === 'string' ? parseISO(selectedEventData.end) : new Date(selectedEventData.end), 'HH:mm');
+                isEditingEvent ? (
+                  <EventModal
+                    isOpen={true}
+                    onClose={() => {
+                      setIsEditingEvent(false);
+                      setIsEditFormDirty(false);
+                    }}
+                    onAddEvent={() => {}}
+                    onUpdateEvent={(updatedEvent: any) => {
+                      fetchCalendarEvents();
+                      setIsEditFormDirty(false);
+                      setIsEditingEvent(false);
+                      if (updatedEvent) {
+                        setSelectedEventData(updatedEvent);
+                        if (updatedEvent.services) {
+                          const serviceList = Array.isArray(updatedEvent.services) ? updatedEvent.services : [updatedEvent.services];
+                          setSelectedServices(
+                            serviceList.map((serviceName: string, idx: number) => ({
+                              id: `updated-service-${idx}`,
+                              name: serviceName,
+                              type: 'service' as const
+                            }))
+                          );
                         }
-                        saveField(updates);
-                      }}
-                      type="date"
-                    />
-
-                    {/* Start Time */}
-                    {!selectedEventData.allDay && (
-                      <InlinePropertyRow
-                        icon={<svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
-                        label="Start Time"
-                        value={(() => {
-                          if (selectedEventData.start) {
-                            const d = typeof selectedEventData.start === 'string' ? parseISO(selectedEventData.start) : new Date(selectedEventData.start);
-                            return format(d, 'HH:mm');
-                          }
+                        if (updatedEvent.vehicles && Array.isArray(updatedEvent.vehicles)) {
+                          setEventVehicles(updatedEvent.vehicles.map((v: string, idx: number) => ({ id: `vehicle-${idx}`, model: v })));
+                        } else if (updatedEvent.vehicleModel) {
+                          setEventVehicles([{ id: 'vehicle-0', model: updatedEvent.vehicleModel }]);
+                        } else {
+                          setEventVehicles([]);
+                        }
+                      }
+                    }}
+                    editingEvent={selectedEventData}
+                    preSelectedResource={selectedEventData?.resourceId ? (resources.find((r) => r.id === selectedEventData.resourceId) || null) : null}
+                    resources={resources}
+                    onOpenNewCustomerModal={(initialName) => {
+                      setNewCustomerModalInitialName(initialName);
+                      setIsNewCustomerModalOpen(true);
+                    }}
+                    onOpenEditCustomerModal={(customer) => {
+                      setEditingCustomerData({
+                        customerName: customer.customerName,
+                        customerPhone: customer.customerPhone,
+                        customerAddress: customer.customerAddress,
+                        customerType: customer.customerType
+                      });
+                      setIsEditingCustomer(true);
+                      setIsNewCustomerModalOpen(true);
+                    }}
+                    newCustomerData={newCustomerData}
+                    onRequestClose={() => setShowDiscardModal(true)}
+                    renderMode="drawer"
+                    showHeader={true}
+                    showCloseButton={true}
+                  />
+                ) : (
+                <div className="px-4 pt-4 pb-6">
+                  {(() => {
+                    const isBlockEvent = selectedEventData.eventType === 'block';
+                    const services = Array.isArray(selectedEventData.services)
+                      ? selectedEventData.services
+                      : (selectedEventData.services ? [selectedEventData.services] : []);
+                    const mainService = isBlockEvent
+                      ? 'Blocked'
+                      : (services[0] || selectedEventData.title || 'Service');
+                    const timeRange = (() => {
+                      if (selectedEventData.start && selectedEventData.end) {
+                        try {
+                          const start = typeof selectedEventData.start === 'string' ? parseISO(selectedEventData.start) : new Date(selectedEventData.start);
+                          const end = typeof selectedEventData.end === 'string' ? parseISO(selectedEventData.end) : new Date(selectedEventData.end);
+                          return `${format(start, 'h:mm a')} - ${format(end, 'h:mm a')}`;
+                        } catch {
                           return selectedEventData.time || '';
-                        })()}
-                        displayValue={(() => {
-                          if (selectedEventData.start) {
-                            const d = typeof selectedEventData.start === 'string' ? parseISO(selectedEventData.start) : new Date(selectedEventData.start);
-                            return format(d, 'h:mm a');
-                          }
-                          return selectedEventData.time || '';
-                        })()}
-                        placeholder="Set start time"
-                        onSave={(val) => {
-                          // Send startDate + startTime + existing endTime together so the API properly adjusts
-                          const eventDate = selectedEventData.start || selectedEventData.date;
-                          let dateStr = '';
-                          if (eventDate) {
-                            if (typeof eventDate === 'string') dateStr = eventDate.includes('T') ? eventDate.split('T')[0] : eventDate;
-                            else { const d = new Date(eventDate); dateStr = `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`; }
-                          }
-                          const endTime = selectedEventData.end ? format(typeof selectedEventData.end === 'string' ? parseISO(selectedEventData.end) : new Date(selectedEventData.end), 'HH:mm') : '';
-                          saveField({ startDate: dateStr, startTime: val, endTime: endTime || val });
-                        }}
-                        type="time"
-                      />
-                    )}
+                        }
+                      }
+                      return selectedEventData.time || (selectedEventData.allDay ? 'All Day' : '');
+                    })();
+                    const technician = allEmployees.find((e) => e.id === selectedEventData.employeeId);
+                    const customerStatus = getCustomerTypeFromHistory({
+                      completedServiceCount: selectedEventData.completedServiceCount,
+                      lastCompletedServiceAt: selectedEventData.lastCompletedServiceAt,
+                      referenceDate: selectedEventData.start || selectedEventData.date || new Date()
+                    });
+                    const locationLower = String(selectedEventData.locationType || '').toLowerCase();
+                    const locationLabel =
+                      locationLower === 'pickup' || locationLower === 'pick up'
+                        ? 'Pick up'
+                        : locationLower === 'dropoff' || locationLower === 'drop off'
+                        ? 'Drop off'
+                        : '';
+                    const resource = resources.find((r) => r.id === selectedEventData.resourceId);
+                    const vehicleLabel = eventVehicles.map((v) => v.model).join(', ') || selectedEventData.vehicleModel || 'Not set';
+                    const cleanEventNotes = getCleanDescription(selectedEventData.description) || '';
+                    const cleanCustomerNotes = selectedEventData.customerNotes || '';
+                    const isPaidNow = selectedEventData.paid === true;
 
-                    {/* End Time */}
-                    {!selectedEventData.allDay && (
-                      <InlinePropertyRow
-                        icon={<svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
-                        label="End Time"
-                        value={(() => {
-                          if (selectedEventData.end) {
-                            const d = typeof selectedEventData.end === 'string' ? parseISO(selectedEventData.end) : new Date(selectedEventData.end);
-                            return format(d, 'HH:mm');
-                          }
-                          return '';
-                        })()}
-                        displayValue={(() => {
-                          if (selectedEventData.end) {
-                            const d = typeof selectedEventData.end === 'string' ? parseISO(selectedEventData.end) : new Date(selectedEventData.end);
-                            return format(d, 'h:mm a');
-                          }
-                          return '';
-                        })()}
-                        placeholder="Set end time"
-                        onSave={(val) => {
-                          // Send startDate + startTime + endTime together so the API properly adjusts
-                          const eventDate = selectedEventData.start || selectedEventData.date;
-                          let dateStr = '';
-                          if (eventDate) {
-                            if (typeof eventDate === 'string') dateStr = eventDate.includes('T') ? eventDate.split('T')[0] : eventDate;
-                            else { const d = new Date(eventDate); dateStr = `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`; }
-                          }
-                          const startTime = selectedEventData.start ? format(typeof selectedEventData.start === 'string' ? parseISO(selectedEventData.start) : new Date(selectedEventData.start), 'HH:mm') : '';
-                          saveField({ startDate: dateStr, startTime: startTime || val, endTime: val });
-                        }}
-                        type="time"
-                      />
-                    )}
-
-                    {/* Station / Resource */}
-                    <InlineDropdownRow
-                      icon={<svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>}
-                      label="Station"
-                      value={selectedEventData.resourceId || ''}
-                      displayValue={(() => { const r = resources.find(r => r.id === selectedEventData.resourceId); return r ? r.name : ''; })()}
-                      placeholder="Assign station"
-                      options={resources.map(r => ({ value: r.id, label: r.name, icon: r.type === 'bay' ? '🏗️' : '🚐' }))}
-                      onSave={(val) => saveField({ resourceId: val })}
-                    />
-
-                    {/* Arrival / Location Type */}
-                    {selectedEventData.eventType !== 'block' && (
-                      <InlineDropdownRow
-                        icon={<svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>}
-                        label="Arrival"
-                        value={selectedEventData.locationType || ''}
-                        displayValue={(() => {
-                          const lt = (selectedEventData.locationType || '').toLowerCase();
-                          if (lt === 'pickup' || lt === 'pick up') return 'Pick Up';
-                          if (lt === 'dropoff' || lt === 'drop off') return 'Drop Off';
-                          return selectedEventData.locationType || '';
-                        })()}
-                        placeholder="Set arrival type"
-                        options={[{ value: 'Drop Off', label: 'Drop Off' }, { value: 'Pick Up', label: 'Pick Up' }]}
-                        onSave={(val) => saveField({ locationType: val })}
-                      />
-                    )}
-
-                    {/* Customer Type */}
-                    {selectedEventData.eventType !== 'block' && (
-                      <InlineDropdownRow
-                        icon={<svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}
-                        label="Status"
-                        value={selectedEventData.customerType || ''}
-                        displayValue={(() => {
-                          const customerStatus = getCustomerTypeFromHistory({
-                            completedServiceCount: selectedEventData.completedServiceCount,
-                            lastCompletedServiceAt: selectedEventData.lastCompletedServiceAt,
-                            referenceDate: selectedEventData.start || selectedEventData.date || new Date()
-                          });
-                          const normalizedOverride = selectedEventData.customerType ? String(selectedEventData.customerType).toLowerCase() : '';
-                          const effectiveType = normalizedOverride || customerStatus;
-                          if (effectiveType === 'new') return 'New Customer';
-                          if (effectiveType === 'returning') return 'Repeat Customer';
-                          if (effectiveType === 'maintenance') return 'Maintenance Customer';
-                          return effectiveType || '';
-                        })()}
-                        placeholder="Set customer type"
-                        options={[
-                          { value: 'new', label: 'New Customer' },
-                          { value: 'returning', label: 'Repeat Customer' },
-                          { value: 'maintenance', label: 'Maintenance Customer' },
-                        ]}
-                        onSave={(val) => saveField({ customerType: val })}
-                      />
-                    )}
-
-                    {/* Technician / Employee */}
-                    <InlineDropdownRow
-                      icon={<svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}
-                      label="Technician"
-                      value={selectedEventData.employeeId || ''}
-                      displayValue={(() => { const emp = allEmployees.find(e => e.id === selectedEventData.employeeId); return emp ? emp.name : ''; })()}
-                      placeholder="Assign technician"
-                      options={allEmployees.map(e => ({ value: e.id, label: e.name }))}
-                      onSave={(val) => saveField({ employeeId: val })}
-                      renderOption={(opt) => {
-                        const emp = allEmployees.find(e => e.id === opt.value);
-                        return (
-                          <div className="flex items-center gap-2">
-                            {emp && (
-                              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold ${getEmployeeBadgeClass(emp.color)}`}>
-                                {getEmployeeInitials(emp.name)}
-                              </div>
-                            )}
-                            <span>{opt.label}</span>
-                          </div>
-                        );
-                      }}
-                      renderDisplay={() => {
-                        const emp = allEmployees.find(e => e.id === selectedEventData.employeeId);
-                        if (!emp) return null;
-                        return (
-                          <div className="flex items-center gap-2">
-                            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold ${getEmployeeBadgeClass(emp.color)}`}>
-                              {getEmployeeInitials(emp.name)}
-                            </div>
-                            <span className="text-sm text-gray-900">{emp.name}</span>
-                          </div>
-                        );
-                      }}
-                    />
-
-                    {/* Payment Status Toggle */}
-                    {selectedEventData.eventType !== 'block' && (
-                      <div className="flex items-center justify-between px-4 py-3 border-t" style={{ borderColor: '#E2E2DD' }}>
-                        <div className="flex items-center gap-3">
-                          <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                          <span className="text-sm text-gray-500 font-medium">Payment</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-gray-500">{selectedEventData.paid === true ? 'Paid' : 'Unpaid'}</span>
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              const newPaid = !(selectedEventData.paid === true);
-                              setSelectedEventData((prev: any) => prev ? { ...prev, paid: newPaid } : prev);
-                              setEvents((prev: any[]) => prev.map((e: any) => e.id === selectedEventData.id ? { ...e, paid: newPaid } : e));
-                              try {
-                                await fetch(`/api/detailer/events/${selectedEventData.id}`, {
-                                  method: 'PATCH',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ paid: newPaid }),
-                                });
-                                fetchCalendarEvents();
-                              } catch (err) {
-                                setSelectedEventData((prev: any) => prev ? { ...prev, paid: !newPaid } : prev);
-                                setEvents((prev: any[]) => prev.map((e: any) => e.id === selectedEventData.id ? { ...e, paid: !newPaid } : e));
-                              }
-                            }}
-                            className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${selectedEventData.paid === true ? 'bg-orange-500' : 'bg-gray-300'}`}
-                          >
-                            <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${selectedEventData.paid === true ? 'translate-x-4' : 'translate-x-0'}`} />
-                          </button>
-                        </div>
+                    const detailRow = (
+                      icon: React.ReactNode,
+                      label: string,
+                      value: React.ReactNode,
+                      isLast = false
+                    ) => (
+                      <div className={`flex items-center gap-2.5 px-3 py-2.5 ${!isLast ? 'border-b border-[#f0f0ee]' : ''}`}>
+                        <div className="w-4 h-4 flex-shrink-0 text-[#a1a09a]">{icon}</div>
+                        <div className="w-20 text-sm text-[#6b6a5e]">{label}</div>
+                        <div className="flex-1 min-w-0 text-[15px] text-[#2B2B26]">{value}</div>
                       </div>
-                    )}
+                    );
 
-                    {/* Services */}
-                    {selectedEventData.eventType !== 'block' && (
-                      <InlineServicesRow
-                        selectedServices={selectedServices}
-                        availableServices={availableServices}
-                        availableBundles={availableBundles}
-                        onSave={(serviceNames) => saveField({ services: serviceNames })}
-                      />
-                    )}
+                    if (isBlockEvent) {
+                      return (
+                        <div>
+                          <div className="mb-4">
+                            <h3 className="text-[22px] font-bold text-[#2B2B26] leading-tight">{mainService}</h3>
+                            {technician && <p className="text-[15px] text-[#6b6a5e] mt-0.5">{technician.name}</p>}
+                            {timeRange && <p className="text-[15px] text-[#6b6a5e] mt-0.5">{timeRange}</p>}
+                          </div>
+                          <div className="rounded-xl border border-[#e2e2dd] overflow-hidden bg-white">
+                            {detailRow(
+                              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>,
+                              'Notes',
+                              cleanEventNotes ? <span className="text-[#2B2B26] italic">{cleanEventNotes}</span> : <span className="text-[#9e9d92] italic">No notes</span>,
+                              true
+                            )}
+                          </div>
+                        </div>
+                      );
+                    }
 
-                    {/* Customer Notes */}
-                    {selectedEventData.eventType !== 'block' && (
-                      <InlineTextareaRow
-                        icon={<svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>}
-                        label="Cust. Notes"
-                        value={selectedEventData.customerNotes || ''}
-                        placeholder="Add customer notes..."
-                        onSave={(val) => saveField({ customerNotes: val })}
-                      />
-                    )}
+                    return (
+                      <div>
+                        <div className="mb-4">
+                          <h3 className="text-[22px] font-bold text-[#2B2B26] leading-tight">{mainService}</h3>
+                          {timeRange && <p className="text-[15px] text-[#6b6a5e] mt-0.5">{timeRange}</p>}
+                        </div>
 
-                    {/* Event Notes */}
-                    <InlineTextareaRow
-                      icon={<svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>}
-                      label={selectedEventData.eventType === 'block' ? 'Notes' : 'Event Notes'}
-                      value={getCleanDescription(selectedEventData.description) || ''}
-                      placeholder={selectedEventData.eventType === 'block' ? 'Add notes...' : 'Add event notes...'}
-                      onSave={(val) => saveField({ description: val })}
-                    />
-                  </div>
+                        <div className="mb-3">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm text-[#6b6a5e]">Services</span>
+                            {services.map((s: string, idx: number) => (
+                              <span key={`${s}-${idx}`} className="inline-flex items-center px-2 py-0.5 rounded-full bg-[#f0f0ee] text-[#2B2B26] text-[13px] font-medium">
+                                {s}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
 
-                  {/* Customer Details Popup - floating */}
-                  {showCustomerDetailsPopup && selectedEventData && customerPopupPosition && (
-                    <div 
-                      ref={customerDetailsPopupRef}
-                      className="fixed w-80 bg-white shadow-2xl z-[60] rounded-xl overflow-hidden" 
-                      onMouseEnter={() => {
-                        if (customerPopupTimeoutRef.current) {
-                          clearTimeout(customerPopupTimeoutRef.current);
-                          customerPopupTimeoutRef.current = null;
-                        }
-                      }}
-                      onMouseLeave={() => setShowCustomerDetailsPopup(false)}
-                      style={{ border: '1px solid #E2E2DD', backgroundColor: '#F8F8F7', maxHeight: '90vh', right: `${customerPopupPosition.right}px`, top: `${customerPopupPosition.top}px` }}>
-                      <div className="flex flex-col overflow-hidden" style={{ backgroundColor: '#F8F8F7' }}>
-                        <div className="flex-shrink-0 p-4 border-b" style={{ borderColor: '#E2E2DD' }}>
-                          <div className="flex justify-between items-center">
-                            <h3 className="text-base font-bold text-gray-900">Customer Details</h3>
-                            <button onClick={() => setShowCustomerDetailsPopup(false)} className="p-1 rounded-lg hover:bg-gray-100 transition-colors">
-                              <XMarkIcon className="w-4 h-4 text-gray-500" />
+                        <div className="rounded-xl border border-[#e2e2dd] overflow-hidden bg-white">
+                          {detailRow(
+                            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>,
+                            'Customer',
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <div className="w-7 h-7 rounded-full bg-[#efefed] text-[#6b6a5e] flex items-center justify-center text-[10px] font-semibold">
+                                  {getEmployeeInitials(selectedEventData.customerName || 'C')}
+                                </div>
+                                <span className="truncate">{selectedEventData.customerName || 'No customer'}</span>
+                                {(selectedEventData.customerName || selectedEventData.customerPhone) && (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[#f5f2ff] text-[#8a5cf6] whitespace-nowrap">
+                                    {customerPastJobs.length} past jobs
+                                  </span>
+                                )}
+                              </div>
+                              {selectedEventData.customerPhone && (
+                                <Link
+                                  href={`/detailer-dashboard/messages?phone=${encodeURIComponent(selectedEventData.customerPhone)}`}
+                                  className="w-6 h-6 rounded-full bg-[#f0f0ee] flex items-center justify-center text-[#6b6a5e] hover:bg-[#e8e8e5]"
+                                >
+                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                                  </svg>
+                                </Link>
+                              )}
+                            </div>
+                          )}
+                          {detailRow(
+                            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>,
+                            'Phone',
+                            selectedEventData.customerPhone ? formatPhoneDisplay(selectedEventData.customerPhone) : <span className="text-[#9e9d92]">Not set</span>
+                          )}
+                          {detailRow(
+                            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
+                            'Address',
+                            selectedEventData.customerAddress || <span className="text-[#9e9d92]">Not set</span>
+                          )}
+                          {detailRow(
+                            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M1 16h22" /></svg>,
+                            'Vehicle',
+                            vehicleLabel
+                          )}
+                          {detailRow(
+                            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+                            'Time',
+                            timeRange || <span className="text-[#9e9d92]">Not set</span>
+                          )}
+                          {detailRow(
+                            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5" /></svg>,
+                            'Station',
+                            <div className="flex items-center gap-2">
+                              {locationLabel && <span className="text-[12px] px-2 py-0.5 rounded bg-[#ecfdf5] text-[#16a34a]">{locationLabel}</span>}
+                              <span>{resource?.name || 'Unassigned'}</span>
+                            </div>
+                          )}
+                          {detailRow(
+                            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>,
+                            'Technician',
+                            technician ? (
+                              <div className="flex items-center gap-2">
+                                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-semibold ${getEmployeeBadgeClass(technician.color)}`}>
+                                  {getEmployeeInitials(technician.name)}
+                                </div>
+                                <span>{technician.name}</span>
+                              </div>
+                            ) : <span className="text-[#9e9d92]">No technician</span>
+                          )}
+                          {detailRow(
+                            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1" /></svg>,
+                            'Payment',
+                              <span className={`${isPaidNow ? 'text-[#16a34a]' : 'text-[#dc2626]'} font-medium text-[14px]`}>
+                              <span className="mr-1.5">•</span>{isPaidNow ? 'Paid' : 'Unpaid'}
+                            </span>,
+                            true
+                          )}
+                        </div>
+
+                        {!isPaidNow && (
+                          <div className="mt-2.5">
+                            <button
+                              onClick={async () => {
+                                await saveField({ paid: true });
+                              }}
+                              className="w-full py-1.5 rounded-lg bg-[#2B2B26] text-white text-[13px] font-medium hover:bg-[#1a1a18]"
+                            >
+                              Mark as Paid
                             </button>
                           </div>
-                        </div>
-                        <div className="flex-1 overflow-y-auto p-4" style={{ maxHeight: 'calc(90vh - 60px)' }}>
-                          <div className="space-y-4">
-                            <div>
-                              <h4 className="text-xs font-semibold text-gray-900 mb-3 uppercase">Contact Information</h4>
-                              <div className="space-y-2.5">
-                                <div>
-                                  <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Name</label>
-                                  <p className="text-sm text-gray-900 mt-0.5">{selectedEventData.customerName || 'Not provided'}</p>
-                                </div>
-                                <div>
-                                  <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Phone</label>
-                                  <p className="text-sm text-gray-900 mt-0.5">{selectedEventData.customerPhone ? formatPhoneDisplay(selectedEventData.customerPhone) : 'Not provided'}</p>
-                                </div>
-                                <div>
-                                  <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Email</label>
-                                  <p className="text-sm text-gray-900 mt-0.5">{selectedEventData.customerEmail || 'Not provided'}</p>
-                                </div>
-                                <div>
-                                  <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Address</label>
-                                  <p className="text-sm text-gray-900 mt-0.5">{selectedEventData.customerAddress || 'Not provided'}</p>
-                                </div>
-                              </div>
-                            </div>
-                            {customerPastJobs && customerPastJobs.length > 0 && (
-                              <div>
-                                <h4 className="text-xs font-semibold text-gray-900 mb-3 uppercase">Past Jobs ({customerPastJobs.length})</h4>
-                                <div className="space-y-2.5">
-                                  {customerPastJobs.map((job, index) => (
-                                    <div key={job.id || index} className="p-3 rounded-lg border" style={{ borderColor: '#E2E2DD', backgroundColor: 'white' }}>
-                                      <p className="text-xs font-semibold text-gray-900">
-                                        {job.date ? (() => { try { const d = new Date(job.date); return isNaN(d.getTime()) ? 'Date unavailable' : format(d, 'MMMM d, yyyy'); } catch { return 'Date unavailable'; } })() : 'Date unavailable'}
-                                      </p>
-                                      {job.services && job.services.length > 0 && (
-                                        <div className="flex flex-wrap gap-1 mt-1">
-                                          {(Array.isArray(job.services) ? job.services : [job.services]).map((service, si) => (
-                                            <span key={si} className="text-[10px] px-2 py-0.5 rounded-full bg-gray-200 text-gray-700">{service}</span>
-                                          ))}
-                                        </div>
-                                      )}
-                                      {job.vehicleModel && <p className="text-[10px] text-gray-500 mt-1.5">Vehicle: {job.vehicleModel}</p>}
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </div>
+                        )}
+
+                        <div className="mt-3 rounded-xl border border-[#e2e2dd] bg-white overflow-hidden">
+                          {detailRow(
+                            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h10" /></svg>,
+                            'Notes',
+                            <div className="space-y-1.5">
+                              <p className="text-[13px] text-[#6b6a5e]">
+                                {cleanCustomerNotes || 'No customer notes'}
+                              </p>
+                              <p className="text-[13px] text-[#6b6a5e] italic">
+                                {cleanEventNotes || 'No event notes'}
+                              </p>
+                            </div>,
+                            true
+                          )}
                         </div>
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
                 </div>
 
-              ) : (viewMode === 'month' && selectedDay) ? (
+              )) : (viewMode === 'month' && selectedDay) ? (
                 selectedDayEvents.length === 0 ? (
                   <div className="p-6 text-center text-gray-500 mt-8">
                     <p>No events for {format(selectedDay, 'MMMM d, yyyy')}</p>
@@ -10816,30 +10400,6 @@ export default function CalendarPage() {
             
             </div>
             
-            {/* Footer - Delete button (only when viewing event details) */}
-            {selectedEventData && (
-              <div className="flex-shrink-0 px-5 pb-4" style={{ backgroundColor: '#F8F8F7' }}>
-                <div className="flex gap-3 w-full">
-                  <button
-                    onClick={() => handleDeleteEvent(selectedEventData)}
-                    className="flex-1 px-4 py-2 bg-[#FFDDDD] hover:bg-[#FFC1C1] text-[#DE0000] rounded-xl font-medium transition-colors text-sm"
-                  >
-                    Delete Event
-                  </button>
-                </div>
-                <div className="text-center pt-2">
-                  <button
-                    onClick={() => {
-                      setSelectedEventData(null);
-                      setSelectedEvent(null);
-                    }}
-                    className="text-sm text-gray-600 hover:text-gray-800 font-medium"
-                  >
-                    ← Back to events list
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
 
         </div>
@@ -11034,10 +10594,6 @@ export default function CalendarPage() {
                         customerAddress: customer.address || ''
                       };
                       setSelectedEventData(updatedEventData);
-                      
-                      // Clear search
-                      setEventDetailsCustomerSearch('');
-                      setShowEventDetailsCustomerSuggestions(false);
                       
                       // Refresh customers list
                       fetch('/api/detailer/customers')

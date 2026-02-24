@@ -278,7 +278,7 @@ export async function POST(request: NextRequest) {
         const importedLastVisit = typeof customerData.importedLastVisit === 'string' ? customerData.importedLastVisit : null;
 
         const realCount = stats?.count ?? 0;
-        const completedServiceCount = realCount + importedVisitCount;
+        const completedServiceCount = Math.max(realCount, importedVisitCount);
 
         let lastCompletedServiceAt: string | null = stats?.lastAt ? stats.lastAt.toISOString() : null;
         if (importedLastVisit) {
@@ -511,22 +511,32 @@ For each customer, return:
 
 VOICE & TONE — this is the most important part:
 - Write like you JUST thought of this person. Like "oh hey I was thinking about you" energy. Not "Dear valued customer."
-- Examples of the vibe:
+- Examples of the vibe (notice how EVERY message has a completely different structure, opening, and hook):
   - "Hey! Just drove past your neighborhood Sarah and remembered your Accord is probably due. Want me to swing by this week?"
   - "Hi! Spring's around the corner Lucas, bet that F-150 could use a good wash after all this winter grime. Lmk if you want to get on the schedule"
   - "Hey! How's the Model 3 treating you Olivia? Been a minute — want me to get you on the books?"
   - "Hi! Noah I know with the kids back in school the BMW's probably seen better days, want me to come by?"
   - "Hey! Pollen season is about to hit Sophia — want to get ahead of it with a detail on the Mazda?"
+  - "Hi! Was just thinking about your Pilot Grace. It's been about 11 months — want me to come freshen it up?"
+  - "Hey Abigail, your Audi's been overdue for a detail for about 7 months now. Want me to get that taken care of?"
+  - "Hi Emma Y., I was thinking about your Subaru and Kia! It's been a while since they got some love"
+  - "Hey! Layla, it's been about 6 months since your Golf got some attention. Ready for a refresh?"
+  - "Hi Avery, just thought of your Accord. It's been about 2 months — lmk if you want to get it detailed"
 - Keep it SHORT. Like a text you'd actually send, not a paragraph.
 - Use their first name naturally (start of message or mid-sentence, vary it)
 - Mention their car casually, don't force it
 - No emojis
 - NEVER use exclamation marks on every sentence. Mix periods, questions, and the occasional !
 - Use lowercase energy. "lmk", "want me to", "bet that" — conversational shortcuts are fine but make sure the first letter is uppercase always.
-- ALWAYS open with "Hey!" or "Hi!" — then weave the customer's name in naturally after (not immediately after the greeting). Vary between "Hey!" and "Hi!" across messages.
+- Open with "Hey!" or "Hi!" or "Hey" or "Hi" — vary the opening style. Sometimes use "Hey [Name]," or "Hi [Name]," directly. Do NOT always follow the same "Hey! ... [name]" pattern.
 
 HOOKS — use personal insights when available, they're gold:
-- Pets: "I know [pet name/type] probably has the backseat looking rough" 
+- Pets/Dogs: If the customer has pets or dogs listed, you MUST mention it in the message. Reference dog hair, fur, muddy paws, backseat mess — make it specific and real. Examples:
+  - "I know [dog name] probably has the backseat covered in fur by now"
+  - "bet [pet type] has been leaving hair all over the seats"
+  - "with [dog name] riding shotgun I'm sure the interior could use some love"
+  - "dog hair season never really ends huh? Let me get that [car] cleaned up"
+  This is a MANDATORY hook when pet data is present — do not skip it.
 - Kids: reference the chaos kids bring to cars naturally
 - Seasons: pollen, salt, rain, summer road trips — tie it to their actual car
 - Time since last visit: "been a minute", "feels like it's been a while", "a couple months" — NEVER say exact day counts. If you reference time, use vague/approximate terms like "a couple months", "a few months", "a while". No one texts "it's been 150 days"
@@ -536,12 +546,19 @@ Rules:
 - First name only, always
 - Reference their vehicle make/model but weave it in naturally
 - Keep messages under 140 characters when possible — shorter is better
-- CRITICAL: Every customer gets a UNIQUE message. No two should feel like the same template.
+- CRITICAL: Every single message MUST be completely unique. Vary ALL of these across messages:
+  - Sentence structure (questions vs statements, short vs medium, one sentence vs two)
+  - Opening pattern (name placement, greeting style, with/without exclamation)
+  - Hook type (time-based, vehicle-based, personal detail, seasonal, convenience, loyalty)
+  - Word choice (never reuse the same phrases like "just thought about" or "it's been about" across multiple messages)
+  - Closing (question, suggestion, open-ended, direct ask — vary every time)
+  If two messages start to sound similar, completely rewrite one. No two messages should share the same sentence skeleton.
 - Overdue (>45 days): "been a while" / "just remembered" / casual check-in energy
 - Due Soon (25-45 days): "coming up on time" / proactive but chill
 - Active (<25 days): light touch, "your next one's coming up"
 - If customer has high lifetime value (>$1000), treat them like a friend/VIP — warmer tone
 - If customer has detailer notes, USE them — that's the most personal hook you have
+- If customer has pets/dogs, you MUST work it into the message — pet hair and fur are a natural reason to reach out for interior detailing
 
 Return a JSON object with key "customers" containing an array in the same order as input.`;
 
@@ -569,7 +586,7 @@ Return a JSON object with key "customers" containing an array in the same order 
       batches.map(async (batch, batchIdx) => {
         const completion = await openai.chat.completions.create({
           model: 'gpt-4o-mini',
-          temperature: 0.85,
+          temperature: 0.95,
           max_tokens: 2000,
           messages: [
             { role: 'system', content: systemPrompt },

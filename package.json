@@ -19,7 +19,9 @@
     "update-urls": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' app/scripts/update-image-urls.ts",
     "check-urls": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' app/scripts/check-urls.ts",
     "upload-images": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' scripts/upload-images-to-s3.ts",
-    "update-all-urls": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' app/scripts/update-all-urls.ts"
+    "update-all-urls": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' app/scripts/update-all-urls.ts",
+    "backfill:vehicles": "tsx scripts/backfill-vehicle-catalog.ts",
+    "test:vehicle-normalization": "tsx scripts/test-vehicle-normalization.ts"
   },
   "prisma": {
     "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
