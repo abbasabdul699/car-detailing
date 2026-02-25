@@ -24,10 +24,11 @@ function phoneDigits(value?: string | null): string {
   return (value || '').replace(/\D/g, '');
 }
 
-async function findDetailerByInboundTwilioNumber(toRaw: string) {
+async function findDetailerByInboundTwilioNumber(toRaw: string, fromRaw?: string) {
   const normalizedTo = normalizeToE164(toRaw) || toRaw;
   const normalizedDigits = phoneDigits(normalizedTo);
   const last10 = normalizedDigits.slice(-10);
+  const normalizedFrom = fromRaw ? normalizeToE164(fromRaw) || fromRaw : null;
 
   if (!last10) return null;
 
@@ -62,6 +63,42 @@ async function findDetailerByInboundTwilioNumber(toRaw: string) {
 
   const smsEnabledMatches = matchingCandidates.filter((candidate) => candidate.smsEnabled);
   const prioritizedMatches = smsEnabledMatches.length ? smsEnabledMatches : matchingCandidates;
+
+  // Tie-break duplicate Twilio number assignments by choosing the detailer
+  // with the most recently active conversation for this specific customer.
+  if (prioritizedMatches.length > 1 && normalizedFrom) {
+    const candidateIds = prioritizedMatches.map((candidate) => candidate.id);
+    const candidateConversations = await prisma.conversation.findMany({
+      where: {
+        detailerId: { in: candidateIds },
+        customerPhone: normalizedFrom,
+      },
+      select: {
+        id: true,
+        detailerId: true,
+        lastMessageAt: true,
+        updatedAt: true,
+      },
+      orderBy: [{ lastMessageAt: 'desc' }, { updatedAt: 'desc' }],
+      take: 10,
+    });
+
+    if (candidateConversations.length > 0) {
+      const winnerDetailerId = candidateConversations[0].detailerId;
+      const winner = prioritizedMatches.find((candidate) => candidate.id === winnerDetailerId);
+      if (winner) {
+        console.log('✅ Resolved detailer for inbound SMS (conversation tie-break)', {
+          detailerId: winner.id,
+          twilioPhoneNumber: winner.twilioPhoneNumber,
+          normalizedTo,
+          normalizedFrom,
+          winnerConversationId: candidateConversations[0].id,
+          winnerLastMessageAt: candidateConversations[0].lastMessageAt,
+        });
+        return winner;
+      }
+    }
+  }
 
   const exactE164Match = prioritizedMatches.find((candidate) => {
     const candidateE164 = normalizeToE164(candidate.twilioPhoneNumber || '');
@@ -1335,7 +1372,7 @@ export async function POST(request: NextRequest) {
       console.log('🔥 META LEAD DETECTED:', body);
       
       // Resolve the exact detailer for this inbound Twilio number.
-      const detailer = await findDetailerByInboundTwilioNumber(to);
+      const detailer = await findDetailerByInboundTwilioNumber(to, from);
 
       if (!detailer) {
         releaseLock(conversationId);
@@ -1422,7 +1459,7 @@ This lead has been automatically processed and is ready for you to contact!`;
     }
     
     // Resolve the exact detailer for this inbound Twilio number.
-    const detailer = await findDetailerByInboundTwilioNumber(to);
+    const detailer = await findDetailerByInboundTwilioNumber(to, from);
 
     if (!detailer) {
       releaseLock(conversationId);
