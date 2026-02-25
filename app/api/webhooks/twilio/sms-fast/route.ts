@@ -20,6 +20,80 @@ function twimlResponse(status: number = 200): Response {
 }
 import twilio from 'twilio';
 
+function phoneDigits(value?: string | null): string {
+  return (value || '').replace(/\D/g, '');
+}
+
+async function findDetailerByInboundTwilioNumber(toRaw: string) {
+  const normalizedTo = normalizeToE164(toRaw) || toRaw;
+  const normalizedDigits = phoneDigits(normalizedTo);
+  const last10 = normalizedDigits.slice(-10);
+
+  if (!last10) return null;
+
+  const candidates = await prisma.detailer.findMany({
+    where: {
+      twilioPhoneNumber: { contains: last10 },
+    },
+  });
+
+  if (!candidates.length) {
+    return null;
+  }
+
+  const matchingCandidates = candidates.filter((candidate) => {
+    const candidateDigits = phoneDigits(candidate.twilioPhoneNumber);
+    return candidateDigits === normalizedDigits || candidateDigits.endsWith(last10);
+  });
+
+  if (!matchingCandidates.length) {
+    return null;
+  }
+
+  if (matchingCandidates.length > 1) {
+    console.warn('⚠️ Multiple detailers matched inbound Twilio number', {
+      toRaw,
+      normalizedTo,
+      last10,
+      detailerIds: matchingCandidates.map((candidate) => candidate.id),
+      smsEnabledIds: matchingCandidates.filter((candidate) => candidate.smsEnabled).map((candidate) => candidate.id),
+    });
+  }
+
+  const smsEnabledMatches = matchingCandidates.filter((candidate) => candidate.smsEnabled);
+  const prioritizedMatches = smsEnabledMatches.length ? smsEnabledMatches : matchingCandidates;
+
+  const exactE164Match = prioritizedMatches.find((candidate) => {
+    const candidateE164 = normalizeToE164(candidate.twilioPhoneNumber || '');
+    return candidateE164 === normalizedTo;
+  });
+
+  if (exactE164Match) {
+    return exactE164Match;
+  }
+
+  const exactDigitsMatch = prioritizedMatches.find(
+    (candidate) => phoneDigits(candidate.twilioPhoneNumber) === normalizedDigits
+  );
+  if (exactDigitsMatch) {
+    console.log('✅ Resolved detailer for inbound SMS (exact digits)', {
+      detailerId: exactDigitsMatch.id,
+      twilioPhoneNumber: exactDigitsMatch.twilioPhoneNumber,
+      normalizedTo,
+    });
+    return exactDigitsMatch;
+  }
+
+  const selected = prioritizedMatches[0];
+  console.log('✅ Resolved detailer for inbound SMS (fallback)', {
+    detailerId: selected.id,
+    twilioPhoneNumber: selected.twilioPhoneNumber,
+    normalizedTo,
+    candidateCount: prioritizedMatches.length,
+  });
+  return selected;
+}
+
 // Helper function to generate .ics calendar file content
 function generateICSContent(booking: any, detailer: any): string {
   const startDateTime = new Date(booking.scheduledDate);
@@ -1260,17 +1334,8 @@ export async function POST(request: NextRequest) {
     if (isMetaLead(body)) {
       console.log('🔥 META LEAD DETECTED:', body);
       
-      // Find the detailer quickly (robust match: exact E.164 OR last 10 digits)
-      const last10 = to.replace(/\D/g, '').slice(-10)
-      const detailer = await prisma.detailer.findFirst({
-        where: {
-          smsEnabled: true,
-          OR: [
-            { twilioPhoneNumber: to },
-            { twilioPhoneNumber: { contains: last10 } },
-          ],
-        },
-      });
+      // Resolve the exact detailer for this inbound Twilio number.
+      const detailer = await findDetailerByInboundTwilioNumber(to);
 
       if (!detailer) {
         releaseLock(conversationId);
@@ -1356,27 +1421,8 @@ This lead has been automatically processed and is ready for you to contact!`;
       return twimlResponse();
     }
     
-    // Find the detailer quickly (robust match: exact E.164 OR last 10 digits)
-    const last10 = to.replace(/\D/g, '').slice(-10)
-    let detailer = await prisma.detailer.findFirst({
-      where: {
-        OR: [
-          { twilioPhoneNumber: to },
-          { twilioPhoneNumber: { contains: last10 } },
-        ],
-      },
-    });
-
-    if (!detailer) {
-      const fallbackDetailers = await prisma.detailer.findMany({
-        where: { twilioPhoneNumber: { not: null } },
-        select: { id: true, twilioPhoneNumber: true, smsEnabled: true },
-      });
-      detailer = fallbackDetailers.find((candidate) => {
-        const digits = (candidate.twilioPhoneNumber || '').replace(/\D/g, '');
-        return digits.endsWith(last10);
-      }) as typeof detailer;
-    }
+    // Resolve the exact detailer for this inbound Twilio number.
+    const detailer = await findDetailerByInboundTwilioNumber(to);
 
     if (!detailer) {
       releaseLock(conversationId);
