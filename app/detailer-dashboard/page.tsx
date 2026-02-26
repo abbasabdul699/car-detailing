@@ -99,6 +99,59 @@ const getRelativeTime = (dateStr: string) => {
   return format(date, "MMM d");
 };
 
+const normalizePhoneDigits = (value?: string | null) => (value || "").replace(/\D/g, "");
+
+const getPhoneKey = (value?: string | null) => {
+  const digits = normalizePhoneDigits(value);
+  if (!digits) return "";
+  return digits.length > 10 ? digits.slice(-10) : digits;
+};
+
+const phonesMatch = (left?: string | null, right?: string | null) => {
+  const a = normalizePhoneDigits(left);
+  const b = normalizePhoneDigits(right);
+  if (!a || !b) return false;
+  if (a === b) return true;
+  const aLast10 = a.slice(-10);
+  const bLast10 = b.slice(-10);
+  return !!aLast10 && !!bLast10 && aLast10 === bLast10;
+};
+
+const getMessagesHref = (phone?: string | null) => {
+  const digits = normalizePhoneDigits(phone);
+  if (!digits) return "/detailer-dashboard/messages";
+  return `/detailer-dashboard/messages?phone=${encodeURIComponent(digits)}`;
+};
+
+const getTodoDueTimestamp = (todo: TodoItem) => {
+  if (!todo.dueDate) return Number.POSITIVE_INFINITY;
+  const due = new Date(todo.dueDate);
+  if (Number.isNaN(due.getTime())) return Number.POSITIVE_INFINITY;
+
+  if (todo.dueTime) {
+    const [hoursRaw, minutesRaw] = todo.dueTime.split(":");
+    const hours = Number(hoursRaw);
+    const minutes = Number(minutesRaw);
+    if (!Number.isNaN(hours) && !Number.isNaN(minutes)) {
+      due.setHours(hours, minutes, 0, 0);
+    }
+  } else {
+    due.setHours(0, 0, 0, 0);
+  }
+
+  return due.getTime();
+};
+
+const sortTodosByInputDate = (items: TodoItem[]) =>
+  [...items].sort((a, b) => {
+    const dueDiff = getTodoDueTimestamp(a) - getTodoDueTimestamp(b);
+    if (dueDiff !== 0) return dueDiff;
+
+    const createdA = new Date(a.createdAt).getTime();
+    const createdB = new Date(b.createdAt).getTime();
+    return createdB - createdA;
+  });
+
 // ─── Icons (inline SVGs to avoid dependency issues) ──────────────────
 const AlertTriangleIcon = ({ className }: { className?: string }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
@@ -261,6 +314,8 @@ export default function DetailerDashboardPage() {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messageInput, setMessageInput] = useState("");
   const [sendingMessage, setSendingMessage] = useState(false);
+  const [latestInboundByPhone, setLatestInboundByPhone] = useState<Record<string, string>>({});
+  const [seenInboundByPhone, setSeenInboundByPhone] = useState<Record<string, string>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Inline add todo state
@@ -299,6 +354,7 @@ export default function DetailerDashboardPage() {
   const [showCustomerInfo, setShowCustomerInfo] = useState(false);
   const [customerProfile, setCustomerProfile] = useState<CustomerProfile | null>(null);
   const [customerProfileLoading, setCustomerProfileLoading] = useState(false);
+  const [showCompletedSection, setShowCompletedSection] = useState(true);
 
   // Customer autocomplete state
   const [allCustomers, setAllCustomers] = useState<CustomerSuggestion[]>([]);
@@ -327,7 +383,7 @@ export default function DetailerDashboardPage() {
       const res = await fetch("/api/detailer/todos");
       if (res.ok) {
         const data = await res.json();
-        setTodos(data.todos || []);
+        setTodos(sortTodosByInputDate(data.todos || []));
       }
     } catch (err) {
       console.error("Failed to fetch todos:", err);
@@ -488,16 +544,17 @@ export default function DetailerDashboardPage() {
   }, []);
 
   // Fetch conversation when a todo with customerPhone is selected
-  const fetchConversationMessages = useCallback(async (phone: string) => {
-    setConversationLoading(true);
+  const fetchConversationMessages = useCallback(async (phone: string, options?: { silent?: boolean }) => {
+    const shouldShowLoading = !options?.silent;
+    if (shouldShowLoading) {
+      setConversationLoading(true);
+    }
     try {
       // Fetch all conversations (API returns a direct array)
       const res = await fetch("/api/detailer/conversations");
       if (res.ok) {
         const convos: any[] = await res.json();
-        const match = convos.find(
-          (c: any) => c.customerPhone === phone
-        );
+        const match = convos.find((c: any) => phonesMatch(c.customerPhone, phone));
         if (match) {
           setConversationId(match.id);
           // Fetch full conversation with messages (API returns conversation object directly)
@@ -518,7 +575,59 @@ export default function DetailerDashboardPage() {
       setConversationId(null);
       setConversationMessages([]);
     } finally {
-      setConversationLoading(false);
+      if (shouldShowLoading) {
+        setConversationLoading(false);
+      }
+    }
+  }, []);
+
+  const ensureConversationForCustomer = useCallback(async (phone: string, name?: string | null) => {
+    const convosRes = await fetch("/api/detailer/conversations");
+    if (convosRes.ok) {
+      const convos: any[] = await convosRes.json();
+      const existing = convos.find((c: any) => phonesMatch(c.customerPhone, phone));
+      if (existing?.id) return existing.id as string;
+    }
+
+    const createRes = await fetch("/api/detailer/start-conversation", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        customerPhone: phone,
+        customerName: name || undefined,
+      }),
+    });
+
+    const payload = await createRes.json().catch(() => ({}));
+    if (createRes.ok && payload?.conversation?.id) {
+      return payload.conversation.id as string;
+    }
+    if (createRes.status === 409 && payload?.conversation?.id) {
+      return payload.conversation.id as string;
+    }
+
+    throw new Error(payload?.error || "Failed to create conversation");
+  }, []);
+
+  const fetchConversationSignals = useCallback(async () => {
+    try {
+      const res = await fetch("/api/detailer/conversations");
+      if (!res.ok) return;
+      const convos: any[] = await res.json();
+      const inboundMap: Record<string, string> = {};
+
+      convos.forEach((conversation: any) => {
+        const phoneKey = getPhoneKey(conversation.customerPhone);
+        if (!phoneKey) return;
+        const latestMessage = Array.isArray(conversation.messages) ? conversation.messages[0] : null;
+        if (latestMessage?.direction === "inbound" && latestMessage?.createdAt) {
+          inboundMap[phoneKey] = latestMessage.createdAt;
+        }
+      });
+
+      setLatestInboundByPhone(inboundMap);
+    } catch (err) {
+      console.error("Failed to fetch conversation signals:", err);
     }
   }, []);
 
@@ -530,6 +639,22 @@ export default function DetailerDashboardPage() {
     }
     fetchConversationMessages(selectedTodo.customerPhone);
   }, [selectedTodo?.customerPhone, selectedTodo?.id, fetchConversationMessages]);
+
+  useEffect(() => {
+    if (!detailerId) return;
+    fetchConversationSignals();
+    const interval = setInterval(fetchConversationSignals, 5000);
+    return () => clearInterval(interval);
+  }, [detailerId, fetchConversationSignals]);
+
+  useEffect(() => {
+    if (!selectedTodo?.customerPhone) return;
+    const phoneKey = getPhoneKey(selectedTodo.customerPhone);
+    if (!phoneKey) return;
+    const latestInboundAt = latestInboundByPhone[phoneKey];
+    if (!latestInboundAt) return;
+    setSeenInboundByPhone((prev) => ({ ...prev, [phoneKey]: latestInboundAt }));
+  }, [selectedTodo?.id, selectedTodo?.customerPhone, latestInboundByPhone]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -582,7 +707,7 @@ export default function DetailerDashboardPage() {
       });
       if (res.ok) {
         const data = await res.json();
-        setTodos((prev) => [data.todo, ...prev]);
+        setTodos((prev) => sortTodosByInputDate([data.todo, ...prev]));
         // Reset inline form
         setShowInlineAdd(false);
         setNewTodoTitle("");
@@ -664,7 +789,7 @@ export default function DetailerDashboardPage() {
   };
 
   const sendMessage = async () => {
-    if (!messageInput.trim() || !selectedTodo?.customerPhone || !conversationId) return;
+    if (!messageInput.trim() || !selectedTodo?.customerPhone) return;
     
     const msgText = messageInput.trim();
     setSendingMessage(true);
@@ -680,11 +805,20 @@ export default function DetailerDashboardPage() {
     setMessageInput("");
 
     try {
+      let targetConversationId = conversationId;
+      if (!targetConversationId) {
+        targetConversationId = await ensureConversationForCustomer(
+          selectedTodo.customerPhone,
+          selectedTodo.customerName
+        );
+        setConversationId(targetConversationId);
+      }
+
       const res = await fetch("/api/detailer/send-message", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          conversationId,
+          conversationId: targetConversationId,
           message: msgText,
         }),
       });
@@ -694,7 +828,7 @@ export default function DetailerDashboardPage() {
       }
 
       // Refresh messages to get the real server-side message
-      await fetchConversationMessages(selectedTodo.customerPhone);
+      await fetchConversationMessages(selectedTodo.customerPhone, { silent: true });
     } catch (err) {
       console.error("Failed to send message:", err);
       // Remove optimistic message on error
@@ -705,6 +839,16 @@ export default function DetailerDashboardPage() {
     } finally {
       setSendingMessage(false);
     }
+  };
+
+  const hasUnreadMessageForPhone = (phone?: string | null) => {
+    const phoneKey = getPhoneKey(phone);
+    if (!phoneKey) return false;
+    const latestInboundAt = latestInboundByPhone[phoneKey];
+    if (!latestInboundAt) return false;
+    const seenInboundAt = seenInboundByPhone[phoneKey];
+    if (!seenInboundAt) return true;
+    return new Date(latestInboundAt).getTime() > new Date(seenInboundAt).getTime();
   };
 
   // ─── Render ─────────────────────────────────────────────────────────
@@ -727,6 +871,7 @@ export default function DetailerDashboardPage() {
   // ─── Todo Card Component ────────────────────────────────────────────
   const TodoCard = ({ item, isCompleted = false }: { item: TodoItem; isCompleted?: boolean }) => {
     const isSelected = selectedTodoId === item.id;
+    const hasNewMessage = !isCompleted && hasUnreadMessageForPhone(item.customerPhone);
     return (
       <div
         onClick={() => { setSelectedTodoId(prev => prev === item.id ? null : item.id); setShowCustomerInfo(false); }}
@@ -774,6 +919,15 @@ export default function DetailerDashboardPage() {
                 {item.customerName && (
                   <>
                     <span className="text-[12px] text-[#9e9d92]">{item.customerName}</span>
+                    <span className="text-[10px] text-[#c1c0b8]">&middot;</span>
+                  </>
+                )}
+                {hasNewMessage && (
+                  <>
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-[#FFF7ED] text-[#EA580C] text-[10px] font-semibold">
+                      <span className="h-1.5 w-1.5 rounded-full bg-[#F97316]" />
+                      New message
+                    </span>
                     <span className="text-[10px] text-[#c1c0b8]">&middot;</span>
                   </>
                 )}
@@ -832,7 +986,7 @@ export default function DetailerDashboardPage() {
                 </span>
               </div>
               <Link
-                href="/detailer-dashboard/messages"
+                href={getMessagesHref(item.customerPhone)}
                 className="h-7 w-7 rounded-md hover:bg-[#f8f8f7] flex items-center justify-center transition-colors"
                 title="Open in messages"
               >
@@ -909,17 +1063,17 @@ export default function DetailerDashboardPage() {
                   type="text"
                   value={messageInput}
                   onChange={(e) => setMessageInput(e.target.value)}
-                  disabled={!conversationId || sendingMessage}
-                  placeholder={conversationId ? "Type a message..." : "No conversation available"}
-                  className={`w-full bg-white border rounded-full py-2.5 pl-4 pr-11 text-sm text-[#2B2B26] placeholder:text-[#9e9d92] focus:outline-none focus:border-[#c1c0b8] transition-colors ${!conversationId ? "opacity-50 cursor-not-allowed" : ""}`}
+                  disabled={sendingMessage}
+                  placeholder="Type a message..."
+                  className="w-full bg-white border rounded-full py-2.5 pl-4 pr-11 text-sm text-[#2B2B26] placeholder:text-[#9e9d92] focus:outline-none focus:border-[#c1c0b8] transition-colors"
                   style={{ borderColor: "#deded9" }}
                   onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) sendMessage(); }}
                 />
                 <button
                   onClick={sendMessage}
-                  disabled={!messageInput.trim() || sendingMessage || !conversationId}
+                  disabled={!messageInput.trim() || sendingMessage}
                   className={`absolute right-1.5 top-1/2 -translate-y-1/2 h-7 w-7 rounded-full flex items-center justify-center transition-all ${
-                    messageInput.trim() && !sendingMessage && conversationId
+                    messageInput.trim() && !sendingMessage
                       ? "bg-[#F97316] text-white hover:bg-[#EA580C]"
                       : "bg-[#deded9] text-[#9e9d92] cursor-not-allowed"
                   }`}
@@ -1367,16 +1521,27 @@ export default function DetailerDashboardPage() {
                       </div>
                       <span className="text-[13px] font-medium text-[#9e9d92]">Completed</span>
                     </div>
-                    <span className="text-[12px] text-[#c1c0b8]">{completedTodos.length}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[12px] text-[#c1c0b8]">{completedTodos.length}</span>
+                      <button
+                        type="button"
+                        onClick={() => setShowCompletedSection((prev) => !prev)}
+                        className="text-[11px] text-[#9e9d92] hover:text-[#2B2B26] transition-colors"
+                      >
+                        {showCompletedSection ? "Hide" : "Show"}
+                      </button>
+                    </div>
                   </div>
-                  <div className="space-y-1">
-                    {completedTodos.map((item) => (
-                      <div key={item.id}>
-                        <TodoCard item={item} isCompleted />
-                        <MobileConversationInline item={item} />
-                      </div>
-                    ))}
-                  </div>
+                  {showCompletedSection && (
+                    <div className="space-y-1">
+                      {completedTodos.map((item) => (
+                        <div key={item.id}>
+                          <TodoCard item={item} isCompleted />
+                          <MobileConversationInline item={item} />
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1415,7 +1580,7 @@ export default function DetailerDashboardPage() {
                     </div>
                     <div className="flex items-center gap-1">
                       <Link
-                        href="/detailer-dashboard/messages"
+                        href={getMessagesHref(selectedTodo.customerPhone)}
                         className="h-7 w-7 rounded-md hover:bg-[#f8f8f7] flex items-center justify-center transition-colors"
                         title="Open in messages"
                       >
@@ -1518,9 +1683,9 @@ export default function DetailerDashboardPage() {
                         type="text"
                         value={messageInput}
                         onChange={(e) => setMessageInput(e.target.value)}
-                        disabled={!conversationId || sendingMessage}
-                        placeholder={conversationId ? "Type a message..." : "No conversation available"}
-                        className={`w-full bg-white border rounded-full py-3 pl-4 pr-12 text-sm text-[#2B2B26] placeholder:text-[#9e9d92] focus:outline-none focus:border-[#c1c0b8] transition-colors ${!conversationId ? "opacity-50 cursor-not-allowed" : ""}`}
+                        disabled={sendingMessage}
+                        placeholder="Type a message..."
+                        className="w-full bg-white border rounded-full py-3 pl-4 pr-12 text-sm text-[#2B2B26] placeholder:text-[#9e9d92] focus:outline-none focus:border-[#c1c0b8] transition-colors"
                         style={{ borderColor: "#deded9" }}
                         onKeyDown={(e) => {
                           if (e.key === "Enter" && !e.shiftKey) sendMessage();
@@ -1528,9 +1693,9 @@ export default function DetailerDashboardPage() {
                       />
                       <button
                         onClick={sendMessage}
-                        disabled={!messageInput.trim() || sendingMessage || !conversationId}
+                        disabled={!messageInput.trim() || sendingMessage}
                         className={`absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full flex items-center justify-center transition-all ${
-                          messageInput.trim() && !sendingMessage && conversationId
+                          messageInput.trim() && !sendingMessage
                             ? "bg-[#F97316] text-white hover:bg-[#EA580C] hover:scale-105"
                             : "bg-[#deded9] text-[#9e9d92] cursor-not-allowed"
                         }`}
@@ -1540,7 +1705,7 @@ export default function DetailerDashboardPage() {
                     </div>
                     <div className="flex items-center justify-between mt-3 px-1">
                       <Link
-                        href="/detailer-dashboard/messages"
+                        href={getMessagesHref(selectedTodo.customerPhone)}
                         className="p-2 text-[#9e9d92] hover:text-[#2B2B26] hover:bg-[#f8f8f7] rounded-md transition-colors"
                         title="View full conversation"
                       >

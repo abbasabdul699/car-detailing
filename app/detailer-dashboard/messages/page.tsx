@@ -6,6 +6,8 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { formatPhoneDisplay } from '@/lib/phone';
 import { Inbox, SquarePen } from 'lucide-react';
 import Image from 'next/image';
+import { createPortal } from 'react-dom';
+import { AnimatePresence, motion } from 'framer-motion';
 
 interface Message {
   id: string;
@@ -36,6 +38,8 @@ interface Conversation {
   messages: Message[];
   customer?: Customer;
 }
+
+const normalizePhoneDigits = (value?: string | null) => (value || '').replace(/\D/g, '');
 
 export default function MessagesPage() {
   return (
@@ -70,10 +74,17 @@ function MessagesPageContent() {
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFilter, setDateFilter] = useState('');
   const [channelFilter, setChannelFilter] = useState<'all' | 'sms' | 'phone'>('all');
+  const [inboxView, setInboxView] = useState<'all' | 'leads' | 'scheduled'>('all');
+  const [leadPhoneKeys, setLeadPhoneKeys] = useState<Set<string>>(new Set());
   const [isInfoPanelOpen, setIsInfoPanelOpen] = useState(false);
   const [isAiEnabled, setIsAiEnabled] = useState(false);
+  const [isCategorySidebarOpen, setIsCategorySidebarOpen] = useState(true);
+  const [deletedConversationToast, setDeletedConversationToast] = useState<{ isOpen: boolean; isActive: boolean } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
+  const deleteConversationToastShowTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const deleteConversationToastHideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const deleteConversationToastCloseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Toggle body class to hide MobileMenu hamburger when chat view is active on mobile
   useEffect(() => {
@@ -146,6 +157,20 @@ function MessagesPageContent() {
     setIsAiEnabled(typeof aiEnabled === 'boolean' ? aiEnabled : false);
   }, [selectedConversation]);
 
+  useEffect(() => {
+    return () => {
+      if (deleteConversationToastShowTimeoutRef.current) {
+        clearTimeout(deleteConversationToastShowTimeoutRef.current);
+      }
+      if (deleteConversationToastHideTimeoutRef.current) {
+        clearTimeout(deleteConversationToastHideTimeoutRef.current);
+      }
+      if (deleteConversationToastCloseTimeoutRef.current) {
+        clearTimeout(deleteConversationToastCloseTimeoutRef.current);
+      }
+    };
+  }, []);
+
   // Add a refresh button or auto-refresh
   const refreshConversations = () => {
     fetchConversations();
@@ -164,6 +189,27 @@ function MessagesPageContent() {
         throw new Error('Failed to fetch conversations');
       }
       const data = await response.json();
+
+      try {
+        const customersResponse = await fetch('/api/detailer/customers');
+        if (customersResponse.ok) {
+          const customersData = await customersResponse.json();
+          const leadKeys = new Set<string>();
+          (customersData.customers || []).forEach((customer: any) => {
+            const phoneKey = normalizePhoneDigits(customer.customerPhone);
+            if (!phoneKey) return;
+            const isLeadCustomer =
+              (customer.customerType || '').toLowerCase() === 'new' ||
+              (customer.completedServiceCount || 0) === 0;
+            if (isLeadCustomer) {
+              leadKeys.add(phoneKey);
+            }
+          });
+          setLeadPhoneKeys(leadKeys);
+        }
+      } catch (customerMetaErr) {
+        console.error('Failed to refresh customer lead metadata:', customerMetaErr);
+      }
       
       // Check for new messages and update counts
       const newCounts: {[key: string]: number} = {};
@@ -302,12 +348,6 @@ function MessagesPageContent() {
 
   const clearConversation = async () => {
     if (!selectedConversation) return;
-    
-    const confirmClear = window.confirm(
-      'Are you sure you want to delete this conversation? This will delete all messages and cannot be undone.'
-    );
-    
-    if (!confirmClear) return;
 
     try {
       const response = await fetch(`/api/detailer/conversations?conversationId=${selectedConversation.id}`, {
@@ -321,12 +361,50 @@ function MessagesPageContent() {
       setSelectedConversation(null);
       setShowConversationList(true);
       await fetchConversations();
-      
-      alert('Conversation deleted successfully!');
+      showDeletedConversationToast();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete conversation');
       alert('Failed to delete conversation. Please try again.');
     }
+  };
+
+  const clearDeleteConversationToastTimeouts = () => {
+    if (deleteConversationToastShowTimeoutRef.current) {
+      clearTimeout(deleteConversationToastShowTimeoutRef.current);
+      deleteConversationToastShowTimeoutRef.current = null;
+    }
+    if (deleteConversationToastHideTimeoutRef.current) {
+      clearTimeout(deleteConversationToastHideTimeoutRef.current);
+      deleteConversationToastHideTimeoutRef.current = null;
+    }
+    if (deleteConversationToastCloseTimeoutRef.current) {
+      clearTimeout(deleteConversationToastCloseTimeoutRef.current);
+      deleteConversationToastCloseTimeoutRef.current = null;
+    }
+  };
+
+  const showDeletedConversationToast = () => {
+    clearDeleteConversationToastTimeouts();
+    setDeletedConversationToast({ isOpen: true, isActive: false });
+
+    deleteConversationToastShowTimeoutRef.current = setTimeout(() => {
+      setDeletedConversationToast((prev) => (prev ? { ...prev, isActive: true } : prev));
+    }, 100);
+
+    deleteConversationToastHideTimeoutRef.current = setTimeout(() => {
+      setDeletedConversationToast((prev) => (prev ? { ...prev, isActive: false } : prev));
+      deleteConversationToastCloseTimeoutRef.current = setTimeout(() => {
+        setDeletedConversationToast(null);
+      }, 300);
+    }, 5100);
+  };
+
+  const dismissDeletedConversationToast = () => {
+    clearDeleteConversationToastTimeouts();
+    setDeletedConversationToast((prev) => (prev ? { ...prev, isActive: false } : prev));
+    deleteConversationToastCloseTimeoutRef.current = setTimeout(() => {
+      setDeletedConversationToast(null);
+    }, 200);
   };
 
   const formatMessageTime = (timestamp: string) => {
@@ -388,6 +466,18 @@ function MessagesPageContent() {
 
   // Filter conversations based on search query, date, and channel
   const filteredConversations = conversations.filter(conversation => {
+    const conversationPhoneKey = normalizePhoneDigits(conversation.customerPhone);
+
+    // Inbox segment filter
+    const inboxMatch = (() => {
+      if (inboxView === 'all') return true;
+      if (inboxView === 'leads') return conversationPhoneKey ? leadPhoneKeys.has(conversationPhoneKey) : false;
+      if (inboxView === 'scheduled') return conversation.status === 'scheduled';
+      return true;
+    })();
+
+    if (!inboxMatch) return false;
+
     // Channel filter
     const channelMatch = channelFilter === 'all' || conversation.channel === channelFilter;
 
@@ -458,7 +548,6 @@ function MessagesPageContent() {
         setNewCustomerPhone('');
         setNewCustomerName('');
         
-        alert('Conversation started! The AI will reach out to the customer.');
       } else {
         const errorData = await response.json();
         // Check if it's the "already exists" error
@@ -468,7 +557,6 @@ function MessagesPageContent() {
           setShowNewConversationModal(false);
           setNewCustomerPhone('');
           setNewCustomerName('');
-          alert('Conversation already exists with this customer. Opening existing conversation.');
         } else {
           alert(`Failed to start conversation: ${errorData.error || 'Unknown error'}`);
         }
@@ -527,6 +615,43 @@ function MessagesPageContent() {
     );
   }
 
+  const deletedConversationToastPortal = deletedConversationToast?.isOpen && typeof document !== 'undefined'
+    ? createPortal(
+        <div
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[10050] pointer-events-none"
+          style={{ paddingBottom: 'max(0px, env(safe-area-inset-bottom))' }}
+        >
+          <div
+            className={`pointer-events-auto w-[370px] max-w-[calc(100vw-24px)] bg-white rounded-2xl border border-gray-200 shadow-[0_12px_32px_rgba(0,0,0,0.18)] transition-all duration-300 ${
+              deletedConversationToast.isActive ? 'translate-y-0 opacity-100' : 'translate-y-6 opacity-0'
+            }`}
+            style={{ padding: '12px' }}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gray-100">
+                  <svg className="w-3.5 h-3.5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M12 4a8 8 0 100 16 8 8 0 000-16z" />
+                  </svg>
+                </span>
+                <span>Conversation deleted</span>
+              </div>
+              <button
+                onClick={dismissDeletedConversationToast}
+                className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors"
+                aria-label="Close"
+              >
+                <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )
+    : null;
+
   return (
     <div className="absolute inset-0 flex bg-[#f8f7f4]">
       {/* New Messages Notification */}
@@ -542,48 +667,106 @@ function MessagesPageContent() {
       )}
 
       {/* Inbox Sidebar */}
-      <div className="hidden md:flex w-56 border-r border-gray-200 bg-[#f6f5f2] flex-col">
-        <div className="px-4 py-4 text-sm font-semibold text-gray-800">Inbox</div>
-        <div className="px-3 space-y-6">
-          <div className="space-y-1">
-            <div className="text-[11px] uppercase tracking-wide text-gray-400 px-2">Your Inbox</div>
-            <button className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-white text-gray-900 shadow-sm border border-gray-200">
-              <span className="text-sm font-medium flex items-center gap-2"><Inbox className="w-4 h-4 text-gray-500" />Your Inbox</span>
-              <span className="text-[11px] font-semibold bg-blue-600 text-white px-2 py-0.5 rounded-full">
-                {filteredConversations.length}
-              </span>
-            </button>
-          </div>
-          <div className="space-y-1">
-            <div className="text-[11px] uppercase tracking-wide text-gray-400 px-2">AI Agent</div>
-            <button className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-gray-700 hover:bg-white/70">
-              <Image src="/REEVA LOGO.png" alt="Reeva" width={20} height={20} className="rounded-full" />
-              <span className="text-sm">All Conversations</span>
-            </button>
-            <button className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-gray-700 hover:bg-white/70">
-              <span className="text-sm">Leads</span>
-            </button>
-            <button className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-gray-700 hover:bg-white/70">
-              <span className="text-sm">Scheduled</span>
-            </button>
-          </div>
-        </div>
-        <div className="mt-auto px-4 py-4 text-xs text-gray-400">
-          Last updated: {lastRefresh.toLocaleTimeString()}
-        </div>
-      </div>
+      <AnimatePresence initial={false}>
+        {isCategorySidebarOpen && (
+          <motion.div
+            initial={{ width: 0 }}
+            animate={{ width: 224 }}
+            exit={{ width: 0 }}
+            transition={{ duration: 0.15, ease: [0.4, 0, 0.2, 1] }}
+            className="hidden md:block shrink-0 overflow-hidden"
+          >
+            <div className="h-full w-56 border-r border-gray-200 bg-[#f6f5f2] flex flex-col">
+              <div className="px-4 py-4 text-sm font-semibold text-gray-800">Inbox</div>
+              <div className="px-3 space-y-6">
+                <div className="space-y-1">
+                  <div className="text-[11px] uppercase tracking-wide text-gray-400 px-2">Your Inbox</div>
+                  <button className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-white text-gray-900 shadow-sm border border-gray-200">
+                    <span className="text-sm font-medium flex items-center gap-2"><Inbox className="w-4 h-4 text-gray-500" />Your Inbox</span>
+                    <span className="text-[11px] font-semibold bg-blue-600 text-white px-2 py-0.5 rounded-full">
+                      {filteredConversations.length}
+                    </span>
+                  </button>
+                </div>
+                <div className="space-y-1">
+                  <div className="text-[11px] uppercase tracking-wide text-gray-400 px-2">AI Agent</div>
+                  <button
+                    onClick={() => setInboxView('all')}
+                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
+                      inboxView === 'all'
+                        ? 'bg-white text-gray-900 shadow-sm border border-gray-200'
+                        : 'text-gray-700 hover:bg-white/70'
+                    }`}
+                  >
+                    <Image src="/REEVA LOGO.png" alt="Reeva" width={20} height={20} className="rounded-full" />
+                    <span className="text-sm">All Conversations</span>
+                  </button>
+                  <button
+                    onClick={() => setInboxView('leads')}
+                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
+                      inboxView === 'leads'
+                        ? 'bg-white text-gray-900 shadow-sm border border-gray-200'
+                        : 'text-gray-700 hover:bg-white/70'
+                    }`}
+                  >
+                    <span className="text-sm">Leads</span>
+                  </button>
+                  <button
+                    onClick={() => setInboxView('scheduled')}
+                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
+                      inboxView === 'scheduled'
+                        ? 'bg-white text-gray-900 shadow-sm border border-gray-200'
+                        : 'text-gray-700 hover:bg-white/70'
+                    }`}
+                  >
+                    <span className="text-sm">Scheduled</span>
+                  </button>
+                </div>
+              </div>
+              <div className="mt-auto px-4 py-4 text-xs text-gray-400">
+                Last updated: {lastRefresh.toLocaleTimeString()}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Conversations List */}
       <div className={`${showConversationList ? 'flex' : 'hidden'} md:flex w-full md:w-[320px] border-r border-gray-200 bg-white flex-col`}>
         <div className="p-4 border-b border-gray-200">
           <div className="flex items-center justify-between">
             <div className="pl-10 md:pl-0">
-              <h1 className="text-base font-semibold text-gray-900">Your Inbox</h1>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setIsCategorySidebarOpen((prev) => !prev)}
+                  className="hidden md:flex p-1.5 text-[#57564d] hover:text-[#2B2B26] hover:bg-[#f8f8f7] rounded-md transition-colors"
+                  title={isCategorySidebarOpen ? 'Collapse categories' : 'Expand categories'}
+                >
+                  {isCategorySidebarOpen ? (
+                    <svg className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" strokeWidth={1.75} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25H12" />
+                    </svg>
+                  ) : (
+                    <svg className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" strokeWidth={1.75} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+                    </svg>
+                  )}
+                </button>
+                <h1 className="text-base font-semibold text-gray-900">Your Inbox</h1>
+              </div>
               <p className="text-xs text-gray-400 mt-0.5">
                 {searchQuery ? `${filteredConversations.length} of ${conversations.length}` : conversations.length} conversations
               </p>
             </div>
             <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowNewConversationModal(true)}
+                className="hidden md:flex p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                title="Start new conversation"
+                aria-label="Start new conversation"
+              >
+                <SquarePen className="w-4 h-4" />
+              </button>
               <button
                 onClick={refreshConversations}
                 className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
@@ -832,19 +1015,31 @@ function MessagesPageContent() {
                   </button>
                 </div>
                 <div className="px-6 py-5 space-y-6">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center text-sm font-semibold text-gray-600">
-                      {(selectedConversation.customerName || formatPhoneNumber(selectedConversation.customerPhone)).slice(0, 2).toUpperCase()}
-                    </div>
-                    <div>
-                      <div className="text-sm font-semibold text-gray-900">
-                        {selectedConversation.customerName || formatPhoneNumber(selectedConversation.customerPhone)}
+                  <button
+                    type="button"
+                    onClick={() => navigateToCustomerProfile(selectedConversation.customerPhone)}
+                    className="w-full text-left flex items-center justify-between gap-3 p-3 rounded-2xl hover:bg-gray-100 transition-colors cursor-pointer group"
+                    title="Open customer profile"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center text-sm font-semibold text-gray-600 shrink-0">
+                        {(selectedConversation.customerName || formatPhoneNumber(selectedConversation.customerPhone)).slice(0, 2).toUpperCase()}
                       </div>
-                      <div className="text-xs text-gray-500">
-                        {formatConversationDate(selectedConversation.lastMessageAt)}
+                      <div className="min-w-0 text-left">
+                        <div className="text-sm font-semibold text-gray-900 truncate">
+                          {selectedConversation.customerName || formatPhoneNumber(selectedConversation.customerPhone)}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {formatConversationDate(selectedConversation.lastMessageAt)}
+                        </div>
                       </div>
                     </div>
-                  </div>
+                    <span className="w-10 h-10 rounded-full bg-white text-gray-600 flex items-center justify-center border border-gray-200 group-hover:bg-gray-50 transition-colors shrink-0">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 17L17 7M17 7H7M17 7v10" />
+                      </svg>
+                    </span>
+                  </button>
 
                   <div className="space-y-3 text-sm text-gray-600">
                     <div className="flex items-center gap-2">
@@ -1147,6 +1342,7 @@ function MessagesPageContent() {
           </div>
         </div>
       )}
+      {deletedConversationToastPortal}
     </div>
   );
 }

@@ -11,6 +11,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { formatPhoneDisplay, normalizeToE164 } from '@/lib/phone';
 import { getCustomerTypeFromHistory } from '@/lib/customerType';
+import { createPortal } from 'react-dom';
 import {
   FunnelIcon,
 } from '@heroicons/react/24/outline';
@@ -275,8 +276,12 @@ export default function CustomersPage() {
   const PAGE_SIZE_OPTIONS = [25, 50, 75, 100, 125];
   const [showContactsFilter, setShowContactsFilter] = useState(false);
   const [showContactsSort, setShowContactsSort] = useState(false);
+  const [deletedCustomerToast, setDeletedCustomerToast] = useState<{ isOpen: boolean; isActive: boolean } | null>(null);
   const contactsFilterRef = useRef<HTMLDivElement>(null);
   const contactsSortRef = useRef<HTMLDivElement>(null);
+  const deleteCustomerToastShowTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const deleteCustomerToastHideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const deleteCustomerToastCloseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const getEffectiveCustomerType = (customer: Customer) => {
     if (customer.customerType?.toLowerCase() === 'maintenance') {
@@ -1024,9 +1029,12 @@ export default function CustomersPage() {
 
   // Apply Notion-style filtering and sorting for customers view
   const notionFilteredCustomers = React.useMemo(() => {
-    const base = contactView === 'customers' ? actualCustomers : prospectCustomers;
+    const hasSearchQuery = !!searchQuery.trim();
+    const base = hasSearchQuery
+      ? filteredCustomers
+      : (contactView === 'customers' ? actualCustomers : prospectCustomers);
     let filtered = base;
-    if (contactView === 'customers') {
+    if (!hasSearchQuery && contactView === 'customers') {
       if (contactsFilterValue === 'frequent') filtered = filtered.filter(c => (c.completedServiceCount || 0) >= 5);
       else if (contactsFilterValue === 'regular') filtered = filtered.filter(c => { const ct = c.completedServiceCount || 0; return ct >= 2 && ct <= 4; });
       else if (contactsFilterValue === 'new') filtered = filtered.filter(c => (c.completedServiceCount || 0) === 1);
@@ -1075,6 +1083,59 @@ export default function CustomersPage() {
   React.useEffect(() => {
     setCurrentPage(1);
   }, [searchQuery, contactView, contactsFilterValue, contactsSortValue]);
+
+  React.useEffect(() => {
+    return () => {
+      if (deleteCustomerToastShowTimeoutRef.current) {
+        clearTimeout(deleteCustomerToastShowTimeoutRef.current);
+      }
+      if (deleteCustomerToastHideTimeoutRef.current) {
+        clearTimeout(deleteCustomerToastHideTimeoutRef.current);
+      }
+      if (deleteCustomerToastCloseTimeoutRef.current) {
+        clearTimeout(deleteCustomerToastCloseTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const clearDeleteCustomerToastTimeouts = () => {
+    if (deleteCustomerToastShowTimeoutRef.current) {
+      clearTimeout(deleteCustomerToastShowTimeoutRef.current);
+      deleteCustomerToastShowTimeoutRef.current = null;
+    }
+    if (deleteCustomerToastHideTimeoutRef.current) {
+      clearTimeout(deleteCustomerToastHideTimeoutRef.current);
+      deleteCustomerToastHideTimeoutRef.current = null;
+    }
+    if (deleteCustomerToastCloseTimeoutRef.current) {
+      clearTimeout(deleteCustomerToastCloseTimeoutRef.current);
+      deleteCustomerToastCloseTimeoutRef.current = null;
+    }
+  };
+
+  const showDeletedCustomerToast = () => {
+    clearDeleteCustomerToastTimeouts();
+    setDeletedCustomerToast({ isOpen: true, isActive: false });
+
+    deleteCustomerToastShowTimeoutRef.current = setTimeout(() => {
+      setDeletedCustomerToast((prev) => (prev ? { ...prev, isActive: true } : prev));
+    }, 100);
+
+    deleteCustomerToastHideTimeoutRef.current = setTimeout(() => {
+      setDeletedCustomerToast((prev) => (prev ? { ...prev, isActive: false } : prev));
+      deleteCustomerToastCloseTimeoutRef.current = setTimeout(() => {
+        setDeletedCustomerToast(null);
+      }, 300);
+    }, 5100);
+  };
+
+  const dismissDeletedCustomerToast = () => {
+    clearDeleteCustomerToastTimeouts();
+    setDeletedCustomerToast((prev) => (prev ? { ...prev, isActive: false } : prev));
+    deleteCustomerToastCloseTimeoutRef.current = setTimeout(() => {
+      setDeletedCustomerToast(null);
+    }, 200);
+  };
 
   const handleBulkDelete = async () => {
     if (selectedCustomers.size === 0) return;
@@ -1436,42 +1497,87 @@ export default function CustomersPage() {
     }
   };
 
+  const deletedCustomerToastPortal = deletedCustomerToast?.isOpen && typeof document !== 'undefined'
+    ? createPortal(
+        <div
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[10050] pointer-events-none"
+          style={{ paddingBottom: 'max(0px, env(safe-area-inset-bottom))' }}
+        >
+          <div
+            className={`pointer-events-auto w-[370px] max-w-[calc(100vw-24px)] bg-white rounded-2xl border border-gray-200 shadow-[0_12px_32px_rgba(0,0,0,0.18)] transition-all duration-300 ${
+              deletedCustomerToast.isActive ? 'translate-y-0 opacity-100' : 'translate-y-6 opacity-0'
+            }`}
+            style={{ padding: '12px' }}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gray-100">
+                  <svg className="w-3.5 h-3.5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M12 4a8 8 0 100 16 8 8 0 000-16z" />
+                  </svg>
+                </span>
+                <span>Customer deleted</span>
+              </div>
+              <button
+                onClick={dismissDeletedCustomerToast}
+                className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors"
+                aria-label="Close"
+              >
+                <XMarkIcon className="w-4 h-4 text-gray-600" />
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )
+    : null;
+
   return (
     <div className="h-full min-h-0 flex bg-white overflow-hidden">
       {/* ═══ Secondary Sidebar (Desktop) ═══ */}
-      {secondarySidebarOpen && (
-        <div className="hidden md:flex flex-col w-[200px] border-r border-[#F0F0EE] bg-white shrink-0">
-          <div className="px-5 h-[52px] border-b border-[#F0F0EE] flex items-center">
-            <h2 className="text-sm font-semibold text-[#2B2B26]">Contacts</h2>
-          </div>
-          <div className="py-3 px-3 space-y-0.5">
-            <button
-              onClick={() => setContactView('customers')}
-              className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-[13px] transition-colors ${
-                contactView === 'customers'
-                  ? 'bg-[#f0f0ee] text-[#2B2B26] font-medium'
-                  : 'text-[#6b6a5e] hover:bg-[#f8f8f7] hover:text-[#2B2B26]'
-              }`}
-            >
-              <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" /></svg>
-              <span>Customers</span>
-              <span className="ml-auto text-[10px] text-[#9e9d92]">{actualCustomers.length}</span>
-            </button>
-            <button
-              onClick={() => setContactView('prospects')}
-              className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-[13px] transition-colors ${
-                contactView === 'prospects'
-                  ? 'bg-[#f0f0ee] text-[#2B2B26] font-medium'
-                  : 'text-[#6b6a5e] hover:bg-[#f8f8f7] hover:text-[#2B2B26]'
-              }`}
-            >
-              <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" /></svg>
-              <span>Prospects</span>
-              <span className="ml-auto text-[10px] text-[#9e9d92]">{prospectCustomers.length}</span>
-            </button>
-          </div>
-        </div>
-      )}
+      <AnimatePresence initial={false}>
+        {secondarySidebarOpen && (
+          <motion.div
+            initial={{ width: 0 }}
+            animate={{ width: 200 }}
+            exit={{ width: 0 }}
+            transition={{ duration: 0.15, ease: [0.4, 0, 0.2, 1] }}
+            className="hidden md:block shrink-0 overflow-hidden"
+          >
+            <div className="h-full flex flex-col w-[200px] border-r border-[#F0F0EE] bg-white">
+              <div className="px-5 h-[52px] border-b border-[#F0F0EE] flex items-center">
+                <h2 className="text-sm font-semibold text-[#2B2B26]">Contacts</h2>
+              </div>
+              <div className="py-3 px-3 space-y-0.5">
+                <button
+                  onClick={() => setContactView('customers')}
+                  className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-[13px] transition-colors ${
+                    contactView === 'customers'
+                      ? 'bg-[#f0f0ee] text-[#2B2B26] font-medium'
+                      : 'text-[#6b6a5e] hover:bg-[#f8f8f7] hover:text-[#2B2B26]'
+                  }`}
+                >
+                  <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" /></svg>
+                  <span>Customers</span>
+                  <span className="ml-auto text-[10px] text-[#9e9d92]">{actualCustomers.length}</span>
+                </button>
+                <button
+                  onClick={() => setContactView('prospects')}
+                  className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-[13px] transition-colors ${
+                    contactView === 'prospects'
+                      ? 'bg-[#f0f0ee] text-[#2B2B26] font-medium'
+                      : 'text-[#6b6a5e] hover:bg-[#f8f8f7] hover:text-[#2B2B26]'
+                  }`}
+                >
+                  <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" /></svg>
+                  <span>Prospects</span>
+                  <span className="ml-auto text-[10px] text-[#9e9d92]">{prospectCustomers.length}</span>
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ═══ Main Content ═══ */}
       <div className={`flex-1 min-h-0 flex flex-col overflow-hidden ${isActionSidebarOpen ? 'md:pr-[400px] lg:pr-[420px]' : ''}`}>
@@ -3099,13 +3205,13 @@ export default function CustomersPage() {
                 <button
                   onClick={async () => {
                     if (!selectedCustomerData?.id) return;
-                    if (!confirm('Are you sure you want to delete this customer? This action cannot be undone.')) return;
                     try {
                       const res = await fetch(`/api/detailer/customers/${selectedCustomerData.id}`, { method: 'DELETE' });
                       if (!res.ok) throw new Error('Failed to delete');
                       setIsActionSidebarOpen(false);
                       setSelectedCustomerData(null);
                       setCustomers(prev => prev.filter(c => c.id !== selectedCustomerData.id));
+                      showDeletedCustomerToast();
                     } catch (err) {
                       console.error('Delete failed:', err);
                       alert('Failed to delete customer. Please try again.');
@@ -3124,7 +3230,7 @@ export default function CustomersPage() {
         )}
       </AnimatePresence>
 
-      
+      {deletedCustomerToastPortal}
     </div>
   );
 }

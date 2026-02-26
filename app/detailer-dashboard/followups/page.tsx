@@ -398,13 +398,13 @@ export default function FollowupsPage() {
                   <ChevronRight className="h-3.5 w-3.5 text-[#6b6a5e]" />
                 </button>
               </div>
-              <div className="hidden md:flex bg-[#f0f0ee] rounded-lg p-0.5">
+              <div className="hidden md:flex bg-[#f0f0ee] rounded-full p-0.5">
                 {(["day", "week", "month"] as const).map((mode) => (
                   <button
                     key={mode}
                     onClick={() => setViewMode(mode)}
                     className={cn(
-                      "px-2.5 py-1 text-[11px] font-medium rounded-md transition-colors capitalize",
+                      "px-3 py-1 text-[11px] font-medium rounded-full transition-colors capitalize",
                       viewMode === mode ? "bg-[#e2e1dd] text-[#2B2B26] shadow-sm" : "text-[#6b6a5e] hover:text-[#2B2B26]"
                     )}
                   >

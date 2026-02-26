@@ -105,9 +105,14 @@ export async function POST(request: NextRequest) {
 
     // Do not send an initial AI message when AI is disabled by default
 
+    let vcardFlowResult: { shouldSendVcard: boolean; createdNewSnapshot: boolean } = {
+      shouldSendVcard: false,
+      createdNewSnapshot: false
+    };
+
     // Send vCard to new customer (atomic transaction)
     try {
-      const shouldSendVcard = await prisma.$transaction(async (tx) => {
+      vcardFlowResult = await prisma.$transaction(async (tx) => {
         // Check if snapshot exists
         const existingSnap = await tx.customerSnapshot.findUnique({
           where: { detailerId_customerPhone: { detailerId: detailer.id, customerPhone: e164Phone } }
@@ -118,7 +123,7 @@ export async function POST(request: NextRequest) {
           await tx.customerSnapshot.create({
             data: { detailerId: detailer.id, customerPhone: e164Phone, vcardSent: true }
           })
-          return true // Send vCard for new customer
+          return { shouldSendVcard: true, createdNewSnapshot: true }
         }
         
         if (!existingSnap.vcardSent) {
@@ -127,13 +132,13 @@ export async function POST(request: NextRequest) {
             where: { detailerId_customerPhone: { detailerId: detailer.id, customerPhone: e164Phone } },
             data: { vcardSent: true }
           })
-          return true // Send vCard
+          return { shouldSendVcard: true, createdNewSnapshot: false }
         }
         
-        return false // Already sent vCard
+        return { shouldSendVcard: false, createdNewSnapshot: false }
       })
 
-      if (shouldSendVcard) {
+      if (vcardFlowResult.shouldSendVcard) {
         const vcardUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'https://www.reevacar.com'}/api/vcard?detailerId=${detailer.id}`
         try {
           console.log('📇 Sending MMS vCard via start-conversation to:', e164Phone, 'URL:', vcardUrl)
@@ -156,40 +161,61 @@ export async function POST(request: NextRequest) {
       console.error('vCard send-once flow failed in start-conversation:', vcErr)
     }
 
-    // Create customer record if name provided
-    if (customerName) {
-      await prisma.customer.upsert({
-        where: {
-          detailerId_phone: {
-            detailerId: detailer.id,
-            phone: e164Phone
-          }
-        },
-        update: {
-          name: customerName
-        },
-        create: {
+    const normalizedCustomerName =
+      typeof customerName === 'string' ? customerName.trim() : '';
+    const customerNameForCreate =
+      normalizedCustomerName || conversation.customerName || e164Phone;
+
+    // Always persist a contact record for this phone number.
+    const persistedCustomer = await prisma.customer.upsert({
+      where: {
+        detailerId_phone: {
           detailerId: detailer.id,
-          name: customerName,
           phone: e164Phone
         }
-      });
+      },
+      update: {
+        ...(normalizedCustomerName ? { name: normalizedCustomerName } : {})
+      },
+      create: {
+        detailerId: detailer.id,
+        name: customerNameForCreate,
+        phone: e164Phone
+      }
+    });
 
-      // Also create customer snapshot so SMS system recognizes them as returning customer
-      await prisma.customerSnapshot.upsert({
-        where: {
-          detailerId_customerPhone: {
-            detailerId: detailer.id,
-            customerPhone: e164Phone
-          }
-        },
-        update: {
-          customerName: customerName
-        },
-        create: {
+    // Ensure customer snapshot exists and is linked to the persistent customer record.
+    await prisma.customerSnapshot.upsert({
+      where: {
+        detailerId_customerPhone: {
           detailerId: detailer.id,
-          customerPhone: e164Phone,
-          customerName: customerName
+          customerPhone: e164Phone
+        }
+      },
+      update: {
+        customerId: persistedCustomer.id,
+        ...(vcardFlowResult?.createdNewSnapshot ? { customerType: 'new' } : {}),
+        ...(normalizedCustomerName ? { customerName: normalizedCustomerName } : {})
+      },
+      create: {
+        detailerId: detailer.id,
+        customerPhone: e164Phone,
+        customerName: normalizedCustomerName || null,
+        customerId: persistedCustomer.id,
+        customerType: 'new'
+      }
+    });
+
+    // Keep conversation connected to the same customer/contact record.
+    if (
+      conversation.customerId !== persistedCustomer.id ||
+      (normalizedCustomerName && conversation.customerName !== normalizedCustomerName)
+    ) {
+      conversation = await prisma.conversation.update({
+        where: { id: conversation.id },
+        data: {
+          customerId: persistedCustomer.id,
+          ...(normalizedCustomerName ? { customerName: normalizedCustomerName } : {})
         }
       });
     }

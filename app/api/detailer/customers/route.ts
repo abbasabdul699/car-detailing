@@ -128,9 +128,22 @@ export async function GET(request: NextRequest) {
       const realLastAt = stats?.lastAt ? stats.lastAt.toISOString() : null;
 
       // Merge with imported historical data if present
-      const customerData = (customer.data && typeof customer.data === 'object') ? customer.data as Record<string, unknown> : {};
-      const importedVisitCount = typeof customerData.importedVisitCount === 'number' ? customerData.importedVisitCount : 0;
-      const importedLastVisit = typeof customerData.importedLastVisit === 'string' ? customerData.importedLastVisit : null;
+      const rawCustomerData = (customer.data && typeof customer.data === 'object') ? customer.data as Record<string, unknown> : {};
+      const isExplicitlyNewCustomer = (customer.customerType || '').toLowerCase() === 'new' && realCount === 0;
+      const importedVisitCount = isExplicitlyNewCustomer
+        ? 0
+        : (typeof rawCustomerData.importedVisitCount === 'number' ? rawCustomerData.importedVisitCount : 0);
+      const importedLastVisit = isExplicitlyNewCustomer
+        ? null
+        : (typeof rawCustomerData.importedLastVisit === 'string' ? rawCustomerData.importedLastVisit : null);
+      const customerData = isExplicitlyNewCustomer
+        ? {
+            ...rawCustomerData,
+            importedVisitCount: 0,
+            importedLifetimeValue: 0,
+            importedLastVisit: null
+          }
+        : rawCustomerData;
 
       // Imported visit count represents total historical visits (which may overlap
       // with real bookings tracked in the system), so take the greater of the two.
@@ -149,6 +162,7 @@ export async function GET(request: NextRequest) {
 
       return {
         ...customer,
+        data: customerData,
         completedServiceCount,
         lastCompletedServiceAt
       };
