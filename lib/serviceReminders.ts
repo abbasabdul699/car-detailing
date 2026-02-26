@@ -176,14 +176,9 @@ export async function processServiceReminders(): Promise<void> {
   const upcomingAppointmentEvents = await prisma.event.findMany({
     where: {
       eventType: 'appointment',
-      bookingId: null,
       date: {
         gte: windowStart,
         lte: windowEnd,
-      },
-      detailer: {
-        smsEnabled: true,
-        twilioPhoneNumber: { not: null },
       },
     },
     include: {
@@ -202,10 +197,24 @@ export async function processServiceReminders(): Promise<void> {
 
   for (const event of upcomingAppointmentEvents) {
     try {
+      if (event.bookingId) {
+        console.log(`↩️ Skipping event ${event.id}: has bookingId ${event.bookingId} (handled by booking reminder flow)`);
+        continue;
+      }
+
       const metadata = parseEventMetadata(event.description);
       const customerPhone = metadata.customerPhone?.trim();
       const fromNumber = event.detailer.twilioPhoneNumber?.trim();
+      if (!event.detailer.smsEnabled) {
+        console.log(`⏭️ Skipping event ${event.id}: detailer smsEnabled is false`);
+        continue;
+      }
+      if (!fromNumber) {
+        console.log(`⏭️ Skipping event ${event.id}: missing detailer Twilio number`);
+        continue;
+      }
       if (!customerPhone || !fromNumber) {
+        console.log(`⏭️ Skipping event ${event.id}: missing customer phone in event metadata`);
         continue;
       }
 
@@ -241,6 +250,7 @@ export async function processServiceReminders(): Promise<void> {
       });
 
       if (alreadySent) {
+        console.log(`↩️ Skipping event ${event.id}: reminder already sent`);
         continue;
       }
 
