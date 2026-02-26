@@ -53,6 +53,25 @@ function isWithinPostServiceSendWindow(
   return targetSendAt >= sendWindowStart && targetSendAt <= sendWindowEnd;
 }
 
+function getDayKeyInTimezone(date: Date, timezone: string): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+
+  const year = parts.find((p) => p.type === 'year')?.value ?? '0000';
+  const month = parts.find((p) => p.type === 'month')?.value ?? '00';
+  const day = parts.find((p) => p.type === 'day')?.value ?? '00';
+  return `${year}-${month}-${day}`;
+}
+
+function isSameDayInTimezone(dateA: Date, dateB: Date, timezone?: string | null): boolean {
+  const zone = timezone || 'America/New_York';
+  return getDayKeyInTimezone(dateA, zone) === getDayKeyInTimezone(dateB, zone);
+}
+
 function getDelayMinutes(): number {
   const raw = process.env.POST_SERVICE_FOLLOWUP_DELAY_MINUTES;
   if (!raw) return DEFAULT_DELAY_MINUTES;
@@ -130,6 +149,7 @@ export async function processPostServiceFollowups(): Promise<void> {
           smsEnabled: true,
           twilioPhoneNumber: true,
           googleReviewLink: true,
+          timezone: true,
         },
       },
     },
@@ -144,6 +164,9 @@ export async function processPostServiceFollowups(): Promise<void> {
           ? booking.duration
           : parseDurationMinutesFromRange(booking.scheduledTime)) || 120;
       const appointmentEnd = new Date(booking.scheduledDate.getTime() + bookingDurationMinutes * 60 * 1000);
+      if (!isSameDayInTimezone(appointmentEnd, now, booking.detailer.timezone)) {
+        continue;
+      }
       if (!isWithinPostServiceSendWindow(appointmentEnd, now, delayMinutes)) {
         continue;
       }
@@ -240,6 +263,7 @@ export async function processPostServiceFollowups(): Promise<void> {
           smsEnabled: true,
           twilioPhoneNumber: true,
           googleReviewLink: true,
+          timezone: true,
         },
       },
       booking: {
@@ -262,6 +286,9 @@ export async function processPostServiceFollowups(): Promise<void> {
 
       const eventDurationMinutes = parseDurationMinutesFromRange(event.time) || 60;
       const appointmentEnd = new Date(event.date.getTime() + eventDurationMinutes * 60 * 1000);
+      if (!isSameDayInTimezone(appointmentEnd, now, event.detailer.timezone)) {
+        continue;
+      }
       if (!isWithinPostServiceSendWindow(appointmentEnd, now, delayMinutes)) {
         console.log(`⏭️ Skipping event ${event.id}: outside post-service send window`);
         continue;
