@@ -132,11 +132,6 @@ export async function processPostServiceFollowups(): Promise<void> {
           googleReviewLink: true,
         },
       },
-      event: {
-        select: {
-          id: true,
-        },
-      },
     },
   });
 
