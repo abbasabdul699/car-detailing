@@ -6,6 +6,52 @@ const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_A
 
 const DEFAULT_DELAY_MINUTES = 60;
 const WINDOW_TOLERANCE_MINUTES = 15;
+const CANDIDATE_LOOKBACK_HOURS = 48;
+
+function parseClockTimeToMinutes(value: string): number | null {
+  const match = value.trim().toLowerCase().match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/);
+  if (!match) return null;
+
+  const hourRaw = Number(match[1]);
+  const minute = Number(match[2] || 0);
+  const meridiem = match[3];
+  if (!Number.isFinite(hourRaw) || !Number.isFinite(minute) || minute < 0 || minute > 59) return null;
+
+  if (meridiem) {
+    if (hourRaw < 1 || hourRaw > 12) return null;
+    let h24 = hourRaw % 12;
+    if (meridiem === 'pm') h24 += 12;
+    return h24 * 60 + minute;
+  }
+
+  if (hourRaw < 0 || hourRaw > 23) return null;
+  return hourRaw * 60 + minute;
+}
+
+function parseDurationMinutesFromRange(range?: string | null): number | null {
+  if (!range) return null;
+  const parts = range.split(/\s*[-–—]\s*/);
+  if (parts.length < 2) return null;
+
+  const startMin = parseClockTimeToMinutes(parts[0]);
+  const endMin = parseClockTimeToMinutes(parts[1]);
+  if (startMin == null || endMin == null) return null;
+
+  let duration = endMin - startMin;
+  if (duration <= 0) duration += 24 * 60;
+  return duration;
+}
+
+function isWithinPostServiceSendWindow(
+  appointmentEnd: Date,
+  now: Date,
+  delayMinutes: number
+): boolean {
+  const targetSendAt = new Date(appointmentEnd.getTime() + delayMinutes * 60 * 1000);
+  const sendWindowStart = new Date(now.getTime() - WINDOW_TOLERANCE_MINUTES * 60 * 1000);
+  const sendWindowEnd = new Date(now.getTime() + WINDOW_TOLERANCE_MINUTES * 60 * 1000);
+  return targetSendAt >= sendWindowStart && targetSendAt <= sendWindowEnd;
+}
 
 function getDelayMinutes(): number {
   const raw = process.env.POST_SERVICE_FOLLOWUP_DELAY_MINUTES;
@@ -57,11 +103,10 @@ function buildPostServiceMessage(input: {
 export async function processPostServiceFollowups(): Promise<void> {
   const delayMinutes = getDelayMinutes();
   const now = new Date();
-  const windowStart = new Date(now.getTime() - (delayMinutes + WINDOW_TOLERANCE_MINUTES) * 60 * 1000);
-  const windowEnd = new Date(now.getTime() - (delayMinutes - WINDOW_TOLERANCE_MINUTES) * 60 * 1000);
+  const candidateStart = new Date(now.getTime() - CANDIDATE_LOOKBACK_HOURS * 60 * 60 * 1000);
 
   console.log(
-    `🔄 Processing post-service followups ${delayMinutes}m after appointment between ${windowStart.toISOString()} and ${windowEnd.toISOString()}`
+    `🔄 Processing post-service followups ${delayMinutes}m after appointment end (candidates since ${candidateStart.toISOString()})`
   );
 
   const completedBookings = await prisma.booking.findMany({
@@ -69,8 +114,8 @@ export async function processPostServiceFollowups(): Promise<void> {
       status: 'completed',
       customerPhone: { not: '' },
       scheduledDate: {
-        gte: windowStart,
-        lte: windowEnd,
+        gte: candidateStart,
+        lte: now,
       },
       detailer: {
         smsEnabled: true,
@@ -94,6 +139,15 @@ export async function processPostServiceFollowups(): Promise<void> {
 
   for (const booking of completedBookings) {
     try {
+      const bookingDurationMinutes =
+        (typeof booking.duration === 'number' && booking.duration > 0
+          ? booking.duration
+          : parseDurationMinutesFromRange(booking.scheduledTime)) || 120;
+      const appointmentEnd = new Date(booking.scheduledDate.getTime() + bookingDurationMinutes * 60 * 1000);
+      if (!isWithinPostServiceSendWindow(appointmentEnd, now, delayMinutes)) {
+        continue;
+      }
+
       const customerPhone = booking.customerPhone?.trim();
       const fromNumber = booking.detailer.twilioPhoneNumber?.trim();
       if (!customerPhone || !fromNumber) continue;
@@ -175,8 +229,8 @@ export async function processPostServiceFollowups(): Promise<void> {
       eventType: 'appointment',
       bookingId: null,
       date: {
-        gte: windowStart,
-        lte: windowEnd,
+        gte: candidateStart,
+        lte: now,
       },
     },
     include: {
@@ -196,6 +250,12 @@ export async function processPostServiceFollowups(): Promise<void> {
 
   for (const event of appointmentEvents) {
     try {
+      const eventDurationMinutes = parseDurationMinutesFromRange(event.time) || 60;
+      const appointmentEnd = new Date(event.date.getTime() + eventDurationMinutes * 60 * 1000);
+      if (!isWithinPostServiceSendWindow(appointmentEnd, now, delayMinutes)) {
+        continue;
+      }
+
       const metadata = parseEventMetadata(event.description);
       const customerPhone = metadata.customerPhone?.trim();
       const fromNumber = event.detailer.twilioPhoneNumber?.trim();
