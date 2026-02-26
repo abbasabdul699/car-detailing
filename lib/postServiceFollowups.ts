@@ -111,7 +111,7 @@ export async function processPostServiceFollowups(): Promise<void> {
 
   const completedBookings = await prisma.booking.findMany({
     where: {
-      status: 'completed',
+      status: { in: ['confirmed', 'completed'] },
       customerPhone: { not: '' },
       scheduledDate: {
         gte: candidateStart,
@@ -130,6 +130,11 @@ export async function processPostServiceFollowups(): Promise<void> {
           smsEnabled: true,
           twilioPhoneNumber: true,
           googleReviewLink: true,
+        },
+      },
+      event: {
+        select: {
+          id: true,
         },
       },
     },
@@ -227,7 +232,6 @@ export async function processPostServiceFollowups(): Promise<void> {
   const appointmentEvents = await prisma.event.findMany({
     where: {
       eventType: 'appointment',
-      bookingId: null,
       date: {
         gte: candidateStart,
         lte: now,
@@ -243,6 +247,12 @@ export async function processPostServiceFollowups(): Promise<void> {
           googleReviewLink: true,
         },
       },
+      booking: {
+        select: {
+          id: true,
+          status: true,
+        },
+      },
     },
   });
 
@@ -250,9 +260,15 @@ export async function processPostServiceFollowups(): Promise<void> {
 
   for (const event of appointmentEvents) {
     try {
+      if (event.booking && !['confirmed', 'completed'].includes(event.booking.status)) {
+        console.log(`⏭️ Skipping event ${event.id}: linked booking status is ${event.booking.status}`);
+        continue;
+      }
+
       const eventDurationMinutes = parseDurationMinutesFromRange(event.time) || 60;
       const appointmentEnd = new Date(event.date.getTime() + eventDurationMinutes * 60 * 1000);
       if (!isWithinPostServiceSendWindow(appointmentEnd, now, delayMinutes)) {
+        console.log(`⏭️ Skipping event ${event.id}: outside post-service send window`);
         continue;
       }
 
@@ -260,8 +276,18 @@ export async function processPostServiceFollowups(): Promise<void> {
       const customerPhone = metadata.customerPhone?.trim();
       const fromNumber = event.detailer.twilioPhoneNumber?.trim();
 
-      if (!event.detailer.smsEnabled) continue;
-      if (!customerPhone || !fromNumber) continue;
+      if (!event.detailer.smsEnabled) {
+        console.log(`⏭️ Skipping event ${event.id}: detailer smsEnabled is false`);
+        continue;
+      }
+      if (!fromNumber) {
+        console.log(`⏭️ Skipping event ${event.id}: missing detailer Twilio number`);
+        continue;
+      }
+      if (!customerPhone) {
+        console.log(`⏭️ Skipping event ${event.id}: missing customer phone in metadata`);
+        continue;
+      }
 
       const conversation = await prisma.conversation.upsert({
         where: {
@@ -284,7 +310,9 @@ export async function processPostServiceFollowups(): Promise<void> {
         },
       });
 
-      const followupKey = `post-service-followup-event:${event.id}`;
+      const followupKey = event.bookingId
+        ? `post-service-followup-booking:${event.bookingId}`
+        : `post-service-followup-event:${event.id}`;
       const alreadySent = await prisma.message.findFirst({
         where: {
           conversationId: conversation.id,
@@ -294,7 +322,10 @@ export async function processPostServiceFollowups(): Promise<void> {
         select: { id: true },
       });
 
-      if (alreadySent) continue;
+      if (alreadySent) {
+        console.log(`↩️ Skipping event ${event.id}: post-service followup already sent`);
+        continue;
+      }
 
       const message = buildPostServiceMessage({
         customerName: metadata.customerName || null,
