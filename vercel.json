@@ -9,6 +9,10 @@
     {
       "path": "/api/cron/service-reminders",
       "schedule": "*/10 * * * *"
+    },
+    {
+      "path": "/api/cron/post-service-followups",
+      "schedule": "*/10 * * * *"
     }
   ]
 }
