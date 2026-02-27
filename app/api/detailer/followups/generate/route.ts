@@ -74,6 +74,23 @@ function isDayOpen(businessHours: Record<string, unknown>, dayName: string): boo
   return false;
 }
 
+function mergeUniqueStrings(values: Array<string[] | null | undefined>): string[] {
+  const seen = new Set<string>();
+  const merged: string[] = [];
+  for (const list of values) {
+    if (!list) continue;
+    for (const raw of list) {
+      const value = (raw || '').trim();
+      if (!value) continue;
+      const key = value.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      merged.push(value);
+    }
+  }
+  return merged;
+}
+
 async function fetchWeatherForecast(zipCode: string): Promise<WeatherDay[]> {
   const apiKey = process.env.WEATHER_API_KEY;
   if (!apiKey) return [];
@@ -269,7 +286,7 @@ export async function POST(request: NextRequest) {
         .map(f => normalizeToE164(f.customerPhone!) || f.customerPhone!)
     );
 
-    const eligibleCustomers = customers
+    const eligibleCustomersRaw = customers
       .map((c) => {
         const normalizedPhone = normalizeToE164(c.customerPhone) || c.customerPhone;
         const stats = completedServiceStats.get(normalizedPhone);
@@ -334,7 +351,57 @@ export async function POST(request: NextRequest) {
       })
       .filter((c) => c.completedServiceCount >= 1)
       .filter((c) => !existingPhones.has(c.normalizedPhone))
-      .slice(0, 25);
+      .slice(0, 100);
+
+    // Deduplicate same customer appearing from multiple source records
+    // (commonly caused by phone formatting variants).
+    const dedupedByIdentity = new Map<string, typeof eligibleCustomersRaw[number]>();
+    for (const customer of eligibleCustomersRaw) {
+      const normalizedPhone = (customer.normalizedPhone || '').trim();
+      const phoneKey = normalizedPhone ? `phone:${normalizedPhone}` : '';
+      const customerIdKey = customer.customerId ? `customer:${customer.customerId}` : '';
+      const emailKey = customer.customerEmail ? `email:${customer.customerEmail.toLowerCase()}` : '';
+      const nameKey = customer.customerName ? `name:${customer.customerName.toLowerCase()}` : '';
+      const key = phoneKey || customerIdKey || emailKey || nameKey || `snapshot:${customer.id}`;
+
+      const existing = dedupedByIdentity.get(key);
+      if (!existing) {
+        dedupedByIdentity.set(key, customer);
+        continue;
+      }
+
+      const mergedVehicles = mergeUniqueStrings([existing.vehicles, customer.vehicles]);
+      const mergedServices = mergeUniqueStrings([existing.services, customer.services]);
+
+      const currentLastServiceDate = existing.daysSinceVisit ?? Number.MAX_SAFE_INTEGER;
+      const incomingLastServiceDate = customer.daysSinceVisit ?? Number.MAX_SAFE_INTEGER;
+      const pickMostRecent = incomingLastServiceDate < currentLastServiceDate;
+
+      dedupedByIdentity.set(key, {
+        ...existing,
+        customerName:
+          (existing.customerName && existing.customerName !== 'Unknown')
+            ? existing.customerName
+            : customer.customerName,
+        customerEmail: existing.customerEmail || customer.customerEmail,
+        customerPhone: existing.customerPhone || customer.customerPhone,
+        vehicles: mergedVehicles,
+        vehicleInfo: mergedVehicles.join(' + '),
+        services: mergedServices,
+        lastService: pickMostRecent ? (customer.lastService || existing.lastService) : (existing.lastService || customer.lastService),
+        daysSinceVisit:
+          pickMostRecent
+            ? (customer.daysSinceVisit ?? existing.daysSinceVisit)
+            : (existing.daysSinceVisit ?? customer.daysSinceVisit),
+        completedServiceCount: Math.max(existing.completedServiceCount, customer.completedServiceCount),
+        lifetimeValue: Math.max(existing.lifetimeValue ?? 0, customer.lifetimeValue ?? 0) || null,
+        pets: existing.pets || customer.pets,
+        kids: existing.kids || customer.kids,
+        notes: existing.notes || customer.notes,
+      });
+    }
+
+    const eligibleCustomers = Array.from(dedupedByIdentity.values()).slice(0, 25);
 
     // ── 7. Sort by priority tier, then by LTV within tier ─────────────────────
 
