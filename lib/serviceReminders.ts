@@ -4,8 +4,18 @@ import twilio from 'twilio';
 const prisma = new PrismaClient();
 const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
 
-const REMINDER_WINDOW_START_HOURS = 23.75; // 23h 45m
-const REMINDER_WINDOW_END_HOURS = 24.25;   // 24h 15m
+type ReminderType = '24h' | '1h';
+
+type ReminderWindow = {
+  type: ReminderType;
+  windowStartHours: number;
+  windowEndHours: number;
+};
+
+const REMINDER_WINDOWS: ReminderWindow[] = [
+  { type: '24h', windowStartHours: 23.75, windowEndHours: 24.25 }, // 23h 45m -> 24h 15m
+  { type: '1h', windowStartHours: 0.75, windowEndHours: 1.25 }, // 45m -> 75m
+];
 
 function formatAppointmentTime(date: Date, timezone?: string): string {
   return new Intl.DateTimeFormat('en-US', {
@@ -21,10 +31,18 @@ function buildReminderMessage(booking: {
   scheduledDate: Date;
   services: string[];
   detailer: { timezone: string | null };
+  reminderType: ReminderType;
 }): string {
   const firstName = booking.customerName?.trim()?.split(/\s+/)[0] || 'there';
   const timeText = formatAppointmentTime(booking.scheduledDate, booking.detailer.timezone || undefined);
   const primaryService = booking.services?.[0]?.trim();
+
+  if (booking.reminderType === '1h') {
+    if (primaryService) {
+      return `Hey ${firstName}, quick reminder that your appointment for ${timeText} is in about 1 hour for a ${primaryService}.`;
+    }
+    return `Hey ${firstName}, quick reminder that your appointment for ${timeText} is in about 1 hour.`;
+  }
 
   if (primaryService) {
     return `Hey ${firstName}, just a reminder that you have an appointment for ${timeText} tomorrow for a ${primaryService}.`;
@@ -59,239 +77,247 @@ function parseEventMetadata(description?: string | null): {
 
 export async function processServiceReminders(): Promise<void> {
   const now = new Date();
-  const windowStart = new Date(now.getTime() + REMINDER_WINDOW_START_HOURS * 60 * 60 * 1000);
-  const windowEnd = new Date(now.getTime() + REMINDER_WINDOW_END_HOURS * 60 * 60 * 1000);
+  for (const reminderWindow of REMINDER_WINDOWS) {
+    const windowStart = new Date(now.getTime() + reminderWindow.windowStartHours * 60 * 60 * 1000);
+    const windowEnd = new Date(now.getTime() + reminderWindow.windowEndHours * 60 * 60 * 1000);
 
-  console.log(`🔄 Processing 24h booking reminders between ${windowStart.toISOString()} and ${windowEnd.toISOString()}`);
+    console.log(
+      `🔄 Processing ${reminderWindow.type} booking reminders between ${windowStart.toISOString()} and ${windowEnd.toISOString()}`
+    );
 
-  const upcomingBookings = await prisma.booking.findMany({
-    where: {
-      status: { in: ['pending', 'confirmed'] },
-      customerPhone: { not: '' },
-      scheduledDate: {
-        gte: windowStart,
-        lte: windowEnd,
-      },
-      detailer: {
-        smsEnabled: true,
-        twilioPhoneNumber: { not: null },
-      },
-    },
-    include: {
-      detailer: {
-        select: {
-          id: true,
+    const upcomingBookings = await prisma.booking.findMany({
+      where: {
+        status: { in: ['pending', 'confirmed'] },
+        customerPhone: { not: '' },
+        scheduledDate: {
+          gte: windowStart,
+          lte: windowEnd,
+        },
+        detailer: {
           smsEnabled: true,
-          twilioPhoneNumber: true,
-          timezone: true,
+          twilioPhoneNumber: { not: null },
         },
       },
-    },
-  });
+      include: {
+        detailer: {
+          select: {
+            id: true,
+            smsEnabled: true,
+            twilioPhoneNumber: true,
+            timezone: true,
+          },
+        },
+      },
+    });
 
-  console.log(`📋 Found ${upcomingBookings.length} bookings eligible for 24h reminders`);
+    console.log(`📋 Found ${upcomingBookings.length} bookings eligible for ${reminderWindow.type} reminders`);
 
-  for (const booking of upcomingBookings) {
-    try {
-      const customerPhone = booking.customerPhone?.trim();
-      const fromNumber = booking.detailer.twilioPhoneNumber?.trim();
-      if (!customerPhone || !fromNumber) continue;
+    for (const booking of upcomingBookings) {
+      try {
+        const customerPhone = booking.customerPhone?.trim();
+        const fromNumber = booking.detailer.twilioPhoneNumber?.trim();
+        if (!customerPhone || !fromNumber) continue;
 
-      const conversation = await prisma.conversation.upsert({
-        where: {
-          detailerId_customerPhone: {
+        const conversation = await prisma.conversation.upsert({
+          where: {
+            detailerId_customerPhone: {
+              detailerId: booking.detailerId,
+              customerPhone,
+            },
+          },
+          create: {
             detailerId: booking.detailerId,
             customerPhone,
+            customerName: booking.customerName || undefined,
+            status: 'active',
+            channel: 'sms',
+          },
+          update: {
+            customerName: booking.customerName || undefined,
+            status: 'active',
+            channel: 'sms',
+          },
+        });
+
+        const reminderKey = `booking-reminder-${reminderWindow.type}:${booking.id}`;
+        const alreadySent = await prisma.message.findFirst({
+          where: {
+            conversationId: conversation.id,
+            direction: 'outbound',
+            vapiCallId: reminderKey,
+          },
+          select: { id: true },
+        });
+
+        if (alreadySent) {
+          continue;
+        }
+
+        const reminderMessage = buildReminderMessage({
+          customerName: booking.customerName,
+          scheduledDate: booking.scheduledDate,
+          services: booking.services,
+          detailer: { timezone: booking.detailer.timezone },
+          reminderType: reminderWindow.type,
+        });
+
+        const twilioMessage = await twilioClient.messages.create({
+          body: reminderMessage,
+          from: fromNumber,
+          to: customerPhone,
+        });
+
+        await prisma.message.create({
+          data: {
+            conversationId: conversation.id,
+            direction: 'outbound',
+            channel: 'sms',
+            content: reminderMessage,
+            status: twilioMessage.status || 'sent',
+            twilioSid: twilioMessage.sid,
+            vapiCallId: reminderKey,
+          },
+        });
+
+        await prisma.conversation.update({
+          where: { id: conversation.id },
+          data: {
+            lastMessageAt: new Date(),
+            status: 'active',
+          },
+        });
+
+        console.log(`✅ Sent ${reminderWindow.type} reminder for booking ${booking.id} to ${customerPhone}`);
+      } catch (error) {
+        console.error(`❌ Failed sending ${reminderWindow.type} reminder for booking ${booking.id}:`, error);
+      }
+    }
+
+    // Calendar-created appointments may exist as events without a Booking row.
+    // Process those too so reminders still send from calendar scheduling flow.
+    const upcomingAppointmentEvents = await prisma.event.findMany({
+      where: {
+        eventType: 'appointment',
+        date: {
+          gte: windowStart,
+          lte: windowEnd,
+        },
+      },
+      include: {
+        detailer: {
+          select: {
+            id: true,
+            smsEnabled: true,
+            twilioPhoneNumber: true,
+            timezone: true,
           },
         },
-        create: {
-          detailerId: booking.detailerId,
-          customerPhone,
-          customerName: booking.customerName || undefined,
-          status: 'active',
-          channel: 'sms',
-        },
-        update: {
-          customerName: booking.customerName || undefined,
-          status: 'active',
-          channel: 'sms',
-        },
-      });
-
-      const reminderKey = `booking-reminder-24h:${booking.id}`;
-      const alreadySent = await prisma.message.findFirst({
-        where: {
-          conversationId: conversation.id,
-          direction: 'outbound',
-          vapiCallId: reminderKey,
-        },
-        select: { id: true },
-      });
-
-      if (alreadySent) {
-        continue;
-      }
-
-      const reminderMessage = buildReminderMessage({
-        customerName: booking.customerName,
-        scheduledDate: booking.scheduledDate,
-        services: booking.services,
-        detailer: { timezone: booking.detailer.timezone },
-      });
-
-      const twilioMessage = await twilioClient.messages.create({
-        body: reminderMessage,
-        from: fromNumber,
-        to: customerPhone,
-      });
-
-      await prisma.message.create({
-        data: {
-          conversationId: conversation.id,
-          direction: 'outbound',
-          channel: 'sms',
-          content: reminderMessage,
-          status: twilioMessage.status || 'sent',
-          twilioSid: twilioMessage.sid,
-          vapiCallId: reminderKey,
-        },
-      });
-
-      await prisma.conversation.update({
-        where: { id: conversation.id },
-        data: {
-          lastMessageAt: new Date(),
-          status: 'active',
-        },
-      });
-
-      console.log(`✅ Sent 24h reminder for booking ${booking.id} to ${customerPhone}`);
-    } catch (error) {
-      console.error(`❌ Failed sending 24h reminder for booking ${booking.id}:`, error);
-    }
-  }
-
-  // Calendar-created appointments may exist as events without a Booking row.
-  // Process those too so reminders still send from calendar scheduling flow.
-  const upcomingAppointmentEvents = await prisma.event.findMany({
-    where: {
-      eventType: 'appointment',
-      date: {
-        gte: windowStart,
-        lte: windowEnd,
       },
-    },
-    include: {
-      detailer: {
-        select: {
-          id: true,
-          smsEnabled: true,
-          twilioPhoneNumber: true,
-          timezone: true,
-        },
-      },
-    },
-  });
+    });
 
-  console.log(`📋 Found ${upcomingAppointmentEvents.length} calendar appointment events eligible for 24h reminders`);
+    console.log(
+      `📋 Found ${upcomingAppointmentEvents.length} calendar appointment events eligible for ${reminderWindow.type} reminders`
+    );
 
-  for (const event of upcomingAppointmentEvents) {
-    try {
-      if (event.bookingId) {
-        console.log(`↩️ Skipping event ${event.id}: has bookingId ${event.bookingId} (handled by booking reminder flow)`);
-        continue;
-      }
+    for (const event of upcomingAppointmentEvents) {
+      try {
+        if (event.bookingId) {
+          console.log(`↩️ Skipping event ${event.id}: has bookingId ${event.bookingId} (handled by booking reminder flow)`);
+          continue;
+        }
 
-      const metadata = parseEventMetadata(event.description);
-      const customerPhone = metadata.customerPhone?.trim();
-      const fromNumber = event.detailer.twilioPhoneNumber?.trim();
-      if (!event.detailer.smsEnabled) {
-        console.log(`⏭️ Skipping event ${event.id}: detailer smsEnabled is false`);
-        continue;
-      }
-      if (!fromNumber) {
-        console.log(`⏭️ Skipping event ${event.id}: missing detailer Twilio number`);
-        continue;
-      }
-      if (!customerPhone || !fromNumber) {
-        console.log(`⏭️ Skipping event ${event.id}: missing customer phone in event metadata`);
-        continue;
-      }
+        const metadata = parseEventMetadata(event.description);
+        const customerPhone = metadata.customerPhone?.trim();
+        const fromNumber = event.detailer.twilioPhoneNumber?.trim();
+        if (!event.detailer.smsEnabled) {
+          console.log(`⏭️ Skipping event ${event.id}: detailer smsEnabled is false`);
+          continue;
+        }
+        if (!fromNumber) {
+          console.log(`⏭️ Skipping event ${event.id}: missing detailer Twilio number`);
+          continue;
+        }
+        if (!customerPhone || !fromNumber) {
+          console.log(`⏭️ Skipping event ${event.id}: missing customer phone in event metadata`);
+          continue;
+        }
 
-      const conversation = await prisma.conversation.upsert({
-        where: {
-          detailerId_customerPhone: {
+        const conversation = await prisma.conversation.upsert({
+          where: {
+            detailerId_customerPhone: {
+              detailerId: event.detailerId,
+              customerPhone,
+            },
+          },
+          create: {
             detailerId: event.detailerId,
             customerPhone,
+            customerName: metadata.customerName || undefined,
+            status: 'active',
+            channel: 'sms',
           },
-        },
-        create: {
-          detailerId: event.detailerId,
-          customerPhone,
-          customerName: metadata.customerName || undefined,
-          status: 'active',
-          channel: 'sms',
-        },
-        update: {
-          customerName: metadata.customerName || undefined,
-          status: 'active',
-          channel: 'sms',
-        },
-      });
+          update: {
+            customerName: metadata.customerName || undefined,
+            status: 'active',
+            channel: 'sms',
+          },
+        });
 
-      const reminderKey = `event-reminder-24h:${event.id}`;
-      const alreadySent = await prisma.message.findFirst({
-        where: {
-          conversationId: conversation.id,
-          direction: 'outbound',
-          vapiCallId: reminderKey,
-        },
-        select: { id: true },
-      });
+        const reminderKey = `event-reminder-${reminderWindow.type}:${event.id}`;
+        const alreadySent = await prisma.message.findFirst({
+          where: {
+            conversationId: conversation.id,
+            direction: 'outbound',
+            vapiCallId: reminderKey,
+          },
+          select: { id: true },
+        });
 
-      if (alreadySent) {
-        console.log(`↩️ Skipping event ${event.id}: reminder already sent`);
-        continue;
+        if (alreadySent) {
+          console.log(`↩️ Skipping event ${event.id}: reminder already sent`);
+          continue;
+        }
+
+        const reminderMessage = buildReminderMessage({
+          customerName: metadata.customerName || null,
+          scheduledDate: event.date,
+          services: metadata.services || [],
+          detailer: { timezone: event.detailer.timezone },
+          reminderType: reminderWindow.type,
+        });
+
+        const twilioMessage = await twilioClient.messages.create({
+          body: reminderMessage,
+          from: fromNumber,
+          to: customerPhone,
+        });
+
+        await prisma.message.create({
+          data: {
+            conversationId: conversation.id,
+            direction: 'outbound',
+            channel: 'sms',
+            content: reminderMessage,
+            status: twilioMessage.status || 'sent',
+            twilioSid: twilioMessage.sid,
+            vapiCallId: reminderKey,
+          },
+        });
+
+        await prisma.conversation.update({
+          where: { id: conversation.id },
+          data: {
+            lastMessageAt: new Date(),
+            status: 'active',
+          },
+        });
+
+        console.log(`✅ Sent ${reminderWindow.type} reminder for calendar event ${event.id} to ${customerPhone}`);
+      } catch (error) {
+        console.error(`❌ Failed sending ${reminderWindow.type} reminder for calendar event ${event.id}:`, error);
       }
-
-      const reminderMessage = buildReminderMessage({
-        customerName: metadata.customerName || null,
-        scheduledDate: event.date,
-        services: metadata.services || [],
-        detailer: { timezone: event.detailer.timezone },
-      });
-
-      const twilioMessage = await twilioClient.messages.create({
-        body: reminderMessage,
-        from: fromNumber,
-        to: customerPhone,
-      });
-
-      await prisma.message.create({
-        data: {
-          conversationId: conversation.id,
-          direction: 'outbound',
-          channel: 'sms',
-          content: reminderMessage,
-          status: twilioMessage.status || 'sent',
-          twilioSid: twilioMessage.sid,
-          vapiCallId: reminderKey,
-        },
-      });
-
-      await prisma.conversation.update({
-        where: { id: conversation.id },
-        data: {
-          lastMessageAt: new Date(),
-          status: 'active',
-        },
-      });
-
-      console.log(`✅ Sent 24h reminder for calendar event ${event.id} to ${customerPhone}`);
-    } catch (error) {
-      console.error(`❌ Failed sending 24h reminder for calendar event ${event.id}:`, error);
     }
   }
 
-  console.log('✅ 24h booking reminder processing complete');
+  console.log('✅ Service reminder processing complete');
 }

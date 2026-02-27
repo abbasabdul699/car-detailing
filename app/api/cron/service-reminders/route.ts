@@ -23,14 +23,14 @@ async function handleCron(request: NextRequest) {
   }
 
   await processServiceReminders();
-  return NextResponse.json({ success: true, message: '24h service reminders processed successfully' });
+  return NextResponse.json({ success: true, message: 'Service reminders processed successfully' });
 }
 
 export async function POST(request: NextRequest) {
   try {
     return await handleCron(request);
   } catch (error) {
-    console.error('❌ Error processing 24h service reminders (POST):', error);
+    console.error('❌ Error processing service reminders (POST):', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
   try {
     return await handleCron(request);
   } catch (error) {
-    console.error('❌ Error processing 24h service reminders (GET):', error);
+    console.error('❌ Error processing service reminders (GET):', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
